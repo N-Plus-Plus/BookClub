@@ -1,0 +1,2 @@
+# Copy to worker/.dev.vars.local; never commit the populated file.
+TMDB_READ_TOKEN=

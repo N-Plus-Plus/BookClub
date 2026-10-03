@@ -1,0 +1,42 @@
+{
+  "name": "bookclub",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "pnpm db:setup && concurrently -k -n ui,api \"pnpm dev:ui\" \"pnpm dev:api\"",
+    "dev:ui": "vite",
+    "dev:api": "wrangler dev --config worker/wrangler.jsonc --env local --local --port 8787",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json && tsc -p worker/tsconfig.json",
+    "db:migrate": "wrangler d1 migrations apply DB --config worker/wrangler.jsonc --env local --local",
+    "db:seed": "wrangler d1 execute DB --config worker/wrangler.jsonc --env local --local --file worker/seed.sql",
+    "db:setup": "pnpm db:migrate && pnpm db:seed",
+    "db:reset": "wrangler d1 execute DB --config worker/wrangler.jsonc --env local --local --file worker/reset.sql && pnpm db:setup"
+  },
+  "dependencies": {
+    "@fontsource/lexend-deca": "^5.3.0",
+    "lucide-react": "^1.51.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261003.1",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "concurrently": "^10.0.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3",
+    "wrangler": "^4.147.0"
+  }
+}

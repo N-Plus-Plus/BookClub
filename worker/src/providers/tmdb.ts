@@ -1,0 +1,44 @@
+import type { MovieArtworkProvider, MovieMetadataProvider, MovieScoreProvider, MovieSearchProvider, ProviderMovie } from './types';
+import type { SearchResult } from '../../../shared/types';
+import { ApiError } from '../http';
+import { normalizeScore } from '../../../shared/ranking';
+
+interface TmdbFilm {
+  id: number; title: string; original_title: string; release_date?: string; runtime?: number;
+  overview?: string; poster_path?: string; backdrop_path?: string; genres?: { name: string }[];
+  vote_average: number; vote_count: number; external_ids?: { imdb_id?: string };
+}
+export class TmdbProvider implements MovieSearchProvider, MovieMetadataProvider, MovieArtworkProvider, MovieScoreProvider {
+  constructor(private token: string) {}
+  private async request<T>(path: string): Promise<T> {
+    let response: Response;
+    try {
+      response = await fetch(`https://api.themoviedb.org/3/${path}`, {
+        headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/json' }, signal: AbortSignal.timeout(8000),
+      });
+    } catch { throw new ApiError(503, 'PROVIDER_UNAVAILABLE', 'TMDB could not be reached. Try again or add a film manually.'); }
+    if (!response.ok) throw new ApiError(response.status === 404 ? 404 : 503, 'PROVIDER_UNAVAILABLE',
+      response.status === 404 ? 'This film was not found on TMDB.' : 'TMDB lookup is unavailable. Check the Worker credential or try later.');
+    return response.json() as Promise<T>;
+  }
+  async search(query: string): Promise<SearchResult[]> {
+    const result = await this.request<{results: TmdbFilm[]}>(`search/movie?query=${encodeURIComponent(query)}&include_adult=false`);
+    return result.results.slice(0,20).map(m => ({ provider: 'tmdb', externalId: String(m.id), title: m.title,
+      year: m.release_date ? Number(m.release_date.slice(0,4)) : null,
+      poster: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null }));
+  }
+  async details(id: string): Promise<ProviderMovie> {
+    const m = await this.request<TmdbFilm>(`movie/${encodeURIComponent(id)}?append_to_response=external_ids`);
+    const fetched_at = new Date().toISOString();
+    return { title: m.title, original_title: m.original_title ?? null, year: m.release_date ? Number(m.release_date.slice(0,4)) : null,
+      release_date: m.release_date || null, runtime: m.runtime || null, overview: m.overview || null,
+      genres: m.genres?.map(g => g.name) ?? [],
+      external_ids: [{ provider: 'tmdb', external_id: String(m.id) }, ...(m.external_ids?.imdb_id ? [{ provider: 'imdb', external_id: m.external_ids.imdb_id }] : [])],
+      assets: [ ...(m.poster_path ? [{ provider: 'tmdb', asset_type: 'poster' as const, reference: `https://image.tmdb.org/t/p/w500${m.poster_path}`, width: null, height: null, preferred: 1 }] : []),
+        ...(m.backdrop_path ? [{ provider: 'tmdb', asset_type: 'backdrop' as const, reference: `https://image.tmdb.org/t/p/w1280${m.backdrop_path}`, width: null, height: null, preferred: 1 }] : []) ],
+      scores: [{ provider: 'tmdb', metric: 'rating', raw_value: m.vote_average, raw_scale: 10,
+        normalized_value: normalizeScore(m.vote_average,10), vote_count: m.vote_count, fetched_at }], fetched_at };
+  }
+  async artwork(id: string) { return (await this.details(id)).assets; }
+  async scores(id: string) { return (await this.details(id)).scores; }
+}
