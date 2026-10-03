@@ -8,7 +8,7 @@ async function call(path,method = 'GET',body) {
   assert.equal(response.ok,true,JSON.stringify(result)); return result.data;
 }
 const health = await call('/health');
-assert.equal(health.environment,'local'); assert.equal(health.writesEnabled,true);
+assert.equal(health.environment,'local'); assert.equal(health.authenticationRequired,false);
 const catalog = await call('/catalog'); assert.equal(catalog.members.filter(m => m.active).length,4);
 assert.ok(catalog.sessions.length >= 3);
 const lookup = await call('/movies/search?q=Arrival'); assert.ok(lookup.local.some(m => m.id === 'arrival'));

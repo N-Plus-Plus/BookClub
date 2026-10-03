@@ -1,8 +1,10 @@
 import { z, ZodError } from 'zod';
-import { ApiError, allowedOrigins, authorizeMutation, json, type Env } from './http';
+import { ApiError, allowedOrigins, authorizeMutation, localBypass, json, type Env } from './http';
 import { idSchema, importSchema, movieSchema, seenSchema, sessionSchema } from './validation';
 import { Repository } from './repository';
 import { MovieService } from './services';
+import { authenticate, login, verifyGoogle, type GoogleVerifier } from './auth';
+import { AuthRepository } from './auth-repository';
 import { sortClassics } from '../../shared/ranking';
 
 async function body(request: Request): Promise<unknown> {
@@ -23,13 +25,23 @@ async function body(request: Request): Promise<unknown> {
   catch { throw new ApiError(400,'INVALID_JSON','Send a valid JSON request body.'); }
 }
 
-async function route(request: Request, env: Env): Promise<Response> {
+async function route(request: Request, env: Env, verify: GoogleVerifier): Promise<Response> {
   const url = new URL(request.url), path = url.pathname, method = request.method;
   const repo = new Repository(env.DB), movies = new MovieService(repo,env);
   if (!['GET','POST','PUT','OPTIONS'].includes(method)) throw new ApiError(405,'METHOD_NOT_ALLOWED','Method not supported.');
-  if (method !== 'GET' && method !== 'OPTIONS') authorizeMutation(env);
   if (path === '/api/v1/health' && method === 'GET') return json({ status: 'ok', environment: env.APP_ENV,
-    writesEnabled: env.APP_ENV === 'local' && env.LOCAL_WRITE_BYPASS === 'true', tmdbConfigured: Boolean(env.TMDB_READ_TOKEN), demo: env.APP_ENV === 'local' });
+    authenticationRequired: !localBypass(env), googleAuthConfigured: Boolean(env.GOOGLE_CLIENT_ID?.trim()), tmdbConfigured: Boolean(env.TMDB_READ_TOKEN), demo: env.APP_ENV === 'local' });
+  if (path === '/api/v1/auth/google' && method === 'POST') {
+    const input = await body(request);
+    return json(await login(input && typeof input === 'object' ? (input as {credential?: unknown}).credential : undefined,env,verify));
+  }
+  const auth = await authenticate(request,env);
+  if (path === '/api/v1/auth/me' && method === 'GET') return json({ viewer: auth.viewer });
+  if (path === '/api/v1/auth/logout' && method === 'POST') {
+    if (auth.tokenHash) await new AuthRepository(env.DB).revoke(auth.tokenHash);
+    return json({ loggedOut: true });
+  }
+  if (method !== 'GET' && method !== 'OPTIONS') authorizeMutation(env,auth.viewer);
   if (path === '/api/v1/movies/search' && method === 'GET') {
     const query = z.string().trim().min(1).max(150).parse(url.searchParams.get('q') ?? '');
     return json(await movies.search(query));
@@ -69,7 +81,7 @@ async function route(request: Request, env: Env): Promise<Response> {
   throw new ApiError(404,'NOT_FOUND','API route not found.');
 }
 
-export default {
+export function createWorker(verify: GoogleVerifier = verifyGoogle) { return {
   async fetch(request: Request, env: Env): Promise<Response> {
     const origin = request.headers.get('Origin');
     const permitted = origin !== null && allowedOrigins(env).includes(origin);
@@ -77,7 +89,7 @@ export default {
     try {
       if (origin && !permitted) throw new ApiError(403,'ORIGIN_DENIED','This origin is not allowed.');
       if (request.method === 'OPTIONS') response = new Response(null,{ status: 204 });
-      else response = await route(request,env);
+      else response = await route(request,env,verify);
     } catch (error) {
       const known = error instanceof ApiError;
       const invalid = error instanceof ZodError;
@@ -93,8 +105,9 @@ export default {
     if (permitted) {
       response.headers.set('Access-Control-Allow-Origin',origin!);
       response.headers.set('Access-Control-Allow-Methods','GET,POST,PUT,OPTIONS');
-      response.headers.set('Access-Control-Allow-Headers','Content-Type');
+      response.headers.set('Access-Control-Allow-Headers','Content-Type, Authorization');
     }
     return response;
   },
-};
+}; }
+export default createWorker();

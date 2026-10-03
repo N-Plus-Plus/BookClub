@@ -12,3 +12,4 @@ coverage/
 *.log
 .verification/
 OWNER_INFO.md
+scripts/auth/*.local.sql

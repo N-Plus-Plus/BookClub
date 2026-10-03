@@ -8,5 +8,7 @@ DELETE FROM movie_assets;
 DELETE FROM movie_external_ids;
 DELETE FROM movie_genres;
 DELETE FROM movies;
+DELETE FROM auth_sessions;
+DELETE FROM member_auth;
 DELETE FROM members;
 DELETE FROM seed_runs;

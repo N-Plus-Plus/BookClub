@@ -1,3 +1,5 @@
+export interface Viewer { id: string; display_name: string }
+export interface AuthLogin { token: string; viewer: Viewer; expiresAt: string }
 export interface Member { id: string; display_name: string; sort_order: number; active: number }
 export interface Score { provider: string; metric: string; raw_value: number; raw_scale: number | null; normalized_value: number | null; vote_count: number | null; fetched_at: string }
 export interface Asset { provider: string; asset_type: 'poster' | 'backdrop'; reference: string; width: number | null; height: number | null; preferred: number }

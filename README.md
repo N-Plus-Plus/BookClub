@@ -14,19 +14,19 @@ This is a functional local-first foundation. All bundled events and source ratin
 | `shared/types.ts` | Provider-neutral API/domain contracts |
 | `shared/ranking.ts` | Pure provisional ranking, score normalisation, latest snapshots, stable ordering, missing-answer queue |
 | `worker/src/index.ts` | Versioned REST routing, boundary validation, JSON errors, CORS |
-| `worker/src/http.ts` | Central write-authorisation hook and environment contract |
+| `worker/src/http.ts`, `auth.ts`, `auth-repository.ts` | Central authentication/mutation guards, Google verification, D1 identity/session queries |
 | `worker/src/repository.ts` | Parameterised D1 queries and atomic writes |
 | `worker/src/services.ts` | Lookup/import orchestration; persisted metadata and score snapshots |
 | `worker/src/providers/` | Search, metadata, artwork and score interfaces; optional TMDB implementation |
 | `worker/migrations/` | Versioned schema; never edit an applied migration for a future schema change |
 | `worker/seed.sql`, `worker/reset.sql` | Opt-in local demo data/reset |
-| `tests/` | Vitest ranking, transformation, validation, CORS and write-guard tests |
+| `tests/` | Vitest ranking, transformation, validation, auth/session/allow-list, frontend API, CORS and write-guard tests |
 | `scripts/import/README.md` | Future spreadsheet migration boundary |
 | `.github/workflows/pages.yml` | Manually triggered static frontend publication only |
 
 GitHub Pages hosts only `dist/`. It needs no Node runtime, SSR, filesystem, server rewrites, or backend. Hash URLs such as `/BookClub/#/history` are refresh-safe. Vite sets `/BookClub/` at build time and `/` in development. The independently deployed Worker alone accesses the D1 `DB` binding and movie API credentials.
 
-Dependencies are deliberately small: React, Lucide icons, bundled Fontsource Lexend Deca and Zod; Vite/TypeScript, Vitest, Wrangler/Worker types and concurrently provide development tooling. No CSS framework, Redux, ORM or presentation test harness is used. `pnpm-lock.yaml` pins resolved versions. `pnpm-workspace.yaml` permits only esbuild/workerd installation scripts.
+Dependencies are deliberately small: React, Lucide icons, bundled Fontsource Lexend Deca, Zod and Worker-only `jose` 6.2.12 for standards-based JWT/JWK verification; Vite/TypeScript, Vitest, Wrangler/Worker types and concurrently provide development tooling. No CSS framework, Redux, ORM or presentation test harness is used. `pnpm-lock.yaml` pins resolved versions. `pnpm-workspace.yaml` permits only esbuild/workerd installation scripts.
 
 ## Prerequisites and local startup
 
@@ -88,13 +88,15 @@ The About & data sources footer includes the approved, unmodified TMDB logo and 
 | Variable | Location | Meaning |
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | root `.env.local` or GitHub repository Actions variable | Worker origin, without `/api/v1` or trailing slash; public, never a secret |
+| `VITE_GOOGLE_CLIENT_ID` | root `.env.local` or GitHub repository Actions variable | Public Google Web Application client ID, embedded in the frontend build |
+| `GOOGLE_CLIENT_ID` | Worker runtime configuration (Wrangler var or secret) | Same public client ID; expected ID-token audience; required for production login |
 | `TMDB_READ_TOKEN` | Worker local secret file / Wrangler production secret | Optional TMDB bearer credential; server only |
 | `APP_ENV` | Wrangler vars | `local` only for local development; default `production` |
 | `LOCAL_WRITE_BYPASS` | Wrangler vars | Explicit `true` only in local env; default `false` |
 | `ALLOWED_ORIGINS` | Wrangler vars | Comma-separated exact origins; local 5173/4173; production `https://n-plus-plus.github.io` |
 | `DB` | Wrangler D1 binding | Local/production database, never a browser connection |
 
-Production builds intentionally have no fallback to localhost or an invented backend. Set `VITE_API_BASE_URL` before building; if absent the UI reports a configuration error. Copy `.env.example` to `.env.local` for a configured build preview. Vite embeds this public value at build time; changing it requires rebuilding.
+Production builds intentionally have no fallback to localhost or an invented backend. Set `VITE_API_BASE_URL` before building; if absent the UI reports a configuration error. Copy `.env.example` to `.env.local` for a configured build preview. Vite embeds both public `VITE_` values at build time; changing them requires rebuilding. The Pages workflow fails if either is missing. Optional future `MDBLIST_API_KEY`, `OMDB_API_KEY`, and `TVDB_API_KEY` belong only in Worker secrets; no provider credential may use a `VITE_` prefix. Their integrations remain unimplemented.
 
 ## D1 schema and persistence
 
@@ -107,8 +109,10 @@ Production builds intentionally have no fallback to localhost or an invented bac
 - `classics`: independent pool membership with date/source/legacy reference.
 - `seen_states`: explicit 1/0 per movie/member and timestamp. **No row means Unknown**. Setting `seen: null` removes the answer.
 - `seed_runs`: development seeding marker.
+- `member_auth`: one allow-listed normalised email per member, unique nullable Google sub, creation/binding/last-login timestamps.
+- `auth_sessions`: SHA-256 token hash, member foreign key, creation/expiry timestamps. These are authentication sessions, separate from film-event `sessions`.
 
-D1 is canonical; frontend state is disposable. Event headers/joins and imported movie snapshots use transactional `DB.batch`. Seen updates use an atomic upsert. Update endpoints currently use last-write-wins and sessions use full replacement; multi-user conflict detection is deferred until authentication is chosen. No live database has been migrated in this scaffold.
+D1 is canonical; frontend state is disposable. Event headers/joins and imported movie snapshots use transactional `DB.batch`. Seen updates use an atomic upsert. Update endpoints currently use last-write-wins and sessions use full replacement; multi-user conflict detection remains deferred. No live database has been migrated in this scaffold.
 
 ## Provisional Classics calculation
 
@@ -118,11 +122,15 @@ Equal scores use title, year, then local ID for stable ordering. UI output expos
 
 ## API, CORS and writes
 
-All routes are under `/api/v1`; success is `{ "data": ... }`, failure is `{ "error": { "code", "message", "fields"? } }`. Zod validates inputs and calendar dates. JSON bodies are bounded to 128 KiB. Invalid inputs return 422, malformed JSON 400, missing resources 404, locked writes/disallowed origins 403, unavailable imports 503. Provider search errors are returned as an unavailable lookup alongside usable local search results. Internal errors return a safe generic message.
+All routes are under `/api/v1`; success is `{ "data": ... }`, failure is `{ "error": { "code", "message", "fields"? } }`. Zod validates inputs and calendar dates. JSON bodies are bounded to 128 KiB. Invalid inputs return 422, malformed JSON 400, missing resources 404, missing/invalid/expired sessions or invalid Google credentials 401, unauthorised Google accounts/disallowed origins 403, unavailable imports 503. Provider search errors are returned as an unavailable lookup alongside usable local search results. Internal errors return a safe generic message.
 
 | Method / route | Behaviour |
 | --- | --- |
-| `GET /health`, `/catalog`, `/members`, `/movies`, `/sessions`, `/classics` | Status and stored/derived data |
+| `GET /health` | Public non-sensitive capabilities: environment, demo, authenticationRequired, googleAuthConfigured, tmdbConfigured |
+| `POST /auth/google` | Public `{credential}`; verify Google and allow-list, return `{token,viewer,expiresAt}` |
+| `GET /auth/me` | Bearer session required; return `{viewer: {id,display_name}}` (null under local bypass) |
+| `POST /auth/logout` | Bearer session required; revoke current session and return `{loggedOut: true}` |
+| `GET /catalog`, `/members`, `/movies`, `/sessions`, `/classics` | Authenticated stored/derived data |
 | `GET /movies/search?q=...` | Saved search plus optional provider search |
 | `GET /movies/:id` | Film detail including appearances and ranking |
 | `POST /movies` | Manual film `{title, year?, runtime?}` |
@@ -131,31 +139,54 @@ All routes are under `/api/v1`; success is `{ "data": ... }`, failure is `{ "err
 | `POST /sessions`, `PUT /sessions/:id` | Create/replace `{event_date, title?, host_member_id?, legacy_cycle_label?, notes?, movie_ids}` |
 | `PUT /movies/:id/seen/:memberId` | `{seen: true | false | null}` |
 
-CORS reflects only configured exact origins, never `*`. Production is configured for `https://n-plus-plus.github.io` (an origin has **no `/BookClub/` path**). CORS does not authenticate requests. The central `authorizeMutation` hook permits writes only when both explicit local flags are set; the default production configuration blocks **every mutation**, including requests without Origin. Production is intentionally read-only until a lightweight authentication mechanism is implemented. There is no permanent write secret in the static frontend.
+CORS reflects only configured exact origins, never `*`. Production uses `https://n-plus-plus.github.io` (the browser canonicalises the supplied `https://N-Plus-Plus.github.io` hostname to lowercase; origins have no `/BookClub/` path). It permits `Authorization` and `Content-Type`, with no cookie credentials. CORS is separate from authentication: requests without Origin still require a BookClub session. All application GETs and mutations are private; only health, Google login and preflight are public. Authenticated members can use the existing shared editing workflows, including answers for any club member.
 
-## Later Worker/D1 deployment — not performed
+## Google authentication and sessions
 
-These are future, intentional Cloudflare operations, not local setup commands:
+The static frontend checks public health first. With `APP_ENV=local` **and** `LOCAL_WRITE_BYPASS=true`, all existing demo reads/writes work without Google, internet or a session. Either flag alone cannot bypass authentication. Otherwise it tries `/auth/me` with the saved session before loading private data, or displays the private-journal sign-in gate with Google's official branded button. The signed credential is immediately exchanged with the Worker and is never stored for continuing authentication. Unauthorised Google accounts get a clear 403; BookClub has no registration, password, invitation code or public member creation route.
 
-1. Choose production authentication and implement the central hook before enabling writes.
-2. Authenticate Wrangler. The owner-supplied existing `bookclub-prod` database is recorded in the top-level binding; no database was created or contacted in this pass.
-3. Verify the **top-level** `database_id` in `worker/wrangler.jsonc` identifies the intended database. Keep the local binding independent. Do not deploy `--env local`.
-4. Confirm top-level `ALLOWED_ORIGINS` matches the GitHub Pages origin and retain production flags. Do not apply the development seed to production.
-5. Apply schema intentionally with `pnpm exec wrangler d1 migrations apply DB --config worker/wrangler.jsonc --remote`.
-6. If desired set `pnpm exec wrangler secret put TMDB_READ_TOKEN --config worker/wrangler.jsonc`.
-7. Deploy with `pnpm exec wrangler deploy --config worker/wrangler.jsonc`, then verify health/CORS and that unauthenticated writes remain blocked.
-8. Configure the returned Worker origin as `VITE_API_BASE_URL` for the frontend.
+The Worker uses `jose` and Google's cached remote JWKs to verify RS256 signature, exact configured audience, either valid Google issuer, expiry, nonempty sub/email and boolean `email_verified === true`. No tokeninfo calls or OAuth client secret are used. Verification follows [Google's server verification guidance](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token); `jose` supports [Cloudflare Workers](https://github.com/panva/jose).
 
-Use backups and reviewed migrations once real data exists. Cloudflare references: [local D1](https://developers.cloudflare.com/d1/best-practices/local-development/), [migrations](https://developers.cloudflare.com/d1/reference/migrations/).
+Before first login, an operator creates four `members` plus four `member_auth` rows with lowercase trimmed authorised emails and null sub. A single guarded SQL UPDATE binds a matching email to its first verified sub and records timestamps. Existing sub matches take precedence even if email later changes. An email already bound to another sub is denied; no login inserts a member or allow-list row. Do not rewrite bindings as part of a bootstrap rerun. For this club provision the intended Gmail identities; Google cautions that verified third-party email ownership can change. Disabled members, deleted allow-list entries, expired or revoked sessions cannot access data.
 
-## Later GitHub Pages publication — not performed
+The Worker generates a random 256-bit opaque bearer token and stores only its SHA-256 hash in D1. Tokens expire after 90 days. Hash lookup uses indexed SQL equality; no raw-secret comparison or application signing secret is needed. Tokens travel only in HTTPS response bodies and `Authorization: Bearer ...`, never URLs or logs. Stored hashes and authorised emails are not returned by the API. Logout deletes the current session; operator revocation can delete all `auth_sessions` for a member, or deactivate the member to block all access and subsequent login. Expired rows are inert; periodic pruning is an optional operator task, not a scheduled integration.
 
-Enable GitHub Actions as the Pages source in repository settings. Add the public repository Actions variable `VITE_API_BASE_URL` for the deployed Worker origin, and configure the matching Worker CORS origin. Run the **Publish frontend to GitHub Pages** workflow manually when ready; it installs with the pinned pnpm, tests/types/builds and publishes `dist/`. It has no push trigger, performs no Worker deployment and contains no credentials. If desired, add a branch trigger in a later authorised deployment pass. Hosting target is `https://n-plus-plus.github.io/BookClub/`.
+The browser deliberately stores the BookClub token in `localStorage` (`bookclub.session`) because Pages and Worker are cross-site and third-party cookies are unreliable. A 401 clears the saved token and private UI state. Clearing browser storage also signs the device out but does not itself revoke the server row. Logout clears storage after confirmed revocation; a network failure offers retry instead of claiming server logout succeeded. The member name and Lucide logout control appear in the app header.
 
-For an intentional custom-domain/root-path deployment change `base` in `vite.config.ts`; never scatter path prefixes in components. Reference: [Vite static deployment](https://vite.dev/guide/static-deploy.html).
+This persistence trades convenience for XSS exposure: scripts on the Pages origin can access localStorage, including other apps hosted on the same origin. Only deploy trusted code on that origin. React escaping remains in use; there is no raw HTML injection or user-controlled script execution. The only added script is the fixed official GIS library URL. Treat a stolen Google ID credential as replayable until Google expiry and a stolen BookClub bearer token as usable until expiry/revocation; keep them out of diagnostics.
+
+The existing Google Web Application client should authorise JavaScript origin `https://N-Plus-Plus.github.io` (optional local testing: `http://localhost:5173`). The GIS popup callback needs no redirect URI or Gmail/Drive/Calendar scopes. Set matching `VITE_GOOGLE_CLIENT_ID` and Worker `GOOGLE_CLIENT_ID`; neither value is a secret. Local bypass never loads GIS.
+
+## Private member bootstrap
+
+After production migrations, copy `scripts/auth/bootstrap-members.example.sql` to `scripts/auth/bootstrap-members.local.sql`. Replace **every** name/email placeholder privately with the four real members, normalising each email to lowercase with no surrounding whitespace. Preserve stable `club-member-1` through `club-member-4` IDs. The example contains placeholders only; the populated local file is explicitly gitignored. Never read it into tests, logs or frontend builds, and never apply `worker/seed.sql` to production.
+
+The template uses `INSERT OR IGNORE`: an identical rerun does not duplicate members or overwrite established sub bindings. It intentionally does not update names/emails, and conflicting IDs/emails may be ignored. Privately review all four rows before execution and verify that there are exactly four intended members and four allow-list rows afterwards using the Cloudflare dashboard. Corrections require a reviewed operator change; do not reset a bound sub casually. The application does not enforce a database-wide count of four; that roster limit is maintained by private provisioning.
+
+## First production deployment — human steps only, not performed
+
+Review code and migration first. These are intentional remote operations for the owner, **not** local verification commands. Use the top-level production binding for `bookclub-prod`; the existing database ID is preserved. Never deploy `--env local`, use the demo seed remotely, or deploy a bypass configuration.
+
+1. Authenticate: `pnpm exec wrangler login`.
+2. Confirm top-level database ID and exact Pages CORS origin in `worker/wrangler.jsonc`, then apply migrations: `pnpm exec wrangler d1 migrations apply DB --config worker/wrangler.jsonc --remote`.
+3. Create and privately review `scripts/auth/bootstrap-members.local.sql` as above.
+4. Apply it intentionally: `pnpm exec wrangler d1 execute DB --config worker/wrangler.jsonc --remote --file scripts/auth/bootstrap-members.local.sql`. Review Wrangler output privately; it may contain personal SQL values. Do not share it in logs/chat. Verify four intended rows in each table privately.
+5. Set Worker audience using `pnpm exec wrangler secret put GOOGLE_CLIENT_ID --config worker/wrangler.jsonc` (a secret binding is convenient here although the ID is public), and optional movie lookup token using `pnpm exec wrangler secret put TMDB_READ_TOKEN --config worker/wrangler.jsonc`. Enter values interactively. Retain `APP_ENV=production`, `LOCAL_WRITE_BYPASS=false`, and configured exact origin.
+6. Deploy only the production Worker: `pnpm exec wrangler deploy --config worker/wrangler.jsonc`.
+7. Check public `GET <Worker-origin>/api/v1/health`: authenticationRequired and googleAuthConfigured must be true; it must expose no credentials.
+8. Check unauthenticated `GET <Worker-origin>/api/v1/catalog` returns 401 (also confirm an unauthenticated mutation returns 401).
+9. Verify one allow-listed GIS login using a locally served production build pointed at this Worker. Set the two public Vite values, build, and serve `pnpm preview` at `http://localhost:4173/BookClub/`. For this pre-Pages check, temporarily configure this exact origin in Worker CORS and Google's JavaScript origins, retaining the production origin. Restore production-only CORS after verification. Alternatively do this check in a reviewed staging environment. Confirm first binding, authenticated reads/writes, outsider 403 and logout revocation without printing credentials/tokens. Do not paste credentials into curl commands, URLs or shared logs.
+10. Set GitHub repository Actions variables `VITE_API_BASE_URL` (deployed Worker origin, no `/api/v1`) and `VITE_GOOGLE_CLIENT_ID` (matching audience).
+11. Enable GitHub Pages with **GitHub Actions** as the source.
+12. Manually run **Publish frontend to GitHub Pages**. It validates both public variables, installs pinned pnpm dependencies, tests/types/builds and publishes `dist/`. It does not deploy Worker or use provider secrets.
+13. Verify `https://N-Plus-Plus.github.io/BookClub/`: sign-in gate, authorised login, private views, authenticated edits, reload persistence, logout and rejection of an unauthorised Google account. Test on mobile. Confirm Worker production-only CORS and no local bypass.
+
+The live Google button/account flow and actual remote binding remain human deployment checks; automated verification uses generated signing keys, substituted Google verification and disposable SQLite, never live Google or D1. Test SQL includes the actual migrations and repository queries. Authentication tests use Node's built-in SQLite (available under the established Node 22.12+ runtime; it may emit an experimental warning).
+
+Use backups and reviewed migrations once real data exists. References: [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/), [GIS JavaScript callback](https://developers.google.com/identity/gsi/web/reference/js-reference), [Vite static deployment](https://vite.dev/guide/static-deploy.html). For a deliberate root/custom-domain deployment adjust the owning `base` in `vite.config.ts`.
 
 ## Current boundaries and next work
 
-The real spreadsheet importer, final ranking formula, production authentication, score refresh operation, Classics pool administration, elaborate editing, reporting, charts, accounts, notifications and PWA support are deferred. New events are supported in the UI; the API can replace existing events, but an edit screen is not yet implemented. Navigation away from an unsaved Event screen discards that draft; saved manual films remain in the library. Recent answer undo is limited to the current Seen It? visit; persisted answers can always be corrected from film detail. History currently loads the small whole catalog; pagination can follow after migration size is known.
+The real spreadsheet importer, final ranking formula, score refresh operation, Classics pool administration, elaborate editing, reporting, charts, accounts, notifications and PWA support are deferred. New events are supported in the UI; the API can replace existing events, but an edit screen is not yet implemented. Navigation away from an unsaved Event screen discards that draft; saved manual films remain in the library. Recent answer undo is limited to the current Seen It? visit; persisted answers can always be corrected from film detail. History currently loads the small whole catalog; pagination can follow after migration size is known.
 
-The next step is to obtain the spreadsheet plus the authoritative ranking formula, review the cycle/member mapping, and implement a dry-run idempotent importer. Choose authentication before making the independent production Worker writable.
+The next step is to obtain the spreadsheet plus the authoritative ranking formula, review the cycle/member mapping, and implement a dry-run idempotent importer. Production authentication is implemented; remote migration, private roster provisioning, runtime configuration and the human deployment checks above remain pending.

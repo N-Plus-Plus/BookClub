@@ -118,3 +118,9 @@ progress { width: 100%; height: 10px; accent-color: var(--concrete); }
   .event-lineup { position: sticky; top: 24px; }
 }
 @media (max-width: 389px) { .detail-header { flex-direction: column; } .answer-card .poster-large { width: 96px; height: 144px; } .rank-top .badge { font-size: .65rem; } }
+
+.sign-in { max-width: 440px; margin: 48px auto; }
+.sign-in .card { padding: 24px; }
+.google-sign-in { min-height: 44px; max-width: 100%; }
+.viewer-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+.viewer-controls .meta { text-align: right; }
