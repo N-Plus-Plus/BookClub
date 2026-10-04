@@ -11,6 +11,12 @@ const failure = (provider: string, error: unknown): ProviderResult => ({provider
   ...(error instanceof ProviderError && error.retryAfter !== undefined ? {retryAfter: error.retryAfter} : {})});
 export class ScoreService {
   constructor(private repo: Repository, private env: Env) {}
+  private providerWide(error: unknown): error is ProviderError {
+    return error instanceof ProviderError && ['credentials','rate_limited','outage','network'].includes(error.kind);
+  }
+  private suppressed(provider: string, error: ProviderError): ProviderResult {
+    return {provider,status:'skipped',count:0,message:`Skipped after ${provider} became unavailable during this enrichment operation.`,...(error.retryAfter === undefined ? {} : {retryAfter:error.retryAfter})};
+  }
   private async providerCall<T>(provider: string, call: () => Promise<T>): Promise<T> {
     const wait = await this.repo.providerCooldown(provider);
     if (wait !== null) throw new ProviderError(provider,'rate_limited',`${provider} is cooling down after a rate limit. Try later.`,wait);
@@ -21,17 +27,20 @@ export class ScoreService {
     }
   }
   private needs(movie: Movie, snapshots: Score[]) { return rankMovie([...movie.scores,...snapshots],movie.seen,[],movie.classics_membership?.rank_seed ?? 0).missingRequiredScores; }
-  private async capture(movie: Movie, batch?: {scores?: Score[]; error?: unknown}): Promise<ProviderResult[]> {
+  private async capture(movie: Movie, batch?: {scores?: Score[]; error?: unknown}, failures?: Map<string,ProviderError>): Promise<ProviderResult[]> {
     const providers: ProviderResult[] = [], snapshots: Score[] = [];
     const id = mdbId(movie.external_ids), imdb = movie.external_ids.find(e => e.provider === 'imdb' && /^tt\d{7,10}$/.test(e.external_id));
-    if (!this.env.MDBLIST_API_KEY) providers.push({provider:'mdblist',status:'skipped',count:0,message:'Not configured.'});
+    if (batch?.error) { providers.push(failure('mdblist',batch.error)); }
+    else if (failures?.has('mdblist')) providers.push(this.suppressed('mdblist',failures.get('mdblist')!));
+    else if (!this.env.MDBLIST_API_KEY) providers.push({provider:'mdblist',status:'skipped',count:0,message:'Not configured.'});
     else if (!id) providers.push({provider:'mdblist',status:'skipped',count:0,message:'A supported external ID is required.'});
-    else try { const scores = batch ? (batch.error ? await Promise.reject(batch.error) : batch.scores ?? []) : await this.providerCall('mdblist',() => new MdbListProvider(this.env.MDBLIST_API_KEY!).scores(id)); snapshots.push(...scores); providers.push({provider:'mdblist',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { providers.push(failure('mdblist',error)); }
+    else try { const scores = batch ? batch.scores ?? [] : await this.providerCall('mdblist',() => new MdbListProvider(this.env.MDBLIST_API_KEY!).scores(id)); snapshots.push(...scores); providers.push({provider:'mdblist',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { if (failures && this.providerWide(error)) failures.set('mdblist',error); providers.push(failure('mdblist',error)); }
     const missing = this.needs(movie,snapshots);
     const omdbUseful = Boolean(imdb && (missing.includes('imdb:rating') || missing.includes('rottentomatoes:critic')));
-    if (!this.env.OMDB_API_KEY) providers.push({provider:'omdb',status:'skipped',count:0,message:'Not configured.'});
+    if (failures?.has('omdb')) providers.push(this.suppressed('omdb',failures.get('omdb')!));
+    else if (!this.env.OMDB_API_KEY) providers.push({provider:'omdb',status:'skipped',count:0,message:'Not configured.'});
     else if (!omdbUseful) providers.push({provider:'omdb',status:'skipped',count:0,message:'No missing score OMDb can supply.'});
-    else try { const scores = await this.providerCall('omdb',() => new OmdbProvider(this.env.OMDB_API_KEY!).scores(imdb!.external_id)); snapshots.push(...scores); providers.push({provider:'omdb',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { providers.push(failure('omdb',error)); }
+    else try { const scores = await this.providerCall('omdb',() => new OmdbProvider(this.env.OMDB_API_KEY!).scores(imdb!.external_id)); snapshots.push(...scores); providers.push({provider:'omdb',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { if (failures && this.providerWide(error)) failures.set('omdb',error); providers.push(failure('omdb',error)); }
     providers.push({provider:'tmdb',status:'skipped',count:0,message:'TMDB rating is not a Watch Order input.'});
     await this.repo.appendScores(movie.id,snapshots);
     return providers.sort((a,b) => a.provider.localeCompare(b.provider));
@@ -45,18 +54,18 @@ export class ScoreService {
     if (!Number.isInteger(limit) || limit < 1 || limit > 10) throw new ApiError(422,'INVALID_LIMIT','Choose 1–10 films.');
     const {movies} = await this.repo.catalog();
     const candidates = movies.filter(m => m.classic && !m.ranking?.rankable && mdbId(m.external_ids));
-    const selected = candidates.slice(0,limit), batch = new Map<string,{scores?: Score[]; error?: unknown}>();
+    const selected = candidates.slice(0,limit), batch = new Map<string,{scores?: Score[]; error?: unknown}>(), failures = new Map<string,ProviderError>();
     if (this.env.MDBLIST_API_KEY) for (const provider of ['imdb','tmdb']) {
       const group = selected.filter(m => mdbId(m.external_ids)?.provider === provider);
       if (!group.length) continue;
       try {
         const result = await this.providerCall('mdblist',() => new MdbListProvider(this.env.MDBLIST_API_KEY!).batch(provider,group.map(m => mdbId(m.external_ids)!.external_id)));
         for (const m of group) batch.set(m.id,{scores: result.get(mdbId(m.external_ids)!.external_id)});
-      } catch (error) { for (const m of group) batch.set(m.id,{error}); if (error instanceof ProviderError && ['rate_limited','credentials','outage'].includes(error.kind)) break; }
+      } catch (error) { for (const m of group) batch.set(m.id,{error}); if (this.providerWide(error)) { failures.set('mdblist',error); break; } }
     }
     const results = [];
     // Sequential fallback prevents a provider-wide failure from multiplying calls.
-    for (const m of selected) results.push({id:m.id,providers:await this.capture(m,batch.get(m.id))});
+    for (const m of selected) results.push({id:m.id,providers:await this.capture(m,batch.get(m.id),failures)});
     const current = await this.repo.catalog();
     return {results: results.map(r => ({providers: r.providers,movie: {...current.movies.find(m => m.id === r.id)!,
       appearances: current.sessions.flatMap(s => s.movies.flatMap((m,i) => m.id === r.id ? [{id: s.id,event_date: s.event_date,date_precision: s.date_precision,kind: s.kind,title: s.title,position: i+1}] : []))}})),

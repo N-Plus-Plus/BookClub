@@ -67,6 +67,21 @@ describe('persisted score refresh',()=>{
     const r=await data<{results:RefreshResult[];remaining:number;unidentified:number}>(await call('/classics/enrich','POST',{limit:10}));expect(r.results).toHaveLength(10);expect(r.remaining).toBe(2);expect(fetch).toHaveBeenCalledTimes(1);
     expect((await call('/classics/enrich','POST',{limit:11})).status).toBe(422);
   });
+  it('suppresses all MDBList calls after a provider-wide batch failure, including mixed ID groups',async()=>{
+    env.MDBLIST_API_KEY='key';local.sqlite.exec('DELETE FROM classics');const repo=new Repository(local.db);
+    for(let i=1;i<=5;i++){const id=await repo.manualMovie({title:`IMDb failed ${i}`});await repo.setClassic(id,true);local.sqlite.prepare('INSERT INTO movie_external_ids VALUES(?,?,?)').run(id,'imdb',`tt${String(i).padStart(7,'0')}`);}
+    for(let i=1;i<=5;i++){const id=await repo.manualMovie({title:`TMDB skipped ${i}`});await repo.setClassic(id,true);local.sqlite.prepare('INSERT INTO movie_external_ids VALUES(?,?,?)').run(id,'tmdb',String(1000+i));}
+    const fetch=vi.fn().mockResolvedValue(new Response(null,{status:503}));vi.stubGlobal('fetch',fetch);
+    const result=await data<{results:RefreshResult[]}>(await call('/classics/enrich','POST',{limit:10}));
+    expect(fetch).toHaveBeenCalledTimes(1);expect(result.results.filter(r=>r.providers.find(p=>p.provider==='mdblist')?.status==='skipped')).toHaveLength(5);
+  });
+  it('suppresses OMDb after one provider-wide fallback failure during bulk enrichment',async()=>{
+    env.MDBLIST_API_KEY='key';env.OMDB_API_KEY='key';local.sqlite.exec('DELETE FROM classics');const repo=new Repository(local.db);
+    for(let i=1;i<=10;i++){const id=await repo.manualMovie({title:`OMDb failed ${i}`});await repo.setClassic(id,true);local.sqlite.prepare('INSERT INTO movie_external_ids VALUES(?,?,?)').run(id,'imdb',`tt${String(i).padStart(7,'0')}`);}
+    const fetch=vi.fn(async(url:string,init?:RequestInit)=>url.includes('mdblist') ? Response.json(JSON.parse(init!.body as string).ids.map((imdb_id:string)=>({imdb_id,ratings:[{source:'popcorn',value:85}]}))) : new Response(null,{status:503}));vi.stubGlobal('fetch',fetch);
+    const result=await data<{results:RefreshResult[]}>(await call('/classics/enrich','POST',{limit:10}));
+    expect(fetch.mock.calls.filter(([url])=>String(url).includes('omdbapi')).length).toBe(1);expect(result.results.filter(r=>r.providers.find(p=>p.provider==='omdb')?.status==='skipped')).toHaveLength(9);
+  });
   it('guards new endpoints before any database access',async()=>{
     env={...env,APP_ENV:'production',DB:{} as D1Database};for(const [path,method] of [['/movies/arrival/refresh-scores','POST'],['/classics/enrich','POST'],['/movies/arrival/classics','PUT'],['/cycles','GET']]) expect((await call(path,method,method==='GET'?undefined:{})).status).toBe(401);
   });
