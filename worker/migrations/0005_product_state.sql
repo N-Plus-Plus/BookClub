@@ -46,19 +46,17 @@ CREATE TABLE history_audit (
 CREATE INDEX audit_by_session ON history_audit(session_id,occurred_at);
 
 -- Transaction-time checks protect publication from concurrent edits/completions.
-CREATE TRIGGER publication_builder_guard BEFORE INSERT ON sessions WHEN NEW.builder_id IS NOT NULL BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM builder_sets b WHERE b.id=NEW.builder_id
+CREATE TRIGGER publication_builder_guard BEFORE INSERT ON sessions WHEN NEW.builder_id IS NOT NULL
+ AND NOT EXISTS(SELECT 1 FROM builder_sets b WHERE b.id=NEW.builder_id
    AND b.owner_member_id=NEW.published_by AND b.revision=NEW.builder_revision AND b.created_at=NEW.planned_at)
- THEN RAISE(ABORT,'BUILDER_CONFLICT') END;
-END;
-CREATE TRIGGER publication_turn_guard BEFORE INSERT ON sessions WHEN NEW.completed_turn_version IS NOT NULL BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM club_rotation r WHERE r.id=1 AND r.version=NEW.completed_turn_version
+ BEGIN SELECT RAISE(ABORT,'BUILDER_CONFLICT'); END;
+CREATE TRIGGER publication_turn_guard BEFORE INSERT ON sessions WHEN NEW.completed_turn_version IS NOT NULL
+ AND NOT EXISTS(SELECT 1 FROM club_rotation r WHERE r.id=1 AND r.version=NEW.completed_turn_version
    AND r.nominal_slot=NEW.cycle_slot AND (r.cycle_id=NEW.cycle_id OR (r.nominal_slot=1 AND r.cycle_id IS NULL))
    AND NEW.date_precision='exact' AND NEW.cycle_id IS NOT NULL
    AND ((r.nominal_slot=5 AND NEW.kind='classics' AND NEW.host_member_id IS NULL)
      OR (r.nominal_slot<5 AND NEW.kind='hosted' AND NEW.host_member_id IS NOT NULL)))
- THEN RAISE(ABORT,'TURN_CONFLICT') END;
-END;
+ BEGIN SELECT RAISE(ABORT,'TURN_CONFLICT'); END;
 CREATE TRIGGER publication_turn_advance AFTER INSERT ON sessions WHEN NEW.completed_turn_version IS NOT NULL BEGIN
  UPDATE club_rotation SET nominal_slot=CASE WHEN NEW.cycle_slot=5 THEN 1 ELSE NEW.cycle_slot+1 END,
    cycle_id=CASE WHEN NEW.cycle_slot=5 THEN NULL ELSE NEW.cycle_id END,version=version+1,

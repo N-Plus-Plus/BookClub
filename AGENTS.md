@@ -24,7 +24,7 @@ Do not ask the user to repeat context already stated accurately in this file or 
 | Project name | BookClub; GitHub repository N-Plus-Plus/BookClub |
 | Product purpose | Weekly four-person film journal, private Builder plans, explicit rotation, event history, Classics ranking, Seen It? collection and All Time Metrics |
 | Intended users | Four human positions: Sean, Troy, Matt, Jess (sort_order 1-4); names/auth provisioned privately, development fixtures generic |
-| Project maturity | Local-first application with avatar onboarding, roles, explicit rotation, private Builder publication and audited recoverable History; real history reconciliation and isolated rehearsal complete; guarded production tooling tested locally; production execution pending |
+| Project maturity | Local-first application with avatar onboarding, roles, explicit rotation, private Builder publication and audited recoverable History; exact archive rehearsal complete; production schema through 0008 and read-only cutover preflight verified; historical/bootstrap apply and deployment pending |
 | Application shape | Static frontend and independently deployed Worker API in one repository |
 | Languages and runtime | TypeScript; Node 22.12+ for tools (24 recommended); browser UI; Cloudflare Workers API |
 | Frameworks and major libraries | React, Vite, Zod, Lucide, bundled Fontsource Lexend Deca; Worker-only jose JWT/JWK verification; Wrangler and concurrently |
@@ -293,6 +293,7 @@ Unless the project establishes another requirement:
 - Preserve deliberate user-authored wording and comments outside the task scope.
 - Do not claim encoding corruption without evidence.
 - Keep generated changes deterministic where practical.
+- Migration 0005 uses LF endings pinned by `.gitattributes` and trigger `WHEN` guards for remote D1 parser compatibility; preserve these forms. Applied migrations remain immutable, and any migration-content correction requires a fresh exact-archive rehearsal receipt before production mutation.
 
 Once formatting, linting, or encoding commands are established, record them in the project facts or command section.
 

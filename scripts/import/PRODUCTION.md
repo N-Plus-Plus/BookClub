@@ -2,6 +2,8 @@
 
 This workflow is preparation code, not permission to execute a cutover. Production D1, backups, remote migrations, temporary runner deployment, application Worker deployment and Pages publication require a future explicitly authorised execution pass. Ordinary development and `import:apply:local` remain local. No production operation was executed while building this tooling.
 
+Current cutover boundary: the owner-authorised schema pass completed migrations 0001–0008 and read-only production preflight with empty application payload. The exact archive was rehearsed again after correcting unapplied 0005. The original pristine pre-migration export remains the recovery artefact. The generated private runner configuration is offline only; historical/member/auth/rotation apply, token creation and all deployment remain separately authorised operations.
+
 ## Rehearse the exact archive first
 
 Use the isolated preview steps in [README.md](README.md). Stop preview writers during apply. Preserve the original raw plan, cache, private overrides, prior owner correction records and resolved plan; original source-year evidence stays in that private archive. Do not rerun resolution after rehearsal without repeating the gate and using a separately reviewed fresh preview.
@@ -53,6 +55,8 @@ The plan must strictly validate, contain no reconciliation blockers, match the p
 Future remote reads additionally require process-only `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` with the appropriate D1 permissions. Do not put credentials on command lines or in tracked files. The REST boundary verifies the actual remote database UUID/name before querying it; it exposes only read queries. All raw provider/Wrangler errors and output are suppressed.
 
 Launch the production CLI through `corepack pnpm import:production`. The Wrangler command boundary uses Node to run the active pnpm CLI from `npm_execpath` with `exec wrangler`, selecting the project-local dependency. Missing or non-pnpm execution context fails closed. It uses no private Wrangler package paths, global CLI fallback or shell invocation; metrics are disabled and sensitive command output remains suppressed.
+
+Remote migration parsing differs from local SQLite parsing. Migration 0005 uses LF endings (pinned by `.gitattributes`) and trigger `WHEN` predicates rather than nested `SELECT CASE ... END` guard bodies: the remote D1 query parser rejected the original bodies with `incomplete input: SQLITE_ERROR` (7500). Preserve these forms. A local migration pass alone cannot establish remote parser compatibility. If a migration fails, verify its ledger and every schema effect before retry; capture diagnostic output only in ignored private files and keep the normal error boundary suppressed. Correct only a proven defect in an unapplied migration, then repeat the exact fresh archive rehearsal and regenerate its receipt before further production mutation. Applied migrations remain immutable.
 
 ## Backup, migrations and production preflight
 
