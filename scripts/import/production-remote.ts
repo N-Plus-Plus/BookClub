@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createRequire } from 'node:module';
+import { basename, isAbsolute } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { ImportError } from './io.ts';
 import { productionTarget, type Target } from './production.ts';
@@ -42,9 +42,13 @@ export async function remoteBoundary(target:Target,fetcher:typeof fetch=fetch) {
   return {read:queryDatabase(transport,true)};
 }
 export type Command=(args:string[])=>Promise<void>;
+export function wranglerInvocation(args:string[],pnpmPath=process.env.npm_execpath) {
+  if(!pnpmPath||!isAbsolute(pnpmPath)||!/^pnpm\.(?:cjs|js|mjs)$/.test(basename(pnpmPath)))throw new ImportError('Production Wrangler requires an active pnpm execution context. Run corepack pnpm import:production.');
+  return {file:process.execPath,args:[pnpmPath,'exec','wrangler',...args]};
+}
 export const wranglerCommand:Command=async(args)=>{
-  const require=createRequire(import.meta.url);
-  try{await promisify(execFile)(process.execPath,[require.resolve('wrangler/bin/wrangler.js'),...args],{windowsHide:true,maxBuffer:8*1024*1024,env:{...process.env,WRANGLER_SEND_METRICS:'false',CI:'true'}});}catch{throw new ImportError('Production Wrangler command failed; private output suppressed. Inspect state with read-only preflight before retry.');}
+  const invocation=wranglerInvocation(args);
+  try{await promisify(execFile)(invocation.file,invocation.args,{windowsHide:true,maxBuffer:8*1024*1024,env:{...process.env,WRANGLER_SEND_METRICS:'false',CI:'true'}});}catch{throw new ImportError('Production Wrangler command failed; private output suppressed. Inspect state with read-only preflight before retry.');}
 };
 export async function productionCommand(target:Target,operation:'export'|'migrations',output?:string,run:Command=wranglerCommand) {
   const current=productionTarget(JSON.parse(await readFile('worker/wrangler.jsonc','utf8')));

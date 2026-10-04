@@ -7,7 +7,8 @@ import { analyseWorkbook } from '../scripts/import/workbook';
 import { resolvePlan } from '../scripts/import/resolution';
 import { capture,guard,sha256,productionTarget,verifyBackup,validateBootstrap,bootstrapMembers,bootstrapRotation,importProduction,verifyProduction,productionPreflight } from '../scripts/import/production';
 import runner, {type CutoverEnv} from '../scripts/import/production-worker';
-import { productionCommand,queryDatabase,remoteBoundary } from '../scripts/import/production-remote';
+import { productionCommand,queryDatabase,remoteBoundary,wranglerInvocation } from '../scripts/import/production-remote';
+import { resolve } from 'node:path';
 
 const target=productionTarget(JSON.parse(readFileSync('worker/wrangler.jsonc','utf8')));
 const resolved=()=>resolvePlan(analyseWorkbook(workbook(),{...config,snapshotCapturedAt:capture}).plan).plan;
@@ -117,9 +118,25 @@ describe('native Worker binding cutover runner',()=>{
  });
 });
 describe('mocked remote boundaries and private material protection',()=>{
+ it('invokes project Wrangler through the active pnpm CLI with Node and no fallback',()=>{
+  const pnpmPath=resolve('fictional-toolchain/pnpm.cjs');vi.stubEnv('npm_execpath',pnpmPath);
+  try {
+   expect(wranglerInvocation(['--version'])).toEqual({file:process.execPath,args:[pnpmPath,'exec','wrangler','--version']});
+   const source=readFileSync('scripts/import/production-remote.ts','utf8');
+   expect(source).not.toContain('wrangler/bin/wrangler.js');expect(source).not.toContain('createRequire');
+   expect(source).not.toMatch(/shell\s*:\s*true|\bnpx\b/);
+  }finally{vi.unstubAllEnvs();}
+ });
+ it('fails closed when pnpm execution context is missing or belongs to another tool',()=>{
+  vi.stubEnv('npm_execpath',undefined);
+  try{expect(()=>wranglerInvocation(['--version'])).toThrow('active pnpm execution context');}finally{vi.unstubAllEnvs();}
+  for(const path of ['', 'pnpm',resolve('fictional-toolchain/npm-cli.js')])expect(()=>wranglerInvocation(['--version'],path)).toThrow('active pnpm execution context');
+ });
  it('uses configured target for supported export/migration commands, never resets',async()=>{
   const run=vi.fn(async(_args:string[])=>{});await productionCommand(target,'export','.verification/production/fictional.sql',run);await productionCommand(target,'migrations',undefined,run);
   expect(run.mock.calls[0][0]).toEqual(['d1','export',target.database_name,'--config','worker/wrangler.jsonc','--remote','--output','.verification/production/fictional.sql']);expect(run.mock.calls.flat(2).join(' ')).not.toMatch(/reset|delete|drop/);
+  expect(target.database_name).toBe('bookclub-prod');
+  expect(run.mock.calls[1][0]).toEqual(['d1','migrations','apply','bookclub-prod','--config','worker/wrangler.jsonc','--remote']);
   await expect(productionCommand({...target,database_id:'wrong'},'migrations',undefined,run)).rejects.toThrow('changed');expect(run).toHaveBeenCalledTimes(2);
  });
  it('read-only adapter blocks mutations and bounded write batches send exact bindings',async()=>{

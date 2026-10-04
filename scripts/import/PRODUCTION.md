@@ -52,6 +52,8 @@ The plan must strictly validate, contain no reconciliation blockers, match the p
 
 Future remote reads additionally require process-only `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` with the appropriate D1 permissions. Do not put credentials on command lines or in tracked files. The REST boundary verifies the actual remote database UUID/name before querying it; it exposes only read queries. All raw provider/Wrangler errors and output are suppressed.
 
+Launch the production CLI through `corepack pnpm import:production`. The Wrangler command boundary uses Node to run the active pnpm CLI from `npm_execpath` with `exec wrangler`, selecting the project-local dependency. Missing or non-pnpm execution context fails closed. It uses no private Wrangler package paths, global CLI fallback or shell invocation; metrics are disabled and sensitive command output remains suppressed.
+
 ## Backup, migrations and production preflight
 
 After separate owner authorisation, run `--action backup` with all gates. This uses the supported [Wrangler D1 export](https://developers.cloudflare.com/d1/wrangler-commands/#d1-export) mechanism, with the tracked production configuration and explicit `--remote`. It exports schema and data to a new timestamped ignored SQL file before any migration/bootstrap/import. It records database name/ID, UTC timestamp, exact plan hash, export SHA-256, byte count and path in a private proof JSON file. Existing backup paths are never overwritten. A successful command, nonempty export and matching content hash are required; keep an independent safe copy. This is export-integrity verification, not a claimed restore rehearsal.
