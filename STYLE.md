@@ -1,0 +1,633 @@
+# STYLE.md: BookClub UX and UI Standard
+
+Read this file fully before any user-facing interface work. This file defines BookClub's visual and interaction standard. Functional correctness is necessary, but a screen is not complete merely because the requested controls exist.
+
+## 1. Authority and scope
+
+For BookClub interface decisions, use this order:
+
+1. Explicit instructions for the current task.
+2. Existing BookClub visual and interaction patterns.
+3. This STYLE.md.
+4. Nearby implementation details.
+
+Existing project consistency normally wins over generic best practice. Do not use this file as permission to redesign established BookClub patterns unless the current task explicitly authorises that change.
+
+If an existing pattern is known to be weak but the task does not authorise changing it, preserve it and note the issue rather than expanding scope.
+
+Do not perform opportunistic UI cleanup outside the requested area. Change only what the task requires, plus the minimum neighbouring adjustments needed to keep the result coherent.
+
+AGENTS.md governs engineering, architecture, persistence, testing and safety. README.md governs product and operational contracts. STYLE.md governs user experience, visual design, composition, interaction, responsive behaviour and presentation.
+
+## 2. Design intent
+
+BookClub should feel deliberately designed, calm, dark, legible and visually coherent.
+
+Task clarity matters, but it is not the only valid starting point. Strong product identity can lead the visual direction where appropriate. The final interface must still make the user's purpose and next useful action clear.
+
+For every meaningful UI change:
+
+- consider the whole screen, not only the changed component;
+- preserve the established BookClub visual language unless instructed otherwise;
+- keep the visual hierarchy deliberate;
+- make mobile and desktop compositions intentional;
+- inspect the result with real content where practical.
+
+A technically correct component can still make the page worse.
+
+## 3. Whole-screen composition
+
+Review the full screen whenever user-facing UI changes.
+
+Check:
+
+- top-to-bottom hierarchy;
+- left-to-right alignment;
+- visual balance;
+- grouping;
+- whitespace;
+- repeated shapes;
+- competing focal points;
+- whether the first viewport orients the user;
+- whether the primary task is obvious where one exists;
+- whether secondary, admin and developer controls are quieter;
+- whether the screen still works with long titles, missing artwork, many rows and expanded details.
+
+Strong alignment matters. Sections, controls and repeated objects should normally follow established page edges and column lines.
+
+Do not create asymmetry simply to make the page feel more designed. Use asymmetry only when it improves the composition or supports the task.
+
+## 4. Layout widths
+
+BookClub may use task-specific content widths.
+
+Do not force every screen into one universal maximum width. Editing, comparison, browsing and dashboard-like screens have different needs.
+
+However, keep the total number of width conventions small. Prefer a small named set such as:
+
+- narrow;
+- standard;
+- wide;
+- full or data-heavy, only if genuinely needed.
+
+Do not introduce a new one-off maximum width for an individual component when an established project width can serve it.
+
+On desktop, actively compose for the available space. Do not merely stretch the mobile layout wider.
+
+## 5. Spacing and rhythm
+
+BookClub should use a small approved spacing scale.
+
+Use central spacing tokens or established project values rather than arbitrary gaps.
+
+Principles:
+
+- smaller gaps within a logical group;
+- larger gaps between distinct sections;
+- headings should visually belong to the content below them;
+- repeated relationships should use repeated spacing;
+- generous breathing room is preferred over dense packing;
+- do not compress controls or text merely to reduce scrolling;
+- do not introduce giant empty areas that make the page feel unfinished.
+
+When a layout needs an unusual gap, it should be explainable by the composition rather than convenience.
+
+## 6. Surfaces, cards and borders
+
+Flat composition is the default.
+
+Use cards or containers when they communicate a real boundary, independent object, selectable item or distinct task.
+
+Do not add a card merely because:
+
+- content needs spacing;
+- a heading and text are adjacent;
+- every section seems to need a rectangle;
+- the layout otherwise feels unfinished.
+
+Prefer:
+
+- whitespace;
+- alignment;
+- typography;
+- subtle dividers;
+- section rhythm.
+
+Visible borders should be quiet and purposeful. Strong borders should be reserved for things such as:
+
+- focus;
+- active selection;
+- warnings;
+- genuinely important boundaries.
+
+Nested cards should be uncommon.
+
+BookClub may use pills and badges fairly freely for compact metadata, state and category presentation, provided they improve scanning and do not become visual noise.
+
+## 7. Shape vocabulary
+
+Use a very small approved set of corner radii.
+
+Do not invent component-specific radii casually.
+
+Rounded rectangles should support the visual language, not become the organising principle of every screen.
+
+## 8. Dark visual identity
+
+BookClub is fundamentally a dark interface.
+
+Neutral or noticeably tinted dark foundations are both acceptable where deliberate. Dark foundations may lean towards a project colour if the result remains coherent and readable.
+
+There is no general ban on blue, purple or other tinted dark surfaces. Use them only when they belong to the deliberate BookClub palette rather than appearing as incidental one-off colour choices.
+
+Light themes are outside the normal BookClub design direction unless explicitly requested.
+
+## 9. Colour and action priority
+
+Keep the accent palette deliberately small.
+
+Colour is part of action hierarchy, not a completely separate system.
+
+Primary actions should normally receive the strongest approved action treatment for the current context. Secondary actions should be quieter. Destructive actions should use the destructive language of the project, but should not become visually dominant unless destruction itself is the primary task.
+
+Filters and selection controls must look like filters or selections, not like submission buttons.
+
+Use semantic colour consistently for:
+
+- primary action;
+- destructive action;
+- warning;
+- success;
+- selection or active state, where needed.
+
+Do not create a new accent for every category or screen.
+
+Never rely on colour alone to communicate state.
+
+## 10. Decorative effects
+
+Decorative gradients, strong shadows and visual effects are discouraged unless they solve a concrete visual problem.
+
+Appropriate examples include:
+
+- a gradient to keep text legible over artwork;
+- a shadow to separate a floating menu, dialog or popover;
+- a subtle transition to make a state change understandable.
+
+Do not use gradients, shadows, glow or elevation as substitutes for hierarchy or spacing.
+
+Routine cards should not need shadows.
+
+## 11. Typography
+
+BookClub uses Lexend Deca Variable for interface text and numbers unless explicitly redesigned.
+
+Keep the hierarchy small.
+
+Use a limited set of text roles:
+
+- page title;
+- section heading;
+- item title;
+- body;
+- metadata;
+- helper text;
+- warning or error.
+
+Prefer weight, size, spacing and contrast over many different font sizes or decorative treatments.
+
+Uppercase text is acceptable sparingly for short identity elements, compact labels and established member-name treatment. Do not convert ordinary prose or controls to uppercase for decoration.
+
+Use Australian English throughout the interface.
+
+## 12. Copy and microcopy
+
+Be concise.
+
+If the interface already communicates something clearly, do not explain it again in prose.
+
+Prefer direct actions such as:
+
+- Save
+- Add film
+- Publish
+- Remove
+- Restore
+
+Avoid vague labels such as:
+
+- Submit
+- Process
+- Action
+- Confirm
+
+unless the context genuinely requires them.
+
+Errors should state what happened and what the user can do next.
+
+Confirmation text should identify the object, scope and consequence.
+
+Do not expose implementation language in member-facing UI.
+
+## 13. Buttons and action hierarchy
+
+When a screen or workflow has a clear next action, one action should normally dominate visually.
+
+Secondary and tertiary actions should be quieter.
+
+Avoid rows of several equally prominent buttons.
+
+Action priority should be visible through a combination of:
+
+- colour;
+- fill;
+- contrast;
+- size where appropriate;
+- placement;
+- spacing.
+
+Keep destructive controls separate from routine completion.
+
+Do not add extra button styles when the existing hierarchy can express the same role.
+
+## 14. Icons
+
+Use the established BookClub icon family consistently.
+
+Icon-only controls are acceptable for familiar actions when:
+
+- meaning is obvious in context;
+- the hit target is adequate;
+- an accessible name exists;
+- a tooltip or equivalent explanation is available where useful.
+
+Visible text is not mandatory for every major navigation item when space is constrained, but navigation must remain understandable.
+
+Unfamiliar, consequential or ambiguous actions should normally have visible text.
+
+Do not substitute arbitrary Unicode glyphs for proper icons.
+
+## 15. Touch targets
+
+Mobile interactive targets should normally be about 44px or larger in each usable dimension.
+
+The visible icon or label can be smaller, but the hit area should remain generous.
+
+Do not pack small icon-only controls together so tightly that accurate tapping becomes difficult.
+
+## 16. Navigation
+
+BookClub must keep clear access to:
+
+- Home;
+- History;
+- Builder;
+- Classics;
+- Seen It?;
+- Metrics.
+
+The exact mobile navigation form is not fixed. Bottom navigation, header navigation or another pattern may be used when deliberately designed.
+
+Do not hide primary destinations behind a hamburger menu when there is sufficient room to expose them directly.
+
+Desktop navigation should normally adapt into a desktop-appropriate form rather than simply preserving the mobile navigation unchanged.
+
+Active state must be clear.
+
+## 17. Responsive behaviour
+
+Mobile-first does not mean mobile-only.
+
+BookClub should intentionally compose for mobile and desktop.
+
+On mobile:
+
+- retain generous touch targets;
+- avoid dense horizontal action rows;
+- avoid hover-dependent interactions;
+- keep actions in normal document flow unless there is an exceptional reason for sticky behaviour;
+- preserve the same essential reading order used on larger screens.
+
+On desktop:
+
+- use the available width deliberately;
+- use columns or grids where they improve comparison or workflow;
+- do not stretch narrow forms across the entire screen;
+- preserve strong alignment;
+- use desktop-specific navigation where useful.
+
+Content and action reading order should remain essentially the same across viewports.
+
+Component-specific breakpoints are allowed when they improve a layout. Do not force every component to change at the same breakpoint.
+
+## 18. Sticky and fixed UI
+
+Use sticky or fixed elements only when persistent access materially improves the task.
+
+Do not make primary actions sticky on mobile by default.
+
+When sticky or fixed UI is used, verify that it does not cover:
+
+- focused controls;
+- validation messages;
+- final content;
+- safe areas.
+
+## 19. Forms
+
+Forms should be staged around the task.
+
+Use visible labels where ambiguity is possible. Placeholder text is not a label replacement.
+
+Prefer compact selects or dropdowns for a small set of options unless the options themselves need comparison.
+
+Hide optional or advanced fields behind clear disclosure where that reduces noise.
+
+Validation should normally be inline beside the relevant field.
+
+Preserve user input after recoverable errors.
+
+Keep the main save or continue action easy to find.
+
+Do not mix destructive controls into the normal completion path.
+
+## 20. Confirmations and modals
+
+Modals are a normal BookClub pattern for focused confirmations and secondary tasks.
+
+However, destructive actions should normally prefer inline confirmation where that preserves context and the consequences are not unusually serious.
+
+Use a modal destructive confirmation when:
+
+- the consequence is shared or difficult to reverse;
+- the action affects substantial persistent data;
+- inline confirmation would be unclear;
+- focused interruption is genuinely helpful.
+
+Typed confirmation phrases should be reserved for exceptional high-impact destruction.
+
+## 21. Loading, empty, success and error states
+
+Every meaningful data surface must account for:
+
+- loading;
+- empty;
+- error;
+- success;
+- stale or refetching state where relevant.
+
+Prefer skeletons or placeholders that preserve the final layout during loading.
+
+Keep empty states compact and practical. Usually provide:
+
+- what is absent;
+- the next useful action, if one exists.
+
+Do not turn every empty state into a large illustrated panel.
+
+Prefer the changed interface itself as success feedback when the result is obvious.
+
+Toast notifications are an acceptable normal lightweight feedback mechanism, but should not replace feedback that belongs beside the affected control or content.
+
+Errors should stay as local as practical to the failed task.
+
+## 22. Tables, rows and repeated data
+
+Flexible row and card layouts are normally preferred over rigid tables, even for comparison-heavy information, when they produce a better responsive result.
+
+Use a table when tabular comparison genuinely benefits the user.
+
+Where multiple related tables repeat the same schema, keep their corresponding column widths consistent so comparisons do not shift between tables.
+
+Repeated rows should have:
+
+- strong alignment;
+- predictable rhythm;
+- quiet separators;
+- stable positions for comparable values and actions.
+
+Do not wrap every row in a heavy card unless the row represents a genuinely independent object.
+
+## 23. Metrics and charts
+
+Metric-heavy screens should normally consider charts as a desirable presentation tool.
+
+Use charts when they help users understand:
+
+- distribution;
+- ranking;
+- change;
+- comparison;
+- proportion.
+
+Do not add decorative charts that merely restate a single obvious number.
+
+Charts should work with the surrounding data rather than replace essential exact values.
+
+## 24. Imagery
+
+Imagery should carry content, identity or useful atmosphere.
+
+Do not add decorative imagery merely to fill empty space.
+
+Repeated posters, thumbnails or media tiles within the same context should use consistent dimensions and aspect ratios.
+
+Missing artwork must degrade gracefully without breaking the information hierarchy.
+
+## 25. Motion and hover
+
+Hover effects should be subtle. Hover should clarify interactivity rather than animate the interface.
+
+Small fades or positional transitions are useful when they make state changes easier to follow.
+
+Avoid:
+
+- large movement;
+- bouncing;
+- perpetual animation;
+- theatrical transitions around routine controls.
+
+Respect reduced-motion preferences.
+
+## 26. Accessibility as usability
+
+Use semantic controls and headings.
+
+Ensure:
+
+- keyboard operability;
+- visible focus;
+- meaningful accessible labels;
+- sufficient contrast;
+- adequate touch targets;
+- no essential information depends on hover;
+- state is not communicated by colour alone;
+- focused elements are not obscured.
+
+Accessibility is part of the interaction design, not a final ARIA pass.
+
+## 27. Central design tokens
+
+Core visual values should come from central project tokens.
+
+Centralise at least:
+
+- base and raised surfaces;
+- text colours;
+- accent colours;
+- semantic state colours;
+- spacing scale;
+- radius scale;
+- typography roles;
+- repeated control heights or target sizes;
+- major layout width tiers.
+
+Avoid arbitrary one-off spacing, radius and font values unless the composition genuinely requires one.
+
+Do not add a one-off value simply because it is faster than using or extending the established system.
+
+## 28. Reuse and consistency
+
+Before creating a new visual pattern:
+
+1. inspect the nearest comparable BookClub interaction;
+2. reuse it when it serves the same purpose;
+3. extend it when the task genuinely needs more;
+4. create something new only when the established pattern cannot serve the task.
+
+Existing BookClub consistency takes precedence over generic style preferences unless the current task explicitly authorises a change.
+
+Do not copy a component merely because it looks similar if its semantics are different.
+
+## 29. Admin and developer controls
+
+Admin and developer functions should normally live behind an explicit admin/developer area or disclosure.
+
+They must not compete visually with ordinary member tasks.
+
+When a contextual admin control genuinely belongs on a screen, keep it visually subordinate.
+
+Local developer tooling must remain clearly separate from member-facing workflows.
+
+## 30. BookClub screen priorities
+
+### Home
+
+Orient quickly around current turn, current state and likely next action.
+
+Do not let recent history, admin correction, developer tools or secondary widgets compete with that orientation.
+
+### History
+
+Prioritise scanning and understanding past nights.
+
+Host, date precision, film order and cycle context should remain clear.
+
+Editing, audit and deletion are secondary.
+
+### Metrics
+
+Prioritise visual comprehension and comparison.
+
+Charts are encouraged where they reveal patterns better than text alone.
+
+Maintenance controls should remain subordinate.
+
+### Classics / Watch Order
+
+Make ranking, state and comparison easy to scan.
+
+Ranked, Needs Data and Disqualified must remain distinct.
+
+### Builder
+
+Prioritise draft creation and the path from adding films through save and publish.
+
+Avoid sprawling forms on desktop.
+
+Advanced or unusual options should remain disclosed.
+
+### Seen It?
+
+Prioritise repeated low-friction answering.
+
+Yes and No should remain equally reachable and should not visually bias the answer.
+
+### Event create/edit
+
+Keep event details and ordered film lineup coherent as one workflow.
+
+Backfill, current-turn completion and correction semantics must remain truthful.
+
+### Film detail
+
+Lead with film identity and viewing information.
+
+Provider, maintenance and provenance controls should remain subordinate.
+
+### Avatar onboarding
+
+Keep the choice focused, obvious and recoverable.
+
+### Sign-in
+
+Keep the private-club context brief and make sign-in obvious.
+
+### Developer tools
+
+Keep them available but out of the ordinary member hierarchy.
+
+## 31. Anti-patterns
+
+Avoid:
+
+- everything becoming a card;
+- heavy borders around every section;
+- nested boxes used instead of hierarchy;
+- arbitrary one-off spacing and radii;
+- rows of equally prominent actions;
+- filters styled like submission buttons;
+- unnecessary explanatory copy;
+- giant illustrated empty states;
+- decorative shadows and gradients;
+- success messages for every obvious state change;
+- tiny mobile targets;
+- major destinations hidden unnecessarily;
+- mobile layouts merely stretched across desktop;
+- wide forms filling available space without reason;
+- one-off component aesthetics;
+- admin/developer controls competing with member tasks;
+- UI cleanup outside the authorised task scope.
+
+## 32. Required rendered review
+
+For every meaningful interface change:
+
+- run the application;
+- inspect the complete screen;
+- inspect representative mobile and desktop widths;
+- inspect intermediate widths when the layout changes there;
+- use populated data where authorised and practical;
+- check long content and missing artwork where relevant;
+- scroll the whole page.
+
+Source review alone is not proof of good layout.
+
+Before completion ask:
+
+- Is the user's goal understandable?
+- Is the intended visual identity intact?
+- Is there an obvious primary action where one should exist?
+- Is the whole screen balanced?
+- Is the layout comfortably spacious rather than cramped?
+- Are alignment lines strong?
+- Are cards and borders doing real work?
+- Are mobile targets large enough?
+- Is desktop intentionally composed?
+- Are secondary, destructive, admin and developer actions subordinate?
+- Are loading, empty, error and success states appropriate?
+- Is the copy concise?
+- Does the result remain consistent with BookClub?
+- Did the task accidentally expand into unrelated cleanup?
+
+If the screen technically works but still feels assembled rather than designed, the task is not finished.

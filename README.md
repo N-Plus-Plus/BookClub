@@ -8,6 +8,7 @@ This is a functional local-first foundation. All bundled events and source ratin
 
 | Path | Responsibility |
 | --- | --- |
+| `STYLE.md` | UX/UI companion to AGENTS.md; task flow, hierarchy, composition and required visual review |
 | `frontend/` | React/TypeScript UI, dedicated API client, hash routing, mobile layouts |
 | `style.css` | Original authoritative dark visual system, preserved unchanged |
 | `frontend/app.css` | Mobile layout extensions, 44px controls, safe areas, responsive cards |
