@@ -7,6 +7,8 @@ import { MovieService } from './services';
 import { authenticate, login, verifyGoogle, type GoogleVerifier } from './auth';
 import { AuthRepository } from './auth-repository';
 import { sortClassics } from '../../shared/ranking';
+import { ProductRepository, requireAdmin, requireViewer } from './product-repository';
+import { avatarSchema, builderSchema, publishSchema, revisionSchema, rotationSchema } from './validation';
 
 async function body(request: Request): Promise<unknown> {
   // Bound JSON input before parsing, including requests without Content-Length.
@@ -28,8 +30,8 @@ async function body(request: Request): Promise<unknown> {
 
 async function route(request: Request, env: Env, verify: GoogleVerifier): Promise<Response> {
   const url = new URL(request.url), path = url.pathname, method = request.method;
-  const repo = new Repository(env.DB), movies = new MovieService(repo,env);
-  if (!['GET','POST','PUT','OPTIONS'].includes(method)) throw new ApiError(405,'METHOD_NOT_ALLOWED','Method not supported.');
+  const repo = new Repository(env.DB), movies = new MovieService(repo,env), product = new ProductRepository(env.DB);
+  if (!['GET','POST','PUT','DELETE','OPTIONS'].includes(method)) throw new ApiError(405,'METHOD_NOT_ALLOWED','Method not supported.');
   if (path === '/api/v1/health' && method === 'GET') return json({ status: 'ok', environment: env.APP_ENV,
     authenticationRequired: !localBypass(env), googleAuthConfigured: Boolean(env.GOOGLE_CLIENT_ID?.trim()), tmdbConfigured: Boolean(env.TMDB_READ_TOKEN), mdblistConfigured: Boolean(env.MDBLIST_API_KEY), omdbConfigured: Boolean(env.OMDB_API_KEY), demo: env.APP_ENV === 'local' });
   if (path === '/api/v1/auth/google' && method === 'POST') {
@@ -43,6 +45,35 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
     return json({ loggedOut: true });
   }
   if (method !== 'GET' && method !== 'OPTIONS') authorizeMutation(env,auth.viewer);
+  if (path === '/api/v1/avatars' && method === 'GET') { requireViewer(auth.viewer); return json(await product.availableAvatars()); }
+  if (path === '/api/v1/auth/avatar' && method === 'POST') return json(await product.claimAvatar(requireViewer(auth.viewer),avatarSchema.parse(await body(request)).avatar));
+  if (path === '/api/v1/rotation' && method === 'GET') return json(await product.rotation());
+  if (path === '/api/v1/rotation' && method === 'PUT') {
+    const actor = requireAdmin(auth.viewer); return json(await product.correctRotation(actor,rotationSchema.parse(await body(request))));
+  }
+  const builderMatch = path.match(/^\/api\/v1\/builders\/([^/]+)(?:\/(publish))?$/);
+  if (path === '/api/v1/builders' || builderMatch) {
+    const actor = requireViewer(auth.viewer), id = builderMatch ? idSchema.parse(builderMatch[1]) : undefined;
+    if (!id && method === 'GET') return json(await product.builders(actor.id));
+    if (!id && method === 'POST') return json(await product.saveBuilder(actor.id,builderSchema.parse(await body(request))),201);
+    if (id && builderMatch?.[2] === 'publish' && method === 'POST') {
+      const {revision,...input} = publishSchema.parse(await body(request));
+      const sessionId = await product.publishBuilder(actor,id,revision,{...input,movie_ids: [],kind: input.cycle_slot === 5 ? 'classics' : 'hosted',date_precision: 'exact'});
+      return json((await repo.catalog()).sessions.find(s => s.id === sessionId),201);
+    }
+    if (id && !builderMatch?.[2]) {
+      if (method === 'GET') return json(await product.builder(actor.id,id));
+      if (method === 'PUT') return json(await product.saveBuilder(actor.id,builderSchema.parse(await body(request)),id,true));
+      if (method === 'DELETE') { await product.deleteBuilder(actor.id,id,revisionSchema.parse(await body(request)).revision); return json({deleted: true}); }
+    }
+    throw new ApiError(404,'NOT_FOUND','API route not found.');
+  }
+  const historyAction = path.match(/^\/api\/v1\/sessions\/([^/]+)\/(audit|restore)$/);
+  if (historyAction) {
+    const id = idSchema.parse(historyAction[1]);
+    if (historyAction[2] === 'audit' && method === 'GET') return json(await product.auditTrail(id));
+    if (historyAction[2] === 'restore' && method === 'POST') { await product.restoreSession(requireAdmin(auth.viewer),id); return json({restored: true}); }
+  }
   if (path === '/api/v1/classics/enrich' && method === 'POST') {
     const input = enrichmentSchema.parse(await body(request)); return json(await new ScoreService(repo,env).enrich(input.limit));
   }
@@ -71,9 +102,10 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
   const movieMatch = path.match(/^\/api\/v1\/movies\/([^/]+)$/);
   if (movieMatch && method === 'GET') return json(await movies.detail(idSchema.parse(movieMatch[1])));
   const sessionMatch = path.match(/^\/api\/v1\/sessions\/([^/]+)$/);
+  if (sessionMatch && method === 'DELETE') { await product.deleteSession(auth.viewer,idSchema.parse(sessionMatch[1])); return json({deleted: true}); }
   if ((path === '/api/v1/sessions' && method === 'POST') || (sessionMatch && method === 'PUT')) {
     const input = sessionSchema.parse(await body(request));
-    const id = await repo.saveSession(input,sessionMatch ? idSchema.parse(sessionMatch[1]) : undefined);
+    const id = await product.saveSession(input,auth.viewer,sessionMatch ? idSchema.parse(sessionMatch[1]) : undefined);
     return json((await repo.catalog()).sessions.find(s => s.id === id),sessionMatch ? 200 : 201);
   }
   if (method === 'GET' && ['/api/v1/catalog','/api/v1/members','/api/v1/movies','/api/v1/sessions','/api/v1/classics','/api/v1/cycles'].includes(path)) {
@@ -115,7 +147,7 @@ export function createWorker(verify: GoogleVerifier = verifyGoogle) { return {
     response.headers.set('X-Content-Type-Options','nosniff');
     if (permitted) {
       response.headers.set('Access-Control-Allow-Origin',origin!);
-      response.headers.set('Access-Control-Allow-Methods','GET,POST,PUT,OPTIONS');
+      response.headers.set('Access-Control-Allow-Methods','GET,POST,PUT,DELETE,OPTIONS');
       response.headers.set('Access-Control-Allow-Headers','Content-Type, Authorization');
     }
     return response;

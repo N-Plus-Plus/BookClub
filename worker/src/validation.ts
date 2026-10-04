@@ -11,6 +11,7 @@ export const movieSchema = z.object({
 }).strict();
 export const cycleSchema = z.object({ rough_date: dateSchema, title: z.string().trim().max(300).optional(), ordinal: z.number().int().positive().optional() }).strict();
 export const sessionSchema = z.object({
+  complete_turn: z.boolean().optional(), turn_version: z.number().int().nonnegative().optional(), swap_note: z.string().trim().max(2000).optional(), correct_anchor: z.boolean().optional(),
   event_date: dateSchema, title: z.string().trim().max(300).optional(),
   host_member_id: idSchema.nullable().optional(), legacy_cycle_label: z.string().trim().max(300).optional(),
   notes: z.string().trim().max(10000).optional(), movie_ids: z.array(idSchema).min(1),
@@ -22,10 +23,15 @@ export const sessionSchema = z.object({
   if (s.kind === 'classics' && s.host_member_id) ctx.addIssue({code: 'custom',path: ['host_member_id'],message: 'Classics events have no host.'});
   if (s.kind === 'hosted' && !s.host_member_id) ctx.addIssue({code: 'custom',path: ['host_member_id'],message: 'Choose a host for a hosted event.'});
   if (s.date_precision === 'cycle_rough' && !s.cycle_id && !s.new_cycle) ctx.addIssue({code: 'custom',path: ['cycle_id'],message: 'An approximate cycle date requires a cycle.'});
-  if (s.cycle_slot != null && !s.cycle_id && !s.new_cycle) ctx.addIssue({code: 'custom',path: ['cycle_slot'],message: 'A source slot requires a cycle.'});
+  if (s.cycle_slot != null && !s.cycle_id && !s.new_cycle && !s.complete_turn) ctx.addIssue({code: 'custom',path: ['cycle_slot'],message: 'A source slot requires a cycle.'});
   if (s.cycle_slot != null && ((s.kind === 'classics' && s.cycle_slot !== 5) || (s.kind !== 'classics' && s.cycle_slot === 5))) ctx.addIssue({code: 'custom',path: ['cycle_slot'],message: 'Slot 5 is for Classics; slots 1–4 are hosted.'});
 });
 export const classicSchema = z.object({classic: z.boolean()}).strict();
 export const enrichmentSchema = z.object({limit: z.number().int().min(1).max(10).default(10)}).strict();
 export const seenSchema = z.object({ seen: z.boolean().nullable() }).strict();
 export const importSchema = z.object({ provider: z.literal('tmdb'), externalId: z.string().regex(/^[1-9]\d{0,9}$/) }).strict();
+export const avatarSchema = z.object({avatar: z.number().int().min(0).max(19)}).strict();
+export const builderSchema = z.object({title: z.string().trim().max(300).optional(),notes: z.string().trim().max(10000).optional(),movie_ids: z.array(idSchema),revision: z.number().int().nonnegative().optional()}).strict();
+export const revisionSchema = z.object({revision: z.number().int().nonnegative()}).strict();
+export const rotationSchema = z.object({cycle_id: idSchema.nullable(),nominal_slot: z.number().int().min(1).max(5),version: z.number().int().nonnegative().nullable(),reason: z.string().trim().min(1).max(2000)}).strict();
+export const publishSchema = z.object({revision: z.number().int().nonnegative(),event_date: dateSchema,cycle_id: idSchema.nullable(),cycle_slot: z.number().int().min(1).max(5),complete_turn: z.boolean(),turn_version: z.number().int().nonnegative().optional(),swap_note: z.string().trim().max(2000).optional(),new_cycle: cycleSchema.optional()}).strict();

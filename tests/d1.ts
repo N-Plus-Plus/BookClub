@@ -1,8 +1,8 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
-export function disposableD1() {
+export function disposableD1(lastMigration?: string) {
   const sqlite = new DatabaseSync(':memory:'); sqlite.exec('PRAGMA foreign_keys=ON');
-  for (const name of readdirSync('worker/migrations').filter(n=>n.endsWith('.sql')).sort()) sqlite.exec(readFileSync(`worker/migrations/${name}`,'utf8'));
+  for (const name of readdirSync('worker/migrations').filter(n=>n.endsWith('.sql') && (!lastMigration || n<=lastMigration)).sort()) sqlite.exec(readFileSync(`worker/migrations/${name}`,'utf8'));
   function prepare(sql: string,values: SQLInputValue[] = []): unknown {
     return {bind: (...args: SQLInputValue[]) => prepare(sql,args),
       first: async () => sqlite.prepare(sql).get(...values) ?? null,

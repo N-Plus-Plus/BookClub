@@ -1,6 +1,6 @@
 import type { Viewer } from '../../shared/types';
 
-const viewerColumns = 'm.id,m.display_name';
+const viewerColumns = 'm.id,m.display_name,m.avatar,m.role,m.sort_order';
 export class AuthRepository {
   constructor(private db: D1Database) {}
   async bindIdentity(sub: string,email: string,now: string): Promise<Viewer | null> {

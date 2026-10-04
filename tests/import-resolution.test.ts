@@ -101,6 +101,14 @@ describe('mocked bounded resumable TMDB identity resolution',()=>{
  });
 });
 describe('local import apply',()=>{
+ it('refuses an older preview schema before writing imported data',async()=>{
+  const local=disposableD1('0004_import_provenance.sql');try {
+   local.sqlite.exec(readFileSync('worker/import-preview-members.sql','utf8'));
+   await expect(applyLocal(local.db,validateResolved(resolved(),config),true)).rejects.toThrow('0005');
+   expect(local.sqlite.prepare('SELECT count(*) n FROM movies').get()?.n).toBe(0);
+   expect(local.sqlite.prepare('SELECT count(*) n FROM sessions').get()?.n).toBe(0);
+  }finally {local.sqlite.close();}
+ });
  it('preflights read-only, applies atomically, reruns as no-op and rejects changed state',async()=>{
   const local=disposableD1();try{
    local.sqlite.exec(readFileSync('worker/import-preview-members.sql','utf8'));const plan=validateResolved(resolved(),config);

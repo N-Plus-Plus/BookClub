@@ -129,3 +129,22 @@ progress { width: 100%; height: 10px; accent-color: var(--concrete); }
 .rank-top .score { margin-left: auto; }
 .source-record .badge { margin-top: 8px; }
 select.field__input { width: 100%; min-width: 0; }
+.club-identity { display: inline-flex; flex-direction: column; align-items: center; gap: 5px; font-size: .7rem; font-weight: 600; text-align: center; }
+.club-avatar { width: 44px; height: 44px; object-fit: cover; border-radius: var(--radius-container); }
+.viewer-controls { align-items: flex-end; }
+.viewer-controls > .button { width: 44px; }
+.avatar-onboarding { max-width: 780px; padding-bottom: 32px; }
+.avatar-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.avatar-choice { position: relative; padding: 0; min-width: 44px; min-height: 44px; border: 2px solid var(--asphalt); border-radius: var(--radius-container); overflow: hidden; background: var(--surface-base); cursor: pointer; }
+.avatar-choice img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.avatar-choice[aria-pressed=true] { border-color: var(--paper); outline: 2px solid var(--focus-outline); }
+.avatar-choice svg { position: absolute; bottom: 4px; right: 4px; background: var(--surface-base); border-radius: 50%; }
+.avatar-choice:focus-visible { outline: 3px solid var(--focus-outline); outline-offset: 3px; }
+.turn-card { border: 1px solid var(--asphalt); }
+.turn-card-personal { border-color: var(--focus-outline); background: var(--surface-raised); box-shadow: inset 4px 0 0 var(--focus-outline); }
+.turn-identity .club-avatar { width: 80px; height: 80px; }
+.turn-identity .club-identity { font-size: 1.25rem; }
+.session-meta .club-avatar { width: 36px; height: 36px; }
+textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
+.button-set > .button { min-width: 44px; max-width: 100%; }
+@media (min-width: 720px) { .avatar-grid { grid-template-columns: repeat(5,minmax(0,1fr)); } }

@@ -2,6 +2,7 @@ import type { Asset, Catalog, Cycle, ExternalId, Member, Movie, Score, SeenAnswe
 import { rankMovie } from '../../shared/ranking';
 import type { ProviderMovie } from './providers/types';
 import { ApiError } from './http';
+import { ProductRepository } from './product-repository';
 
 type MovieRow = Pick<Movie, 'id' | 'title' | 'original_title' | 'year' | 'release_date' | 'runtime' | 'overview'>;
 type SessionRow = Omit<Session,'movies'>;
@@ -12,7 +13,7 @@ export class Repository {
   async catalog(): Promise<Catalog> {
     // D1 batch gives one consistent transactional read for the derived rankings.
     const result = await this.db.batch([
-      this.db.prepare('SELECT id,display_name,sort_order,active FROM members ORDER BY sort_order,id'),
+      this.db.prepare('SELECT id,display_name,sort_order,active,avatar FROM members ORDER BY sort_order,id'),
       this.db.prepare('SELECT id,title,original_title,year,release_date,runtime,overview FROM movies ORDER BY title,id'),
       this.db.prepare('SELECT movie_id,provider,asset_type,reference,width,height,preferred FROM movie_assets ORDER BY preferred DESC,id'),
       this.db.prepare('SELECT movie_id,provider,external_id FROM movie_external_ids'),
@@ -20,7 +21,7 @@ export class Repository {
       this.db.prepare('SELECT movie_id,member_id,seen,updated_at FROM seen_states'),
       this.db.prepare('SELECT movie_id,rank_seed,added_at,source FROM classics'),
       this.db.prepare('SELECT movie_id,genre FROM movie_genres ORDER BY genre'),
-      this.db.prepare('SELECT id,event_date,title,host_member_id,legacy_cycle_label,notes,cycle_id,kind,date_precision,cycle_slot FROM sessions ORDER BY event_date DESC,created_at DESC,id'),
+      this.db.prepare('SELECT id,event_date,title,host_member_id,legacy_cycle_label,notes,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,swap_note,completed_turn_version FROM sessions WHERE deleted_at IS NULL ORDER BY event_date DESC,created_at DESC,id'),
       this.db.prepare('SELECT session_id,movie_id,position FROM session_movies ORDER BY position'),
       this.db.prepare('SELECT * FROM cycles ORDER BY ordinal DESC,id'),
     ]);
@@ -51,32 +52,7 @@ export class Repository {
     return id;
   }
   async saveSession(input: SessionInput, existingId?: string) {
-    if (existingId && !await this.db.prepare('SELECT id FROM sessions WHERE id=?').bind(existingId).first()) throw new ApiError(404,'NOT_FOUND','Event not found.');
-    for (const id of new Set(input.movie_ids)) await this.assertMovie(id);
-    if (input.host_member_id && !await this.db.prepare('SELECT id FROM members WHERE id=? AND active=1').bind(input.host_member_id).first()) throw new ApiError(422,'INVALID_HOST','Choose an active member as host.');
-    let cycleId = input.cycle_id ?? null;
-    let roughDate: string | null = input.new_cycle?.rough_date ?? null;
-    if (cycleId) {
-      const cycle = await this.db.prepare('SELECT rough_date FROM cycles WHERE id=?').bind(cycleId).first<{rough_date: string}>();
-      if (!cycle) throw new ApiError(422,'INVALID_CYCLE','Choose an existing cycle.');
-      roughDate = cycle.rough_date;
-    }
-    if (input.date_precision === 'cycle_rough' && roughDate !== input.event_date) throw new ApiError(422,'INVALID_DATE_PRECISION','Use the selected cycle rough date for an approximate event.');
-    const cycleStatements = [];
-    if (input.new_cycle) {
-      cycleId = crypto.randomUUID();
-      cycleStatements.push(this.db.prepare('INSERT INTO cycles(id,ordinal,rough_date,title) SELECT ?,COALESCE(?,COALESCE(MAX(ordinal),0)+1),?,? FROM cycles')
-        .bind(cycleId,input.new_cycle.ordinal ?? null,input.new_cycle.rough_date,input.new_cycle.title || null));
-    }
-    const id = existingId ?? crypto.randomUUID();
-    const fields = [input.event_date,input.title || null,input.host_member_id || null,input.legacy_cycle_label || null,input.notes || null,cycleId,input.kind ?? 'hosted',input.date_precision ?? 'exact',input.cycle_slot ?? null];
-    const statements = existingId ? [
-      this.db.prepare("UPDATE sessions SET event_date=?,title=?,host_member_id=?,legacy_cycle_label=?,notes=?,cycle_id=?,kind=?,date_precision=?,cycle_slot=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").bind(...fields,id),
-      this.db.prepare('DELETE FROM session_movies WHERE session_id=?').bind(id),
-    ] : [this.db.prepare('INSERT INTO sessions(id,event_date,title,host_member_id,legacy_cycle_label,notes,cycle_id,kind,date_precision,cycle_slot) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(id,...fields)];
-    statements.push(...input.movie_ids.map((movieId,i) => this.db.prepare('INSERT INTO session_movies(session_id,movie_id,position) VALUES(?,?,?)').bind(id,movieId,i+1)));
-    await this.db.batch([...cycleStatements,...statements]); // Cycle, event and ordered joins commit atomically.
-    return id;
+    return new ProductRepository(this.db).saveSession(input,null,existingId);
   }
   async setSeen(movieId: string, memberId: string, seen: boolean | null) {
     await this.assertMovie(movieId);

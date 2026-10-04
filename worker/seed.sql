@@ -59,7 +59,7 @@ INSERT OR IGNORE INTO session_movies(session_id,movie_id,position) SELECT 'demo-
 
 -- New-domain fixtures are fresh-seed-only; never alter an existing seeded catalog.
 INSERT OR IGNORE INTO cycles(id,ordinal,rough_date,title) SELECT 'demo-cycle-a',1,'2026-09-19','Demo cycle A' WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
-UPDATE sessions SET cycle_id='demo-cycle-a',date_precision='cycle_rough',event_date='2026-09-19',cycle_slot=CASE id WHEN 'demo-1' THEN 1 ELSE 2 END WHERE id IN ('demo-1','demo-2') AND NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
+UPDATE sessions SET cycle_id='demo-cycle-a',date_precision=CASE id WHEN 'demo-1' THEN 'exact' ELSE 'cycle_rough' END,event_date='2026-09-19',cycle_slot=CASE id WHEN 'demo-1' THEN 1 ELSE 2 END WHERE id IN ('demo-1','demo-2') AND NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
 INSERT OR IGNORE INTO sessions(id,event_date,title,cycle_id,kind,date_precision,cycle_slot) SELECT 'demo-classics','2026-09-19','Classics Collection','demo-cycle-a','classics','cycle_rough',5 WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
 INSERT OR IGNORE INTO session_movies(session_id,movie_id,position) SELECT 'demo-classics','alien',1 WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
 INSERT OR IGNORE INTO source_scores(id,movie_id,provider,metric,raw_value,raw_scale,normalized_value,fetched_at,retrieved_via)
@@ -69,4 +69,6 @@ SELECT id||'-rt-critic',id,'rottentomatoes','critic',95,100,95,'2026-09-01T00:00
 INSERT OR IGNORE INTO source_scores(id,movie_id,provider,metric,raw_value,raw_scale,normalized_value,fetched_at,retrieved_via)
 SELECT 'spirited-letterboxd','spirited','letterboxd','rating',4.1,5,82,'2026-09-01T00:00:00Z','development-demo' WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
 UPDATE source_scores SET retrieved_via='development-demo' WHERE import_source='demo' AND NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
+-- Representative local-only turn, installed once without overwriting saved rotation.
+INSERT OR IGNORE INTO club_rotation(id,cycle_id,nominal_slot) SELECT 1,'demo-cycle-a',5 WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
 INSERT OR IGNORE INTO seed_runs(name) VALUES('demo-v1');

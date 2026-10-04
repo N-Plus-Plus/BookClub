@@ -1,4 +1,4 @@
-import type { Catalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult } from '../shared/types';
+import type { Catalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit } from '../shared/types';
 
 const configured = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/,'');
 const base = configured || (import.meta.env.DEV ? 'http://localhost:8787' : '');
@@ -47,7 +47,18 @@ export const api = {
   search: (query: string) => request<SearchResponse>(`/movies/search?q=${encodeURIComponent(query)}`),
   createMovie: (input: ManualMovieInput) => request<MovieDetail>('/movies','POST',input),
   importMovie: (externalId: string) => request<MovieDetail>('/movies/import','POST',{provider: 'tmdb',externalId}),
-  saveSession: (input: SessionInput) => request<Session>('/sessions','POST',input),
+  saveSession: (input: SessionInput,id?: string) => request<Session>(id ? `/sessions/${encodeURIComponent(id)}` : '/sessions',id ? 'PUT' : 'POST',input),
+  avatars: () => request<number[]>('/avatars'),
+  claimAvatar: (avatar: number) => request<Viewer>('/auth/avatar','POST',{avatar}),
+  rotation: () => request<Rotation | null>('/rotation'),
+  correctRotation: (input: {cycle_id: string | null; nominal_slot: number; version: number | null; reason: string}) => request<Rotation>('/rotation','PUT',input),
+  builders: () => request<BuilderSet[]>('/builders'),
+  saveBuilder: (input: BuilderInput,id?: string) => request<BuilderSet>(id ? `/builders/${encodeURIComponent(id)}` : '/builders',id ? 'PUT' : 'POST',input),
+  deleteBuilder: (id: string,revision: number) => request(`/builders/${encodeURIComponent(id)}`,'DELETE',{revision}),
+  publishBuilder: (id: string,input: BuilderPublishInput) => request<Session>(`/builders/${encodeURIComponent(id)}/publish`,'POST',input),
+  deleteSession: (id: string) => request(`/sessions/${encodeURIComponent(id)}`,'DELETE'),
+  restoreSession: (id: string) => request(`/sessions/${encodeURIComponent(id)}/restore`,'POST'),
+  audit: (id: string) => request<HistoryAudit[]>(`/sessions/${encodeURIComponent(id)}/audit`),
   classic: (id: string,classic: boolean) => request<MovieDetail>(`/movies/${encodeURIComponent(id)}/classics`,'PUT',{classic}),
   refreshScores: (id: string) => request<RefreshResult>(`/movies/${encodeURIComponent(id)}/refresh-scores`,'POST'),
   enrich: (limit = 10) => request<{results: RefreshResult[]; remaining: number; unidentified: number}>('/classics/enrich','POST',{limit}),

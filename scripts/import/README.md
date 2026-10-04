@@ -4,7 +4,7 @@
 
 ## 1. Analyse and validate the workbook
 
-Copy `import-config.example.json` to ignored `import-config.local.json`. The confirmed order is `club-member-1` through `club-member-4`: Tracker B–E and Should Watch F–I. Display names and Google identities do not belong in import configuration.
+Copy `import-config.example.json` to ignored `import-config.local.json`. The confirmed order is `club-member-1` through `club-member-4`: Tracker B–E and Should Watch F–I. Positions are Sean, Troy, Matt and Jess respectively; display names and Google identities do not belong in import configuration. Tracker Ruff Date anchors the cycle and gives slot 1 its exact event date. Slots 2-5 use the anchor as a reference with `cycle_rough` precision because their actual dates are absent. Regenerate raw/resolved plans made before this clarification; strict plan validation rejects the old all-rough precision. IDs, counts, ordering, identity resolution and Watch Order are unchanged. Existing applied fingerprints are never overwritten: review any conflict separately, without resetting owner data.
 
 ```sh
 pnpm import:spreadsheet --file "path/to/private.xlsx" --config scripts/import/import-config.local.json
@@ -17,6 +17,8 @@ Review the summary first: structural counts, historical Watch Order, blockers, r
 Legacy Letterboxd P and Metacritic O are percentages (raw scale 100). Trimmed case-insensitive `N/A` produces no snapshot; arbitrary malformed text still warns. MDBList Letterboxd remains native scale 5. B–D and explicit normalized Yes/No answers remain canonical; formulas are never executed. Watch Order, Sheet2 and Not Book Club are never applied as source entities.
 
 `snapshotCapturedAt` is optional during analysis/resolution. For apply, privately supply an ISO UTC timestamp, for example the actual time the migration archive captured the state. It is **not** a claim about when the spreadsheet originally retrieved each rating. No timestamp is inferred from file modification dates or hard-coded by the importer. Rerun resolution after setting/changing it.
+
+Apply requires all current preview migrations through `0005_product_state.sql` before any writes, because final catalog verification uses the new member/session columns. The resolved plan's `schemaMigration: 0004_import_provenance.sql` remains its provenance-format marker; IDs, cache format and fingerprints are unchanged. Preparation still inserts only the generic positional roster, with default member roles/null avatars and no auth or current-turn initialisation.
 
 ## 2. Resolve identities offline
 

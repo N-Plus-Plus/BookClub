@@ -56,9 +56,9 @@ function specs(plan:ResolvedPlan):Spec[] {
   return list;
 }
 export async function preflight(db:D1Database,plan:ResolvedPlan) {
-  const needed=[...tables,'import_applied_entities','members','classics_seed_allocations'];
+  const needed=[...tables,'import_applied_entities','members','classics_seed_allocations','builder_sets','builder_movies','club_rotation','history_audit'];
   const schema=(await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{name:string}>()).results;
-  if(needed.some(n=>!schema.some(t=>t.name===n))) throw new ImportError('Schema compatibility failure: run import-preview migrations through 0004.');
+  if(needed.some(n=>!schema.some(t=>t.name===n))) throw new ImportError('Schema compatibility failure: run all current import-preview migrations through 0005 before apply.');
   const columns=(await db.prepare('PRAGMA table_info(source_scores)').all<{name:string}>()).results;
   if(!columns.some(c=>c.name==='source_ordinal')||!columns.some(c=>c.name==='legacy_preferred')) throw new ImportError('Schema compatibility failure: score provenance columns missing.');
   const queries=[...tables.map(t=>db.prepare(`SELECT * FROM ${t}`)),db.prepare('SELECT id,display_name,sort_order,active FROM members'),db.prepare('SELECT * FROM import_applied_entities'),db.prepare('SELECT (SELECT COUNT(*) FROM member_auth)+(SELECT COUNT(*) FROM auth_sessions) n'),db.prepare('SELECT * FROM classics_seed_allocations')];

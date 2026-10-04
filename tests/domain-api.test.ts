@@ -19,9 +19,9 @@ describe('cycles and membership',()=>{
     local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));expect((await new Repository(local.db).catalog()).movies.find(m=>m.id==='bicycle')!.classic).toBe(false);
     expect(local.sqlite.prepare("SELECT * FROM seen_states WHERE movie_id='bicycle' AND member_id='member-1'").get()).toBeUndefined();
   });
-  it('creates cycle+event atomically and preserves film order with rough precision',async()=>{
-    const s=await data<Session>(await call('/sessions','POST',{event_date:'2000-02-01',kind:'hosted',host_member_id:'member-1',new_cycle:{rough_date:'2000-02-01',title:'Fictional cycle'},date_precision:'cycle_rough',movie_ids:['arrival','moon','arrival']}));
-    expect(s.date_precision).toBe('cycle_rough');expect(s.movies.map(m=>m.id)).toEqual(['arrival','moon','arrival']);
+  it('creates a slot-1 anchored cycle atomically and preserves film order',async()=>{
+    const s=await data<Session>(await call('/sessions','POST',{event_date:'2000-02-01',kind:'hosted',host_member_id:'member-1',new_cycle:{rough_date:'2000-02-01',title:'Fictional cycle'},date_precision:'exact',cycle_slot:1,movie_ids:['arrival','moon','arrival']}));
+    expect(s.date_precision).toBe('exact');expect(s.movies.map(m=>m.id)).toEqual(['arrival','moon','arrival']);
     const c=await data<Catalog>(await call('/catalog'));expect(c.cycles.find(x=>x.id===s.cycle_id)?.rough_date).toBe('2000-02-01');
     expect((await call('/sessions','POST',{event_date:'2000-02-02',cycle_id:s.cycle_id,date_precision:'cycle_rough',movie_ids:['moon']})).status).toBe(422);
   });
@@ -41,7 +41,7 @@ describe('cycles and membership',()=>{
   it('rolls back a new cycle when event insertion fails',async()=>{
     const repo=new Repository(local.db), before=(await repo.catalog()).cycles.length;
     local.sqlite.exec("CREATE TRIGGER fail_session BEFORE INSERT ON sessions BEGIN SELECT RAISE(ABORT,'test'); END");
-    await expect(repo.saveSession({event_date:'2000-01-01',new_cycle:{rough_date:'2000-01-01'},movie_ids:['moon']})).rejects.toThrow();expect((await repo.catalog()).cycles.length).toBe(before);
+    await expect(repo.saveSession({event_date:'2000-01-01',new_cycle:{rough_date:'2000-01-01'},kind:'hosted',host_member_id:'member-1',cycle_slot:1,date_precision:'exact',movie_ids:['moon']})).rejects.toThrow();expect((await repo.catalog()).cycles.length).toBe(before);
   });
 });
 describe('persisted score refresh',()=>{

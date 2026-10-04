@@ -57,7 +57,7 @@ export function analyseWorkbook(workbook: ExcelJS.Workbook, rawConfig: unknown) 
   if (!/classic/i.test(text(cellValue(tracker.getCell('F1')))) || !/not.*book.*club/i.test(text(cellValue(tracker.getCell('G1'))))) throw new Error('Unrecognised Tracker layout.');
   const movies: Film[] = [], cycles: {id: string; ordinal: number; rough_date: string; import_key: string; source_row: number}[] = [];
   const source_records: {source_ref: string; title: string; year: number|null; imdb_id: string|null}[] = [];
-  const events: {id: string; cycle_id: string; event_date: string; date_precision: 'cycle_rough'; kind: 'hosted'|'classics'; host_member_id: string | null; cycle_slot: number; import_key: string; films: {movie_id: string; position: number; source_row: number; source_column: number}[]}[] = [];
+  const events: {id: string; cycle_id: string; event_date: string; date_precision: 'exact'|'cycle_rough'; kind: 'hosted'|'classics'; host_member_id: string | null; cycle_slot: number; import_key: string; films: {movie_id: string; position: number; source_row: number; source_column: number}[]}[] = [];
   const ancillary: {row: number; title: string}[] = [];
   const classics: {movie_id: string; rank_seed: number; source_row: number; needs_identification: boolean; scores: Score[]; seen: SeenAnswer[]; ranking: ReturnType<typeof rankMovie>}[] = [];
   const reconciliation: {status: 'confidently-linked'|'probable/manual-review'|'duplicate/conflict'|'unresolved'; movie_ids: string[]; reason: string; rows?: number[]}[] = [];
@@ -90,7 +90,7 @@ export function analyseWorkbook(workbook: ExcelJS.Workbook, rawConfig: unknown) 
       if (col === 7) { ancillary.push({row,title}); continue; }
       if (!cycle) throw new Error(`Film before first cycle at Tracker row ${row}.`);
       let event = events.find(e => e.cycle_id === cycle!.id && e.cycle_slot === col-1);
-      if (!event) { const key = `Tracker:event:${cycle.source_row}:${col}`; event = {id: stableId(config.importSource,key),cycle_id: cycle.id,event_date: cycle.rough_date,date_precision: 'cycle_rough',kind: col === 6 ? 'classics' : 'hosted',host_member_id: col === 6 ? null : config.memberIds[col-2],cycle_slot: col-1,import_key: key,films: []}; events.push(event); }
+      if (!event) { const key = `Tracker:event:${cycle.source_row}:${col}`; event = {id: stableId(config.importSource,key),cycle_id: cycle.id,event_date: cycle.rough_date,date_precision: col === 2 ? 'exact' : 'cycle_rough',kind: col === 6 ? 'classics' : 'hosted',host_member_id: col === 6 ? null : config.memberIds[col-2],cycle_slot: col-1,import_key: key,films: []}; events.push(event); }
       const movie = addFilm(title,`Tracker:${row}:${col}`);
       event.films.push({movie_id: movie.id,position: event.films.length+1,source_row: row,source_column: col});
     }

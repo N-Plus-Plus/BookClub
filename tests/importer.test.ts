@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { analyseWorkbook, configSchema } from '../scripts/import/workbook';
+import { rawPlanSchema } from '../scripts/import/model';
 export function fixture() {
   const w=new ExcelJS.Workbook(), t=w.addWorksheet('Tracker'), c=w.addWorksheet('Should Watch'), o=w.addWorksheet('Watch Order'), h=w.addWorksheet('Sheet2');
   t.addRow(['Rough date','Host 1','Host 2','Host 3','Host 4','Classics Collection','Not Book Club']);
@@ -16,11 +17,22 @@ export function fixture() {
 }
 const config={memberIds: ['m1','m2','m3','m4']};
 describe('safe spreadsheet plan',() => {
+  it('requires regenerated exact slot-1 dates without changing Watch Order or identities',() => {
+    const {plan}=analyseWorkbook(fixture(),config);
+    expect(rawPlanSchema.safeParse(plan).success).toBe(true);
+    const oldPlan={...plan,events:plan.events.map(e=>({...e,date_precision:'cycle_rough'}))};
+    expect(rawPlanSchema.safeParse(oldPlan).success).toBe(false);
+    expect(plan.rawWatchOrder.exactMatch).toBe(true);
+    expect(analyseWorkbook(fixture(),config).plan.events.map(e=>e.id)).toEqual(plan.events.map(e=>e.id));
+  });
   it('parses cycles, merged followers, slots and ordered appearances',() => {
     const {plan,summary}=analyseWorkbook(fixture(),config);
     expect(plan.cycles).toHaveLength(2);expect(plan.events).toHaveLength(9);expect(summary.counts.hostedAppearances).toBe(11);
     expect(plan.events.find(e=>e.cycle_slot===3)!.films.map(f=>f.position)).toEqual([1,2,3]);
     expect(plan.events.find(e=>e.kind==='classics')).toMatchObject({host_member_id: null,date_precision: 'cycle_rough'});
+    expect(plan.events.filter(e=>e.cycle_slot===1).every(e=>e.date_precision==='exact' && e.event_date===plan.cycles.find(c=>c.id===e.cycle_id)!.rough_date)).toBe(true);
+    expect(plan.events.filter(e=>e.cycle_slot>1).every(e=>e.date_precision==='cycle_rough')).toBe(true);
+    expect(summary.watchOrder.exactMatch).toBe(true);
     expect(summary.ancillary).toHaveLength(1);expect(plan.movies.some(m=>m.title==='Ancillary')).toBe(false);
     expect(summary.helper).toMatchObject({overlap: 1});expect(plan.movies.some(m=>m.title==='Old alias')).toBe(false);
   });

@@ -1,4 +1,7 @@
 -- Explicit opt-in reset, invoked ONLY with Wrangler --local by package scripts.
+DELETE FROM history_audit;
+DELETE FROM builder_sets;
+DELETE FROM club_rotation;
 DELETE FROM session_movies;
 DELETE FROM import_applied_entities;
 DELETE FROM sessions;

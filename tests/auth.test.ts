@@ -48,7 +48,7 @@ describe('BookClub authentication',() => {
     expect((await call('/health')).status).toBe(200);
   });
   it('binds first login and stores only a hash of a high-entropy token',async () => {
-    const {response,data} = await login(); expect(response.status).toBe(200); expect(data.viewer).toEqual({id: 'member-test',display_name: 'Test Member'});
+    const {response,data} = await login(); expect(response.status).toBe(200); expect(data.viewer).toEqual({id: 'member-test',display_name: 'Test Member',avatar: null,role: 'member',sort_order: 0});
     expect(data.token).toMatch(/^[a-f0-9]{64}$/);
     const row = sqlite.prepare('SELECT * FROM member_auth').get(); expect(row?.google_sub).toBe(identity.sub); expect(row?.bound_at).toBeTruthy();
     const session = sqlite.prepare('SELECT * FROM auth_sessions').get(); expect(session?.token_hash).toBe(await hashToken(data.token)); expect(session?.token_hash).not.toBe(data.token);

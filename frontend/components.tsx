@@ -1,5 +1,6 @@
 import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Eye, Film, RefreshCw, type LucideIcon } from 'lucide-react';
+import { ClubIdentity } from './ClubIdentity';
 import type { Member, Movie, Session } from '../shared/types';
 
 export function Action({ icon: Icon,children,intent,...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon: LucideIcon; intent?: string }) {
@@ -29,14 +30,21 @@ export function MovieRow({movie,children}: {movie: Movie; children?: ReactNode})
 export function dateLabel(date: string) {
   return new Intl.DateTimeFormat('en-AU',{day: 'numeric',month: 'long',year: 'numeric'}).format(new Date(`${date}T12:00:00`));
 }
+export function eventDateLabel(event: Pick<Session,'event_date'|'date_precision'>) {
+  if (event.date_precision === 'unknown') return 'Date unknown';
+  return `${event.date_precision === 'cycle_rough' ? 'Cycle reference (event date unknown): ' : ''}${dateLabel(event.event_date)}`;
+}
 export function SessionCard({session,members}: {session: Session; members: Member[]}) {
-  return <article className="card session-card"><div className="eyebrow">{session.date_precision === 'unknown' ? 'Date unknown' : `${session.date_precision === 'cycle_rough' ? 'Approx. ' : ''}${dateLabel(session.event_date)}`} · {session.movies.length} film{session.movies.length === 1 ? '' : 's'}</div>
+  return <article className="card session-card"><div className="eyebrow">{eventDateLabel(session)} · {session.movies.length} film{session.movies.length === 1 ? '' : 's'}</div>
     <h3>{session.title || (session.kind === 'classics' ? 'Classics Collection' : 'Book Club night')}</h3><div className="session-meta">
-      {session.kind === 'classics' && <span className="badge">Classics Collection</span>}
-      {session.host_member_id && <span>Hosted by {members.find(m => m.id === session.host_member_id)?.display_name ?? 'a former member'}</span>}
+      {session.kind === 'classics' && <ClubIdentity identity={{kind: 'classics'}} />}
+      {session.host_member_id && (members.find(m => m.id === session.host_member_id) ? <ClubIdentity identity={{kind: 'member',member: members.find(m => m.id === session.host_member_id)!}} /> : <span>Hosted by a former member</span>)}
       {session.legacy_cycle_label && <span className="badge">{session.legacy_cycle_label}</span>}</div>
     <ol className="film-list">{session.movies.map((movie,i) => <li key={`${movie.id}-${i}`}><span className="position">{i+1}</span><MovieRow movie={movie} /></li>)}</ol>
     {session.notes && <p className="meta">{session.notes}</p>}
+    {session.planned_at && <p className="meta">Planned {new Date(session.planned_at).toLocaleString('en-AU')}</p>}
+    {session.cycle_slot && <p className="meta">Nominal slot {session.cycle_slot}</p>}
+    {session.swap_note && <p className="meta">Swap: {session.swap_note}</p>}
   </article>;
 }
 export function RankingCard({movie,rank}: {movie: Movie; rank?: number}) {
