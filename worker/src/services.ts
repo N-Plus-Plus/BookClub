@@ -16,7 +16,7 @@ export class MovieService {
     if (!this.env.TMDB_READ_TOKEN) throw new ApiError(503,'PROVIDER_NOT_CONFIGURED','TMDB metadata enrichment is not configured.');
     const catalog = await this.repo.catalog();
     const identity = (m: Movie) => m.external_ids.find(e => e.provider === 'tmdb')?.external_id;
-    const candidates = catalog.movies.filter(m => identity(m) && metadataGaps(m)).sort((a,b) => metadataGaps(b)-metadataGaps(a) || a.id.localeCompare(b.id)).slice(0,limit);
+    const candidates = catalog.movies.filter(m => identity(m) && !m.tmdb_metadata_checked_at).sort((a,b) => metadataGaps(b)-metadataGaps(a) || a.id.localeCompare(b.id)).slice(0,limit);
     const results: MetadataEnrichment['results'] = [];
     const provider = new TmdbProvider(this.env.TMDB_READ_TOKEN);
     for (const movie of candidates) {
@@ -31,7 +31,7 @@ export class MovieService {
       }
     }
     const updated = await this.repo.catalog();
-    return {results,remaining: updated.movies.filter(m => identity(m) && metadataGaps(m)).length,unidentified: updated.movies.filter(m => !identity(m)).length};
+    return {results,remaining: updated.movies.filter(m => identity(m) && !m.tmdb_metadata_checked_at).length,unidentified: updated.movies.filter(m => !identity(m)).length};
   }
   async detail(id: string): Promise<MovieDetail> {
     const { movies,sessions } = await this.repo.catalog();

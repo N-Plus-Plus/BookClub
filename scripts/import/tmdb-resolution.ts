@@ -9,8 +9,9 @@ export const cacheSchema=z.object({version:z.literal(1),entries:z.record(z.strin
 export type ResolutionCache=z.infer<typeof cacheSchema>;
 export function requestFor(movie:ResolvedPlan['movies'][number]) {
   const imdb=movie.external_ids.find(e=>e.provider==='imdb')?.external_id, tmdb=movie.external_ids.find(e=>e.provider==='tmdb')?.external_id;
-  if(imdb) return {key:`imdb:${imdb}`,path:`find/${imdb}?external_source=imdb_id`,mode:'imdb' as const};
+  // A selected TMDB identity needs direct details, even when IMDb evidence exists.
   if(tmdb) return {key:`tmdb:${tmdb}`,path:`movie/${tmdb}?append_to_response=external_ids`,mode:'tmdb' as const};
+  if(imdb) return {key:`imdb:${imdb}`,path:`find/${imdb}?external_source=imdb_id`,mode:'imdb' as const};
   return {key:`title:${titleKey(movie.title)}:${movie.year??''}`,path:`search/movie?query=${encodeURIComponent(movie.title)}&include_adult=false${movie.year===null?'':`&year=${movie.year}`}`,mode:'title' as const};
 }
 export async function resolveWithTmdb(plan:ResolvedPlan, options:{token?:string;maxRequests?:number;cache?:ResolutionCache;fetcher?:typeof fetch;save?:(cache:ResolutionCache)=>Promise<void>;now?:()=>number}) {

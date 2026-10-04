@@ -14,6 +14,7 @@ export interface Ranking {
 export interface Movie {
   id: string; title: string; original_title: string | null; year: number | null;
   release_date: string | null; runtime: number | null; overview: string | null;
+  tmdb_metadata_checked_at?: string | null;
   genres: string[]; assets: Asset[]; external_ids: ExternalId[]; scores: Score[];
   seen: SeenAnswer[]; classic: boolean; ranking: Ranking | null;
   classics_membership?: { rank_seed: number; added_at: string; source: string | null } | null;

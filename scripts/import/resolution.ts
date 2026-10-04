@@ -59,7 +59,14 @@ export function resolvePlan(input:unknown,overrideInput:unknown={version:1,assig
   for(const group of clusters.values()) {
     const refs=group.map(r=>r.source_ref).sort(), id=stableId(raw.import_source,refs[0]);
     const rich=[...group].sort((a,b)=>Number(Boolean(b.imdb_id))-Number(Boolean(a.imdb_id))||Number(b.year!==null)-Number(a.year!==null)||a.source_ref.localeCompare(b.source_ref))[0];
-    const imdb=group.find(r=>r.imdb_id)?.imdb_id, attached=group.map(r=>attachments.get(r.source_ref)).find(Boolean);
+    const verified=group.flatMap(r=>attachments.get(r.source_ref)?[attachments.get(r.source_ref)!]:[]);
+    const imdbIds=new Set([...group.map(r=>r.imdb_id),...verified.map(e=>e.imdb_id)].filter((v):v is string=>Boolean(v)));
+    const years=new Set([...group.map(r=>r.year),...verified.map(e=>e.year)].filter((v):v is number=>v!==null));
+    if(imdbIds.size>1) issue('TMDB_IMDB_CONFLICT',refs,'Canonical cluster contains contradictory verified IMDb evidence.');
+    if(years.size>1&&verified.length) issue('TMDB_YEAR_CONFLICT',refs,'Canonical cluster contains contradictory verified year evidence.');
+    // Verified TMDB titles supersede historical wording; source records stay untouched.
+    const imdb=group.find(r=>r.imdb_id)?.imdb_id??(imdbIds.size===1?[...imdbIds][0]:undefined);
+    const attached=imdbIds.size<=1&&years.size<=1?verified[0]:undefined;
     const tmdbIds=new Set(group.flatMap(r=>[assignments.get(r.source_ref)?.tmdb_id,attachments.get(r.source_ref)?.tmdb_id]).filter((v):v is string=>Boolean(v)));
     if(tmdbIds.size>1) throw new ImportError('One verified source identity maps to contradictory TMDB IDs.');
     const tmdb=[...tmdbIds][0];

@@ -30,23 +30,61 @@ describe('bounded existing-film metadata enrichment',()=>{
     expect(result.results[0]).toMatchObject({movieId:'arrival',status:'success',provider:'tmdb'});expect(result.unidentified).toBe(6);expect(result.remaining).toBe(0);
     expect(local.sqlite.prepare("SELECT id,import_source,import_key,created_at FROM movies WHERE id='arrival'").get()).toEqual(identity);
     const movie=(await repo.catalog()).movies.find(m=>m.id==='arrival')!;
+    expect(movie.tmdb_metadata_checked_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(movie).toMatchObject({id:'arrival',title:'Fictional refreshed film',original_title:'Original film',year:2001,release_date:'2001-01-02',runtime:99,overview:'Fictional overview',genres:['Drama','Science Fiction']});
     expect(movie.assets.filter(a=>a.preferred===1).map(a=>a.reference).sort()).toEqual(['https://image.tmdb.org/t/p/w1280/fictional-backdrop.jpg','https://image.tmdb.org/t/p/w500/fictional.jpg']);
     expect(movie.external_ids.filter(e=>e.provider==='imdb')).toEqual([{movie_id:'arrival',provider:'imdb',external_id:'tt2543164'}]);
     expect(preserved.map(t=>local.sqlite.prepare(`SELECT * FROM ${t}`).all())).toEqual(before);
     const snapshot=await new (await import('../worker/src/providers/tmdb')).TmdbProvider('synthetic-token').details('329865');
     await repo.enrichMetadata('arrival','329865',snapshot);expect(local.sqlite.prepare('SELECT count(*) n FROM movies').get()?.n).toBe(7);
+    expect((await repo.catalog()).movies.find(m=>m.id==='arrival')!.tmdb_metadata_checked_at).toBe(snapshot.fetched_at);
     expect(local.sqlite.prepare("SELECT count(*) n FROM movie_assets WHERE movie_id='arrival' AND preferred=1").get()?.n).toBe(2);
     expect(preserved.map(t=>local.sqlite.prepare(`SELECT * FROM ${t}`).all())).toEqual(before);
+  });
+  it('checks a film despite absent optional metadata, without inventing coverage or repeatedly queuing it',async()=>{
+    const preserved=['sessions','session_movies','classics','classics_seed_allocations','seen_states','source_scores','movie_import_refs','seen_import_observations','import_applied_entities'];
+    const before=preserved.map(t=>local.sqlite.prepare(`SELECT * FROM ${t}`).all());
+    const identity=local.sqlite.prepare("SELECT id,import_source,import_key,created_at FROM movies WHERE id='arrival'").get();
+    const {calculateMetrics}=await import('../shared/metrics');
+    const catalogBefore=await repo.catalog(),metricsBefore=calculateMetrics(catalogBefore);
+    expect(catalogBefore.movies.find(m=>m.id==='arrival')!.tmdb_metadata_checked_at).toBeNull();
+    const fetch=vi.fn().mockResolvedValue(Response.json({...details(),original_title:null,release_date:'',runtime:0,overview:'',genres:[],poster_path:null,backdrop_path:null}));vi.stubGlobal('fetch',fetch);
+    expect(await service.enrichMetadata(1)).toMatchObject({results:[{movieId:'arrival',status:'success'}],remaining:0});
+    const catalog=await repo.catalog(),movie=catalog.movies.find(m=>m.id==='arrival')!;
+    expect(movie.tmdb_metadata_checked_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(movie).toMatchObject({original_title:null,release_date:null,year:null,runtime:null,overview:null,genres:[]});
+    expect(movie.assets).toEqual(catalogBefore.movies.find(m=>m.id==='arrival')!.assets);
+    expect(local.sqlite.prepare("SELECT id,import_source,import_key,created_at FROM movies WHERE id='arrival'").get()).toEqual(identity);
+    expect(preserved.map(t=>local.sqlite.prepare(`SELECT * FROM ${t}`).all())).toEqual(before);
+    const metrics=calculateMetrics(catalog);
+    expect(metrics.uncategorised).toBe(metricsBefore.uncategorised);
+    expect(metrics.genres.find(g=>g.genre==='Uncategorised')!.appearances).toBeGreaterThan(0);
+    expect(metrics.imdbScored).toBe(metricsBefore.imdbScored);
+    expect(await service.enrichMetadata(10)).toMatchObject({results:[],remaining:0});expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it('queues unchecked films even when all optional fields are already populated',async()=>{
+    local.sqlite.exec("UPDATE movie_assets SET preferred=0 WHERE movie_id='arrival'");
+    local.sqlite.exec("UPDATE movies SET original_title='Fictional original',release_date='2000-01-01',runtime=90,overview='Fictional overview' WHERE id='arrival'; INSERT INTO movie_genres VALUES('arrival','Drama'); INSERT INTO movie_assets(id,movie_id,provider,asset_type,reference,preferred,fetched_at) VALUES('synthetic-p','arrival','tmdb','poster','synthetic-p',1,'2000-01-01'),('synthetic-b','arrival','tmdb','backdrop','synthetic-b',1,'2000-01-01')");
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(details())));
+    expect((await service.enrichMetadata(1)).results).toMatchObject([{movieId:'arrival',status:'success'}]);
+    expect((await service.enrichMetadata(1)).results).toEqual([]);
+  });
+  it('leaves a failed lookup unchecked and retries it on a later explicit operation',async()=>{
+    const fetch=vi.fn().mockResolvedValueOnce(new Response(null,{status:503})).mockResolvedValueOnce(Response.json(details()));vi.stubGlobal('fetch',fetch);
+    expect(await service.enrichMetadata(1)).toMatchObject({results:[{status:'failed'}],remaining:1});
+    expect((await repo.catalog()).movies.find(m=>m.id==='arrival')!.tmdb_metadata_checked_at).toBeNull();
+    expect(await service.enrichMetadata(1)).toMatchObject({results:[{status:'success'}],remaining:0});expect(fetch).toHaveBeenCalledTimes(2);
   });
   it('adds a missing IMDb ID without changing internal identity',async()=>{
     local.sqlite.exec("DELETE FROM movie_external_ids WHERE movie_id='arrival' AND provider='imdb'");vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(details())));
     expect((await service.enrichMetadata(1)).results[0].status).toBe('success');expect(await repo.findExternal('imdb','tt2543164')).toBe('arrival');
   });
   it('reports conflicts without stealing IDs, merging or changing metadata',async()=>{
-    local.sqlite.exec("INSERT INTO movie_external_ids VALUES('moon','imdb','tt0000001')");vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(details(329865,'tt0000001'))));
+    local.sqlite.exec("INSERT INTO movie_external_ids VALUES('moon','imdb','tt0000001')");vi.stubGlobal('fetch',vi.fn().mockImplementation(async()=>Response.json(details(329865,'tt0000001'))));
     const before=await repo.catalog(),result=await service.enrichMetadata(1);
     expect(result.results[0].status).toBe('conflict');expect(await repo.catalog()).toEqual(before);expect(await repo.findExternal('imdb','tt0000001')).toBe('moon');
+    expect(result.remaining).toBe(1);expect(before.movies.find(m=>m.id==='arrival')!.tmdb_metadata_checked_at).toBeNull();
+    expect((await service.enrichMetadata(1)).results[0].status).toBe('conflict');
   });
   it('rejects a changed provider identity and a different IMDb ID already attached to this movie',async()=>{
     vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(details(42))));expect((await service.enrichMetadata(1)).results[0].status).toBe('conflict');
@@ -58,6 +96,7 @@ describe('bounded existing-film metadata enrichment',()=>{
     local.db.batch=(async(statements:D1PreparedStatement[])=>{if(!raced&&statements.length<10){raced=true;local.sqlite.exec("INSERT INTO movie_external_ids VALUES('moon','imdb','tt2543164')");}return batch(statements);}) as D1Database['batch'];
     vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(details())));
     expect((await service.enrichMetadata(1)).results[0].status).toBe('conflict');expect((await repo.catalog()).movies.find(m=>m.id==='arrival')?.title).toBe('Arrival');
+    expect((await repo.catalog()).movies.find(m=>m.id==='arrival')!.tmdb_metadata_checked_at).toBeNull();
   });
   it('limits provider calls, prioritises missing genres and preserves successes after individual failures',async()=>{
     for(let i=1;i<=12;i++) local.sqlite.exec(`INSERT INTO movies(id,title) VALUES('missing-${String(i).padStart(2,'0')}','Fictional ${i}'); INSERT INTO movie_external_ids VALUES('missing-${String(i).padStart(2,'0')}','tmdb','${i}')`);

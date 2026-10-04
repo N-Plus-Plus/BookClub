@@ -4,7 +4,7 @@ import type { ProviderMovie } from './providers/types';
 import { ApiError } from './http';
 import { ProductRepository } from './product-repository';
 
-type MovieRow = Pick<Movie, 'id' | 'title' | 'original_title' | 'year' | 'release_date' | 'runtime' | 'overview'>;
+type MovieRow = Pick<Movie, 'id' | 'title' | 'original_title' | 'year' | 'release_date' | 'runtime' | 'overview' | 'tmdb_metadata_checked_at'>;
 type SessionRow = Omit<Session,'movies'>;
 type WithMovie<T> = T & { movie_id: string };
 
@@ -14,7 +14,7 @@ export class Repository {
     // D1 batch gives one consistent transactional read for the derived rankings.
     const result = await this.db.batch([
       this.db.prepare('SELECT id,display_name,sort_order,active,avatar FROM members ORDER BY sort_order,id'),
-      this.db.prepare('SELECT id,title,original_title,year,release_date,runtime,overview FROM movies ORDER BY title,id'),
+      this.db.prepare('SELECT id,title,original_title,year,release_date,runtime,overview,tmdb_metadata_checked_at FROM movies ORDER BY title,id'),
       this.db.prepare('SELECT movie_id,provider,asset_type,reference,width,height,preferred FROM movie_assets ORDER BY preferred DESC,id'),
       this.db.prepare('SELECT movie_id,provider,external_id FROM movie_external_ids'),
       this.db.prepare('SELECT movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via,upstream_updated_at,source_ref,source_ordinal,legacy_preferred FROM source_scores ORDER BY fetched_at,id'),
@@ -104,8 +104,8 @@ export class Repository {
         throw new ApiError(409,'IDENTITY_CONFLICT','IMDb identity conflicts with a canonical film. Owner reconciliation is required.');
     }
     // Metadata only: never replace the movie, joins, import refs, Seen or score history.
-    const statements = [this.db.prepare(`UPDATE movies SET title=?,original_title=?,year=?,release_date=?,runtime=?,overview=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?`)
-      .bind(m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview,id)];
+    const statements = [this.db.prepare(`UPDATE movies SET title=?,original_title=?,year=?,release_date=?,runtime=?,overview=?,tmdb_metadata_checked_at=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?`)
+      .bind(m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview,m.fetched_at,id)];
     // Recheck ownership transactionally even when an identical ID is already stored.
     if (imdb) statements.push(this.db.prepare('INSERT INTO movie_external_ids(movie_id,provider,external_id) VALUES(?,?,?) ON CONFLICT(movie_id,provider) DO UPDATE SET external_id=CASE WHEN movie_external_ids.external_id=excluded.external_id THEN excluded.external_id ELSE NULL END')
       .bind(id,'imdb',imdb.external_id));

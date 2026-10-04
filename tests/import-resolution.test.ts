@@ -76,6 +76,49 @@ describe('offline linking and canonical duplicate semantics',()=>{
  });
 });
 describe('mocked bounded resumable TMDB identity resolution',()=>{
+ it('directly verifies a private TMDB selection, adopts canonical title/year/IMDb and preserves source evidence',async()=>{
+  const p=raw(),before=structuredClone(p),refs=p.source_records.filter(r=>r.title==='Fictional Lantern').map(r=>r.source_ref);
+  for(const r of p.source_records.filter(r=>refs.includes(r.source_ref)))r.year=null;
+  const original=structuredClone(p),overrides={version:1,assignments:[{identity:'tmdb-123',source_refs:refs,tmdb_id:'123'}]};
+  const selected=resolvePlan(p,overrides).plan;
+  expect(selected.movies.find(m=>m.source_refs.includes('Should Watch:2'))!.title).toBe('Fictional Lantern');
+  const fetcher=vi.fn(async(_url:RequestInfo|URL)=>Response.json({id:123,title:'The Fictional Lantern: Restored',release_date:'2000-02-03',external_ids:{imdb_id:'tt0000001'}}));
+  const network=await resolveWithTmdb({...selected,movies:selected.movies.filter(m=>m.source_refs.includes('Should Watch:2'))},{token:'synthetic-token',fetcher,maxRequests:1});
+  expect(fetcher.mock.calls[0][0]).toContain('/movie/123?append_to_response=external_ids');
+  const canonical=resolvePlan(p,overrides,network.evidence).plan;
+  expect(canonical.movies.find(m=>m.source_refs.includes('Should Watch:2'))).toMatchObject({title:'The Fictional Lantern: Restored',year:2000,source_refs:[...refs].sort(),external_ids:[{provider:'imdb',external_id:'tt0000001'},{provider:'tmdb',external_id:'123'}]});
+  expect(p).toEqual(original);expect(p.source_records.map(r=>r.title)).toEqual(before.source_records.map(r=>r.title));
+  expect(canonical.classics[0].seen_observations).toEqual(selected.classics[0].seen_observations);expect(canonical.classics[0].scores).toEqual(selected.classics[0].scores);
+  const cached=await resolveWithTmdb({...selected,movies:selected.movies.filter(m=>m.source_refs.includes('Should Watch:2'))},{fetcher,cache:network.cache,maxRequests:0});
+  expect(cached.evidence).toEqual(network.evidence);expect(cached.state.cacheHits).toBe(1);expect(fetcher).toHaveBeenCalledTimes(1);
+ });
+ it('attaches a safe IMDb ID newly returned by direct TMDB details',async()=>{
+  const p=raw(),overrides={version:1,assignments:[{identity:'tmdb-456',source_refs:['Should Watch:4'],tmdb_id:'456'}]},selected=resolvePlan(p,overrides).plan;
+  const movie=selected.movies.find(m=>m.source_refs.includes('Should Watch:4'))!;
+  const network=await resolveWithTmdb({...selected,movies:[movie]},{token:'synthetic-token',fetcher:async()=>Response.json({id:456,title:'Fictional Canonical Seed',release_date:'1999-01-01',external_ids:{imdb_id:'tt0000009'}})});
+  expect(resolvePlan(p,overrides,network.evidence).plan.movies.find(m=>m.source_refs.includes('Should Watch:4'))).toMatchObject({title:'Fictional Canonical Seed',year:1999,external_ids:[{provider:'imdb',external_id:'tt0000009'},{provider:'tmdb',external_id:'456'}]});
+ });
+ it('keeps contradictory verified IMDb/year evidence blocking despite a private TMDB selection',async()=>{
+  const p=raw(),before=structuredClone(p),refs=p.source_records.filter(r=>r.title==='Fictional Lantern').map(r=>r.source_ref);
+  const overrides={version:1,assignments:[{identity:'tmdb-123',source_refs:refs,tmdb_id:'123'}]},selected=resolvePlan(p,overrides).plan;
+  for(const [imdb_id,year,code] of [['tt0000009',2000,'TMDB_IMDB_CONFLICT'],['tt0000001',1990,'TMDB_YEAR_CONFLICT']] as const) {
+   const network=await resolveWithTmdb({...selected,movies:selected.movies.filter(m=>m.source_refs.includes('Should Watch:2'))},{token:'synthetic-token',fetcher:async()=>Response.json({id:123,title:'Fictional contradictory identity',release_date:`${year}-01-01`,external_ids:{imdb_id}})});
+   const blocked=resolvePlan(p,overrides,network.evidence).plan;
+   expect(blocked.issues.some(i=>i.code===code&&i.severity==='blocker')).toBe(true);expect(()=>validateResolved(blocked,config)).toThrow('blockers');
+   expect(blocked.movies.find(m=>m.source_refs.includes('Should Watch:2'))!.external_ids).toContainEqual({provider:'imdb',external_id:'tt0000001'});
+  }
+  expect(p).toEqual(before);
+ });
+ it('blocks contradictory evidence across linked refs, including Tracker refs without their own IMDb/year',()=>{
+  const p=raw(),refs=p.source_records.filter(r=>r.title==='Fictional Lantern').map(r=>r.source_ref);
+  const overrides={version:1,assignments:[{identity:'tmdb-123',source_refs:refs,tmdb_id:'123'}]};
+  for(const evidence of [{source_refs:['Tracker:2:2'],tmdb_id:'123',title:'Fictional wrong identity',year:2000,imdb_id:'tt0000009'},
+    {source_refs:['Tracker:2:2'],tmdb_id:'123',title:'Fictional wrong year',year:1990,imdb_id:'tt0000001'}]) {
+   const blocked=resolvePlan(p,overrides,[evidence]).plan;
+   expect(()=>validateResolved(blocked,config)).toThrow('blockers');
+   expect(blocked.movies.find(m=>m.source_refs.includes('Should Watch:2'))).toMatchObject({title:'Fictional Lantern',year:2000});
+  }
+ });
  const movie=(id:string,title:string,year:number|null=null,imdb?:string):ResolvedPlan['movies'][number]=>({id,title,year,source_refs:[`Should Watch:${id}`],identity_status:'provisional',external_ids:imdb?[{provider:'imdb',external_id:imdb}]:[]});
  const plan=(movies:ResolvedPlan['movies'])=>({...resolved(),movies});
  it('uses external find and unique exact title/year; caches and resumes within cap',async()=>{
@@ -101,6 +144,13 @@ describe('mocked bounded resumable TMDB identity resolution',()=>{
  });
 });
   describe('local import apply',()=>{
+ it('requires metadata migration 0007 before any archive writes',async()=>{
+  const local=disposableD1('0006_history_integrity.sql');try {
+   local.sqlite.exec(readFileSync('worker/import-preview-members.sql','utf8'));
+   await expect(applyLocal(local.db,validateResolved(resolved(),config),true)).rejects.toThrow('0007');
+   expect(local.sqlite.prepare('SELECT count(*) n FROM movies').get()?.n).toBe(0);
+  }finally{local.sqlite.close();}
+ });
  it('requires migration 0006 invariants before synthetic import apply',async()=>{
   const local=disposableD1('0005_product_state.sql');try {
    local.sqlite.exec(readFileSync('worker/import-preview-members.sql','utf8'));
@@ -111,7 +161,7 @@ describe('mocked bounded resumable TMDB identity resolution',()=>{
  it('refuses an older preview schema before writing imported data',async()=>{
   const local=disposableD1('0004_import_provenance.sql');try {
    local.sqlite.exec(readFileSync('worker/import-preview-members.sql','utf8'));
-   await expect(applyLocal(local.db,validateResolved(resolved(),config),true)).rejects.toThrow('0006');
+   await expect(applyLocal(local.db,validateResolved(resolved(),config),true)).rejects.toThrow('0007');
    expect(local.sqlite.prepare('SELECT count(*) n FROM movies').get()?.n).toBe(0);
    expect(local.sqlite.prepare('SELECT count(*) n FROM sessions').get()?.n).toBe(0);
   }finally {local.sqlite.close();}

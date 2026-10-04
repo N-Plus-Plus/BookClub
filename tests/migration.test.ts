@@ -2,6 +2,15 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { disposableD1 } from './d1';
+it('migration 0007 leaves existing films unchecked and preserves all prior movie data',()=>{
+  const local=disposableD1('0006_history_integrity.sql');try {
+    local.sqlite.exec("INSERT INTO movies(id,title,year,import_source,import_key) VALUES('fictional','Fictional archive film',2000,'synthetic','Tracker:2:2')");
+    const before=local.sqlite.prepare('SELECT * FROM movies').get();
+    local.sqlite.exec(readFileSync('worker/migrations/0007_tmdb_metadata_checked.sql','utf8'));
+    expect(local.sqlite.prepare('SELECT * FROM movies').get()).toEqual({...before,tmdb_metadata_checked_at:null});
+    expect(local.sqlite.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+  }finally{local.sqlite.close();}
+});
 it('migration 0006 refuses pre-existing duplicate active slots without rewriting History',()=>{
   const local=disposableD1('0005_product_state.sql');try {
     local.sqlite.exec("INSERT INTO members(id,display_name,sort_order) VALUES('m','Fictional',1); INSERT INTO cycles(id,ordinal,rough_date) VALUES('c',1,'2000-01-01'); INSERT INTO sessions(id,event_date,host_member_id,cycle_id,cycle_slot) VALUES('a','2000-01-01','m','c',1),('b','2000-01-01','m','c',1)");

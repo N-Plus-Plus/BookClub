@@ -58,9 +58,11 @@ function specs(plan:ResolvedPlan):Spec[] {
 export async function preflight(db:D1Database,plan:ResolvedPlan) {
   const needed=[...tables,'import_applied_entities','members','classics_seed_allocations','builder_sets','builder_movies','club_rotation','history_audit'];
   const schema=(await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{name:string}>()).results;
-  if(needed.some(n=>!schema.some(t=>t.name===n))) throw new ImportError('Schema compatibility failure: run all current import-preview migrations through 0006 before apply.');
+  if(needed.some(n=>!schema.some(t=>t.name===n))) throw new ImportError('Schema compatibility failure: run all current import-preview migrations through 0007 before apply.');
   const invariants=(await db.prepare("SELECT name FROM sqlite_master WHERE name IN ('active_cycle_slot','session_swap_insert','session_swap_update')").all<{name:string}>()).results;
   if(invariants.length!==3) throw new ImportError('Schema compatibility failure: run migration 0006 History integrity before apply.');
+  const movieColumns=(await db.prepare('PRAGMA table_info(movies)').all<{name:string}>()).results;
+  if(!movieColumns.some(c=>c.name==='tmdb_metadata_checked_at')) throw new ImportError('Schema compatibility failure: run migration 0007 TMDB metadata completion before apply.');
   const columns=(await db.prepare('PRAGMA table_info(source_scores)').all<{name:string}>()).results;
   if(!columns.some(c=>c.name==='source_ordinal')||!columns.some(c=>c.name==='legacy_preferred')) throw new ImportError('Schema compatibility failure: score provenance columns missing.');
   const queries=[...tables.map(t=>db.prepare(`SELECT * FROM ${t}`)),db.prepare('SELECT id,display_name,sort_order,active FROM members'),db.prepare('SELECT * FROM import_applied_entities'),db.prepare('SELECT (SELECT COUNT(*) FROM member_auth)+(SELECT COUNT(*) FROM auth_sessions) n'),db.prepare('SELECT * FROM classics_seed_allocations')];
