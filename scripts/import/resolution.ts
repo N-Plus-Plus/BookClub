@@ -5,10 +5,15 @@ import { ImportError } from './io.ts';
 import { parseModel, rawPlanSchema, overridesSchema, resolvedPlanSchema, type Overrides, type ResolvedPlan } from './model.ts';
 export const titleKey=(title:string)=>title.trim().normalize('NFC').toLocaleLowerCase('en');
 export const stableId=(source:string,key:string)=>`import-${createHash('sha256').update(`${source}:${key}`).digest('hex').slice(0,24)}`;
-export interface IdentityEvidence { source_refs:string[]; tmdb_id:string; title:string; year:number|null; imdb_id?:string|null }
+export interface IdentityEvidence { source_refs:string[]; tmdb_id:string; title:string; year:number|null; imdb_id?:string|null; release_date?:string }
 export function resolvePlan(input:unknown,overrideInput:unknown={version:1,assignments:[],seen:[]},evidence:IdentityEvidence[]=[]) {
   const raw=parseModel(rawPlanSchema,input,'Raw plan'), overrides=parseModel(overridesSchema,overrideInput,'Overrides');
-  const records=raw.source_records, byRef=new Map(records.map(r=>[r.source_ref,r]));
+  const records=raw.source_records.map(r=>({...r}));
+  for(const a of overrides.assignments) if(a.canonical_year!==undefined) {
+    if(!a.tmdb_id||!a.year_reason)throw new ImportError('Canonical year requires an explicit TMDB identity and owner reason.');
+    for(const r of records.filter(r=>a.source_refs.includes(r.source_ref)))r.year=a.canonical_year;
+  }
+  const byRef=new Map(records.map(r=>[r.source_ref,r]));
   if(byRef.size!==records.length) throw new ImportError('Raw plan validation failed: duplicate source refs.');
   const parent=new Map(records.map(r=>[r.source_ref,r.source_ref]));
   const root=(ref:string):string=>{const p=parent.get(ref)!; if(p!==ref) parent.set(ref,root(p));return parent.get(ref)!;};
@@ -47,7 +52,9 @@ export function resolvePlan(input:unknown,overrideInput:unknown={version:1,assig
     if(labels.has(label)) merge(ref,labels.get(label)!,true);else labels.set(label,ref);
   }
   const attachments=new Map<string,IdentityEvidence>();
-  for(const e of evidence) for(const ref of e.source_refs) {
+  for(const originalEvidence of evidence) for(const ref of originalEvidence.source_refs) {
+    const decision=assignments.get(ref);
+    const e=decision?.canonical_year!==undefined&&decision.tmdb_id===originalEvidence.tmdb_id?{...originalEvidence,year:decision.canonical_year}:originalEvidence;
     const r=byRef.get(ref);if(!r) throw new ImportError('Network evidence refers to an unknown source record.');
     if(r.imdb_id&&e.imdb_id&&r.imdb_id!==e.imdb_id) {issue('TMDB_IMDB_CONFLICT',[ref],'TMDB evidence contradicts the verified source IMDb ID.');continue;}
     if(r.year!==null&&e.year!==null&&r.year!==e.year) {issue('TMDB_YEAR_CONFLICT',[ref],'TMDB evidence contradicts the source year.');continue;}
@@ -73,7 +80,7 @@ export function resolvePlan(input:unknown,overrideInput:unknown={version:1,assig
     const preferred=new Set(group.map(r=>assignments.get(r.source_ref)?.preferred_score_ref).filter(Boolean));if(preferred.size>1)throw new ImportError('Canonical movie has contradictory preferred legacy observations.');
     const ambiguous=group.some(r=>{const peers=titleGroups.get(titleKey(r.title))!;return peers.some(p=>root(p.source_ref)!==root(r.source_ref) && !manuallySeparate(p.source_ref,r.source_ref) && !(attachments.has(r.source_ref)&&attachments.has(p.source_ref)&&attachments.get(r.source_ref)!.tmdb_id!==attachments.get(p.source_ref)!.tmdb_id) && (r.year===null&&!r.imdb_id || p.year===null&&!p.imdb_id));});
     if(ambiguous) issue('AMBIGUOUS_TITLE',refs,'Exact title has multiple plausible source identities; assign each source explicitly.');
-    movies.push({id,title:attached?.title??rich.title,year:attached?.year??rich.year,external_ids:[...(imdb?[{provider:'imdb' as const,external_id:imdb}]:[]),...(tmdb?[{provider:'tmdb' as const,external_id:tmdb}]:[])],source_refs:refs,identity_status:ambiguous?'ambiguous':imdb||tmdb||group.some(r=>assignments.has(r.source_ref))?'confirmed':'provisional'});
+    movies.push({id,title:attached?.title??rich.title,year:attached?.year??rich.year,...(attached?.release_date?{tmdb_release_date:attached.release_date}:{}),external_ids:[...(imdb?[{provider:'imdb' as const,external_id:imdb}]:[]),...(tmdb?[{provider:'tmdb' as const,external_id:tmdb}]:[])],source_refs:refs,identity_status:ambiguous?'ambiguous':imdb||tmdb||group.some(r=>assignments.has(r.source_ref))?'confirmed':'provisional'});
     for(const ref of refs) movieByRef.set(ref,id);
   }
   const seenOverrides=new Map<string,number>();for(const s of overrides.seen) {

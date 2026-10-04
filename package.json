@@ -23,6 +23,7 @@
     "import:spreadsheet": "tsx scripts/import/cli.ts",
     "import:resolve": "tsx scripts/import/resolve-cli.ts",
     "import:apply:local": "tsx scripts/import/apply-cli.ts",
+    "import:production": "tsx scripts/import/production-cli.ts",
     "db:import-preview:migrate": "wrangler d1 migrations apply DB --config worker/wrangler.import-preview.jsonc --env import_preview --local --persist-to worker/.wrangler/import-preview",
     "db:import-preview:prepare": "pnpm db:import-preview:migrate && wrangler d1 execute DB --config worker/wrangler.import-preview.jsonc --env import_preview --local --persist-to worker/.wrangler/import-preview --file worker/import-preview-members.sql",
     "dev:import-preview:api": "wrangler dev --config worker/wrangler.import-preview.jsonc --env import_preview --local --persist-to worker/.wrangler/import-preview --port 8787",

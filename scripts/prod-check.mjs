@@ -15,7 +15,7 @@ export function checkProduction(root = process.cwd(), publicEnv = process.env, f
   const db = config.d1_databases?.find(d=>d.binding==='DB');
   if (!db?.database_id || db.database_name !== 'bookclub-prod' || db.migrations_dir !== 'migrations') fail('Production DB binding or migrations path is missing or incorrect.');
   const migrations = readdirSync(resolve(root,'worker/migrations')).filter(n=>n.endsWith('.sql')).sort();
-  if (migrations.length < 7 || migrations.some((name,i)=>!name.startsWith(`${String(i+1).padStart(4,'0')}_`))) fail('Migrations must be contiguous from 0001 through at least 0007.');
+  if (migrations.length < 8 || migrations.some((name,i)=>!name.startsWith(`${String(i+1).padStart(4,'0')}_`))) fail('Migrations must be contiguous from 0001 through at least 0008.');
   const preview = JSON.parse(readFileSync(resolve(root,'worker/wrangler.import-preview.jsonc'),'utf8'));
   const local = preview.env?.import_preview;
   if (preview.d1_databases?.length || local?.vars?.APP_ENV !== 'local' || local.vars.LOCAL_WRITE_BYPASS !== 'true' || local.d1_databases?.some(d=>d.database_id===db.database_id)) fail('Import preview must remain isolated and local.');

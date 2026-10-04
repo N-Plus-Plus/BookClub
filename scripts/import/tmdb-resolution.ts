@@ -49,7 +49,7 @@ export async function resolveWithTmdb(plan:ResolvedPlan, options:{token?:string;
     if(chosen) {
       const release=chosen.release_date?.match(/^\d{4}-\d{2}-\d{2}$/), year=release?Number(chosen.release_date!.slice(0,4)):null;
       if(year!==null&&(year<1870||year>2200)) {review.push({source_refs:movie.source_refs,candidates:entry.candidates,reason:'Invalid release year; review.'});continue;}
-      evidence.push({source_refs:movie.source_refs,tmdb_id:String(chosen.id),title:chosen.title,year,imdb_id:request.mode==='imdb'?movie.external_ids.find(e=>e.provider==='imdb')!.external_id:chosen.imdb_id});
+      evidence.push({source_refs:movie.source_refs,tmdb_id:String(chosen.id),title:chosen.title,year,...(release?{release_date:chosen.release_date}:{}),imdb_id:request.mode==='imdb'?movie.external_ids.find(e=>e.provider==='imdb')!.external_id:chosen.imdb_id});
     } else review.push({source_refs:movie.source_refs,candidates:entry.candidates,reason:entry.complete?exact.length?'Multiple exact identities; review.':'No exact identity found; provisional source retained.':'Search spans multiple pages; uniqueness cannot be proven.'});
   }
   return {evidence,cache,review,state:{networkAvailable:Boolean(options.token),requests,cacheHits,remaining,moreWorkRemains:remaining>0}};

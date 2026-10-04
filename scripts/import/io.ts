@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir, realpath, stat, rename } from 'node:fs/promises';
 import { resolve, relative, isAbsolute, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { configSchema } from './workbook.ts';
+import { configSchema } from './config.ts';
 export class ImportError extends Error {}
 const inside = (root: string,path: string) => { const rel=relative(root,path); return rel !== '..' && !rel.startsWith(`..${process.platform==='win32'?'\\':'/'}`) && !isAbsolute(rel); };
 export async function readJson(path: string,kind: string): Promise<unknown> {

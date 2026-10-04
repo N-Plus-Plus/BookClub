@@ -1,15 +1,10 @@
 import ExcelJS from 'exceljs';
 import { createHash } from 'node:crypto';
-import { z } from 'zod';
 import { rankMovie } from '../../shared/ranking.ts';
 import type { Score, SeenAnswer, Member } from '../../shared/types.ts';
 
-export const configSchema = z.object({
-  memberIds: z.array(z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)).length(4).refine(ids => new Set(ids).size === 4,'Four distinct member IDs required'),
-  importSource: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/).default('legacy-spreadsheet'),
-  snapshotCapturedAt: z.iso.datetime().optional(),
-}).strict();
-export type ImportConfig = z.infer<typeof configSchema>;
+import { configSchema, type ImportConfig } from './config.ts';
+export { configSchema, type ImportConfig } from './config.ts';
 export type Diagnostic = {code: string; severity: 'info'|'warning'|'review'|'blocker'; sheet: string; row?: number; column?: number; detail: string};
 type Film = {id: string; title: string; year: number | null; external_ids: {provider: string; external_id: string}[]; source_refs: string[]; provisional: boolean};
 export function cellValue(cell: ExcelJS.Cell): unknown {

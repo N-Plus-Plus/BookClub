@@ -75,6 +75,19 @@ describe('offline linking and canonical duplicate semantics',()=>{
   expect(resolvePlan(raw(),undefined,[{source_refs:['Should Watch:2'],tmdb_id:'123',title:'Fictional Lantern',year:1990}]).plan.issues.some(i=>i.code==='TMDB_YEAR_CONFLICT')).toBe(true);
  });
 });
+describe('owner canonical film years',()=>{
+ it('retains archive evidence and separate release metadata without weakening IMDb conflicts',()=>{
+  const p=raw(),before=structuredClone(p),refs=p.source_records.filter(r=>r.title==='Fictional Lantern').map(r=>r.source_ref);
+  const overrides={version:1,assignments:[{identity:'owner-year',source_refs:refs,tmdb_id:'123',canonical_year:2000,year_reason:'Owner confirmed film year'}]};
+  const evidence={source_refs:refs,tmdb_id:'123',title:'Fictional Lantern',year:2001,release_date:'2001-02-03',imdb_id:'tt0000001'};
+  const result=resolvePlan(p,overrides,[evidence]);
+  expect(result.plan.issues.some(i=>i.severity==='blocker')).toBe(false);
+  expect(result.plan.movies.find(m=>m.source_refs.includes('Should Watch:2'))).toMatchObject({year:2000,tmdb_release_date:'2001-02-03'});
+  expect(p).toEqual(before);
+  expect(resolvePlan(p,overrides,[{...evidence,imdb_id:'tt0000009'}]).plan.issues.some(i=>i.code==='TMDB_IMDB_CONFLICT')).toBe(true);
+  expect(()=>resolvePlan(p,{version:1,assignments:[{...overrides.assignments[0],year_reason:undefined}]})).toThrow('owner reason');
+ });
+});
 describe('mocked bounded resumable TMDB identity resolution',()=>{
  it('directly verifies a private TMDB selection, adopts canonical title/year/IMDb and preserves source evidence',async()=>{
   const p=raw(),before=structuredClone(p),refs=p.source_records.filter(r=>r.title==='Fictional Lantern').map(r=>r.source_ref);
@@ -144,6 +157,13 @@ describe('mocked bounded resumable TMDB identity resolution',()=>{
  });
 });
   describe('local import apply',()=>{
+ it('requires cooldown migration 0008 before archive writes',async()=>{
+  const local=disposableD1('0007_tmdb_metadata_checked.sql');try {
+   local.sqlite.exec(readFileSync('worker/import-preview-members.sql','utf8'));
+   await expect(applyLocal(local.db,validateResolved(resolved(),config),true)).rejects.toThrow('0008');
+   expect(local.sqlite.prepare('SELECT count(*) n FROM movies').get()?.n).toBe(0);
+  }finally{local.sqlite.close();}
+ });
  it('requires metadata migration 0007 before any archive writes',async()=>{
   const local=disposableD1('0006_history_integrity.sql');try {
    local.sqlite.exec(readFileSync('worker/import-preview-members.sql','utf8'));
@@ -161,7 +181,7 @@ describe('mocked bounded resumable TMDB identity resolution',()=>{
  it('refuses an older preview schema before writing imported data',async()=>{
   const local=disposableD1('0004_import_provenance.sql');try {
    local.sqlite.exec(readFileSync('worker/import-preview-members.sql','utf8'));
-   await expect(applyLocal(local.db,validateResolved(resolved(),config),true)).rejects.toThrow('0007');
+   await expect(applyLocal(local.db,validateResolved(resolved(),config),true)).rejects.toThrow('0008');
    expect(local.sqlite.prepare('SELECT count(*) n FROM movies').get()?.n).toBe(0);
    expect(local.sqlite.prepare('SELECT count(*) n FROM sessions').get()?.n).toBe(0);
   }finally {local.sqlite.close();}

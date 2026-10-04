@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { parseModel, resolvedPlanSchema, type ResolvedPlan } from './model.ts';
-import { configSchema } from './workbook.ts';
+import { configSchema } from './config.ts';
 import { ImportError } from './io.ts';
 import { stableId } from './resolution.ts';
 import { Repository } from '../../worker/src/repository.ts';
@@ -38,7 +38,7 @@ export function validateResolved(input:unknown,configInput:unknown):ResolvedPlan
 function specs(plan:ResolvedPlan):Spec[] {
   const list:Spec[]=[],add=(table:string,key:Row,row:Row,group:string)=>list.push({table,key,row:{...key,...row},group}),source=plan.import_source;
   for(const m of plan.movies) {
-    add('movies',{id:m.id},{title:m.title,year:m.year,import_source:source,import_key:m.id},`movie:${m.id}`);
+    add('movies',{id:m.id},{title:m.title,year:m.year,...(m.tmdb_release_date?{release_date:m.tmdb_release_date}:{}),import_source:source,import_key:m.id},`movie:${m.id}`);
     for(const ref of m.source_refs) add('movie_import_refs',{import_source:source,source_ref:ref},{movie_id:m.id,source_ordinal:Number(ref.split(':')[1])},`movie:${m.id}`);
     for(const e of m.external_ids)add('movie_external_ids',{movie_id:m.id,provider:e.provider},{external_id:e.external_id},`movie:${m.id}`);
   }
@@ -55,21 +55,24 @@ function specs(plan:ResolvedPlan):Spec[] {
   }
   return list;
 }
-export async function preflight(db:D1Database,plan:ResolvedPlan) {
+export async function preflight(db:D1Database,plan:ResolvedPlan,scope:'preview'|'production'='preview') {
   const needed=[...tables,'import_applied_entities','members','classics_seed_allocations','builder_sets','builder_movies','club_rotation','history_audit'];
   const schema=(await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{name:string}>()).results;
-  if(needed.some(n=>!schema.some(t=>t.name===n))) throw new ImportError('Schema compatibility failure: run all current import-preview migrations through 0007 before apply.');
+  if(needed.some(n=>!schema.some(t=>t.name===n))) throw new ImportError('Schema compatibility failure: run all current import-preview migrations through 0008 before apply.');
   const invariants=(await db.prepare("SELECT name FROM sqlite_master WHERE name IN ('active_cycle_slot','session_swap_insert','session_swap_update')").all<{name:string}>()).results;
   if(invariants.length!==3) throw new ImportError('Schema compatibility failure: run migration 0006 History integrity before apply.');
   const movieColumns=(await db.prepare('PRAGMA table_info(movies)').all<{name:string}>()).results;
   if(!movieColumns.some(c=>c.name==='tmdb_metadata_checked_at')) throw new ImportError('Schema compatibility failure: run migration 0007 TMDB metadata completion before apply.');
+  const cooldownColumns=(await db.prepare('PRAGMA table_info(provider_cooldowns)').all<{name:string}>()).results;
+  if(!['provider','retry_after_until','updated_at'].every(n=>cooldownColumns.some(c=>c.name===n)))throw new ImportError('Schema compatibility failure: run migration 0008 provider cooldowns before apply.');
+  if(scope==='preview'&&(await db.prepare('SELECT COUNT(*) n FROM club_rotation').first<{n:number}>())?.n)throw new ImportError('Preview contains production rotation; apply refused.');
   const columns=(await db.prepare('PRAGMA table_info(source_scores)').all<{name:string}>()).results;
   if(!columns.some(c=>c.name==='source_ordinal')||!columns.some(c=>c.name==='legacy_preferred')) throw new ImportError('Schema compatibility failure: score provenance columns missing.');
   const queries=[...tables.map(t=>db.prepare(`SELECT * FROM ${t}`)),db.prepare('SELECT id,display_name,sort_order,active FROM members'),db.prepare('SELECT * FROM import_applied_entities'),db.prepare('SELECT (SELECT COUNT(*) FROM member_auth)+(SELECT COUNT(*) FROM auth_sessions) n'),db.prepare('SELECT * FROM classics_seed_allocations')];
   const result=await db.batch(queries), rows=Object.fromEntries(tables.map((t,i)=>[t,result[i].results as Row[]]));
   const members=result[tables.length].results as Row[];
-  if(members.length!==4||plan.members.some((id,i)=>!members.some(m=>m.id===id&&m.display_name===`Host ${i+1}`&&m.sort_order===i+1&&m.active===1))) throw new ImportError('Preview member mismatch: prepare the generic positional roster; no writes performed.');
-  if((result[tables.length+2].results[0] as Row).n!==0)throw new ImportError('Preview contains auth identities; apply refused.');
+  if(members.length!==4||plan.members.some((id,i)=>!members.some(m=>m.id===id&&(scope==='production'||m.display_name===`Host ${i+1}`)&&m.sort_order===i+1&&m.active===1))) throw new ImportError('Preview member mismatch: prepare the generic positional roster; no writes performed.');
+  if(scope==='preview'&&(result[tables.length+2].results[0] as Row).n!==0)throw new ImportError('Preview contains auth identities; apply refused.');
   const ledger=result[tables.length+1].results as Row[],allocations=result[tables.length+3].results as Row[],wanted=specs(plan), pending:Spec[]=[], counts:Record<string,{create:number;reuse:number}>={}, conflicts:string[]=[];
   for(const s of wanted) {
     const key=JSON.stringify(s.key), fingerprint=hash(s.row), old=(rows[s.table]??[]).find(r=>same(r,s.key)), recorded=ledger.find(r=>r.import_source===plan.import_source&&r.entity_type===s.table&&r.import_key===key);
@@ -86,11 +89,11 @@ export async function preflight(db:D1Database,plan:ResolvedPlan) {
   }
   for(const entry of ledger.filter(r=>r.import_source===plan.import_source)) if(!wanted.some(s=>s.table===entry.entity_type&&JSON.stringify(s.key)===entry.import_key))conflicts.push('Rerun removes previously applied source entities.');
   for(const e of plan.events) if(rows.session_movies.some(r=>r.session_id===e.id&&!e.films.some(f=>f.position===r.position&&f.movie_id===r.movie_id)))conflicts.push('Existing event has extra or changed appearances.');
-  const summary={localOnly:true,counts,appearances:plan.events.reduce((n,e)=>n+e.films.length,0),sourceCandidateRows:plan.sourceCandidateRows,canonicalClassics:plan.classics.length,duplicateRowsCollapsed:plan.sourceCandidateRows-plan.classics.length,provisionalIdentities:plan.movies.filter(m=>m.identity_status==='provisional').length,blockers:0,conflicts:conflicts.length,snapshotCapturedAt:plan.snapshotCapturedAt};
+  const summary={localOnly:scope==='preview',counts,appearances:plan.events.reduce((n,e)=>n+e.films.length,0),sourceCandidateRows:plan.sourceCandidateRows,canonicalClassics:plan.classics.length,duplicateRowsCollapsed:plan.sourceCandidateRows-plan.classics.length,provisionalIdentities:plan.movies.filter(m=>m.identity_status==='provisional').length,blockers:0,conflicts:conflicts.length,snapshotCapturedAt:plan.snapshotCapturedAt};
   return {summary,pending,rows,conflicts};
 }
-export async function applyLocal(db:D1Database,plan:ResolvedPlan,execute=false) {
-  const before=await preflight(db,plan);
+export async function applyArchive(db:D1Database,plan:ResolvedPlan,execute=false,scope:'preview'|'production'='preview') {
+  const before=await preflight(db,plan,scope);
   if(!execute)return {preflight:before.summary,applied:false};
   if(before.conflicts.length)throw new ImportError(`Local apply conflict: ${before.conflicts.length} immutable-state differences; no writes performed.`);
   const groups=new Map<string,Spec[]>();for(const s of before.pending)groups.set(s.group,[...groups.get(s.group)??[],s]);
@@ -107,7 +110,7 @@ export async function applyLocal(db:D1Database,plan:ResolvedPlan,execute=false) 
     if(statements.length>100)throw new ImportError('Local import entity exceeds the 100-statement transaction bound; split source evidence before retry.');
     try{await db.batch(statements);}catch{throw new ImportError('Local apply batch failed; earlier committed groups may remain. Rerun preflight to resume; sensitive database output suppressed.');}
   }
-  const after=await preflight(db,plan);if(after.conflicts.length||after.pending.length)throw new ImportError('Post-apply verification failed; inspect private preview state.');
+  const after=await preflight(db,plan,scope);if(after.conflicts.length||after.pending.length)throw new ImportError('Post-apply verification failed; inspect private preview state.');
   const foreign=(await db.prepare('PRAGMA foreign_key_check').all()).results;if(foreign.length)throw new ImportError('Post-apply foreign-key verification failed.');
   const counts=(await db.batch([
     db.prepare('SELECT COUNT(*) n FROM cycles WHERE import_source=?').bind(plan.import_source),
@@ -118,3 +121,6 @@ export async function applyLocal(db:D1Database,plan:ResolvedPlan,execute=false) 
   const catalog=await new Repository(db).catalog();
   return {preflight:before.summary,applied:true,verified:{cycles:counts[0],events:counts[1],appearances:counts[2],canonicalClassics:plan.classics.length,foreignKeyViolations:foreign.length,watchOrderDerives:catalog.movies.filter(m=>m.classic).every(m=>m.ranking!==null)}};
 }
+
+// The ordinary importer always keeps the isolated preview safety policy.
+export const applyLocal=(db:D1Database,plan:ResolvedPlan,execute=false)=>applyArchive(db,plan,execute,'preview');
