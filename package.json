@@ -19,7 +19,14 @@
     "db:seed": "wrangler d1 execute DB --config worker/wrangler.jsonc --env local --local --file worker/seed.sql",
     "db:setup": "pnpm db:migrate && pnpm db:seed",
     "db:reset": "wrangler d1 execute DB --config worker/wrangler.jsonc --env local --local --file worker/reset.sql && pnpm db:setup",
-    "import:spreadsheet": "tsx scripts/import/cli.ts"
+    "import:spreadsheet": "tsx scripts/import/cli.ts",
+    "import:resolve": "tsx scripts/import/resolve-cli.ts",
+    "import:apply:local": "tsx scripts/import/apply-cli.ts",
+    "db:import-preview:migrate": "wrangler d1 migrations apply DB --config worker/wrangler.import-preview.jsonc --env import_preview --local --persist-to worker/.wrangler/import-preview",
+    "db:import-preview:prepare": "pnpm db:import-preview:migrate && wrangler d1 execute DB --config worker/wrangler.import-preview.jsonc --env import_preview --local --persist-to worker/.wrangler/import-preview --file worker/import-preview-members.sql",
+    "dev:import-preview:api": "wrangler dev --config worker/wrangler.import-preview.jsonc --env import_preview --local --persist-to worker/.wrangler/import-preview --port 8787",
+    "dev:import-preview:ui": "vite --mode import-preview",
+    "dev:import-preview": "pnpm db:import-preview:prepare && concurrently -k -n ui,api \"pnpm dev:import-preview:ui\" \"pnpm dev:import-preview:api\""
   },
   "dependencies": {
     "@fontsource/lexend-deca": "^5.3.0",

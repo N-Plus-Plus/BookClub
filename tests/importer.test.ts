@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { analyseWorkbook, configSchema } from '../scripts/import/workbook';
-function fixture() {
+export function fixture() {
   const w=new ExcelJS.Workbook(), t=w.addWorksheet('Tracker'), c=w.addWorksheet('Should Watch'), o=w.addWorksheet('Watch Order'), h=w.addWorksheet('Sheet2');
   t.addRow(['Rough date','Host 1','Host 2','Host 3','Host 4','Classics Collection','Not Book Club']);
   t.addRow([new Date('2001-01-01'),'Film A','Film B','Film C','Film D','Candidate A','Ancillary']);
@@ -9,7 +9,7 @@ function fixture() {
   t.mergeCells('A2:A4'); t.mergeCells('B2:B2');
   t.addRow([new Date('2001-02-01'),'Film E','Film F','Film G','Film H']);
   c.addRow(['Title','IMDb','Audience','Tomatoes','Raw','Host 1 Seen','Host 2 Seen','Host 3 Seen','Host 4 Seen','Unseen Multi','Residual Score','Helper','IMDb URL','Year','Metacritic','Letterboxd']);
-  c.addRow(['Candidate A',80,90,100,'bad helper','Yes',' No ','', 'no',2,24500*1.025**2+0.00002,'Candidate A','https://www.imdb.com/title/tt0000001/',2000,75,3.5]);
+  c.addRow(['Candidate A',80,90,100,'bad helper','Yes',' No ','', 'no',2,24500*1.025**2+0.00002,'Candidate A','https://www.imdb.com/title/tt0000001/',2000,75,80]);
   c.addRow(['Candidate A',80,85,100,null,'Yes','No','No','No',3,null]); c.addRow(['Title only']);
   o.addRow(['Title']);o.addRow(['Candidate A']);o.addRow(['Candidate A']);h.addRow(['Title']);h.addRow(['Film A']);h.addRow(['Old alias']);
   return w;

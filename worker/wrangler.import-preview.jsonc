@@ -1,0 +1,13 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "bookclub-import-preview",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "env": {
+    "import_preview": {
+      "name": "bookclub-import-preview-local",
+      "vars": { "APP_ENV": "local", "LOCAL_WRITE_BYPASS": "true", "ALLOWED_ORIGINS": "http://localhost:5173,http://localhost:4173" },
+      "d1_databases": [{ "binding": "DB", "database_name": "bookclub-import-preview", "database_id": "00000000-0000-0000-0000-000000000002", "migrations_dir": "migrations" }]
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 A mobile-first film journal for a four-person weekly film club. Track event history, build a new event, inspect a live Classics watch order, and quickly fill missing Seen It? answers.
 
-This is a functional local-first foundation. All bundled events and source ratings are **development examples**, not real club history or live provider ratings. The historical ranking formula, cycle model and safe spreadsheet dry-run are implemented; real data apply remains separately authorised. Repository: `N-Plus-Plus/BookClub`.
+This is a functional local-first foundation. All bundled events and source ratings are **development examples**, not real club history or live provider ratings. The historical ranking formula, cycle model and safe spreadsheet dry-run and staged identity resolution with a guarded local D1 import preview are implemented; production import remains separately authorised. Repository: `N-Plus-Plus/BookClub`.
 
 ## Architecture and layout
 
@@ -21,7 +21,7 @@ This is a functional local-first foundation. All bundled events and source ratin
 | `worker/migrations/` | Versioned schema; never edit an applied migration for a future schema change |
 | `worker/seed.sql`, `worker/reset.sql` | Opt-in local demo data/reset |
 | `tests/` | Vitest ranking, transformation, validation, auth/session/allow-list, frontend API, CORS and write-guard tests |
-| `scripts/import/README.md` | Safe dry-run workflow and reconciliation boundary |
+| `scripts/import/README.md` | Staged dry-run, resolution, overrides and local-only apply preview |
 | `.github/workflows/pages.yml` | Manually triggered static frontend publication only |
 
 GitHub Pages hosts only `dist/`. It needs no Node runtime, SSR, filesystem, server rewrites, or backend. Hash URLs such as `/BookClub/#/history` are refresh-safe. Vite sets `/BookClub/` at build time and `/` in development. The independently deployed Worker alone accesses the D1 `DB` binding and movie API credentials.
@@ -54,6 +54,10 @@ Use localhost (not a different hostname) to match the local CORS allowlist. The 
 | `pnpm db:seed` | Insert demo records once; preserve user-created records/answers |
 | `pnpm db:setup` | Local migrations followed by safe seed |
 | `pnpm import:spreadsheet --file private.xlsx --config scripts/import/import-config.local.json` | Read-only analysis to ignored `.verification/import/` reports |
+| `pnpm import:resolve --plan .verification/import/plan.json --config scripts/import/import-config.local.json` | Offline canonical resolution; optional bounded `--network` TMDB stage |
+| `pnpm db:import-preview:prepare` | Migrate isolated local preview and prepare only Host 1–4 |
+| `pnpm import:apply:local --plan .verification/import/resolved-plan.json --config scripts/import/import-config.local.json` | Local preview preflight; add `--apply` to write |
+| `pnpm dev:import-preview` | Start UI/isolated local Worker without demo film seeding |
 | `pnpm db:reset` | **Delete all local app data** and reseed; stop the servers first |
 | `pnpm test` | Full Vitest suite |
 | `pnpm typecheck` | Frontend/shared/tests and Worker TypeScript checks |
@@ -61,7 +65,7 @@ Use localhost (not a different hostname) to match the local CORS allowlist. The 
 | `pnpm preview` | Preview production build at http://localhost:4173/BookClub/ |
 | `node scripts/smoke.mjs` | Optional API smoke against running local servers; creates labelled test event/movie |
 
-Local D1 state is generated beneath `worker/.wrangler/`, ignored by source control. All supplied database scripts explicitly use `--local --env local`. Nothing contacts production D1. Startup is not a reset: the `seed_runs` marker ensures rerunning it never restores an intentionally undone answer or overwrites saved work.
+Local D1 state is generated beneath `worker/.wrangler/`, ignored by source control. Ordinary database scripts use `--local --env local`; import preview uses an isolated config, `--local --env import_preview` and explicit separate persistence. Nothing contacts production D1. Startup is not a reset: the `seed_runs` marker ensures rerunning it never restores an intentionally undone answer or overwrites saved work.
 
 To return to clean demo fixtures, stop the servers and run:
 
@@ -91,7 +95,7 @@ The About & data sources footer includes the approved, unmodified TMDB logo and 
 | `VITE_API_BASE_URL` | root `.env.local` or GitHub repository Actions variable | Worker origin, without `/api/v1` or trailing slash; public, never a secret |
 | `VITE_GOOGLE_CLIENT_ID` | root `.env.local` or GitHub repository Actions variable | Public Google Web Application client ID, embedded in the frontend build |
 | `GOOGLE_CLIENT_ID` | Worker runtime configuration (Wrangler var or secret) | Same public client ID; expected ID-token audience; required for production login |
-| `TMDB_READ_TOKEN` | Worker local secret file / Wrangler production secret | Optional TMDB bearer credential; server only |
+| `TMDB_READ_TOKEN` | Worker local secret file / Wrangler production secret; explicit resolver process env or supplied private env file | Optional TMDB bearer credential; never in the browser |
 | `MDBLIST_API_KEY` | Worker local secret file / Wrangler production secret | Optional primary multi-rating provider; server only |
 | `OMDB_API_KEY` | Worker local secret file / Wrangler production secret | Optional IMDb-ID rating fallback; server only |
 | `TVDB_API_KEY` | Worker-only placeholder | Unused; deferred |
@@ -100,7 +104,7 @@ The About & data sources footer includes the approved, unmodified TMDB logo and 
 | `ALLOWED_ORIGINS` | Wrangler vars | Comma-separated exact origins; local 5173/4173; production `https://n-plus-plus.github.io` |
 | `DB` | Wrangler D1 binding | Local/production database, never a browser connection |
 
-Production builds intentionally have no fallback to localhost or an invented backend. Set `VITE_API_BASE_URL` before building; if absent the UI reports a configuration error. Copy `.env.example` to `.env.local` for a configured build preview. Vite embeds both public `VITE_` values at build time; changing them requires rebuilding. The Pages workflow fails if either is missing. All movie-provider credentials remain Worker-only and never use a `VITE_` prefix. TheTVDB is deferred.
+Production builds intentionally have no fallback to localhost or an invented backend. Set `VITE_API_BASE_URL` before building; if absent the UI reports a configuration error. Copy `.env.example` to `.env.local` for a configured build preview. Vite embeds both public `VITE_` values at build time; changing them requires rebuilding. The Pages workflow fails if either is missing. Application provider credentials remain Worker-only; the explicit offline tool can also read a private TMDB token for identity resolution. No provider credential uses a `VITE_` prefix. TheTVDB is deferred.
 
 ## D1 schema and persistence
 
@@ -108,7 +112,10 @@ Production builds intentionally have no fallback to localhost or an invented bac
 - `movies`: canonical local IDs, original title, year/date, runtime, overview, timestamps, unique optional import source/key.
 - `movie_external_ids`: provider-neutral identifiers, unique provider/ID and one ID per provider/movie.
 - `movie_genres` and `movie_assets`: genres, poster/backdrop references, provider, optional dimensions, capture time and one preferred asset per movie/type. No image binaries.
-- `source_scores`: provider/metric, raw value/scale, optional 0–100 value, vote count, capture timestamp, retrieval service, optional upstream timestamp and import source/key. History is preserved; preferred retrieval service then latest usable snapshot determines effective score.
+- `movie_import_refs`: multiple durable source references per canonical movie; Should Watch refs also audit membership origins.
+- `seen_import_observations`: original per-row explicit answers with archive observation time, independent of the canonical answer or private override.
+- `import_applied_entities`: immutable entity fingerprints for conflict-safe resumable local apply.
+- `source_scores`: provider/metric, raw value/scale, optional 0–100 value, vote count, capture timestamp, retrieval service, optional upstream timestamp and import source/key. History is preserved; source_ref/source_ordinal and optional private legacy_preferred distinguish observations at one capture. Preferred retrieval service then latest usable snapshot determines effective score.
 - `cycles`: stable ID, ordinal, rough date, optional label/import keys and timestamps.
 - `sessions` and `session_movies`: date/precision, kind, optional cycle/source slot, theme, host, notes, compatible legacy label, import key and ordered joins with no three-film ceiling. Repeated films are representable.
 - `classics`: independent pool membership with stable rank seed, date/source/legacy reference. `classics_seed_allocations` and `rank_seed_counter` retain transactional allocation across membership removal.
@@ -123,9 +130,9 @@ D1 is canonical; frontend state is disposable. Event headers/joins and imported 
 
 All policy lives in shared/ranking.ts. Required inputs are imdb:rating, rottentomatoes:audience and rottentomatoes:critic, normalised to 0–100. Raw is the sum of their squares. Residual is Raw × 1.025^explicitNoCount + stableRankSeed × 0.00001. All active members explicitly Seen (or an empty active roster) makes the candidate ineligible; residual becomes negative. Missing required scores means Needs Data and no calculated score. Unknown neither counts as No nor Seen. Metacritic, Letterboxd and TMDB are auditable extra ratings only. Ranked Watch Order excludes Needs Data and disqualified candidates.
 
-Effective retrieval precedence for IMDb and RT critic is MDBList, OMDb, legacy spreadsheet, development demo, unspecified; RT audience uses MDBList then legacy (OMDb does not fabricate audience). TMDB prefers direct TMDB over MDBList. The latest usable snapshot within the preferred service wins; timestamp/record comparisons resolve equal captures deterministically. API captures supersede legacy bootstrap values even if a legacy timestamp is newer. All snapshots remain stored.
+Effective retrieval precedence for IMDb and RT critic is MDBList, OMDb, legacy spreadsheet, development demo, unspecified; RT audience uses MDBList then legacy (OMDb does not fabricate audience). TMDB prefers direct TMDB over MDBList. The latest usable snapshot within the preferred service wins; actual-time comparisons, optional private legacy preference and later legacy source ordinal resolve equal captures deterministically, with a stable final record fallback. API captures supersede legacy bootstrap values even if a legacy timestamp is newer. All snapshots remain stored.
 
-Classics membership holds a stable seed. Migration backfills existing members in movie-ID order; SQL triggers allocate new seeds using a persistent counter inside the insert transaction. Removal retains each movie's allocation, so readdition restores its seed and deletion never renumbers others. Legacy apply will supply worksheet row seeds after conflict review. This is a tie-breaker, not quality.
+Classics membership holds a stable seed. Migration backfills existing members in movie-ID order; SQL triggers allocate new seeds using a persistent counter inside the insert transaction. Removal retains each movie's allocation, so readdition restores its seed and deletion never renumbers others. Legacy local apply supplies minimum worksheet row seeds after canonical duplicate reconciliation. This is a tie-breaker, not quality.
 
 ## Cycles, refresh and dry-run
 
@@ -135,7 +142,7 @@ Source score history gains retrieved_via and optional upstream_updated_at, witho
 
 Film detail manages Classics membership and explicit score refresh; it shows effective raw ratings, votes, service and capture times with the three algorithm inputs marked. Classics has Ranked, Needs Data and Disqualified views and explicit enrichment for up to 10 identifiable missing-score candidates. MDBList groups IDs into at most two batches; OMDb/TMDB use bounded per-film requests. Title-only candidates remain unresolved until identification; no background job or page-load provider calls exist. Browser enrichment timeout is 65 seconds for bounded slow provider calls. TheTVDB remains an unused Worker-only placeholder.
 
-See [legacy domain model](docs/LEGACY_SPREADSHEET_MODEL.md) and [dry-run workflow](scripts/import/README.md). The importer reads arbitrary private file paths, writes only ignored local plans/reports, and performs no D1 access or network calls. Real member mapping, duplicate reconciliation, bootstrap timestamps and an apply pass remain explicit owner decisions.
+See [legacy domain model](docs/LEGACY_SPREADSHEET_MODEL.md) and [dry-run workflow](scripts/import/README.md). The spreadsheet parser remains network-free and writes only ignored plans/reports. A separate resolver provides conservative offline links, optional capped/resumable TMDB lookups and private overrides. Local apply is guarded by matching archive snapshotCapturedAt, zero blockers and preview member/schema validation; it uses only the isolated local D1 emulator. Migration 0004 preserves multiple source refs and same-time conflicting observations. See the linked workflow for exact commands, override format and atomicity/resume boundaries. Production apply is impossible through these tools.
 
 ## API, CORS and writes
 
@@ -210,6 +217,6 @@ Use backups and reviewed migrations once real data exists. References: [D1 migra
 
 ## Current boundaries and next work
 
-Real spreadsheet apply, ambiguous identity resolution, elaborate editing, reporting, charts, accounts, notifications and PWA support are deferred. New events are supported in the UI; the API can replace existing events, but an edit screen is not yet implemented. Navigation away from an unsaved Event screen discards that draft; saved manual films remain in the library. Recent answer undo is limited to the current Seen It? visit; persisted answers can always be corrected from film detail. History currently loads the small whole catalog; pagination can follow after migration size is known.
+Production spreadsheet apply, remaining private identity decisions, elaborate editing, reporting, charts, accounts, notifications and PWA support are deferred. New events are supported in the UI; the API can replace existing events, but an edit screen is not yet implemented. Navigation away from an unsaved Event screen discards that draft; saved manual films remain in the library. Recent answer undo is limited to the current Seen It? visit; persisted answers can always be corrected from film detail. History currently loads the small whole catalog; pagination can follow after migration size is known.
 
-The next step is to review the private dry-run report, confirm member mapping and reconciliation decisions, then separately authorise an idempotent apply pipeline. Production authentication is implemented; remote migration, private roster provisioning, runtime configuration and the human deployment checks above remain pending.
+The next step is to review private analysis, run the capped resolver until network work is complete, settle genuine ambiguity through private overrides, supply the archive capture timestamp, then preflight/apply and inspect the isolated local preview. Production import needs a future separately authorised pass. Production authentication is implemented; remote migration, private roster provisioning, runtime configuration and the human deployment checks above remain pending.

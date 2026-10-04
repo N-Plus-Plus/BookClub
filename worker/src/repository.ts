@@ -16,7 +16,7 @@ export class Repository {
       this.db.prepare('SELECT id,title,original_title,year,release_date,runtime,overview FROM movies ORDER BY title,id'),
       this.db.prepare('SELECT movie_id,provider,asset_type,reference,width,height,preferred FROM movie_assets ORDER BY preferred DESC,id'),
       this.db.prepare('SELECT movie_id,provider,external_id FROM movie_external_ids'),
-      this.db.prepare('SELECT movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via,upstream_updated_at FROM source_scores ORDER BY fetched_at,id'),
+      this.db.prepare('SELECT movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via,upstream_updated_at,source_ref,source_ordinal,legacy_preferred FROM source_scores ORDER BY fetched_at,id'),
       this.db.prepare('SELECT movie_id,member_id,seen,updated_at FROM seen_states'),
       this.db.prepare('SELECT movie_id,rank_seed,added_at,source FROM classics'),
       this.db.prepare('SELECT movie_id,genre FROM movie_genres ORDER BY genre'),

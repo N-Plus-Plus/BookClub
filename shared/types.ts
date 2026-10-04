@@ -1,7 +1,7 @@
 export interface Viewer { id: string; display_name: string }
 export interface AuthLogin { token: string; viewer: Viewer; expiresAt: string }
 export interface Member { id: string; display_name: string; sort_order: number; active: number }
-export interface Score { provider: string; metric: string; raw_value: number; raw_scale: number | null; normalized_value: number | null; vote_count: number | null; fetched_at: string; retrieved_via?: string; upstream_updated_at?: string | null }
+export interface Score { provider: string; metric: string; raw_value: number; raw_scale: number | null; normalized_value: number | null; vote_count: number | null; fetched_at: string; retrieved_via?: string; upstream_updated_at?: string | null; source_ref?: string; source_ordinal?: number | null; legacy_preferred?: number }
 export interface Asset { provider: string; asset_type: 'poster' | 'backdrop'; reference: string; width: number | null; height: number | null; preferred: number }
 export interface ExternalId { provider: string; external_id: string }
 export interface SeenAnswer { member_id: string; seen: number; updated_at: string }

@@ -16,7 +16,9 @@ export function scoreValue(s: Score): number | null {
 /** Preferred retrieval service first, then latest usable snapshot. */
 export function latestScores(scores: Score[]): Score[] {
   const sorted = [...scores].filter(s => scoreValue(s) !== null).sort((a,b) => precedence(a)-precedence(b)
-    || b.fetched_at.localeCompare(a.fetched_at) || JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    || Date.parse(b.fetched_at)-Date.parse(a.fetched_at)
+    || (a.retrieved_via === 'legacy-spreadsheet' && b.retrieved_via === 'legacy-spreadsheet' ? (b.legacy_preferred ?? 0)-(a.legacy_preferred ?? 0) || (b.source_ordinal ?? 0)-(a.source_ordinal ?? 0) : 0)
+    || JSON.stringify(a).localeCompare(JSON.stringify(b)));
   const effective = new Map<string,Score>();
   for (const s of sorted) { const key = `${s.provider}:${s.metric}`; if (!effective.has(key)) effective.set(key,s); }
   return [...effective.values()].sort((a,b) => `${a.provider}:${a.metric}`.localeCompare(`${b.provider}:${b.metric}`,'en'));

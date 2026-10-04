@@ -10,7 +10,7 @@ export const configSchema = z.object({
   snapshotCapturedAt: z.iso.datetime().optional(),
 }).strict();
 export type ImportConfig = z.infer<typeof configSchema>;
-type Diagnostic = {code: string; sheet: string; row?: number; column?: number; detail: string};
+export type Diagnostic = {code: string; severity: 'info'|'warning'|'review'|'blocker'; sheet: string; row?: number; column?: number; detail: string};
 type Film = {id: string; title: string; year: number | null; external_ids: {provider: string; external_id: string}[]; source_refs: string[]; provisional: boolean};
 export function cellValue(cell: ExcelJS.Cell): unknown {
   // ExcelJS exposes the master value on every merged follower; followers are blank source cells.
@@ -47,18 +47,23 @@ export function analyseWorkbook(workbook: ExcelJS.Workbook, rawConfig: unknown) 
   });
   const [tracker,candidates,watch,helper] = sheets;
   const diagnostics: Diagnostic[] = [];
-  const report = (code: string,sheet: string,detail: string,row?: number,column?: number) => diagnostics.push({code,sheet,row,column,detail});
+  const report = (code: string,sheet: string,detail: string,row?: number,column?: number) => {
+    const severity = ['EXTERNAL_ID_METADATA_CONFLICT'].includes(code) ? 'blocker' : ['DUPLICATE_TITLE','DUPLICATE_EXTERNAL_ID','INVALID_YEAR','INVALID_IMDB_URL','WATCH_ORDER_MISMATCH'].includes(code) ? 'review' : ['WHITESPACE_NORMALISED','UNCACHED_FORMULA','UNKNOWN_CAPTURE_TIMESTAMP','RATING_UNAVAILABLE','EXPECTED_UNKNOWN_SEEN'].includes(code) ? 'info' : 'warning';
+    diagnostics.push({code,severity,sheet,row,column,detail});
+  };
   // Validate positional layout without recording private host header names.
   if (!/title/i.test(text(cellValue(candidates.getCell('A1')))) || !/imdb/i.test(text(cellValue(candidates.getCell('B1'))))
     || !/audience/i.test(text(cellValue(candidates.getCell('C1')))) || !/tomato/i.test(text(cellValue(candidates.getCell('D1'))))) throw new Error('Unrecognised Should Watch layout.');
   if (!/classic/i.test(text(cellValue(tracker.getCell('F1')))) || !/not.*book.*club/i.test(text(cellValue(tracker.getCell('G1'))))) throw new Error('Unrecognised Tracker layout.');
   const movies: Film[] = [], cycles: {id: string; ordinal: number; rough_date: string; import_key: string; source_row: number}[] = [];
+  const source_records: {source_ref: string; title: string; year: number|null; imdb_id: string|null}[] = [];
   const events: {id: string; cycle_id: string; event_date: string; date_precision: 'cycle_rough'; kind: 'hosted'|'classics'; host_member_id: string | null; cycle_slot: number; import_key: string; films: {movie_id: string; position: number; source_row: number; source_column: number}[]}[] = [];
   const ancillary: {row: number; title: string}[] = [];
   const classics: {movie_id: string; rank_seed: number; source_row: number; needs_identification: boolean; scores: Score[]; seen: SeenAnswer[]; ranking: ReturnType<typeof rankMovie>}[] = [];
   const reconciliation: {status: 'confidently-linked'|'probable/manual-review'|'duplicate/conflict'|'unresolved'; movie_ids: string[]; reason: string; rows?: number[]}[] = [];
   const members: Member[] = config.memberIds.map((id,i) => ({id,display_name: `Host ${i+1}`,sort_order: i+1,active: 1}));
   const addFilm = (title: string,key: string,year: number | null = null,imdb?: string): Film => {
+    source_records.push({source_ref: key,title,year,imdb_id: imdb ?? null});
     // Only verified, syntactically valid provider IDs link automatically. Titles never do.
     const known = imdb ? movies.find(m => m.external_ids.some(e => e.provider === 'imdb' && e.external_id === imdb)) : undefined;
     if (known) {
@@ -106,23 +111,24 @@ export function analyseWorkbook(workbook: ExcelJS.Workbook, rawConfig: unknown) 
     if (url && !imdb) report('INVALID_IMDB_URL','Should Watch','No verified-format IMDb title URL.',row,13);
     const movie = addFilm(title,`Should Watch:${row}`,year !== null && Number.isInteger(year) && year >= 1870 ? year : null,imdb);
     const scores: Score[] = [];
-    for (const [col,provider,metric,scale] of [[2,'imdb','rating',100],[3,'rottentomatoes','audience',100],[4,'rottentomatoes','critic',100],[15,'metacritic','critic',100],[16,'letterboxd','rating',5]] as const) {
+    for (const [col,provider,metric,scale] of [[2,'imdb','rating',100],[3,'rottentomatoes','audience',100],[4,'rottentomatoes','critic',100],[15,'metacritic','critic',100],[16,'letterboxd','rating',100]] as const) {
       hasCached(candidates,row,col); const value = cellValue(candidates.getCell(row,col)), rating = number(value,scale);
-      if (rating !== null) scores.push({provider,metric,raw_value: rating,raw_scale: scale,normalized_value: rating/scale*100,vote_count: null,fetched_at: config.snapshotCapturedAt ?? '',retrieved_via: 'legacy-spreadsheet'});
+      if ((col === 15 || col === 16) && text(value).trim().toUpperCase() === 'N/A') { report('RATING_UNAVAILABLE','Should Watch',`${provider}:${metric} explicitly unavailable.`,row,col); continue; }
+      if (rating !== null) scores.push({provider,metric,raw_value: rating,raw_scale: scale,normalized_value: rating,vote_count: null,fetched_at: config.snapshotCapturedAt ?? '',retrieved_via: 'legacy-spreadsheet'});
       else if (value != null && text(value).trim()) report('INVALID_RATING','Should Watch',`Invalid ${provider}:${metric} source rating.`,row,col);
     }
+    const onlyTitle = Array.from({length: 15},(_,i) => cellValue(candidates.getCell(row,i+2))).every(v => v == null || text(v).trim() === '');
     const seen: SeenAnswer[] = [];
     for (let col=6;col<=9;col++) {
       const raw = text(cellValue(candidates.getCell(row,col))), answer = raw.trim().toLowerCase();
       if (raw !== raw.trim()) report('WHITESPACE_NORMALISED','Should Watch','Trimmed surrounding Seen whitespace.',row,col);
       if (answer === 'yes' || answer === 'no') seen.push({member_id: config.memberIds[col-6],seen: answer === 'yes' ? 1 : 0,updated_at: config.snapshotCapturedAt ?? ''});
-      else { report('UNKNOWN_SEEN','Should Watch',answer ? 'Unrecognised Seen answer preserved as Unknown.' : 'Missing answer preserved as Unknown.',row,col); }
+      else { report(onlyTitle ? 'EXPECTED_UNKNOWN_SEEN' : 'UNKNOWN_SEEN','Should Watch',answer ? 'Unrecognised Seen answer preserved as Unknown.' : 'Missing answer preserved as Unknown.',row,col); }
     }
     const ranking = rankMovie(scores,seen,members,row);
     const helperTitle = text(cellValue(candidates.getCell(row,12))).trim();
     if (helperTitle && titleKey(helperTitle) !== titleKey(title)) report('HELPER_TITLE_MISMATCH','Should Watch','Helper title differs from candidate; source title preserved.',row,12);
     if (ranking.rankable) scored++;
-    const onlyTitle = Array.from({length: 15},(_,i) => cellValue(candidates.getCell(row,i+2))).every(v => v == null || text(v).trim() === '');
     if (onlyTitle) titleOnly++; else if (!ranking.rankable) report('INCOMPLETE_SCORES','Should Watch',ranking.missingRequiredScores.join(', '),row);
     // Legacy J is COUNTIF(No), the exponent, despite its "Unseen Multi" heading.
     for (const [col,expected] of [[5,ranking.rawScore],[10,ranking.unseenCount],[11,ranking.finalScore]] as const) {
@@ -179,12 +185,13 @@ export function analyseWorkbook(workbook: ExcelJS.Workbook, rawConfig: unknown) 
   for (const c of cycles) if (events.filter(e => e.cycle_id === c.id && e.kind === 'hosted').length !== 4) report('INCOMPLETE_CYCLE','Tracker','Cycle does not have all four hosted slots.',c.source_row);
   if (!config.snapshotCapturedAt) report('UNKNOWN_CAPTURE_TIMESTAMP','Should Watch','Historical retrieval time is unknown. Plan preserves null; apply must choose an explicit bootstrap capture policy.');
   // Keep each legacy row's seed/scores/answers even when an external ID confidently links it.
-  const plan = {version: 1,dryRun: true,import_source: config.importSource,members: config.memberIds,cycles,events,movies,
-    classics: classics.map(c => ({...c,scores: c.scores.map(s => ({...s,fetched_at: s.fetched_at || null,import_key: `Should Watch:${c.source_row}:${s.provider}:${s.metric}`})),seen: c.seen.map(s => ({...s,updated_at: s.updated_at || null})),ranking: undefined})),reconciliation};
+  const plan = {version: 1,dryRun: true,import_source: config.importSource,members: config.memberIds,cycles,events,movies,source_records,snapshotCapturedAt: config.snapshotCapturedAt ?? null,diagnostics,rawWatchOrder: {exactMatch: expectedWatch.length > 0 && differences.length === 0,computed},
+    classics: classics.map(({ranking: _ranking,...c}) => ({...c,scores: c.scores.map(s => ({...s,fetched_at: s.fetched_at || null,import_key: `Should Watch:${c.source_row}:${s.provider}:${s.metric}`})),seen: c.seen.map(s => ({...s,updated_at: s.updated_at || null}))})),reconciliation};
   const summary = {counts,diagnostics,reconciliation,watchOrder: {exactMatch: expectedWatch.length > 0 && differences.length === 0,expected: expectedWatch,computed,differences,tieRows: ties},ancillary,helper: {overlap: helperTitles.length-helperUnmatched.length,unmatched: helperUnmatched}};
   return {plan,summary};
 }
 export function markdownReport(result: ReturnType<typeof analyseWorkbook>) {
   const {summary} = result;
-  return `# Spreadsheet dry-run\n\nNo database writes or network lookups performed. Private local report.\n\n## Counts\n\n${Object.entries(summary.counts).map(([k,v]) => `- ${k}: ${v}`).join('\n')}\n\n## Watch Order\n\n${summary.watchOrder.exactMatch ? 'Exact top-20 match.' : 'Differences require review.'}\n\n## Diagnostics\n\n${summary.diagnostics.map(d => `- ${d.code} — ${d.sheet}${d.row ? ` row ${d.row}` : ''}${d.column ? ` column ${d.column}` : ''}: ${d.detail}`).join('\n')}\n\n## Reconciliation\n\n${summary.reconciliation.map(r => `- ${r.status}: ${r.reason} (${r.movie_ids.join(', ')})`).join('\n')}\n\nSee report.json for private title-level comparisons and helper/ancillary lists. Review duplicate memberships, rank seeds and conflicting answers before any separately authorised apply.\n`;
+  const counts = summary.diagnostics.reduce<Record<string,number>>((a,d) => { a[d.code]=(a[d.code] ?? 0)+1; return a; },{});
+  return `# Spreadsheet dry-run\n\nNo database writes or network lookups performed. Private local report.\n\n## Summary\n\n- Structural validation: parsed; ${counts.SNAPSHOT_COUNT_DRIFT ?? 0} count differences\n- Watch Order: ${summary.watchOrder.exactMatch ? 'Exact top-20 match' : 'Review differences'}\n- Blockers: ${summary.diagnostics.filter(d=>d.severity==='blocker').length}\n- Review items: ${summary.diagnostics.filter(d=>d.severity==='review').length}\n- Informational cleanup: ${summary.diagnostics.filter(d=>d.severity==='info').length}\n\n## Counts\n\n${Object.entries(summary.counts).map(([k,v]) => `- ${k}: ${v}`).join('\n')}\n\n## Diagnostic totals\n\n${Object.entries(counts).map(([k,v])=>`- ${k}: ${v}`).join('\n')}\n\n## Review and warnings\n\n${summary.diagnostics.filter(d=>d.severity!=='info').map(d => `- [${d.severity}] ${d.code} — ${d.sheet}${d.row ? ` row ${d.row}` : ''}${d.column ? ` column ${d.column}` : ''}: ${d.detail}`).join('\n')}\n\nRow-level informational evidence and private identity suggestions remain in report.json. Historical helper mismatches can reflect corrected whitespace defects; they do not block canonical inputs.\n`;
 }

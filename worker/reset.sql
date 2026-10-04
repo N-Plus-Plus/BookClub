@@ -1,5 +1,6 @@
 -- Explicit opt-in reset, invoked ONLY with Wrangler --local by package scripts.
 DELETE FROM session_movies;
+DELETE FROM import_applied_entities;
 DELETE FROM sessions;
 DELETE FROM cycles;
 DELETE FROM seen_states;
