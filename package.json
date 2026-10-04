@@ -12,6 +12,7 @@
     "dev:ui": "vite",
     "dev:api": "wrangler dev --config worker/wrangler.jsonc --env local --local --port 8787",
     "build": "vite build",
+    "prod:check": "node scripts/prod-check.mjs",
     "preview": "vite preview --port 4173",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json && tsc -p worker/tsconfig.json",

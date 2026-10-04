@@ -19,6 +19,7 @@ export interface Movie {
   classics_membership?: { rank_seed: number; added_at: string; source: string | null } | null;
 }
 export interface Session {
+  deleted_at?: string | null;
   id: string; event_date: string; title: string | null; host_member_id: string | null;
   legacy_cycle_label: string | null; notes: string | null; movies: Movie[];
   planned_at?: string | null; published_by?: string | null; swap_note?: string | null; completed_turn_version?: number | null;
@@ -39,3 +40,7 @@ export interface SessionInput { correct_anchor?: boolean; complete_turn?: boolea
 export interface ProviderResult { provider: string; status: 'success' | 'failed' | 'skipped'; count: number; message: string; retryAfter?: number }
 export interface RefreshResult { movie: MovieDetail; providers: ProviderResult[] }
 export interface ManualMovieInput { title: string; year?: number; runtime?: number }
+export interface MetadataEnrichment {
+  results: {movieId: string; title: string; provider: 'tmdb'; status: 'success' | 'failed' | 'conflict'; message: string}[];
+  remaining: number; unidentified: number;
+}

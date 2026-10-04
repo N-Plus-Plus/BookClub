@@ -34,6 +34,7 @@ jobs:
             echo "::error::Set repository Actions variable VITE_GOOGLE_CLIENT_ID."
             exit 1
           fi
+          pnpm prod:check --frontend
       - run: pnpm build
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}

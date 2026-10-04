@@ -90,4 +90,37 @@ export class Repository {
     await this.db.batch(statements);
     return id;
   }
+  async enrichMetadata(id: string, tmdbId: string, m: ProviderMovie) {
+    await this.assertMovie(id);
+    if (!m.external_ids.some(e => e.provider === 'tmdb' && e.external_id === tmdbId))
+      throw new ApiError(409,'IDENTITY_CONFLICT','TMDB returned a different identity. Owner reconciliation is required.');
+    const ids = (await this.db.prepare('SELECT provider,external_id FROM movie_external_ids WHERE movie_id=?').bind(id).all<ExternalId>()).results;
+    if (!ids.some(e => e.provider === 'tmdb' && e.external_id === tmdbId)) throw new ApiError(409,'IDENTITY_CONFLICT','Stored TMDB identity changed. Refresh before retrying.');
+    const imdb = m.external_ids.find(e => e.provider === 'imdb');
+    const knownImdb = ids.find(e => e.provider === 'imdb');
+    if (imdb) {
+      const owner = await this.findExternal('imdb',imdb.external_id);
+      if ((owner && owner !== id) || (knownImdb && knownImdb.external_id !== imdb.external_id))
+        throw new ApiError(409,'IDENTITY_CONFLICT','IMDb identity conflicts with a canonical film. Owner reconciliation is required.');
+    }
+    // Metadata only: never replace the movie, joins, import refs, Seen or score history.
+    const statements = [this.db.prepare(`UPDATE movies SET title=?,original_title=?,year=?,release_date=?,runtime=?,overview=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?`)
+      .bind(m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview,id)];
+    // Recheck ownership transactionally even when an identical ID is already stored.
+    if (imdb) statements.push(this.db.prepare('INSERT INTO movie_external_ids(movie_id,provider,external_id) VALUES(?,?,?) ON CONFLICT(movie_id,provider) DO UPDATE SET external_id=CASE WHEN movie_external_ids.external_id=excluded.external_id THEN excluded.external_id ELSE NULL END')
+      .bind(id,'imdb',imdb.external_id));
+    statements.push(this.db.prepare('DELETE FROM movie_genres WHERE movie_id=?').bind(id));
+    statements.push(...[...new Set(m.genres)].map(g => this.db.prepare('INSERT INTO movie_genres(movie_id,genre) VALUES(?,?)').bind(id,g)));
+    for (const asset of m.assets.filter(a => a.provider === 'tmdb')) {
+      statements.push(this.db.prepare('UPDATE movie_assets SET preferred=0 WHERE movie_id=? AND asset_type=?').bind(id,asset.asset_type),
+        this.db.prepare(`INSERT INTO movie_assets(id,movie_id,provider,asset_type,reference,width,height,preferred,fetched_at) VALUES(?,?,?,?,?,?,?,?,?)
+          ON CONFLICT(movie_id,provider,asset_type,reference) DO UPDATE SET preferred=1,width=excluded.width,height=excluded.height,fetched_at=excluded.fetched_at`)
+          .bind(crypto.randomUUID(),id,'tmdb',asset.asset_type,asset.reference,asset.width,asset.height,1,m.fetched_at));
+    }
+    try { await this.db.batch(statements); }
+    catch (error) {
+      if (/movie_external_ids/.test(String(error))) throw new ApiError(409,'IDENTITY_CONFLICT','External identity conflicts with a canonical film. Owner reconciliation is required.');
+      throw error;
+    }
+  }
 }

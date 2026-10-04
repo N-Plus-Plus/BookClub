@@ -17,6 +17,8 @@ export class ProductRepository {
   private async batch(statements: D1PreparedStatement[]) {
     try { await this.db.batch(statements); }
     catch (error) {
+      if (/SWAP_REQUIRED/.test(String(error))) throw new ApiError(422,'SWAP_REQUIRED','Explain the swap when the actual host differs from the nominal slot.');
+      if (/active_cycle_slot|sessions.cycle_id, sessions.cycle_slot/.test(String(error))) throw conflict('This cycle slot already has an active History event. Choose a free slot or review History.');
       if (/BUILDER_CONFLICT|TURN_CONFLICT|HISTORY_CONFLICT|completed_turn_once|completed_turn_version|sessions.builder_id|club_rotation.id|FOREIGN KEY constraint failed/.test(String(error)))
         throw conflict('The record or current turn changed. Refresh before retrying.');
       throw error;
@@ -112,11 +114,13 @@ export class ProductRepository {
     }
     if (slot === 5 ? kind !== 'classics' : slot !== null && kind !== 'hosted') throw new ApiError(422,'INVALID_SLOT','Slot 5 is Classics; slots 1–4 are hosted.');
     if (kind === 'classics' && input.host_member_id) throw new ApiError(422,'INVALID_HOST','Classics is hostless.');
-    if (turn && slot !== 5) {
-      const nominal = await this.db.prepare('SELECT id FROM members WHERE sort_order=? AND active=1').bind(slot).first<{id: string}>();
+    if (kind === 'hosted' && slot !== null && slot <= 4) {
+      const nominal = await this.db.prepare('SELECT id FROM members WHERE sort_order=?').bind(slot).first<{id: string}>();
       if (!input.host_member_id || !nominal) throw new ApiError(422,'INVALID_HOST','Choose an active host with a provisioned nominal roster.');
-      if (input.host_member_id !== nominal.id && !input.swap_note?.trim()) throw new ApiError(422,'SWAP_REQUIRED','Explain the swap when the actual host differs from the nominal turn.');
+      if (input.host_member_id !== nominal.id && !input.swap_note?.trim()) throw new ApiError(422,'SWAP_REQUIRED','Explain the swap when the actual host differs from the nominal slot.');
     }
+    if (cycleId && slot !== null && await this.db.prepare('SELECT id FROM sessions WHERE cycle_id=? AND cycle_slot=? AND deleted_at IS NULL AND id<>?').bind(cycleId,slot,existingId ?? '').first())
+      throw conflict('This cycle slot already has an active History event. Choose a free slot or review History.');
     if (input.new_cycle) {
       if (slot !== 1 || kind !== 'hosted' || precision !== 'exact' || input.new_cycle.rough_date !== input.event_date) throw new ApiError(422,'INVALID_ANCHOR','A new cycle begins with exact nominal slot 1; its anchor is that event date.');
       cycleId = crypto.randomUUID();

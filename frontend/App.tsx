@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarPlus, ListPlus, Check, ChevronRight, Clapperboard, Eye, History, Home, Info, Library, LogOut, RefreshCw, X } from 'lucide-react';
+import { ChartNoAxesColumn, CalendarPlus, ListPlus, Check, ChevronRight, Clapperboard, Eye, History, Home, Info, Library, LogOut, RefreshCw, X } from 'lucide-react';
 import type { Catalog, Movie, MovieDetail, Viewer, Rotation } from '../shared/types';
 import { missingAnswers, sortClassics } from '../shared/ranking';
 import { SignInScreen } from './SignInScreen';
@@ -15,9 +15,10 @@ import { ClubIdentity } from './ClubIdentity';
 import { BuilderScreen } from './BuilderScreen';
 import { RotationCard } from './RotationCard';
 import { needsAvatar } from '../shared/identity';
+import { MetricsScreen } from './MetricsScreen';
 
 const destinations = [ {path: 'home',label: 'Home',icon: Home}, {path: 'history',label: 'History',icon: History},
-  {path: 'builder',label: 'Builder',icon: ListPlus}, {path: 'classics',label: 'Classics',icon: Library}, {path: 'seen',label: 'Seen It?',icon: Eye} ];
+  {path: 'builder',label: 'Builder',icon: ListPlus}, {path: 'classics',label: 'Classics',icon: Library}, {path: 'seen',label: 'Seen It?',icon: Eye}, {path: 'metrics',label: 'Metrics',icon: ChartNoAxesColumn} ];
 const route = () => window.location.hash.slice(2) || 'home';
 export function App() {
   const [page,setPage] = useState(route);
@@ -88,7 +89,7 @@ export function App() {
   const missing = catalog ? missingAnswers(catalog.movies,catalog.members).length : 0;
   const isDetail = page.startsWith('movie/');
   const title = (page === 'event' || page.startsWith('event/')) ? 'Event' : isDetail ? 'Film detail' : destinations.find(d => d.path === page)?.label ?? 'Page not found';
-  const subtitles: Record<string,string> = { builder: 'Private ideas for your next film night.',home: 'A weekly ritual. A growing collection.',history: 'Every night has a story.',event: 'Make room for the next great film.',classics: 'The next watch, decided together.',seen: 'A quick answer keeps the list moving.' };
+  const subtitles: Record<string,string> = { metrics: 'Our film nights, by the numbers.',builder: 'Private ideas for your next film night.',home: 'A weekly ritual. A growing collection.',history: 'Every night has a story.',event: 'Make room for the next great film.',classics: 'The next watch, decided together.',seen: 'A quick answer keeps the list moving.' };
   const writesEnabled = Boolean(health && (!health.authenticationRequired || viewer));
   if (health?.authenticationRequired && !viewer && !loading) return <SignInScreen configured={health.googleAuthConfigured} error={error} busy={authBusy} onCredential={signIn} onRetry={() => void load()} />;
   if (needsAvatar(viewer) && viewer) return <AvatarScreen viewer={viewer} externalError={error} onClaimed={claimed => { setViewer(claimed); void load(); }} onLogout={() => void logout()} />;
@@ -102,6 +103,7 @@ export function App() {
       <div className="dashboard-grid"><section className="stack"><div className="section-title"><h2>Last time together</h2><RouteLink to="history" icon={History}>History</RouteLink></div>{catalog.sessions[0] ? <SessionCard session={catalog.sessions[0]} members={catalog.members} /> : <Empty title="Your first night is waiting">Create an event to begin your shared history.</Empty>}</section>
       <section className="stack"><div className="section-title"><h2>On the shortlist</h2><RouteLink to="classics" icon={ChevronRight}>View all</RouteLink></div>{eligible.slice(0,3).map((m,i) => <RankingCard key={m.id} movie={m} rank={i+1} />)}{!eligible.length && <Empty title="No eligible Classics">Open Classics to inspect the candidate pool.</Empty>}</section></div></div>}
       {page === 'history' && <HistoryScreen catalog={catalog} onChanged={() => void load()} />}
+      {page === 'metrics' && <MetricsScreen catalog={catalog} viewer={viewer} onUpdated={load} />}
       {page === 'builder' && <BuilderScreen catalog={catalog} viewer={viewer} rotation={rotation} onMovie={applyMovie} onPublished={() => { void load(); setNotice('Published to History.'); window.location.hash = '/history'; }} />}
       {(page === 'event' || (page.startsWith('event/') && catalog.sessions.some(s => s.id === page.slice(6)))) && <EventScreen key={page} initial={catalog.sessions.find(s => s.id === page.slice(6))} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={session => {
         setCatalog(c => c ? {...c,sessions: [session,...c.sessions.filter(s => s.id !== session.id)].sort((a,b) => b.event_date.localeCompare(a.event_date))} : c);

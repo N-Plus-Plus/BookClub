@@ -16,9 +16,10 @@ export function EventScreen({catalog,writesEnabled,onMovie,onSaved,rotation,view
   const [correctAnchor,setCorrectAnchor] = useState(false);
   const anchorChanged = initial?.cycle_slot === 1 && Boolean(initial.cycle_id) && precision === 'exact' && date !== catalog.cycles.find(c => c.id === initial.cycle_id)?.rough_date;
   const nominal = catalog.members.find(m => m.sort_order === slot);
-  const offTurn = complete && slot !== 5 && host && host !== nominal?.id;
+  const offTurn = kind === 'hosted' && slot !== null && slot <= 4 && host && host !== nominal?.id;
   const save = async (event: FormEvent) => {
     event.preventDefault(); if (!selected.length) { setError('Add at least one film.'); return; }
+    if (offTurn && !swap.trim()) { setError('Explain the swap when the actual host differs from the nominal slot.'); return; }
     setBusy(true); setError('');
     try { onSaved(await api.saveSession({event_date: date,title,notes,kind,date_precision: precision,host_member_id: kind === 'classics' ? null : host || null,movie_ids: selected.map(m => m.id),cycle_slot: slot,swap_note: swap,correct_anchor: correctAnchor,complete_turn: complete,...(complete ? {turn_version: rotation?.version} : {}),...(cycle === 'new' ? {new_cycle: {rough_date: date}} : {cycle_id: cycle || null})},initial?.id)); }
     catch (e) { setError(e instanceof Error ? e.message : 'Could not save event.'); } finally { setBusy(false); }

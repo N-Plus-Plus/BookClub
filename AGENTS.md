@@ -22,7 +22,7 @@ Do not ask the user to repeat context already stated accurately in this file or 
 | Project fact | Current state |
 | --- | --- |
 | Project name | BookClub; GitHub repository N-Plus-Plus/BookClub |
-| Product purpose | Weekly four-person film journal, private Builder plans, explicit rotation, event history, Classics ranking and Seen It? collection |
+| Product purpose | Weekly four-person film journal, private Builder plans, explicit rotation, event history, Classics ranking, Seen It? collection and All Time Metrics |
 | Intended users | Four human positions: Sean, Troy, Matt, Jess (sort_order 1-4); names/auth provisioned privately, development fixtures generic |
 | Project maturity | Local-first application with avatar onboarding, roles, explicit rotation, private Builder publication and audited recoverable History; staged importer/local preview implemented; real history reconciliation and production apply pending |
 | Application shape | Static frontend and independently deployed Worker API in one repository |
@@ -67,7 +67,7 @@ When the repository is blank or nearly blank:
 | --- | --- |
 | Application entry point | index.html; frontend/main.tsx; worker/src/index.ts |
 | User interface | frontend/App.tsx, screen modules, components.tsx; root style.css and frontend/app.css |
-| Domain or business rules | shared/ranking.ts (historical ranking and missing-answer queue); shared/identity.ts (member/Classics presentation, onboarding and local dates); worker/src/product-repository.ts (rotation/publication) |
+| Domain or business rules | shared/ranking.ts (ranking/effective scores); shared/metrics.ts and genres.ts (appearance Metrics/finite genre vocabulary); shared/identity.ts (identity/onboarding/dates); worker/src/product-repository.ts (rotation/publication) |
 | Persistence and data access | worker/src/repository.ts, product-repository.ts, auth-repository.ts; worker/migrations/; worker/seed.sql and reset.sql |
 | API or service boundaries | worker/src/index.ts, validation.ts, http.ts, auth.ts, auth-repository.ts, services.ts, score-service.ts; provider interfaces/adapters under providers/ |
 | Configuration | package.json, vite.config.ts, tsconfig.json, worker/tsconfig.json, worker/wrangler.jsonc, isolated worker/wrangler.import-preview.jsonc; environment examples |
@@ -209,6 +209,8 @@ Cycles own grouping and the nominal slot-1 Sean-derived anchor in compatibility 
 
 Migration 0005 adds unique nullable member avatars (integers 0-19) and privately provisioned member/admin roles. Null avatar gates all private screens behind a one-time authenticated chooser; reserved a.png is Classics-only, rendered as CLSC rather than a fifth account. Identity URLs are Vite-base-aware and database names are uppercased in presentation. Local bypass has no concrete owner and cannot use personal Builder or admin operations.
 
+Migration 0006 enforces one active event per non-null cycle/slot with a partial unique index; soft deletion frees it, occupied create/edit/publication/restore returns safe 409. Every hosted slot 1-4 resolves its nominal member by sort_order and requires a nonblank swap_note when actual host differs, including backfills/edits. Application validation and insert/update triggers return safe 422. Existing conflicts require explicit reconciliation, never automatic rewriting.
+
 Builder sets/ordered canonical movie IDs belong only to their authenticated owner; even admins cannot list, inspect, edit, delete or publish another member's unpublished sets. They never enter catalog data. Publication atomically preserves original created_at as immutable sessions.planned_at, records publisher/actual host, creates History/joins/audit, removes Builder and optionally completes a versioned current turn. No 3-film ceiling; dates default to browser-local today at confirmation and allow past/future values.
 
 club_rotation has one explicit nullable-cycle/slot/version state, privately initialised after history review. Fixed positions 1-4 then hostless Classics advance only on explicit qualifying creation/publication. Deferral/calendar time do nothing. Slot 1 creates/anchors its new cycle; Classics returns to slot 1 awaiting that creation. Swaps record nominal slot, actual host and explicit explanation without altering positional order; return swaps are explicit future publications. Current Classics completion marks all four active members Seen transactionally; backfills, edits, restores and hosted events do not. History changes append actor/time/structured audit. Soft deletion hides events/appearances without removing joins or rewinding rotation; admin restore/correction is server-authorised and audited. Correcting/deleting a completed-turn event flags review instead of silently changing rotation. README.md owns API contracts and private setup.
@@ -302,6 +304,7 @@ Inspect current package.json before relying on these scripts.
 | Start development mode | pnpm dev: local migrations/seed then UI and API |
 | Frontend / API only | pnpm dev:ui / pnpm dev:api (prepare DB first) |
 | Build | pnpm build; static dist/ with /BookClub/ base |
+| Static production preflight | pnpm prod:check; add --frontend to check process public build variables; no remote access, build separately |
 | Production build preview | pnpm preview; localhost:4173/BookClub/; requires configured API base |
 | Targeted tests | pnpm exec vitest run tests/ranking.test.ts or tests/api.test.ts |
 | Full test suite | pnpm test |
@@ -322,10 +325,12 @@ UI is http://localhost:5173/; API is http://localhost:8787/api/v1. Use the local
 - Preserve root style.css. Extensions belong in frontend/app.css, using existing dark surfaces, shared radii, and intent colours. No generic CSS framework or second icon family.
 - Static GitHub Pages frontend uses hash routing and Vite-controlled base paths. All fetches go through frontend/api.ts; no browser D1 access, secrets, SSR, filesystem or server rewrites.
 - TMDB is optional; application calls use Worker-only secrets, while the explicit import resolver may read process.env.TMDB_READ_TOKEN or a supplied ignored env file, never OWNER_INFO.md. Imported metadata/ratings are persisted snapshots; ordinary pages never call provider APIs. MDBList/OMDb adapters append rating snapshots with retrieved_via provenance; no scraping. Explicit per-film refresh and up-to-10-film missing-score enrichment are authenticated and never automatic.
+- Admin-only POST /movies/enrich-metadata explicitly updates up to 10 existing TMDB-identified canonical films independently, prioritising genres. Metadata/assets and safe missing IMDb IDs may change; internal IDs, History, Classics seeds, Seen, rating history and import provenance never change. Conflicting external IDs are reported for owner reconciliation. Metrics offers this manual control only to admins.
+- All Time Metrics derives active History appearances from the authenticated catalog, never Builder. Human filters use actual host, CLSC uses kind; repeats count in averages/counts, unique films deduplicate IDs. Effective IMDb uses shared ranking selection, missing scores stay missing. Each appearance counts once per recognised TMDB genre (Science Fiction displays Sci-Fi), with selected-appearance denominator and visible Uncategorised/IMDb coverage. Six mobile navigation destinations retain 44px targets.
 - The historical policy in shared/ranking.ts sums squared 0–100 IMDb/RT audience/RT critic inputs, multiplies by 1.025^explicitNoCount and adds rank_seed*0.00001. Unknown is distinct from No; all active members Seen disqualifies. Missing required scores stay Needs Data. Other ratings never affect rank. Stable SQL-allocated membership seeds survive removal/readdition; legacy seeds are worksheet rows. API retrieval precedence is MDBList, OMDb, legacy, demo (direct TMDB preferred for TMDB). Legacy observations sharing a capture use optional private preference then later source ordinal. Never migrate captured rank into permanent ordering.
 - Generic fixtures are development data only. Do not invent real member names or treat demo scores/events as history.
 - Production reads and writes require authenticated club members. Public routes are health and Google login (plus preflight). Never deploy the local environment. No permanent shared write secret belongs in the static frontend. Public VITE_GOOGLE_CLIENT_ID and Worker GOOGLE_CLIENT_ID must match; no OAuth client secret is used. Real members/emails are provisioned privately via ignored scripts/auth/*.local.sql; never seed development identities to production.
-- Production data apply, unresolved private identity decisions, Metrics/reports/charts, social features, notifications, PWA, scheduled refreshes and elaborate admin tooling are deferred. Basic roles, History editing/audit/soft deletion, admin restore API and rotation correction are implemented.
+- Production data apply, unresolved private identity decisions, date-range Metrics/charts, social features, notifications, PWA, scheduled refreshes and elaborate admin tooling are deferred. Tracked release checks are local/static only; remote bindings/secrets/GIS remain unverified. Basic roles, History editing/audit/soft deletion, admin restore API and rotation correction are implemented.
 - Local credential files and OWNER_INFO.md are ignored. Preserve user-provided private files; never echo tokens, include them in source/builds/tests, or access live D1 for verification.
 
 ## 18. Final report requirements

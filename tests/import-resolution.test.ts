@@ -100,11 +100,18 @@ describe('mocked bounded resumable TMDB identity resolution',()=>{
   const offline=await resolveWithTmdb(p,{fetcher:vi.fn()});expect(offline.state.requests).toBe(0);expect(offline.state.networkAvailable).toBe(false);
  });
 });
-describe('local import apply',()=>{
+  describe('local import apply',()=>{
+ it('requires migration 0006 invariants before synthetic import apply',async()=>{
+  const local=disposableD1('0005_product_state.sql');try {
+   local.sqlite.exec(readFileSync('worker/import-preview-members.sql','utf8'));
+   await expect(applyLocal(local.db,validateResolved(resolved(),config),true)).rejects.toThrow('0006');
+   expect(local.sqlite.prepare('SELECT count(*) n FROM movies').get()?.n).toBe(0);
+  }finally{local.sqlite.close();}
+ });
  it('refuses an older preview schema before writing imported data',async()=>{
   const local=disposableD1('0004_import_provenance.sql');try {
    local.sqlite.exec(readFileSync('worker/import-preview-members.sql','utf8'));
-   await expect(applyLocal(local.db,validateResolved(resolved(),config),true)).rejects.toThrow('0005');
+   await expect(applyLocal(local.db,validateResolved(resolved(),config),true)).rejects.toThrow('0006');
    expect(local.sqlite.prepare('SELECT count(*) n FROM movies').get()?.n).toBe(0);
    expect(local.sqlite.prepare('SELECT count(*) n FROM sessions').get()?.n).toBe(0);
   }finally {local.sqlite.close();}

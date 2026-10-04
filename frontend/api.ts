@@ -1,4 +1,4 @@
-import type { Catalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit } from '../shared/types';
+import type { Catalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, MetadataEnrichment } from '../shared/types';
 
 const configured = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/,'');
 const base = configured || (import.meta.env.DEV ? 'http://localhost:8787' : '');
@@ -28,7 +28,7 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
         ...(data === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...(authenticated && sentToken ? { Authorization: `Bearer ${sentToken}` } : {}),
       }, ...(data === undefined ? {} : { body: JSON.stringify(data) }),
-      signal: AbortSignal.timeout(path === '/classics/enrich' ? 65000 : 15000),
+      signal: AbortSignal.timeout(path === '/movies/enrich-metadata' ? 95000 : path === '/classics/enrich' ? 65000 : 15000),
     });
   } catch { throw new Error('Could not reach BookClub. Check your connection and that the API is running, then retry.'); }
   if (response.status === 401 && authenticated && sentToken === sessionToken) { clearSession(); unauthorized?.(); }
@@ -40,6 +40,7 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
 }
 export const api = {
   catalog: () => request<Catalog>('/catalog'), health: () => request<Health>('/health','GET',undefined,false),
+  enrichMetadata: (limit = 10) => request<MetadataEnrichment>('/movies/enrich-metadata','POST',{limit}),
   me: () => request<{viewer: Viewer | null}>('/auth/me'),
   googleLogin: (credential: string) => request<AuthLogin>('/auth/google','POST',{credential},false),
   logout: () => request<{loggedOut: boolean}>('/auth/logout','POST'),

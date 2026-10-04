@@ -77,6 +77,10 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
   if (path === '/api/v1/classics/enrich' && method === 'POST') {
     const input = enrichmentSchema.parse(await body(request)); return json(await new ScoreService(repo,env).enrich(input.limit));
   }
+  if (path === '/api/v1/movies/enrich-metadata' && method === 'POST') {
+    requireAdmin(auth.viewer);
+    return json(await movies.enrichMetadata(enrichmentSchema.parse(await body(request)).limit));
+  }
   const refreshMatch = path.match(/^\/api\/v1\/movies\/([^/]+)\/refresh-scores$/);
   if (refreshMatch && method === 'POST') return json(await new ScoreService(repo,env).refresh(idSchema.parse(refreshMatch[1])));
   const classicMatch = path.match(/^\/api\/v1\/movies\/([^/]+)\/classics$/);

@@ -1,6 +1,14 @@
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
+import { disposableD1 } from './d1';
+it('migration 0006 refuses pre-existing duplicate active slots without rewriting History',()=>{
+  const local=disposableD1('0005_product_state.sql');try {
+    local.sqlite.exec("INSERT INTO members(id,display_name,sort_order) VALUES('m','Fictional',1); INSERT INTO cycles(id,ordinal,rough_date) VALUES('c',1,'2000-01-01'); INSERT INTO sessions(id,event_date,host_member_id,cycle_id,cycle_slot) VALUES('a','2000-01-01','m','c',1),('b','2000-01-01','m','c',1)");
+    expect(()=>local.sqlite.exec(readFileSync('worker/migrations/0006_history_integrity.sql','utf8'))).toThrow('UNIQUE');
+    expect(local.sqlite.prepare('SELECT id,deleted_at FROM sessions ORDER BY id').all()).toEqual([{id:'a',deleted_at:null},{id:'b',deleted_at:null}]);
+  }finally{local.sqlite.close();}
+});
 it('migrates existing snapshots, memberships and ungrouped events without losing history',()=>{
   const db=new DatabaseSync(':memory:');
   try {
