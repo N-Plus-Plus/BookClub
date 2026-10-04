@@ -4,6 +4,7 @@ import { MovieService } from '../worker/src/services';
 import type { Repository } from '../worker/src/repository';
 import type { Env } from '../worker/src/http';
 import type { Catalog, Movie } from '../shared/types';
+import { retryAfter } from '../worker/src/providers/http';
 
 afterEach(() => vi.unstubAllGlobals());
 describe('provider-neutral TMDB snapshots',() => {
@@ -30,7 +31,10 @@ describe('provider-neutral TMDB snapshots',() => {
   });
   it('reports provider failure without raw payload or credentials',async () => {
     vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('private upstream error',{status: 401})));
-    await expect(new TmdbProvider('test-credential').details('42')).rejects.toThrow('TMDB lookup is unavailable');
+    await expect(new TmdbProvider('test-credential').details('42')).rejects.toThrow('TMDB credentials are unavailable');
+  });
+  it('parses TMDB Retry-After HTTP dates without exposing upstream bodies',() => {
+    expect(retryAfter('Thu, 01 Jan 2026 00:01:00 GMT',Date.parse('2026-01-01T00:00:00Z'))).toBe(60);
   });
 });
 describe('optional lookup service',() => {

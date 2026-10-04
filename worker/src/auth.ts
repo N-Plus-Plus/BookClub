@@ -21,8 +21,7 @@ export function createGoogleVerifier(keys: JWTVerifyGetKey = googleKeys): Google
         error instanceof errors.JWSSignatureVerificationFailed || error instanceof errors.JWSInvalid ||
         error instanceof errors.JWTInvalid || error instanceof errors.JOSEAlgNotAllowed ||
         error instanceof errors.JWKSNoMatchingKey) throw invalidCredential();
-    // Network/JWK infrastructure failures become the router's safe generic 500.
-    throw error;
+    throw new ApiError(503,'AUTH_PROVIDER_UNAVAILABLE','Google sign-in is temporarily unavailable. Please try again later.');
   }
 }; }
 export const verifyGoogle = createGoogleVerifier();

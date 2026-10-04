@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { disposableD1 } from './d1';
 import { Repository } from '../worker/src/repository';
-import { MovieService } from '../worker/src/services';
+import { MovieService, TMDB_METADATA_REFRESH_DAYS, tmdbMetadataIsStale } from '../worker/src/services';
 import { hashToken } from '../worker/src/auth';
 import worker from '../worker/src/index';
 import type { Env } from '../worker/src/http';
@@ -21,6 +21,20 @@ beforeEach(async()=>{
 afterEach(()=>{local.sqlite.close();vi.unstubAllGlobals();});
 const call=(input:unknown={limit:10})=>worker.fetch(new Request('http://api/api/v1/movies/enrich-metadata',{method:'POST',headers:{Authorization:`Bearer ${token}`},body:JSON.stringify(input)}),env);
 describe('bounded existing-film metadata enrichment',()=>{
+  it('marks live TMDB imports checked, retains historical null markers, and identifies the conservative staleness boundary',async()=>{
+    const fetched_at='2026-01-01T00:00:00.000Z';
+    const id=await repo.importMovie({title:'Live TMDB',original_title:null,year:null,release_date:null,runtime:null,overview:null,genres:[],assets:[],scores:[],fetched_at,external_ids:[{provider:'tmdb',external_id:'999999'}]});
+    expect((await repo.catalog()).movies.find(m=>m.id===id)?.tmdb_metadata_checked_at).toBe(fetched_at);
+    expect((await repo.catalog()).movies.find(m=>m.id==='arrival')?.tmdb_metadata_checked_at).toBeNull();
+    const now=Date.parse('2026-10-01T00:00:00Z'), day=24*60*60*1000;
+    expect(tmdbMetadataIsStale(new Date(now-(TMDB_METADATA_REFRESH_DAYS-1)*day).toISOString(),now)).toBe(false);
+    expect(tmdbMetadataIsStale(new Date(now-TMDB_METADATA_REFRESH_DAYS*day).toISOString(),now)).toBe(true);
+  });
+  it('persists only explicit rate-limit cooldowns and clears expired cooldowns',async()=>{
+    await repo.setProviderCooldown('mdblist',60);expect(await repo.providerCooldown('mdblist')).toBeGreaterThan(0);
+    local.sqlite.exec("UPDATE provider_cooldowns SET retry_after_until='2000-01-01T00:00:00.000Z' WHERE provider='mdblist'");
+    expect(await repo.providerCooldown('mdblist')).toBeNull();expect(local.sqlite.prepare("SELECT * FROM provider_cooldowns WHERE provider='mdblist'").get()).toBeUndefined();
+  });
   it('fills metadata/genres/assets in place, reuses safe IMDb and preserves every historical relationship/provenance',async()=>{
     const preserved=['session_movies','classics','classics_seed_allocations','seen_states','source_scores','movie_import_refs','seen_import_observations','import_applied_entities'];
     const before=preserved.map(t=>local.sqlite.prepare(`SELECT * FROM ${t}`).all());

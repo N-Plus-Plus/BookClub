@@ -79,8 +79,9 @@ export class Repository {
   async importMovie(m: ProviderMovie): Promise<string> {
     // Persist the entire provider-neutral snapshot atomically; IDs enforce import safety.
     const id = crypto.randomUUID();
-    const statements = [this.db.prepare('INSERT INTO movies(id,title,original_title,year,release_date,runtime,overview) VALUES(?,?,?,?,?,?,?)')
-      .bind(id,m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview)];
+    const checkedAt = m.external_ids.some(e => e.provider === 'tmdb') ? m.fetched_at : null;
+    const statements = [this.db.prepare('INSERT INTO movies(id,title,original_title,year,release_date,runtime,overview,tmdb_metadata_checked_at) VALUES(?,?,?,?,?,?,?,?)')
+      .bind(id,m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview,checkedAt)];
     statements.push(...m.external_ids.map(e => this.db.prepare('INSERT INTO movie_external_ids(movie_id,provider,external_id) VALUES(?,?,?)').bind(id,e.provider,e.external_id)));
     statements.push(...m.genres.map(g => this.db.prepare('INSERT INTO movie_genres(movie_id,genre) VALUES(?,?)').bind(id,g)));
     statements.push(...m.assets.map(a => this.db.prepare('INSERT INTO movie_assets(id,movie_id,provider,asset_type,reference,width,height,preferred,fetched_at) VALUES(?,?,?,?,?,?,?,?,?)')
@@ -89,6 +90,16 @@ export class Repository {
       .bind(crypto.randomUUID(),id,s.provider,s.metric,s.raw_value,s.raw_scale,s.normalized_value,s.vote_count,s.fetched_at,s.retrieved_via ?? 'tmdb')));
     await this.db.batch(statements);
     return id;
+  }
+  async providerCooldown(provider: string): Promise<number | null> {
+    const row = await this.db.prepare('SELECT retry_after_until FROM provider_cooldowns WHERE provider=?').bind(provider).first<{retry_after_until:string}>();
+    if (!row) return null; const seconds = Math.ceil((Date.parse(row.retry_after_until)-Date.now())/1000);
+    if (seconds > 0) return seconds;
+    await this.db.prepare('DELETE FROM provider_cooldowns WHERE provider=?').bind(provider).run(); return null;
+  }
+  async setProviderCooldown(provider: string, seconds: number) {
+    const now = new Date(), until = new Date(now.getTime()+Math.max(0,seconds)*1000).toISOString();
+    await this.db.prepare('INSERT INTO provider_cooldowns(provider,retry_after_until,updated_at) VALUES(?,?,?) ON CONFLICT(provider) DO UPDATE SET retry_after_until=excluded.retry_after_until,updated_at=excluded.updated_at').bind(provider,until,now.toISOString()).run();
   }
   async enrichMetadata(id: string, tmdbId: string, m: ProviderMovie) {
     await this.assertMovie(id);

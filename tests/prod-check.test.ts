@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { checkProduction } from '../scripts/prod-check.mjs';
 it('checks tracked release safety and public variables without remote access',()=>{
-  expect(checkProduction().migrationCount).toBe(7);
+  expect(checkProduction().migrationCount).toBe(8);
   const publicEnv={VITE_API_BASE_URL:'https://fictional-worker.example.invalid',VITE_GOOGLE_CLIENT_ID:'fictional.apps.googleusercontent.com'};
   expect(checkProduction(undefined,publicEnv,true).frontend).toBe(true);
   expect(()=>checkProduction(undefined,{},true)).toThrow('VITE_API_BASE_URL');
@@ -18,7 +18,7 @@ it('checks tracked release safety and public variables without remote access',()
     const original=JSON.parse(readFileSync('worker/wrangler.jsonc','utf8'));
     const check=(vars:Record<string,string>)=>{writeFileSync(join(root,'worker/wrangler.jsonc'),JSON.stringify({...original,vars:{...original.vars,...vars}}));return ()=>checkProduction(root);};
     expect(check({APP_ENV:'local'})).toThrow('APP_ENV');expect(check({LOCAL_WRITE_BYPASS:'true'})).toThrow('BYPASS');expect(check({ALLOWED_ORIGINS:'http://localhost:5173'})).toThrow('CORS');
-    expect(check({})()).toMatchObject({migrationCount:7});rmSync(join(root,'worker/migrations/0006_history_integrity.sql'));
+    expect(check({})()).toMatchObject({migrationCount:8});rmSync(join(root,'worker/migrations/0006_history_integrity.sql'));
     expect(()=>checkProduction(root)).toThrow('contiguous');
   } finally {rmSync(root,{recursive:true,force:true});}
 });

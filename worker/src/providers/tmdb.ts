@@ -2,6 +2,7 @@ import type { MovieArtworkProvider, MovieMetadataProvider, MovieScoreProvider, M
 import type { SearchResult } from '../../../shared/types';
 import { ApiError } from '../http';
 import { normalizeScore } from '../../../shared/ranking';
+import { providerJson } from './http';
 
 interface TmdbFilm {
   id: number; title: string; original_title: string; release_date?: string; runtime?: number;
@@ -11,15 +12,7 @@ interface TmdbFilm {
 export class TmdbProvider implements MovieSearchProvider, MovieMetadataProvider, MovieArtworkProvider, MovieScoreProvider {
   constructor(private token: string) {}
   private async request<T>(path: string): Promise<T> {
-    let response: Response;
-    try {
-      response = await fetch(`https://api.themoviedb.org/3/${path}`, {
-        headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/json' }, signal: AbortSignal.timeout(8000),
-      });
-    } catch { throw new ApiError(503, 'PROVIDER_UNAVAILABLE', 'TMDB could not be reached. Try again or add a film manually.'); }
-    if (!response.ok) throw new ApiError(response.status === 404 ? 404 : 503, 'PROVIDER_UNAVAILABLE',
-      response.status === 404 ? 'This film was not found on TMDB.' : 'TMDB lookup is unavailable. Check the Worker credential or try later.');
-    return response.json() as Promise<T>;
+    return providerJson(`https://api.themoviedb.org/3/${path}`,'TMDB',{headers:{Authorization:`Bearer ${this.token}`}}) as Promise<T>;
   }
   async search(query: string): Promise<SearchResult[]> {
     const result = await this.request<{results: TmdbFilm[]}>(`search/movie?query=${encodeURIComponent(query)}&include_adult=false`);

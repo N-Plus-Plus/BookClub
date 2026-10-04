@@ -24,7 +24,7 @@ describe('rating providers',()=>{
   });
   it('sanitises body and network failures',async()=>{
     vi.stubGlobal('fetch',vi.fn().mockRejectedValue(new Error('https://upstream?apikey=secret-key')));
-    await expect(new MdbListProvider('secret-key').scores({provider:'imdb',external_id:'tt0000001'})).rejects.toThrow('could not return usable data');
+    await expect(new MdbListProvider('secret-key').scores({provider:'imdb',external_id:'tt0000001'})).rejects.toThrow('could not be reached');
     expect(()=>parseOmdb({Response:'False',Error:'secret-key'})).toThrow('could not supply');
   });
   it('uses one documented batch request with ID mapping',async()=>{
