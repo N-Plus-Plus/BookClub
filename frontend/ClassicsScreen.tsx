@@ -1,22 +1,34 @@
 import { useState } from 'react';
 import { Library, RefreshCw } from 'lucide-react';
-import type { Movie, MovieDetail, Viewer } from '../shared/types';
+import type { Movie, MovieDetail, RefreshResult, Viewer } from '../shared/types';
 import { Action, Empty, RankingCard, RouteLink } from './components';
 import { api } from './api';
+import { BulkScoreFeedback, ProviderFeedback } from './maintenance-feedback';
 export function ClassicsScreen({movies,writesEnabled,onMovie,viewer}: {viewer: Viewer | null; movies: Movie[]; writesEnabled: boolean; onMovie: (m: MovieDetail) => void}) {
-  const [tab,setTab] = useState('Ranked'), [busy,setBusy] = useState(false), [status,setStatus] = useState(''), [error,setError] = useState('');
+  const [tab,setTab] = useState('Ranked'), [busy,setBusy] = useState<string | null>(null);
+  const [bulk,setBulk] = useState<{result?: Awaited<ReturnType<typeof api.enrich>>; error?: string}>({});
+  const [candidates,setCandidates] = useState<Record<string,{result?: RefreshResult; error?: string}>>({});
   const groups = {Ranked: movies.filter(m => m.ranking?.eligible && m.ranking.rankable), 'Needs Data': movies.filter(m => m.ranking?.eligible && !m.ranking.rankable), Disqualified: movies.filter(m => !m.ranking?.eligible)};
-  const run = async (task: () => Promise<void>) => { setBusy(true); setStatus(''); setError(''); try { await task(); } catch (e) { setError(e instanceof Error ? e.message : 'Refresh failed.'); } finally { setBusy(false); } };
+  const enrich = async () => {
+    if (busy) return;
+    setBusy('bulk'); setBulk({});
+    try { const result = await api.enrich(); result.results.forEach(item => onMovie(item.movie)); setBulk({result}); }
+    catch (error) { setBulk({error: error instanceof Error ? error.message : 'Enrichment failed.'}); }
+    finally { setBusy(null); }
+  };
+  const refresh = async (id: string) => {
+    if (busy) return;
+    setBusy(id); setCandidates(current => ({...current,[id]:{}}));
+    try { const result = await api.refreshScores(id); onMovie(result.movie); setCandidates(current => ({...current,[id]:{result}})); }
+    catch (error) { setCandidates(current => ({...current,[id]:{error: error instanceof Error ? error.message : 'Refresh failed.'}})); }
+    finally { setBusy(null); }
+  };
   const visible = groups[tab as keyof typeof groups];
   return <div className="stack"><div className="button-set" aria-label="Classics states">{Object.entries(groups).map(([name,list]) => <Action key={name} icon={Library} aria-pressed={tab === name} onClick={() => setTab(name)}>{name} ({list.length})</Action>)}</div>
     <p className="meta">Watch Order uses IMDb + RT audience + RT critic. Explicit No adds a modest novelty multiplier.</p>
-    {viewer?.role === 'admin' && <details className="utility-disclosure"><summary>Admin · score maintenance</summary><div className="stack"><Action icon={RefreshCw} disabled={busy || !writesEnabled} onClick={() => void run(async () => {
-      const result = await api.enrich(); result.results.forEach(r => onMovie(r.movie));
-      const waits = result.results.flatMap(r => r.providers.filter(p => p.retryAfter !== undefined).map(p => `${p.provider}: wait ${p.retryAfter}s before retrying.`));
-      setStatus(`Attempted ${result.results.length} films. ${result.results.reduce((n,r) => n+r.providers.filter(p => p.status === 'failed').length,0)} provider failures. ${result.remaining} identifiable films remain; ${result.unidentified} need identification. ${[...waits,...result.results.flatMap(r => r.providers.filter(p => p.status !== 'success').map(p => `${p.provider}: ${p.message}`))].filter((v,i,a) => a.indexOf(v) === i).join(' ')}`);
-    })}>{busy ? 'Refreshing…' : 'Enrich up to 10 films'}</Action>
-    {status && <p role="status">{status}</p>}{error && <p role="alert" className="error-message">{error}</p>}
+    {viewer?.role === 'admin' && <details className="utility-disclosure"><summary>Admin · score maintenance</summary><div className="stack"><Action icon={RefreshCw} disabled={Boolean(busy) || !writesEnabled} onClick={() => void enrich()}>{busy === 'bulk' ? 'Refreshing…' : 'Enrich up to 10 films'}</Action>
+    {bulk.result && <BulkScoreFeedback result={bulk.result} />}{bulk.error && <p role="alert" className="error-message">Bulk enrichment result could not be confirmed. {bulk.error} Some scores may have been saved. Check affected films before running enrichment again.</p>}
     </div></details>}<div className="ranking-list">{visible.map((m,i) => <div className="stack" key={m.id}><RankingCard movie={m} rank={tab === 'Ranked' ? i+1 : undefined} compact />
-      {tab === 'Needs Data' && (<details className="utility-disclosure"><summary>Candidate maintenance</summary>{status && <p role="status">{status}</p>}{error && <p role="alert" className="error-message">{error}</p>}{m.external_ids.some(e => ['imdb','tmdb'].includes(e.provider)) ? <Action icon={RefreshCw} disabled={busy || !writesEnabled} onClick={() => void run(async () => { const r = await api.refreshScores(m.id); onMovie(r.movie); setStatus(r.providers.map(p => `${p.provider}: ${p.message}${p.retryAfter !== undefined ? ` Wait ${p.retryAfter}s before retrying.` : ''}`).join(' ')); })}>Refresh scores</Action> : <RouteLink to={`movie/${m.id}`} icon={Library}>Inspect candidate</RouteLink>}</details>)}</div>)}</div>
+      {tab === 'Needs Data' && (<details className="utility-disclosure"><summary>Candidate maintenance</summary>{candidates[m.id]?.result && <div role="status"><strong>Score refresh result · {m.title}</strong><ProviderFeedback providers={candidates[m.id].result!.providers} /></div>}{candidates[m.id]?.error && <p role="alert" className="error-message">Score refresh result could not be confirmed for {m.title}. {candidates[m.id].error} Some scores may have been saved. Inspect this film before refreshing again.</p>}{m.external_ids.some(e => ['imdb','tmdb'].includes(e.provider)) ? <Action icon={RefreshCw} disabled={Boolean(busy) || !writesEnabled} onClick={() => void refresh(m.id)}>{busy === m.id ? 'Refreshing…' : 'Refresh scores'}</Action> : <RouteLink to={`movie/${m.id}`} icon={Library}>Inspect candidate</RouteLink>}</details>)}</div>)}</div>
     {!visible.length && <Empty title={`No ${tab.toLowerCase()} films`}>Candidates appear here when they belong to Classics.</Empty>}</div>;
 }
