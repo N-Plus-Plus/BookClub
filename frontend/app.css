@@ -124,3 +124,8 @@ progress { width: 100%; height: 10px; accent-color: var(--concrete); }
 .google-sign-in { min-height: 44px; max-width: 100%; }
 .viewer-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
 .viewer-controls .meta { text-align: right; }
+.classics-toolbar,.button-set { flex-wrap: wrap; }
+.rank-top { flex-wrap: wrap; }
+.rank-top .score { margin-left: auto; }
+.source-record .badge { margin-top: 8px; }
+select.field__input { width: 100%; min-width: 0; }

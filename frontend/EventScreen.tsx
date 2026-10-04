@@ -7,6 +7,8 @@ import { Action, Empty, MovieRow } from './components';
 function today() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`; }
 export function EventScreen({catalog,writesEnabled,onMovie,onSaved}: {catalog: Catalog; writesEnabled: boolean; onMovie: (m: Movie) => void; onSaved: (s: Session) => void}) {
   const [date,setDate] = useState(today), [title,setTitle] = useState(''), [host,setHost] = useState('');
+  const [kind,setKind] = useState<'hosted'|'classics'>('hosted'), [cycle,setCycle] = useState(''), [rough,setRough] = useState(today), [cycleTitle,setCycleTitle] = useState('');
+  const [precision,setPrecision] = useState<'exact'|'cycle_rough'|'unknown'>('exact');
   const [selected,setSelected] = useState<Movie[]>([]);
   const [query,setQuery] = useState(''), [results,setResults] = useState<SearchResponse | null>(null);
   const [manualTitle,setManualTitle] = useState(''), [year,setYear] = useState(''), [runtime,setRuntime] = useState('');
@@ -28,12 +30,18 @@ export function EventScreen({catalog,writesEnabled,onMovie,onSaved}: {catalog: C
   const save = (event: FormEvent) => {
     event.preventDefault();
     if (!selected.length) { setError('Add at least one film before saving the event.'); return; }
-    void run(async () => { const session = await api.saveSession({event_date: date,title,host_member_id: host || null,movie_ids: selected.map(m => m.id)}); onSaved(session); });
+    void run(async () => { const cycleDate = cycle === 'new' ? rough : catalog.cycles.find(c => c.id === cycle)?.rough_date;
+      const session = await api.saveSession({event_date: precision === 'cycle_rough' ? cycleDate ?? date : date,title,kind,date_precision: precision,host_member_id: kind === 'classics' ? null : host || null,movie_ids: selected.map(m => m.id),
+        ...(cycle === 'new' ? {new_cycle: {rough_date: rough,title: cycleTitle}} : {cycle_id: cycle || null})}); onSaved(session); });
   };
   return <div className="event-grid"><div className="stack"><section className="card stack"><p className="eyebrow">01 · THE NIGHT</p><h2>Event details</h2>
     <form id="event-details" className="stack" onSubmit={save}><label className="input-label">Date<input className="field__input" type="date" required value={date} onChange={e => setDate(e.target.value)} /></label>
+      <label className="input-label">Event kind<select aria-label="Event kind" className="field__input" value={kind} onChange={e => setKind(e.target.value as typeof kind)}><option value="hosted">Hosted</option><option value="classics">Classics Collection</option></select></label>
+      <label className="input-label">Cycle<select aria-label="Cycle" className="field__input" value={cycle} onChange={e => { setCycle(e.target.value); if (!e.target.value) setPrecision('exact'); }}><option value="">Ungrouped</option>{catalog.cycles.map(c => <option value={c.id} key={c.id}>{c.title || `Cycle ${c.ordinal}`} · approx. {c.rough_date}</option>)}<option value="new">Create a new cycle</option></select></label>
+      {cycle === 'new' && <div className="stack"><label className="input-label">Rough cycle date<input className="field__input" type="date" required value={rough} onChange={e => setRough(e.target.value)} /></label><label className="input-label">Cycle label (optional)<input className="field__input" maxLength={300} value={cycleTitle} onChange={e => setCycleTitle(e.target.value)} /></label></div>}
+      <label className="input-label">Date precision<select aria-label="Date precision" className="field__input" value={precision} onChange={e => setPrecision(e.target.value as typeof precision)}><option value="exact">Exact event date</option>{cycle && <option value="cycle_rough">Approximate cycle date</option>}<option value="unknown">Unknown (date above is for sorting only)</option></select></label>
       <label className="input-label">Title or theme <span className="meta">Optional</span><input className="field__input" maxLength={300} value={title} placeholder="A night of firsts" onChange={e => setTitle(e.target.value)} /></label>
-      <fieldset><legend>Host <span className="meta">Optional</span></legend><div className="host-options">{[{id: '',display_name: 'Not known'},...catalog.members.filter(m => m.active)].map(m => <label className="host-option" key={m.id}><input type="radio" name="host" checked={host === m.id} onChange={() => setHost(m.id)} /><User size={16} aria-hidden="true" />{m.display_name}</label>)}</div></fieldset>
+      {kind === 'hosted' && <fieldset><legend>Host</legend><div className="host-options">{catalog.members.filter(m => m.active).map(m => <label className="host-option" key={m.id}><input type="radio" name="host" required checked={host === m.id} onChange={() => setHost(m.id)} /><User size={16} aria-hidden="true" />{m.display_name}</label>)}</div></fieldset>}
     </form></section>
     <section className="card stack"><p className="eyebrow">02 · THE FILMS</p><h2>Find a film</h2><form className="stack" onSubmit={search}><label className="input-label">Search saved films & TMDB<input className="field__input" value={query} maxLength={150} required placeholder="Film title or year" onChange={e => setQuery(e.target.value)} /></label><Action type="submit" icon={Search} disabled={searching}>{searching ? 'Searching…' : 'Search'}</Action></form>
       {results && <div className="stack"><p className="meta" role="status">{results.lookup.message ?? 'TMDB results available. Selecting one saves its metadata locally.'}</p>{results.local.map(m => <div className="search-row" key={m.id}><MovieRow movie={m} /><Action icon={Plus} aria-label={`Add ${m.title}`} disabled={busy || !writesEnabled} onClick={() => add(m)} /></div>)}

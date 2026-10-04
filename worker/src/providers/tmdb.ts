@@ -37,7 +37,7 @@ export class TmdbProvider implements MovieSearchProvider, MovieMetadataProvider,
       assets: [ ...(m.poster_path ? [{ provider: 'tmdb', asset_type: 'poster' as const, reference: `https://image.tmdb.org/t/p/w500${m.poster_path}`, width: null, height: null, preferred: 1 }] : []),
         ...(m.backdrop_path ? [{ provider: 'tmdb', asset_type: 'backdrop' as const, reference: `https://image.tmdb.org/t/p/w1280${m.backdrop_path}`, width: null, height: null, preferred: 1 }] : []) ],
       scores: [{ provider: 'tmdb', metric: 'rating', raw_value: m.vote_average, raw_scale: 10,
-        normalized_value: normalizeScore(m.vote_average,10), vote_count: m.vote_count, fetched_at }], fetched_at };
+        normalized_value: normalizeScore(m.vote_average,10), vote_count: m.vote_count, fetched_at, retrieved_via: 'tmdb' }], fetched_at };
   }
   async artwork(id: string) { return (await this.details(id)).assets; }
   async scores(id: string) { return (await this.details(id)).scores; }

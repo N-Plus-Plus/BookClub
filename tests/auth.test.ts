@@ -34,7 +34,7 @@ const login = async () => {
 };
 beforeEach(() => {
   sqlite = new DatabaseSync(':memory:');
-  for (const migration of ['0001_foundation.sql','0002_auth.sql']) sqlite.exec(readFileSync(`worker/migrations/${migration}`,'utf8'));
+  for (const migration of ['0001_foundation.sql','0002_auth.sql','0003_cycles_scores.sql']) sqlite.exec(readFileSync(`worker/migrations/${migration}`,'utf8'));
   sqlite.exec("INSERT INTO members(id,display_name) VALUES('member-test','Test Member'); INSERT INTO member_auth(member_id,authorized_email) VALUES('member-test','member@example.invalid')");
   env = {DB: {prepare,batch: async (statements: {all: () => Promise<unknown>}[]) => Promise.all(statements.map(s => s.all()))} as unknown as D1Database,
     APP_ENV: 'production',LOCAL_WRITE_BYPASS: 'false',GOOGLE_CLIENT_ID: 'test-client',ALLOWED_ORIGINS: 'https://n-plus-plus.github.io'};

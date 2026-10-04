@@ -1,8 +1,8 @@
-import type { Catalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer } from '../shared/types';
+import type { Catalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult } from '../shared/types';
 
 const configured = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/,'');
 const base = configured || (import.meta.env.DEV ? 'http://localhost:8787' : '');
-export interface Health { status: string; environment: string; authenticationRequired: boolean; googleAuthConfigured: boolean; tmdbConfigured: boolean; demo: boolean }
+export interface Health { status: string; environment: string; authenticationRequired: boolean; googleAuthConfigured: boolean; tmdbConfigured: boolean; mdblistConfigured: boolean; omdbConfigured: boolean; demo: boolean }
 const storageKey = 'bookclub.session';
 let sessionToken: string | null = null;
 try { sessionToken = localStorage.getItem(storageKey); } catch { /* Sign-in explains unavailable storage. */ }
@@ -28,7 +28,7 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
         ...(data === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...(authenticated && sentToken ? { Authorization: `Bearer ${sentToken}` } : {}),
       }, ...(data === undefined ? {} : { body: JSON.stringify(data) }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(path === '/classics/enrich' ? 65000 : 15000),
     });
   } catch { throw new Error('Could not reach BookClub. Check your connection and that the API is running, then retry.'); }
   if (response.status === 401 && authenticated && sentToken === sessionToken) { clearSession(); unauthorized?.(); }
@@ -48,5 +48,8 @@ export const api = {
   createMovie: (input: ManualMovieInput) => request<MovieDetail>('/movies','POST',input),
   importMovie: (externalId: string) => request<MovieDetail>('/movies/import','POST',{provider: 'tmdb',externalId}),
   saveSession: (input: SessionInput) => request<Session>('/sessions','POST',input),
+  classic: (id: string,classic: boolean) => request<MovieDetail>(`/movies/${encodeURIComponent(id)}/classics`,'PUT',{classic}),
+  refreshScores: (id: string) => request<RefreshResult>(`/movies/${encodeURIComponent(id)}/refresh-scores`,'POST'),
+  enrich: (limit = 10) => request<{results: RefreshResult[]; remaining: number; unidentified: number}>('/classics/enrich','POST',{limit}),
   seen: (movieId: string, memberId: string, seen: boolean | null) => request<MovieDetail>(`/movies/${encodeURIComponent(movieId)}/seen/${encodeURIComponent(memberId)}`,'PUT',{seen}),
 };

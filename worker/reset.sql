@@ -1,8 +1,11 @@
 -- Explicit opt-in reset, invoked ONLY with Wrangler --local by package scripts.
 DELETE FROM session_movies;
 DELETE FROM sessions;
+DELETE FROM cycles;
 DELETE FROM seen_states;
 DELETE FROM classics;
+DELETE FROM classics_seed_allocations;
+UPDATE rank_seed_counter SET value=0 WHERE id=1;
 DELETE FROM source_scores;
 DELETE FROM movie_assets;
 DELETE FROM movie_external_ids;

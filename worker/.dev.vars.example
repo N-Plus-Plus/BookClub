@@ -1,8 +1,8 @@
-# Copy to worker/.dev.vars.local; never commit the populated file.
+# Copy to worker/.dev.vars.local; never commit populated values.
 TMDB_READ_TOKEN=
+MDBLIST_API_KEY=
+OMDB_API_KEY=
 # Public expected Google audience; unnecessary for local bypass.
 GOOGLE_CLIENT_ID=
-# Future Worker-only integrations (not implemented):
-# MDBLIST_API_KEY=
-# OMDB_API_KEY=
+# Future Worker-only placeholder, unused in this pass.
 # TVDB_API_KEY=

@@ -1,0 +1,43 @@
+import type { ExternalId, Score } from '../../../shared/types';
+import { RatingError, ratingRequest, record } from './ratings';
+// Official Media Info schema: https://api.mdblist.com/schema/ (GET and POST media routes).
+const sources: Record<string,[string,string,number]> = {
+  imdb: ['imdb','rating',10], tomatoes: ['rottentomatoes','critic',100],
+  popcorn: ['rottentomatoes','audience',100], tomatoesaudience: ['rottentomatoes','audience',100],
+  audience: ['rottentomatoes','audience',100], letterboxd: ['letterboxd','rating',5],
+  metacritic: ['metacritic','critic',100], tmdb: ['tmdb','rating',100],
+};
+export function parseMdbList(data: unknown, at = new Date().toISOString()): Score[] {
+  if (!data || typeof data !== 'object' || !Array.isArray((data as {ratings?: unknown}).ratings)) throw new RatingError('MDBList returned an unrecognised ratings response.');
+  const scores = new Map<string,Score>();
+  for (const item of (data as {ratings: unknown[]}).ratings) {
+    if (!item || typeof item !== 'object') continue;
+    const r = item as {source?: string; value?: unknown; votes?: unknown};
+    const mapping = r.source ? sources[r.source] : undefined; if (!mapping) continue;
+    const s = record(mapping[0],mapping[1],r.value,mapping[2],'mdblist',at,r.votes);
+    if (s) scores.set(`${s.provider}:${s.metric}`,s);
+  }
+  return [...scores.values()];
+}
+export function mdbId(ids: ExternalId[]): ExternalId | undefined {
+  return ids.find(e => e.provider === 'imdb' && /^tt\d{7,10}$/.test(e.external_id))
+    ?? ids.find(e => e.provider === 'tmdb' && /^[1-9]\d*$/.test(e.external_id));
+}
+export class MdbListProvider {
+  constructor(private key: string) {}
+  async scores(id: ExternalId) {
+    return parseMdbList(await ratingRequest(`https://api.mdblist.com/${id.provider}/movie/${encodeURIComponent(id.external_id)}/?apikey=${encodeURIComponent(this.key)}`,'MDBList'));
+  }
+  async batch(provider: string, ids: string[]): Promise<Map<string,Score[]>> {
+    if (!ids.length || ids.length > 10) throw new RatingError('MDBList batches require 1–10 IDs.');
+    const data = await ratingRequest(`https://api.mdblist.com/${provider}/movie/?apikey=${encodeURIComponent(this.key)}`,'MDBList',
+      {method: 'POST',headers: {'Content-Type': 'application/json'},body: JSON.stringify({ids: provider === 'tmdb' ? ids.map(Number) : ids})});
+    if (!Array.isArray(data)) throw new RatingError('MDBList returned an unrecognised batch response.');
+    const result = new Map<string,Score[]>(), at = new Date().toISOString();
+    for (const entry of data) {
+      const id = provider === 'imdb' ? entry?.imdb_id : entry?.id;
+      if (ids.includes(String(id))) result.set(String(id),parseMdbList(entry,at));
+    }
+    return result;
+  }
+}

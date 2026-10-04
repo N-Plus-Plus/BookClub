@@ -9,4 +9,11 @@ import '../style.css';
 import './app.css';
 import { App } from './App';
 
+const faviconIndex = Math.floor(Math.random() * 8);
+const favicon = document.createElement('link');
+favicon.rel = 'icon';
+favicon.type = 'image/png';
+favicon.href = `${import.meta.env.BASE_URL}favicons/fav${faviconIndex}.png`;
+document.head.appendChild(favicon);
+
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);

@@ -1,6 +1,7 @@
 import { z, ZodError } from 'zod';
 import { ApiError, allowedOrigins, authorizeMutation, localBypass, json, type Env } from './http';
-import { idSchema, importSchema, movieSchema, seenSchema, sessionSchema } from './validation';
+import { classicSchema, enrichmentSchema, idSchema, importSchema, movieSchema, seenSchema, sessionSchema } from './validation';
+import { ScoreService } from './score-service';
 import { Repository } from './repository';
 import { MovieService } from './services';
 import { authenticate, login, verifyGoogle, type GoogleVerifier } from './auth';
@@ -30,7 +31,7 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
   const repo = new Repository(env.DB), movies = new MovieService(repo,env);
   if (!['GET','POST','PUT','OPTIONS'].includes(method)) throw new ApiError(405,'METHOD_NOT_ALLOWED','Method not supported.');
   if (path === '/api/v1/health' && method === 'GET') return json({ status: 'ok', environment: env.APP_ENV,
-    authenticationRequired: !localBypass(env), googleAuthConfigured: Boolean(env.GOOGLE_CLIENT_ID?.trim()), tmdbConfigured: Boolean(env.TMDB_READ_TOKEN), demo: env.APP_ENV === 'local' });
+    authenticationRequired: !localBypass(env), googleAuthConfigured: Boolean(env.GOOGLE_CLIENT_ID?.trim()), tmdbConfigured: Boolean(env.TMDB_READ_TOKEN), mdblistConfigured: Boolean(env.MDBLIST_API_KEY), omdbConfigured: Boolean(env.OMDB_API_KEY), demo: env.APP_ENV === 'local' });
   if (path === '/api/v1/auth/google' && method === 'POST') {
     const input = await body(request);
     return json(await login(input && typeof input === 'object' ? (input as {credential?: unknown}).credential : undefined,env,verify));
@@ -42,6 +43,15 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
     return json({ loggedOut: true });
   }
   if (method !== 'GET' && method !== 'OPTIONS') authorizeMutation(env,auth.viewer);
+  if (path === '/api/v1/classics/enrich' && method === 'POST') {
+    const input = enrichmentSchema.parse(await body(request)); return json(await new ScoreService(repo,env).enrich(input.limit));
+  }
+  const refreshMatch = path.match(/^\/api\/v1\/movies\/([^/]+)\/refresh-scores$/);
+  if (refreshMatch && method === 'POST') return json(await new ScoreService(repo,env).refresh(idSchema.parse(refreshMatch[1])));
+  const classicMatch = path.match(/^\/api\/v1\/movies\/([^/]+)\/classics$/);
+  if (classicMatch && method === 'PUT') {
+    const id = idSchema.parse(classicMatch[1]); await repo.setClassic(id,classicSchema.parse(await body(request)).classic); return json(await movies.detail(id));
+  }
   if (path === '/api/v1/movies/search' && method === 'GET') {
     const query = z.string().trim().min(1).max(150).parse(url.searchParams.get('q') ?? '');
     return json(await movies.search(query));
@@ -66,11 +76,12 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
     const id = await repo.saveSession(input,sessionMatch ? idSchema.parse(sessionMatch[1]) : undefined);
     return json((await repo.catalog()).sessions.find(s => s.id === id),sessionMatch ? 200 : 201);
   }
-  if (method === 'GET' && ['/api/v1/catalog','/api/v1/members','/api/v1/movies','/api/v1/sessions','/api/v1/classics'].includes(path)) {
+  if (method === 'GET' && ['/api/v1/catalog','/api/v1/members','/api/v1/movies','/api/v1/sessions','/api/v1/classics','/api/v1/cycles'].includes(path)) {
     const catalog = await repo.catalog();
     if (path.endsWith('/catalog')) return json(catalog);
     if (path.endsWith('/classics')) return json(sortClassics(catalog.movies.filter(m => m.classic)));
     if (path.endsWith('/members')) return json(catalog.members);
+    if (path.endsWith('/cycles')) return json(catalog.cycles);
     if (path.endsWith('/movies')) return json(catalog.movies);
     return json(catalog.sessions);
   }

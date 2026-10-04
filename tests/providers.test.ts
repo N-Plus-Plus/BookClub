@@ -35,7 +35,7 @@ describe('provider-neutral TMDB snapshots',() => {
 });
 describe('optional lookup service',() => {
   const local = {id: 'local',title: 'Moon',original_title: null,year: 2009} as Movie;
-  const repo = {catalog: async () => ({members: [],movies: [local],sessions: []} as Catalog)} as Repository;
+  const repo = {catalog: async () => ({members: [],movies: [local],sessions: [],cycles: []} as Catalog)} as Repository;
   it('serves local search without invoking external APIs when credentials are absent',async () => {
     const fetchMock = vi.fn(); vi.stubGlobal('fetch',fetchMock);
     const result = await new MovieService(repo,{} as Env).search('moon');

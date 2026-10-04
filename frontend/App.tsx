@@ -8,6 +8,8 @@ import { Action, Empty, Failure, RankingCard, RouteLink, SessionCard } from './c
 import { EventScreen } from './EventScreen';
 import { SeenScreen } from './SeenScreen';
 import { DetailScreen } from './DetailScreen';
+import { HistoryScreen } from './HistoryScreen';
+import { ClassicsScreen } from './ClassicsScreen';
 
 const destinations = [ {path: 'home',label: 'Home',icon: Home}, {path: 'history',label: 'History',icon: History},
   {path: 'event',label: 'Event',icon: CalendarPlus}, {path: 'classics',label: 'Classics',icon: Library}, {path: 'seen',label: 'Seen It?',icon: Eye} ];
@@ -23,7 +25,6 @@ export function App() {
   const [loading,setLoading] = useState(true);
   const [notice,setNotice] = useState('');
   const [refreshing,setRefreshing] = useState(false);
-  const [disqualified,setDisqualified] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const resetAuth = useCallback(() => {
     generation.current++; setCatalog(null); setViewer(null); setNotice(''); setError(''); setLoading(false);
@@ -75,7 +76,7 @@ export function App() {
     const movie = await api.seen(movieId,memberId,seen); applyMovie(movie); return movie;
   };
   const classics = catalog ? sortClassics(catalog.movies.filter(m => m.classic)) : [];
-  const eligible = classics.filter(m => m.ranking?.eligible);
+  const eligible = classics.filter(m => m.ranking?.eligible && m.ranking.rankable);
   const excluded = classics.filter(m => !m.ranking?.eligible);
   const missing = catalog ? missingAnswers(catalog.movies,catalog.members).length : 0;
   const isDetail = page.startsWith('movie/');
@@ -92,17 +93,17 @@ export function App() {
       <div className="stats-grid"><div className="card stat"><strong>{eligible.length}</strong><span>Eligible Classics</span></div><div className="card stat"><strong>{excluded.length}</strong><span>Already seen by all</span></div><a className="card stat stat-link" href="#/seen"><strong>{missing}</strong><span><Eye size={16} aria-hidden="true" />Missing answers</span></a></div>
       <div className="dashboard-grid"><section className="stack"><div className="section-title"><h2>Last time together</h2><RouteLink to="history" icon={History}>History</RouteLink></div>{catalog.sessions[0] ? <SessionCard session={catalog.sessions[0]} members={catalog.members} /> : <Empty title="Your first night is waiting">Create an event to begin your shared history.</Empty>}</section>
       <section className="stack"><div className="section-title"><h2>On the shortlist</h2><RouteLink to="classics" icon={ChevronRight}>View all</RouteLink></div>{eligible.slice(0,3).map((m,i) => <RankingCard key={m.id} movie={m} rank={i+1} />)}{!eligible.length && <Empty title="No eligible Classics">Open Classics to inspect the candidate pool.</Empty>}</section></div></div>}
-      {page === 'history' && <div className="history-grid">{catalog.sessions.map(s => <SessionCard key={s.id} session={s} members={catalog.members} />)}{!catalog.sessions.length && <Empty title="No events yet"><RouteLink to="event" icon={CalendarPlus}>Create your first event</RouteLink></Empty>}</div>}
+      {page === 'history' && <HistoryScreen catalog={catalog} />}
       {page === 'event' && <EventScreen catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={session => {
         setCatalog(c => c ? {...c,sessions: [session,...c.sessions].sort((a,b) => b.event_date.localeCompare(a.event_date))} : c);
-        setNotice('Event saved to the film journal.'); window.location.hash = '/history';
+        void load(); setNotice('Event saved to the film journal.'); window.location.hash = '/history';
       }} />}
-      {page === 'classics' && <div className="stack"><div className="classics-toolbar"><p className="meta">Live ranking · provisional formula</p><Action icon={Library} aria-pressed={disqualified} onClick={() => setDisqualified(v => !v)}>{disqualified ? 'Show eligible' : `Disqualified (${excluded.length})`}</Action></div><div className="classics-grid">{(disqualified ? excluded : eligible).map((m,i) => <RankingCard key={m.id} movie={m} rank={disqualified ? undefined : i+1} />)}</div>{!(disqualified ? excluded : eligible).length && <Empty title={disqualified ? 'No disqualified films' : 'No eligible films'}>Candidates appear here when they belong to the Classics pool.</Empty>}</div>}
+      {page === 'classics' && <ClassicsScreen movies={classics} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {page === 'seen' && <SeenScreen catalog={catalog} answer={answer} writesEnabled={writesEnabled} />}
-      {isDetail && <DetailScreen key={page} id={page.slice(6)} members={catalog.members} answer={answer} writesEnabled={writesEnabled} />}
+      {isDetail && <DetailScreen key={page} id={page.slice(6)} members={catalog.members} answer={answer} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {!isDetail && !destinations.some(d => d.path === page) && <Empty title="Page not found"><RouteLink to="home" icon={Home}>Go home</RouteLink></Empty>}
     </>}
-    <footer className="data-sources"><h2><Info size={18} aria-hidden="true" />About & data sources</h2><p>BookClub is a film journal for four people. Local demo scores are invented examples; no IMDb or critic integration is connected.</p><p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p><a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer"><Info size={16} aria-hidden="true" /><img className="tmdb-logo" src={`${import.meta.env.BASE_URL}tmdb-logo.svg`} alt="The Movie Database" /></a><p>Classics scores are provisional. The historical spreadsheet formula and importer will follow.</p></footer>
+    <footer className="data-sources"><h2><Info size={18} aria-hidden="true" />About & data sources</h2><p>BookClub is a film journal for four people. Local demo scores are invented examples. Optional MDBList and OMDb retrieve ratings from other sources; BookClub has no direct IMDb, Rotten Tomatoes or Letterboxd API relationship.</p><p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p><a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer"><Info size={16} aria-hidden="true" /><img className="tmdb-logo" src={`${import.meta.env.BASE_URL}tmdb-logo.svg`} alt="The Movie Database" /></a><p>Classics uses the historical sum-of-squares formula. Additional ratings do not affect Watch Order.</p><p><a href="https://mdblist.com/" target="_blank" rel="noreferrer"><Info size={16} aria-hidden="true" />MDBList</a> · <a href="https://www.omdbapi.com/" target="_blank" rel="noreferrer"><Info size={16} aria-hidden="true" />OMDb</a></p></footer>
     </main><nav className="bottom-nav" aria-label="Primary navigation">{destinations.map(({path,label,icon: Icon}) => <a key={path} href={`#/${path}`} aria-current={page === path ? 'page' : undefined}><Icon size={22} aria-hidden="true" /><span>{label}</span></a>)}</nav>
   </div>;
 }

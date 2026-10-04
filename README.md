@@ -2,7 +2,7 @@
 
 A mobile-first film journal for a four-person weekly film club. Track event history, build a new event, inspect a live Classics watch order, and quickly fill missing Seen It? answers.
 
-This is a functional local-first foundation. All bundled events and source ratings are **development examples**, not real club history or live provider ratings. The final ranking formula and spreadsheet migration remain to be supplied. Repository: `N-Plus-Plus/BookClub`.
+This is a functional local-first foundation. All bundled events and source ratings are **development examples**, not real club history or live provider ratings. The historical ranking formula, cycle model and safe spreadsheet dry-run are implemented; real data apply remains separately authorised. Repository: `N-Plus-Plus/BookClub`.
 
 ## Architecture and layout
 
@@ -12,21 +12,21 @@ This is a functional local-first foundation. All bundled events and source ratin
 | `style.css` | Original authoritative dark visual system, preserved unchanged |
 | `frontend/app.css` | Mobile layout extensions, 44px controls, safe areas, responsive cards |
 | `shared/types.ts` | Provider-neutral API/domain contracts |
-| `shared/ranking.ts` | Pure provisional ranking, score normalisation, latest snapshots, stable ordering, missing-answer queue |
+| `shared/ranking.ts` | Historical ranking, score normalisation, retrieval precedence, stable ordering, missing-answer queue |
 | `worker/src/index.ts` | Versioned REST routing, boundary validation, JSON errors, CORS |
 | `worker/src/http.ts`, `auth.ts`, `auth-repository.ts` | Central authentication/mutation guards, Google verification, D1 identity/session queries |
 | `worker/src/repository.ts` | Parameterised D1 queries and atomic writes |
-| `worker/src/services.ts` | Lookup/import orchestration; persisted metadata and score snapshots |
-| `worker/src/providers/` | Search, metadata, artwork and score interfaces; optional TMDB implementation |
+| `worker/src/services.ts`, `score-service.ts` | Metadata import and central explicit score enrichment |
+| `worker/src/providers/` | TMDB metadata/artwork; optional MDBList primary ratings and OMDb fallback |
 | `worker/migrations/` | Versioned schema; never edit an applied migration for a future schema change |
 | `worker/seed.sql`, `worker/reset.sql` | Opt-in local demo data/reset |
 | `tests/` | Vitest ranking, transformation, validation, auth/session/allow-list, frontend API, CORS and write-guard tests |
-| `scripts/import/README.md` | Future spreadsheet migration boundary |
+| `scripts/import/README.md` | Safe dry-run workflow and reconciliation boundary |
 | `.github/workflows/pages.yml` | Manually triggered static frontend publication only |
 
 GitHub Pages hosts only `dist/`. It needs no Node runtime, SSR, filesystem, server rewrites, or backend. Hash URLs such as `/BookClub/#/history` are refresh-safe. Vite sets `/BookClub/` at build time and `/` in development. The independently deployed Worker alone accesses the D1 `DB` binding and movie API credentials.
 
-Dependencies are deliberately small: React, Lucide icons, bundled Fontsource Lexend Deca, Zod and Worker-only `jose` 6.2.12 for standards-based JWT/JWK verification; Vite/TypeScript, Vitest, Wrangler/Worker types and concurrently provide development tooling. No CSS framework, Redux, ORM or presentation test harness is used. `pnpm-lock.yaml` pins resolved versions. `pnpm-workspace.yaml` permits only esbuild/workerd installation scripts.
+Dependencies are deliberately small: React, Lucide icons, bundled Fontsource Lexend Deca, Zod and Worker-only `jose` 6.2.12 for standards-based JWT/JWK verification; Vite/TypeScript, Vitest, Wrangler/Worker types and concurrently provide development tooling. ExcelJS 4.4.0 reads private XLSX files and tsx 4.23.15 runs the TypeScript dry-run CLI, as development-only dependencies. No CSS framework, Redux or ORM is used. `pnpm-lock.yaml` pins resolved versions. `pnpm-workspace.yaml` permits only esbuild/workerd installation scripts.
 
 ## Prerequisites and local startup
 
@@ -53,6 +53,7 @@ Use localhost (not a different hostname) to match the local CORS allowlist. The 
 | `pnpm db:migrate` | Apply versioned migrations to local D1 only |
 | `pnpm db:seed` | Insert demo records once; preserve user-created records/answers |
 | `pnpm db:setup` | Local migrations followed by safe seed |
+| `pnpm import:spreadsheet --file private.xlsx --config scripts/import/import-config.local.json` | Read-only analysis to ignored `.verification/import/` reports |
 | `pnpm db:reset` | **Delete all local app data** and reseed; stop the servers first |
 | `pnpm test` | Full Vitest suite |
 | `pnpm typecheck` | Frontend/shared/tests and Worker TypeScript checks |
@@ -79,7 +80,7 @@ Artwork is optional. Some fixtures reference TMDB CDN posters/backdrops; these n
 
 Copy `worker/.dev.vars.example` to **`worker/.dev.vars.local`**, set `TMDB_READ_TOKEN` to your TMDB API Read Access Token, and restart the API. Use the bearer read token, not a frontend environment variable. The populated file is ignored; never commit it or copy it into the frontend. Local status reports only whether a token exists.
 
-Selecting a TMDB result persists canonical metadata, TMDB/IMDb IDs where available, poster/backdrop references and a TMDB score snapshot. Repeated selections reuse known external IDs; no scheduled refreshes are implemented. The provider interfaces also define the integration point for future lawful IMDb/OMDb/other providers. Demo IMDb and critic scores are fixtures, **not connected integrations**. No sites are scraped.
+Selecting a TMDB result persists canonical metadata, TMDB/IMDb IDs where available, poster/backdrop references and a TMDB score snapshot. Repeated selections reuse known external IDs; no scheduled refreshes are implemented. Optional MDBList and OMDb rating adapters support explicit enrichment. Bundled ratings remain fictional development snapshots; no sites are scraped. Provider contracts were checked against the [official MDBList API schema](https://api.mdblist.com/docs/) and [OMDb documentation](https://www.omdbapi.com/).
 
 The About & data sources footer includes the approved, unmodified TMDB logo and required notice. Attribution requirements: [TMDB FAQ](https://developer.themoviedb.org/docs/faq). Token documentation: [TMDB application authentication](https://developer.themoviedb.org/docs/authentication-application).
 
@@ -91,12 +92,15 @@ The About & data sources footer includes the approved, unmodified TMDB logo and 
 | `VITE_GOOGLE_CLIENT_ID` | root `.env.local` or GitHub repository Actions variable | Public Google Web Application client ID, embedded in the frontend build |
 | `GOOGLE_CLIENT_ID` | Worker runtime configuration (Wrangler var or secret) | Same public client ID; expected ID-token audience; required for production login |
 | `TMDB_READ_TOKEN` | Worker local secret file / Wrangler production secret | Optional TMDB bearer credential; server only |
+| `MDBLIST_API_KEY` | Worker local secret file / Wrangler production secret | Optional primary multi-rating provider; server only |
+| `OMDB_API_KEY` | Worker local secret file / Wrangler production secret | Optional IMDb-ID rating fallback; server only |
+| `TVDB_API_KEY` | Worker-only placeholder | Unused; deferred |
 | `APP_ENV` | Wrangler vars | `local` only for local development; default `production` |
 | `LOCAL_WRITE_BYPASS` | Wrangler vars | Explicit `true` only in local env; default `false` |
 | `ALLOWED_ORIGINS` | Wrangler vars | Comma-separated exact origins; local 5173/4173; production `https://n-plus-plus.github.io` |
 | `DB` | Wrangler D1 binding | Local/production database, never a browser connection |
 
-Production builds intentionally have no fallback to localhost or an invented backend. Set `VITE_API_BASE_URL` before building; if absent the UI reports a configuration error. Copy `.env.example` to `.env.local` for a configured build preview. Vite embeds both public `VITE_` values at build time; changing them requires rebuilding. The Pages workflow fails if either is missing. Optional future `MDBLIST_API_KEY`, `OMDB_API_KEY`, and `TVDB_API_KEY` belong only in Worker secrets; no provider credential may use a `VITE_` prefix. Their integrations remain unimplemented.
+Production builds intentionally have no fallback to localhost or an invented backend. Set `VITE_API_BASE_URL` before building; if absent the UI reports a configuration error. Copy `.env.example` to `.env.local` for a configured build preview. Vite embeds both public `VITE_` values at build time; changing them requires rebuilding. The Pages workflow fails if either is missing. All movie-provider credentials remain Worker-only and never use a `VITE_` prefix. TheTVDB is deferred.
 
 ## D1 schema and persistence
 
@@ -104,9 +108,10 @@ Production builds intentionally have no fallback to localhost or an invented bac
 - `movies`: canonical local IDs, original title, year/date, runtime, overview, timestamps, unique optional import source/key.
 - `movie_external_ids`: provider-neutral identifiers, unique provider/ID and one ID per provider/movie.
 - `movie_genres` and `movie_assets`: genres, poster/backdrop references, provider, optional dimensions, capture time and one preferred asset per movie/type. No image binaries.
-- `source_scores`: provider/metric, raw value/scale, optional 0–100 value, vote count, capture timestamp and optional import source/key. Snapshots are preserved; only the latest per metric affects rank.
-- `sessions` and `session_movies`: date, theme, host, notes, opaque legacy cycle label, import key, ordered joins with no three-film ceiling. A repeated film in an event is representable.
-- `classics`: independent pool membership with date/source/legacy reference.
+- `source_scores`: provider/metric, raw value/scale, optional 0–100 value, vote count, capture timestamp, retrieval service, optional upstream timestamp and import source/key. History is preserved; preferred retrieval service then latest usable snapshot determines effective score.
+- `cycles`: stable ID, ordinal, rough date, optional label/import keys and timestamps.
+- `sessions` and `session_movies`: date/precision, kind, optional cycle/source slot, theme, host, notes, compatible legacy label, import key and ordered joins with no three-film ceiling. Repeated films are representable.
+- `classics`: independent pool membership with stable rank seed, date/source/legacy reference. `classics_seed_allocations` and `rank_seed_counter` retain transactional allocation across membership removal.
 - `seen_states`: explicit 1/0 per movie/member and timestamp. **No row means Unknown**. Setting `seen: null` removes the answer.
 - `seed_runs`: development seeding marker.
 - `member_auth`: one allow-listed normalised email per member, unique nullable Google sub, creation/binding/last-login timestamps.
@@ -114,11 +119,23 @@ Production builds intentionally have no fallback to localhost or an invented bac
 
 D1 is canonical; frontend state is disposable. Event headers/joins and imported movie snapshots use transactional `DB.batch`. Seen updates use an atomic upsert. Update endpoints currently use last-write-wins and sessions use full replacement; multi-user conflict detection remains deferred. No live database has been migrated in this scaffold.
 
-## Provisional Classics calculation
+## Historical Classics calculation
 
-All policy lives in `shared/ranking.ts`. Normalise each usable score to 0–100, use only the newest snapshot per provider/metric, and take the weighted mean over present sources. Initial weights are TMDB 1, IMDb 2, demo critic 1 (unknown future sources default to 1). Missing sources do not count as zero. Add **2 points per explicit No answer**; Unknown adds nothing. Disqualify all-four-seen films regardless of score. Only active members participate; if the active roster is empty or all active members have seen it, it is also ineligible. The intended roster is four.
+All policy lives in shared/ranking.ts. Required inputs are imdb:rating, rottentomatoes:audience and rottentomatoes:critic, normalised to 0–100. Raw is the sum of their squares. Residual is Raw × 1.025^explicitNoCount + stableRankSeed × 0.00001. All active members explicitly Seen (or an empty active roster) makes the candidate ineligible; residual becomes negative. Missing required scores means Needs Data and no calculated score. Unknown neither counts as No nor Seen. Metacritic, Letterboxd and TMDB are auditable extra ratings only. Ranked Watch Order excludes Needs Data and disqualified candidates.
 
-Equal scores use title, year, then local ID for stable ordering. UI output exposes base, seen/unseen/unknown counts, adjustment, final score, eligibility, source contributions and warnings. Scores with no usable sources receive a base of zero and a warning. This is deterministic demo behaviour, **not the spreadsheet algorithm**. Replace the pure module/config when the real formula arrives; do not embed arithmetic in UI or SQL.
+Effective retrieval precedence for IMDb and RT critic is MDBList, OMDb, legacy spreadsheet, development demo, unspecified; RT audience uses MDBList then legacy (OMDb does not fabricate audience). TMDB prefers direct TMDB over MDBList. The latest usable snapshot within the preferred service wins; timestamp/record comparisons resolve equal captures deterministically. API captures supersede legacy bootstrap values even if a legacy timestamp is newer. All snapshots remain stored.
+
+Classics membership holds a stable seed. Migration backfills existing members in movie-ID order; SQL triggers allocate new seeds using a persistent counter inside the insert transaction. Removal retains each movie's allocation, so readdition restores its seed and deletion never renumbers others. Legacy apply will supply worksheet row seeds after conflict review. This is a tie-breaker, not quality.
+
+## Cycles, refresh and dry-run
+
+Migration 0003_cycles_scores.sql adds cycles (stable IDs, ordinal, rough date, optional label/import keys and timestamps), optional session cycle relationships, hosted/classics kinds, exact/cycle_rough/unknown date precision and optional source slots. Existing ungrouped sessions remain compatible. New explicit hosted events require a host; Classics events are hostless. Cycle+event+ordered film writes are atomic. History groups cycles and labels rough dates approximate; source slot order makes no chronological claim. Event creation can attach an existing cycle or explicitly create one and retain an exact date. It never infers a cycle from today.
+
+Source score history gains retrieved_via and optional upstream_updated_at, without inventing upstream timestamps. MDBList uses documented single Media Info and bounded POST batch Media Info routes; OMDb uses IMDb IDs and stores IMDb, supplied RT critic and Metacritic only. ScoreService centralises enrichment, persists snapshots once per source/metric/service per refresh, retains older data, then derives rank from current persisted state. Providers fail independently with safe messages; MDBList/OMDb HTTP 429 surfaces bounded Retry-After without automatic retry. Public health exposes configuration booleans only. Provider payloads and credential-bearing URLs never enter API responses.
+
+Film detail manages Classics membership and explicit score refresh; it shows effective raw ratings, votes, service and capture times with the three algorithm inputs marked. Classics has Ranked, Needs Data and Disqualified views and explicit enrichment for up to 10 identifiable missing-score candidates. MDBList groups IDs into at most two batches; OMDb/TMDB use bounded per-film requests. Title-only candidates remain unresolved until identification; no background job or page-load provider calls exist. Browser enrichment timeout is 65 seconds for bounded slow provider calls. TheTVDB remains an unused Worker-only placeholder.
+
+See [legacy domain model](docs/LEGACY_SPREADSHEET_MODEL.md) and [dry-run workflow](scripts/import/README.md). The importer reads arbitrary private file paths, writes only ignored local plans/reports, and performs no D1 access or network calls. Real member mapping, duplicate reconciliation, bootstrap timestamps and an apply pass remain explicit owner decisions.
 
 ## API, CORS and writes
 
@@ -126,17 +143,21 @@ All routes are under `/api/v1`; success is `{ "data": ... }`, failure is `{ "err
 
 | Method / route | Behaviour |
 | --- | --- |
-| `GET /health` | Public non-sensitive capabilities: environment, demo, authenticationRequired, googleAuthConfigured, tmdbConfigured |
+| `GET /health` | Public non-sensitive capabilities: environment, demo, authenticationRequired, googleAuthConfigured, tmdbConfigured, mdblistConfigured, omdbConfigured |
 | `POST /auth/google` | Public `{credential}`; verify Google and allow-list, return `{token,viewer,expiresAt}` |
 | `GET /auth/me` | Bearer session required; return `{viewer: {id,display_name}}` (null under local bypass) |
 | `POST /auth/logout` | Bearer session required; revoke current session and return `{loggedOut: true}` |
 | `GET /catalog`, `/members`, `/movies`, `/sessions`, `/classics` | Authenticated stored/derived data |
 | `GET /movies/search?q=...` | Saved search plus optional provider search |
+| `GET /cycles` | Authenticated cycle records |
+| `PUT /movies/:id/classics` | `{classic: boolean}`; add/remove membership, preserve movie and seed |
+| `POST /movies/:id/refresh-scores` | Explicit capture; `{movie, providers}` with safe partial results |
+| `POST /classics/enrich` | `{limit?: 1–10}`; `{results,remaining,unidentified}` for missing-score candidates |
 | `GET /movies/:id` | Film detail including appearances and ranking |
 | `POST /movies` | Manual film `{title, year?, runtime?}` |
 | `POST /movies/import` | Persist `{provider: "tmdb", externalId}` snapshot |
 | `GET /sessions/:id` | One event with ordered films |
-| `POST /sessions`, `PUT /sessions/:id` | Create/replace `{event_date, title?, host_member_id?, legacy_cycle_label?, notes?, movie_ids}` |
+| `POST /sessions`, `PUT /sessions/:id` | Create/replace `{event_date, title?, host_member_id?, legacy_cycle_label?, notes?, movie_ids, cycle_id?, new_cycle?: {rough_date,title?,ordinal?}, kind?, date_precision?, cycle_slot?}` |
 | `PUT /movies/:id/seen/:memberId` | `{seen: true | false | null}` |
 
 CORS reflects only configured exact origins, never `*`. Production uses `https://n-plus-plus.github.io` (the browser canonicalises the supplied `https://N-Plus-Plus.github.io` hostname to lowercase; origins have no `/BookClub/` path). It permits `Authorization` and `Content-Type`, with no cookie credentials. CORS is separate from authentication: requests without Origin still require a BookClub session. All application GETs and mutations are private; only health, Google login and preflight are public. Authenticated members can use the existing shared editing workflows, including answers for any club member.
@@ -172,6 +193,8 @@ Review code and migration first. These are intentional remote operations for the
 3. Create and privately review `scripts/auth/bootstrap-members.local.sql` as above.
 4. Apply it intentionally: `pnpm exec wrangler d1 execute DB --config worker/wrangler.jsonc --remote --file scripts/auth/bootstrap-members.local.sql`. Review Wrangler output privately; it may contain personal SQL values. Do not share it in logs/chat. Verify four intended rows in each table privately.
 5. Set Worker audience using `pnpm exec wrangler secret put GOOGLE_CLIENT_ID --config worker/wrangler.jsonc` (a secret binding is convenient here although the ID is public), and optional movie lookup token using `pnpm exec wrangler secret put TMDB_READ_TOKEN --config worker/wrangler.jsonc`. Enter values interactively. Retain `APP_ENV=production`, `LOCAL_WRITE_BYPASS=false`, and configured exact origin.
+Optional Worker-only rating keys are MDBLIST_API_KEY and OMDB_API_KEY, set through wrangler secret put. TVDB_API_KEY is unused. No movie-provider key belongs in a VITE variable.
+
 6. Deploy only the production Worker: `pnpm exec wrangler deploy --config worker/wrangler.jsonc`.
 7. Check public `GET <Worker-origin>/api/v1/health`: authenticationRequired and googleAuthConfigured must be true; it must expose no credentials.
 8. Check unauthenticated `GET <Worker-origin>/api/v1/catalog` returns 401 (also confirm an unauthenticated mutation returns 401).
@@ -187,6 +210,6 @@ Use backups and reviewed migrations once real data exists. References: [D1 migra
 
 ## Current boundaries and next work
 
-The real spreadsheet importer, final ranking formula, score refresh operation, Classics pool administration, elaborate editing, reporting, charts, accounts, notifications and PWA support are deferred. New events are supported in the UI; the API can replace existing events, but an edit screen is not yet implemented. Navigation away from an unsaved Event screen discards that draft; saved manual films remain in the library. Recent answer undo is limited to the current Seen It? visit; persisted answers can always be corrected from film detail. History currently loads the small whole catalog; pagination can follow after migration size is known.
+Real spreadsheet apply, ambiguous identity resolution, elaborate editing, reporting, charts, accounts, notifications and PWA support are deferred. New events are supported in the UI; the API can replace existing events, but an edit screen is not yet implemented. Navigation away from an unsaved Event screen discards that draft; saved manual films remain in the library. Recent answer undo is limited to the current Seen It? visit; persisted answers can always be corrected from film detail. History currently loads the small whole catalog; pagination can follow after migration size is known.
 
-The next step is to obtain the spreadsheet plus the authoritative ranking formula, review the cycle/member mapping, and implement a dry-run idempotent importer. Production authentication is implemented; remote migration, private roster provisioning, runtime configuration and the human deployment checks above remain pending.
+The next step is to review the private dry-run report, confirm member mapping and reconciliation decisions, then separately authorise an idempotent apply pipeline. Production authentication is implemented; remote migration, private roster provisioning, runtime configuration and the human deployment checks above remain pending.

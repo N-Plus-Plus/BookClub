@@ -8,4 +8,4 @@ export interface MovieSearchProvider { search(query: string): Promise<SearchResu
 export interface MovieMetadataProvider { details(id: string): Promise<ProviderMovie> }
 export interface MovieArtworkProvider { artwork(id: string): Promise<Asset[]> }
 export interface MovieScoreProvider { scores(id: string): Promise<Score[]> }
-// Future lawful IMDb/OMDb adapters implement these interfaces. No scraping or fake API calls.
+// TMDB supplies metadata/artwork; MDBList and OMDb supply isolated rating adapters. No scraping.

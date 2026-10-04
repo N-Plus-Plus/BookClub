@@ -13,3 +13,6 @@ coverage/
 .verification/
 OWNER_INFO.md
 scripts/auth/*.local.sql
+
+scripts/import/*.local.json
+*.xlsx
