@@ -7,11 +7,11 @@ Read this file fully before any user-facing interface work. This file defines Bo
 For BookClub interface decisions, use this order:
 
 1. Explicit instructions for the current task.
-2. Existing BookClub visual and interaction patterns.
+2. Established BookClub-specific UX/product decisions and coherent existing project patterns.
 3. This STYLE.md.
 4. Nearby implementation details.
 
-Existing project consistency normally wins over generic best practice. Do not use this file as permission to redesign established BookClub patterns unless the current task explicitly authorises that change.
+Existing code alone does not establish a design decision or make an obviously weak or accidental implementation correct. Established project consistency normally wins over generic best practice. Do not use this file as permission to redesign established BookClub patterns unless the current task explicitly authorises that change.
 
 If an existing pattern is known to be weak but the task does not authorise changing it, preserve it and note the issue rather than expanding scope.
 
@@ -176,7 +176,7 @@ Appropriate examples include:
 
 Do not use gradients, shadows, glow or elevation as substitutes for hierarchy or spacing.
 
-Routine cards should not need shadows.
+Routine cards should not need shadows. Preserve BookClub’s top-left dark radial background atmosphere.
 
 ## 11. Typography
 
@@ -286,7 +286,7 @@ BookClub must keep clear access to:
 - Seen It?;
 - Metrics.
 
-The exact mobile navigation form is not fixed. Bottom navigation, header navigation or another pattern may be used when deliberately designed.
+Mobile retains fixed bottom navigation with safe-area space. At 720px and above, desktop uses a collapsible side drawer with visible destination labels when expanded and named icons with focus/hover explanations when collapsed. Content reserves the drawer width; component state is sufficient.
 
 Do not hide primary destinations behind a hamburger menu when there is sufficient room to expose them directly.
 
@@ -389,7 +389,7 @@ Prefer the changed interface itself as success feedback when the result is obvio
 
 Toast notifications are an acceptable normal lightweight feedback mechanism, but should not replace feedback that belongs beside the affected control or content.
 
-Errors should stay as local as practical to the failed task.
+Errors should stay as local as practical to the failed task. A failed refresh preserves useful loaded data and shows a local retry state; initial loading must not invent stale data.
 
 ## 22. Tables, rows and repeated data
 
@@ -513,7 +513,7 @@ Local developer tooling must remain clearly separate from member-facing workflow
 
 ### Home
 
-Orient quickly around current turn, current state and likely next action.
+Centre Home on the current turn, its state and useful action. A logged-in nominal host receives explicit “This is your turn” emphasis and a prominent Builder action. Rotation correction belongs in an Admin disclosure.
 
 Do not let recent history, admin correction, developer tools or secondary widgets compete with that orientation.
 
@@ -523,7 +523,7 @@ Prioritise scanning and understanding past nights.
 
 Host, date precision, film order and cycle context should remain clear.
 
-Editing, audit and deletion are secondary.
+History remains one continuous archive, with lightweight cycle jump and actual-host filtering. Keep Edit, Audit and restrained destructive Delete visible. Audit toggles inline and reuses loaded evidence.
 
 ### Metrics
 
@@ -531,19 +531,19 @@ Prioritise visual comprehension and comparison.
 
 Charts are encouraged where they reveal patterns better than text alone.
 
-Maintenance controls should remain subordinate.
+Maintenance controls belong behind Admin disclosure. Use accessible comparisons from stored data with exact values and explicit missing-score coverage.
 
 ### Classics / Watch Order
 
 Make ranking, state and comparison easy to scan.
 
-Ranked, Needs Data and Disqualified must remain distinct.
+Ranked, Needs Data and Disqualified must remain distinct. Large rankings use compact responsive aligned rows; score details remain disclosed. Admin maintenance belongs behind a labelled disclosure.
 
 ### Builder
 
 Prioritise draft creation and the path from adding films through save and publish.
 
-Avoid sprawling forms on desktop.
+Use a bounded, centred vertical editor on desktop. Save leads editing; Publish leads only the publication review stage. Private-set deletion uses a separate inline confirmation.
 
 Advanced or unusual options should remain disclosed.
 
@@ -555,13 +555,13 @@ Yes and No should remain equally reachable and should not visually bias the answ
 
 ### Event create/edit
 
-Keep event details and ordered film lineup coherent as one workflow.
+Use details → ordered films → review → completion as the essential Event reading order. Disclose optional and historical controls; field errors preserve input and focus the first invalid control.
 
 Backfill, current-turn completion and correction semantics must remain truthful.
 
 ### Film detail
 
-Lead with film identity and viewing information.
+Lead with film identity, Seen state, ratings and shared appearances. Use a score-only ranking view to avoid repeating identity. Disclose technical provenance and maintenance.
 
 Provider, maintenance and provenance controls should remain subordinate.
 
@@ -575,7 +575,7 @@ Keep the private-club context brief and make sign-in obvious.
 
 ### Developer tools
 
-Keep them available but out of the ordinary member hierarchy.
+Keep developer tools in their existing location. Closed disclosure is a quiet utility; expanded tools retain explicit local replacement confirmation.
 
 ## 31. Anti-patterns
 

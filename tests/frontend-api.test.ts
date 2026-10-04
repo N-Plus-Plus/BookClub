@@ -49,3 +49,11 @@ it('does not clear BookClub session when Google login returns an ordinary 403',a
   const {api,hasSession,setUnauthorizedHandler} = await import('../frontend/api'); const rejected = vi.fn(); setUnauthorizedHandler(rejected);
   await expect(api.googleLogin('mock')).rejects.toMatchObject({status:403}); expect(rejected).not.toHaveBeenCalled(); expect(hasSession()).toBe(true);
 });
+
+it('retains API field paths for local form validation',async () => {
+  vi.stubEnv('DEV',true);
+  const fields = [{path:'movie_ids.0',message:'Choose a saved film.'},{path:'event_date',message:'Invalid date.'}];
+  vi.stubGlobal('fetch',vi.fn(async () => Response.json({error:{message:'Invalid event.',fields}},{status:422})));
+  const {api} = await import('../frontend/api');
+  await expect(api.catalog()).rejects.toMatchObject({status:422,fields});
+});

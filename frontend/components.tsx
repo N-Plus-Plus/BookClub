@@ -3,11 +3,17 @@ import { Eye, Film, RefreshCw, type LucideIcon } from 'lucide-react';
 import { ClubIdentity } from './ClubIdentity';
 import type { Member, Movie, Session } from '../shared/types';
 
-export function Action({ icon: Icon,children,intent,...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon: LucideIcon; intent?: string }) {
-  return <button type="button" className={children == null ? 'button button--icon' : 'button'} data-intent={intent} {...props}><Icon size={18} aria-hidden="true" />{children}</button>;
+const ACTION_ICON_SIZE = 18;
+
+export type ActionVariant = 'primary' | 'secondary' | 'tertiary' | 'danger';
+export function Action({ icon: Icon,children,intent,variant,...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon: LucideIcon; intent?: string; variant?: ActionVariant }) {
+  return <button type="button" className={children == null ? 'button button--icon' : 'button'} data-intent={intent ?? (variant === 'primary' ? 'constructive' : undefined)} data-variant={variant ?? (intent ? undefined : 'secondary')} {...props}><Icon size={ACTION_ICON_SIZE} aria-hidden="true" />{children}</button>;
 }
-export function RouteLink({ to,icon: Icon,children }: {to: string; icon: LucideIcon; children: ReactNode}) {
-  return <a className="button" href={`#/${to}`}><Icon size={18} aria-hidden="true" />{children}</a>;
+export function RouteLink({ to,icon: Icon,children,variant = 'secondary' }: {to: string; icon: LucideIcon; children: ReactNode; variant?: ActionVariant}) {
+  return <a className="button" data-variant={variant} data-intent={variant === 'primary' ? 'constructive' : undefined} href={`#/${to}`}><Icon size={ACTION_ICON_SIZE} aria-hidden="true" />{children}</a>;
+}
+export function LoadingView({label = 'Loading the film journal…'}: {label?: string}) {
+  return <div className="loading-placeholder stack" role="status"><span>{label}</span><div className="skeleton skeleton-heading" aria-hidden="true" /><div className="skeleton skeleton-panel" aria-hidden="true" /><div className="skeleton skeleton-panel" aria-hidden="true" /></div>;
 }
 export function Empty({title,children}: {title: string; children?: ReactNode}) {
   return <div className="empty-state"><Film size={26} aria-hidden="true" /><h3 className="empty-state__title">{title}</h3><div className="empty-state__message">{children}</div></div>;
@@ -47,17 +53,21 @@ export function SessionCard({session,members}: {session: Session; members: Membe
     {session.swap_note && <p className="meta">Swap: {session.swap_note}</p>}
   </article>;
 }
-export function RankingCard({movie,rank}: {movie: Movie; rank?: number}) {
+export function RankingScore({movie,compact = false}: {movie: Movie; compact?: boolean}) {
   const r = movie.ranking!;
-  return <article className="card rank-card"><div className="rank-top"><span className="rank-number">{rank ? String(rank).padStart(2,'0') : r.eligible ? '—' : 'DQ'}</span>
+  return <div className="stack ranking-score"><div className="rank-top">
     <span className="badge" data-intent={r.eligible ? 'constructive' : 'destructive'}>{!r.eligible ? 'Disqualified' : r.rankable ? 'Ranked' : 'Needs Data'}</span>
     <strong className="score numeric">{r.finalScore?.toFixed(2) ?? '—'}<small>residual score</small></strong></div>
-    <MovieRow movie={movie}><p className="meta">{r.seenCount} seen · {r.unseenCount} not seen · {r.unknownCount} unknown</p></MovieRow>
-    <p className="meta">{r.sources.map(s => `${s.provider === 'imdb' ? 'IMDb' : s.metric === 'audience' ? 'RT audience' : 'RT critic'} ${s.value.toFixed(1)}`).join(' · ')}</p>
+    <p className="meta">{r.seenCount} Seen · {r.unseenCount} No · {r.unknownCount} Unknown</p>
+    {!compact && <p className="meta">{r.sources.map(s => `${s.provider === 'imdb' ? 'IMDb' : s.metric === 'audience' ? 'RT audience' : 'RT critic'} ${s.value.toFixed(1)}`).join(' · ')}</p>}
     {r.missingRequiredScores.length > 0 && <p className="meta">Missing: {r.missingRequiredScores.join(', ')}</p>}
     <details><summary><Eye size={17} aria-hidden="true" />Score breakdown</summary><div className="breakdown">
       <p>Sum of squares <strong>{r.rawScore?.toFixed(2) ?? 'Incomplete'}</strong></p><p>Unseen multiplier <strong>{r.unseenMultiplier.toFixed(6)}</strong></p>
       {r.sources.map(s => <p key={`${s.provider}:${s.metric}`}>{s.provider} ({s.metric})<strong>{s.value.toFixed(1)} / 100</strong></p>)}
       {r.warnings.map(w => <small key={w}>{w}</small>)}{!r.eligible && <p>Excluded from watch order: all active members Seen, or no active roster.</p>}
-    </div></details></article>;
+    </div></details></div>;
+}
+export function RankingCard({movie,rank,compact = false}: {movie: Movie; rank?: number; compact?: boolean}) {
+  const r = movie.ranking!;
+  return <article className={compact ? 'ranking-row' : 'card rank-card'}><div className="candidate-identity"><span className="rank-number">{rank ? String(rank).padStart(2,'0') : r.eligible ? '—' : 'DQ'}</span><MovieRow movie={movie} /></div><RankingScore movie={movie} compact={compact} /></article>;
 }

@@ -4,7 +4,7 @@ import type { Catalog, Movie, MovieDetail, Viewer, Rotation } from '../shared/ty
 import { missingAnswers, sortClassics } from '../shared/ranking';
 import { SignInScreen } from './SignInScreen';
 import { api, ApiClientError, clearSession, hasSession, setUnauthorizedHandler, storeSession, type Health } from './api';
-import { Action, Empty, Failure, RankingCard, RouteLink, SessionCard } from './components';
+import { Action, Empty, Failure, LoadingView, RankingCard, RouteLink, SessionCard } from './components';
 import { EventScreen } from './EventScreen';
 import { SeenScreen } from './SeenScreen';
 import { DetailScreen } from './DetailScreen';
@@ -16,13 +16,13 @@ import { BuilderScreen } from './BuilderScreen';
 import { RotationCard } from './RotationCard';
 import { needsAvatar } from '../shared/identity';
 import { MetricsScreen } from './MetricsScreen';
+import { Navigation, destinations } from './Navigation';
 
 const DevTools = import.meta.env.DEV && import.meta.env.MODE !== 'import-preview' ? lazy(() => import('./DevTools')) : null;
-const destinations = [ {path: 'home',label: 'Home',icon: Home}, {path: 'history',label: 'History',icon: History},
-  {path: 'builder',label: 'Builder',icon: ListPlus}, {path: 'classics',label: 'Classics',icon: Library}, {path: 'seen',label: 'Seen It?',icon: Eye}, {path: 'metrics',label: 'Metrics',icon: ChartNoAxesColumn} ];
 const route = () => window.location.hash.slice(2) || 'home';
 export function App() {
   const [page,setPage] = useState(route);
+  const [navigationExpanded,setNavigationExpanded] = useState(true);
   const [catalog,setCatalog] = useState<Catalog | null>(null);
   const [health,setHealth] = useState<Health | null>(null);
   const [rotation,setRotation] = useState<Rotation | null>(null);
@@ -91,34 +91,34 @@ export function App() {
   const missing = catalog ? missingAnswers(catalog.movies,catalog.members).length : 0;
   const isDetail = page.startsWith('movie/');
   const title = (page === 'event' || page.startsWith('event/')) ? 'Event' : isDetail ? 'Film detail' : destinations.find(d => d.path === page)?.label ?? 'Page not found';
-  const subtitles: Record<string,string> = { metrics: 'Our film nights, by the numbers.',builder: 'Private ideas for your next film night.',home: 'A weekly ritual. A growing collection.',history: 'Every night has a story.',event: 'Make room for the next great film.',classics: 'The next watch, decided together.',seen: 'A quick answer keeps the list moving.' };
   const writesEnabled = Boolean(health && (!health.authenticationRequired || viewer));
   if (health?.authenticationRequired && !viewer && !loading) return <SignInScreen configured={health.googleAuthConfigured} error={error} busy={authBusy} onCredential={signIn} onRetry={() => void load()} />;
   if (needsAvatar(viewer) && viewer) return <AvatarScreen viewer={viewer} externalError={error} onClaimed={claimed => { setViewer(claimed); void load(); }} onLogout={() => void logout()} />;
-  return <div className="bookclub-shell"><header className="site-header"><a className="brand" href="#/home"><Clapperboard aria-hidden="true" /><span>BookClub<small>THE WEEKLY FILM JOURNAL</small></span></a><div className="viewer-controls">{viewer ? <><ClubIdentity identity={{kind: 'member',member: viewer}} /><Action icon={LogOut} aria-label="Log out of BookClub" disabled={authBusy} onClick={() => void logout()} /></> : <span className="header-tag">{health?.demo ? 'LOCAL DEMO' : 'FILM CLUB'}</span>}</div></header>
-    <main id="main"><div className="page-heading"><div><p className="eyebrow">FOUR PEOPLE · ONE SHARED SCREEN</p><h1 ref={heading} tabIndex={-1}>{title}</h1><p className="subtitle">{subtitles[page] ?? 'The film, the scores, and our shared history.'}</p></div><Action icon={RefreshCw} aria-label="Refresh BookClub data" disabled={refreshing} onClick={() => void load()} /></div>
+  return <div className={`app-layout ${navigationExpanded ? 'navigation-expanded' : 'navigation-collapsed'}`}><Navigation page={page} expanded={navigationExpanded} onToggle={() => setNavigationExpanded(value => !value)} /><div className="bookclub-shell"><header className="site-header"><a className="brand" href="#/home"><Clapperboard aria-hidden="true" /><span>BookClub<small>THE WEEKLY FILM JOURNAL</small></span></a><div className="viewer-controls">{viewer ? <><ClubIdentity identity={{kind: 'member',member: viewer}} /><Action icon={LogOut} aria-label="Log out of BookClub" disabled={authBusy} onClick={() => void logout()} /></> : <span className="header-tag">{health?.demo ? 'LOCAL DEMO' : 'FILM CLUB'}</span>}</div></header>
+    <main id="main"><div className="page-heading"><div><h1 ref={heading} tabIndex={-1}>{title}</h1>{page.startsWith('event/') && <p className="subtitle">Correct the event details and film lineup.</p>}</div><Action icon={RefreshCw} aria-label="Refresh BookClub data" disabled={refreshing} onClick={() => void load()} /></div>
     {notice && <div className="notice" role="status"><Check size={20} aria-hidden="true" /><span>{notice}</span><Action icon={X} aria-label="Dismiss message" onClick={() => setNotice('')} /></div>}
     {health?.demo && <p className="demo-label"><Info size={16} aria-hidden="true" />Local disposable database</p>}
     {DevTools && health?.environment === 'local' && !health.authenticationRequired && catalog && <Suspense fallback={null}><DevTools members={catalog.members} onChanged={load} /></Suspense>}
-    {loading ? <div className="loading-state" role="status">Loading the film journal…</div> : error ? <Failure message={error} retry={() => void load()} /> : catalog && <>
-      {page === 'home' && <div className="stack"><RotationCard catalog={catalog} rotation={rotation} viewer={viewer} onUpdated={() => void load()} /><section className="welcome card"><div><p className="eyebrow">NEXT UP</p><h2>A good night starts<br />with a good film.</h2><p>Gather the four. Choose the films. Keep the story.</p><RouteLink to="event" icon={CalendarPlus}>Start an event</RouteLink></div><Clapperboard className="welcome-icon" aria-hidden="true" /></section>
+    {catalog && error && <div className="refresh-failure" role="alert"><p>Could not refresh. Showing the last loaded journal.</p><p className="meta">{error}</p><Action icon={RefreshCw} variant="secondary" disabled={refreshing} onClick={() => void load()}>Retry refresh</Action></div>}
+    {catalog && refreshing && <p className="meta refresh-status" role="status">Refreshing the journal…</p>}
+    {loading && !catalog ? <LoadingView /> : !catalog && error ? <Failure message={error} retry={() => void load()} /> : catalog && <>
+      {page === 'home' && <div className="stack"><RotationCard catalog={catalog} rotation={rotation} viewer={viewer} onUpdated={() => void load()} />
       <div className="stats-grid"><div className="card stat"><strong>{eligible.length}</strong><span>Eligible Classics</span></div><div className="card stat"><strong>{excluded.length}</strong><span>Already seen by all</span></div><a className="card stat stat-link" href="#/seen"><strong>{missing}</strong><span><Eye size={16} aria-hidden="true" />Missing answers</span></a></div>
-      <div className="dashboard-grid"><section className="stack"><div className="section-title"><h2>Last time together</h2><RouteLink to="history" icon={History}>History</RouteLink></div>{catalog.sessions[0] ? <SessionCard session={catalog.sessions[0]} members={catalog.members} /> : <Empty title="Your first night is waiting">Create an event to begin your shared history.</Empty>}</section>
-      <section className="stack"><div className="section-title"><h2>On the shortlist</h2><RouteLink to="classics" icon={ChevronRight}>View all</RouteLink></div>{eligible.slice(0,3).map((m,i) => <RankingCard key={m.id} movie={m} rank={i+1} />)}{!eligible.length && <Empty title="No eligible Classics">Open Classics to inspect the candidate pool.</Empty>}</section></div></div>}
+      <div className="dashboard-grid"><section className="stack"><div className="section-title"><h2>Last time together</h2><RouteLink to="history" icon={History} variant="tertiary">History</RouteLink></div>{catalog.sessions[0] ? <SessionCard session={catalog.sessions[0]} members={catalog.members} /> : <Empty title="Your first night is waiting">Create an event to begin your shared history.</Empty>}</section>
+      <section className="stack"><div className="section-title"><h2>On the shortlist</h2><RouteLink to="classics" icon={ChevronRight} variant="tertiary">View all</RouteLink></div>{eligible.slice(0,3).map((m,i) => <RankingCard key={m.id} movie={m} rank={i+1} />)}{!eligible.length && <Empty title="No eligible Classics">Open Classics to inspect the candidate pool.</Empty>}</section></div></div>}
       {page === 'history' && <HistoryScreen catalog={catalog} onChanged={() => void load()} />}
       {page === 'metrics' && <MetricsScreen catalog={catalog} viewer={viewer} onUpdated={load} />}
-      {page === 'builder' && <BuilderScreen catalog={catalog} viewer={viewer} rotation={rotation} onMovie={applyMovie} onPublished={() => { void load(); setNotice('Published to History.'); window.location.hash = '/history'; }} />}
+      {page === 'builder' && <BuilderScreen key={viewer?.id} catalog={catalog} viewer={viewer} rotation={rotation} onMovie={applyMovie} onPublished={() => { void load(); setNotice('Published to History.'); window.location.hash = '/history'; }} />}
       {(page === 'event' || (page.startsWith('event/') && catalog.sessions.some(s => s.id === page.slice(6)))) && <EventScreen key={page} initial={catalog.sessions.find(s => s.id === page.slice(6))} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={session => {
         setCatalog(c => c ? {...c,sessions: [session,...c.sessions.filter(s => s.id !== session.id)].sort((a,b) => b.event_date.localeCompare(a.event_date))} : c);
         void load(); setNotice('Event saved to the film journal.'); window.location.hash = '/history';
       }} />}
       {page.startsWith('event/') && !catalog.sessions.some(s => s.id === page.slice(6)) && <Empty title="Event not found">The event may have been deleted. Return to History to review available events.</Empty>}
-      {page === 'classics' && <ClassicsScreen movies={classics} writesEnabled={writesEnabled} onMovie={applyMovie} />}
+      {page === 'classics' && <ClassicsScreen viewer={viewer} movies={classics} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {page === 'seen' && <SeenScreen catalog={catalog} answer={answer} writesEnabled={writesEnabled} />}
       {isDetail && <DetailScreen key={page} id={page.slice(6)} members={catalog.members} answer={answer} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {!isDetail && page !== 'event' && !page.startsWith('event/') && !destinations.some(d => d.path === page) && <Empty title="Page not found"><RouteLink to="home" icon={Home}>Go home</RouteLink></Empty>}
     </>}
-    <footer className="data-sources"><h2><Info size={18} aria-hidden="true" />About & data sources</h2><p>BookClub is a film journal for four people. Local demo scores are invented examples. Optional MDBList and OMDb retrieve ratings from other sources; BookClub has no direct IMDb, Rotten Tomatoes or Letterboxd API relationship.</p><p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p><a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer"><Info size={16} aria-hidden="true" /><img className="tmdb-logo" src={`${import.meta.env.BASE_URL}tmdb-logo.svg`} alt="The Movie Database" /></a><p>Classics uses the historical sum-of-squares formula. Additional ratings do not affect Watch Order.</p><p><a href="https://mdblist.com/" target="_blank" rel="noreferrer"><Info size={16} aria-hidden="true" />MDBList</a> · <a href="https://www.omdbapi.com/" target="_blank" rel="noreferrer"><Info size={16} aria-hidden="true" />OMDb</a></p></footer>
-    </main><nav className="bottom-nav" aria-label="Primary navigation">{destinations.map(({path,label,icon: Icon}) => <a key={path} href={`#/${path}`} aria-current={page === path ? 'page' : undefined}><Icon size={22} aria-hidden="true" /><span>{label}</span></a>)}</nav>
-  </div>;
+    <footer className="data-sources"><details><summary><Info size={18} aria-hidden="true" />Data sources & attribution</summary><div className="stack"><p>Ratings are stored snapshots, not live values. MDBList and OMDb retrieve third-party ratings; BookClub has no direct IMDb, Rotten Tomatoes or Letterboxd API relationship.</p><p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p><a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer"><img className="tmdb-logo" src={`${import.meta.env.BASE_URL}tmdb-logo.svg`} alt="The Movie Database" /></a><p><a href="https://mdblist.com/" target="_blank" rel="noreferrer">MDBList</a> · <a href="https://www.omdbapi.com/" target="_blank" rel="noreferrer">OMDb</a></p></div></details></footer>
+    </main></div></div>;
 }
