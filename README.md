@@ -2,7 +2,7 @@
 
 A mobile-first film journal for a four-person weekly film club. Track event history, keep private Builder film sets, complete explicit club turns, inspect a persisted Classics watch order, and quickly fill missing Seen It? answers.
 
-This is a functional local-first foundation. All bundled events and source ratings are **development examples**, not real club history or live provider ratings. The historical ranking formula, cycle model and safe spreadsheet dry-run and staged identity resolution with a guarded local D1 import preview are implemented; production import remains separately authorised. Repository: `N-Plus-Plus/BookClub`.
+This is a functional local-first foundation. All bundled events and source ratings are **development examples**, not real club history or live provider ratings. The historical ranking formula, cycle model and safe spreadsheet dry-run and staged identity resolution with a guarded local D1 import preview are implemented; the historical production cutover is complete and verified. Repository: `N-Plus-Plus/BookClub`.
 
 ## Architecture and layout
 
@@ -237,27 +237,36 @@ The guarded cutover workflow in [scripts/import/PRODUCTION.md](scripts/import/PR
 
 The authorised initial rotation is open Classics/slot 5/version 0 on reviewed cycle 55. Bootstrap creates no current event or next cycle. The first real Classics completion advances to Sean/slot 1; Sean's next slot-1 publication creates the cycle. Conflicting members/auth or advanced/occupied rotation are rejected, and identical pre-launch reruns are safe. The older SQL example is retained only as a historical manual template; its `INSERT OR IGNORE` behaviour is insufficient for the guarded cutover. Never provision the development seed to production.
 
-## First production deployment — human steps only, not performed
+## Production release and verification
 
-Review code and migration first. These are intentional remote operations for the owner, **not** local verification commands. Use the top-level production binding for `bookclub-prod`; the existing database ID is preserved. Never deploy `--env local`, use the demo seed remotely, or deploy a bypass configuration.
+The production application Worker is **bookclub-api**, at **https://bookclub-api.troy-nissen.workers.dev**. The frontend is **https://n-plus-plus.github.io/BookClub/**, published through the existing **Publish frontend to GitHub Pages** Actions workflow. GitHub Pages uses GitHub Actions as its source. Both deployments use the reviewed main revision; deployment does not run the historical importer.
 
-1. Authenticate: `pnpm exec wrangler login`.
-2. Historical cutover is complete through the [guarded local-operator REST workflow](scripts/import/PRODUCTION.md): migrations through 0008, exact historical archive, four members/auth rows and open cycle 55 / Classics slot 5 / version 0 are verified. Retain the pristine backup, rehearsal and reconciliation proofs. No temporary runner is required or deployed; do not rerun bootstrap after launch.
-3. Set Worker audience using `pnpm exec wrangler secret put GOOGLE_CLIENT_ID --config worker/wrangler.jsonc` (a secret binding is convenient here although the ID is public), and optional movie lookup token using `pnpm exec wrangler secret put TMDB_READ_TOKEN --config worker/wrangler.jsonc`. Enter values interactively. Retain `APP_ENV=production`, `LOCAL_WRITE_BYPASS=false`, and configured exact origin.
-Optional Worker-only rating keys are MDBLIST_API_KEY and OMDB_API_KEY, set through wrangler secret put. TVDB_API_KEY is unused. No movie-provider key belongs in a VITE variable.
+The top-level `worker/wrangler.jsonc` binds the existing `bookclub-prod` database, retains `APP_ENV=production`, `LOCAL_WRITE_BYPASS=false`, and allows only `https://n-plus-plus.github.io`. Worker runtime bindings configured through Wrangler's supported secret mechanism are `GOOGLE_CLIENT_ID`, `TMDB_READ_TOKEN`, `MDBLIST_API_KEY` and `OMDB_API_KEY`. The Google client ID is public, despite using a secret binding. Cloudflare account ID/API token are operator-only; TVDB remains unused. Never deploy `--env local`, publish provider credentials to Vite, or deploy the retired cutover runner.
 
-4. Deploy only the production Worker: `pnpm exec wrangler deploy --config worker/wrangler.jsonc`.
-5. Check public `GET <Worker-origin>/api/v1/health`: authenticationRequired and googleAuthConfigured must be true; it must expose no credentials.
-6. Check unauthenticated `GET <Worker-origin>/api/v1/catalog` returns 401 (also confirm an unauthenticated mutation returns 401).
-7. Verify one allow-listed GIS login using a locally served production build pointed at this Worker. Set the two public Vite values, build, and serve `pnpm preview` at `http://localhost:4173/BookClub/`. For this pre-Pages check, temporarily configure this exact origin in Worker CORS and Google's JavaScript origins, retaining the production origin. Restore production-only CORS after verification. Alternatively do this check in a reviewed staging environment. Confirm first binding, authenticated reads/writes, outsider 403 and logout revocation without printing credentials/tokens. Do not paste credentials into curl commands, URLs or shared logs.
-8. Set GitHub repository Actions variables `VITE_API_BASE_URL` (deployed Worker origin, no `/api/v1`) and `VITE_GOOGLE_CLIENT_ID` (matching audience).
-9. Enable GitHub Pages with **GitHub Actions** as the source.
-10. Manually run **Publish frontend to GitHub Pages**. It validates both public variables, installs pinned pnpm dependencies, tests/types/builds and publishes `dist/`. It does not deploy Worker or use provider secrets.
-11. Verify `https://N-Plus-Plus.github.io/BookClub/`: sign-in gate, authorised login, private views, authenticated edits, reload persistence, logout and rejection of an unauthorised Google account. Test on mobile. Confirm Worker production-only CORS and no local bypass.
+GitHub repository Actions variables `VITE_API_BASE_URL` and `VITE_GOOGLE_CLIENT_ID` supply the public frontend configuration. The API base is the Worker origin above, without `/api/v1` or a trailing slash. The client ID must match the Worker's audience. An ignored root `.env.production.local` containing only these two public values supports local production builds; ordinary development and the isolated import-preview mode retain their local API behaviour.
 
-The live Google button/account flow and actual remote binding remain human deployment checks; automated verification uses generated signing keys, substituted Google verification and disposable SQLite, never live Google or D1. Test SQL includes the actual migrations and repository queries. Authentication tests use Node's built-in SQLite (available under the established Node 22.12+ runtime; it may emit an experimental warning).
+For a separately authorised future release:
 
-Use backups and reviewed migrations once real data exists. References: [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/), [GIS JavaScript callback](https://developers.google.com/identity/gsi/web/reference/js-reference), [Vite static deployment](https://vite.dev/guide/static-deploy.html). For a deliberate root/custom-domain deployment adjust the owning `base` in `vite.config.ts`.
+1. Review current main, migrations and production configuration. Run `corepack pnpm test`, `corepack pnpm typecheck`, `corepack pnpm build`, `corepack pnpm prod:check` and `git diff --check`. Run `prod:check --frontend` with the two public variables in the process environment.
+2. Configure changed runtime bindings with `wrangler secret put` interactively or `wrangler secret bulk` through stdin; never put values on command lines or in tracked config. Deploy only `corepack pnpm exec wrangler deploy --config worker/wrangler.jsonc`.
+3. Verify public `GET /api/v1/health` reports production, authentication required and expected provider/auth configuration. Private reads and unauthenticated mutations must return 401; a nonexistent bearer token must fail the D1 session lookup. Intended-origin preflight must succeed, arbitrary origins must be rejected. These checks create no sessions or film events.
+4. Confirm the two repository Actions variables, then manually dispatch **Publish frontend to GitHub Pages** on reviewed main. The workflow tests, typechecks, checks public configuration, builds and publishes only `dist/`.
+5. Verify the Pages shell, JS/CSS, bundled fonts, all 20 member avatars, reserved Classics `a.png`, icons, hash-route refresh and Worker health request. Inspect the build for localhost/import-preview URLs, private emails, credential values and private archive content.
+
+Automated release checks passed: private sign-in gate and official Google control render in a mobile-sized browser without runtime errors, horizontal overflow, mixed content or failed requests. All 63 published files match the local production build (text line endings normalised). Live authenticated Home/History/Builder screens and real Google login remain owner checks; underlying production catalog, History, Metrics and canonical Watch Order were verified read-only without bypassing API authentication or creating sessions.
+
+The owner must verify the existing Google **Web Application** client's **Authorized JavaScript origins** includes exactly `https://n-plus-plus.github.io` (no path). The GIS popup callback requires no redirect URI or additional scopes. Google Console settings were not accessible during release; rendering the official button does not prove real login succeeds. Audience, signature, issuer and verified-email validation remain enforced in the Worker.
+
+Owner smoke checklist:
+
+- Sign in as Troy; confirm Troy identity, initial avatar chooser, normal application access and admin controls. Choose an avatar.
+- Sign in as a second authorised member in a separate browser/profile; confirm correct identity and exclusion of Troy's selected avatar.
+- Confirm Home's current turn is Classics, History and Metrics are populated, Watch Order is populated, and Builder loads.
+- Save a disposable Builder set as one member; confirm the other member cannot see it, then delete it as its owner without publishing.
+
+Leave cycle 55 / Classics slot 5 / version 0 open during these checks. The current Classics event has not been created and cycle 56 does not exist. After owner smoke passes, enter the two current Classics films through the normal application UI. Do not rerun import, bootstrap, identity resolution or enrichment as a release check.
+
+Keep the pristine backup and private rehearsal/reconciliation proofs. Once real login occurs, pre-launch archive verification's null-sub/avatar/no-session assumptions no longer apply; do not reset identity or rotation to make that check pass. Future live data mutation requires its own authorised scope.
 
 ## Current boundaries and next work
 
@@ -265,4 +274,4 @@ Date-range Metrics, charts, notifications and PWA support are deferred. Event cr
 
 Tracked release readiness includes migrations through 0008, Metrics and bounded admin metadata enrichment. `pnpm prod:check` statically validates production/bypass/CORS, DB binding shape, contiguous migrations and isolated preview configuration without authenticating or accessing Cloudflare. `pnpm prod:check --frontend` additionally validates public build variables from the process environment (not ignored env files); the Pages workflow runs it before its production build. Run `pnpm build` separately. Passing this check does not verify remote bindings, Worker secrets or a matching GIS audience.
 
-Real archive reconciliation and the exact isolated local rehearsal are complete. The authorised capture, canonical year decisions, Sean/Troy admin roles and open Classics/slot-5 cutover state are settled. Production migrations, historical import and private member/auth provisioning are complete and verified. The pristine pre-migration backup is retained. Runtime configuration, application Worker deployment, Pages publication, live Google checks and mobile visual checks remain pending. No private archive artifact is needed for ordinary development or tests.
+Real archive reconciliation and the exact isolated local rehearsal are complete. The authorised capture, canonical year decisions, Sean/Troy admin roles and open Classics/slot-5 cutover state are settled. Production migrations, historical import and private member/auth provisioning are complete and verified. The pristine pre-migration backup is retained. Production runtime bindings, application Worker deployment, Pages publication and automated public/browser smoke checks are complete. Real Google login, authenticated multi-user checks and owner mobile visual checks remain pending. No private archive artifact is needed for ordinary development or tests.

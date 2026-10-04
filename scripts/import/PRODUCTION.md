@@ -2,7 +2,7 @@
 
 Production historical cutover uses the trusted local operator process and authenticated Cloudflare D1 REST queries. Execution requires explicit owner authorisation; ordinary development and `import:apply:local` remain local. Application Worker deployment and Pages publication remain separate release operations.
 
-Historical import and four-member/auth bootstrap are complete and verified, with open cycle 55 / Classics slot 5 / version 0. Application deployment is pending. Do not repeat bootstrap after real user actions.
+Historical import and four-member/auth bootstrap are complete and verified, with open cycle 55 / Classics slot 5 / version 0. The application Worker and Pages are deployed; README.md owns release verification and pending real-login/multi-user owner checks. Do not repeat bootstrap after real user actions.
 
 Migrations 0001–0008 are complete. The exact archive was rehearsed again after the 0005 parser correction. Retain the original pristine pre-migration export and proof; do not overwrite them. Applied migrations must not change.
 
