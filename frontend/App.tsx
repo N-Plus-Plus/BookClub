@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { ChartNoAxesColumn, CalendarPlus, ListPlus, Check, ChevronRight, Clapperboard, Eye, History, Home, Info, Library, LogOut, RefreshCw, X } from 'lucide-react';
 import type { Catalog, Movie, MovieDetail, Viewer, Rotation } from '../shared/types';
 import { missingAnswers, sortClassics } from '../shared/ranking';
@@ -17,6 +17,7 @@ import { RotationCard } from './RotationCard';
 import { needsAvatar } from '../shared/identity';
 import { MetricsScreen } from './MetricsScreen';
 
+const DevTools = import.meta.env.DEV && import.meta.env.MODE !== 'import-preview' ? lazy(() => import('./DevTools')) : null;
 const destinations = [ {path: 'home',label: 'Home',icon: Home}, {path: 'history',label: 'History',icon: History},
   {path: 'builder',label: 'Builder',icon: ListPlus}, {path: 'classics',label: 'Classics',icon: Library}, {path: 'seen',label: 'Seen It?',icon: Eye}, {path: 'metrics',label: 'Metrics',icon: ChartNoAxesColumn} ];
 const route = () => window.location.hash.slice(2) || 'home';
@@ -50,6 +51,7 @@ export function App() {
         setViewer(result.viewer);
         if (needsAvatar(result.viewer)) { setCatalog(null); return; }
       }
+      if (import.meta.env.DEV && !status.authenticationRequired) setViewer((await api.me()).viewer);
       const [data,turn] = await Promise.all([api.catalog(),api.rotation()]);
       if (current === generation.current) { setCatalog(data); setRotation(turn); }
     } catch (e) {
@@ -96,7 +98,8 @@ export function App() {
   return <div className="bookclub-shell"><header className="site-header"><a className="brand" href="#/home"><Clapperboard aria-hidden="true" /><span>BookClub<small>THE WEEKLY FILM JOURNAL</small></span></a><div className="viewer-controls">{viewer ? <><ClubIdentity identity={{kind: 'member',member: viewer}} /><Action icon={LogOut} aria-label="Log out of BookClub" disabled={authBusy} onClick={() => void logout()} /></> : <span className="header-tag">{health?.demo ? 'LOCAL DEMO' : 'FILM CLUB'}</span>}</div></header>
     <main id="main"><div className="page-heading"><div><p className="eyebrow">FOUR PEOPLE · ONE SHARED SCREEN</p><h1 ref={heading} tabIndex={-1}>{title}</h1><p className="subtitle">{subtitles[page] ?? 'The film, the scores, and our shared history.'}</p></div><Action icon={RefreshCw} aria-label="Refresh BookClub data" disabled={refreshing} onClick={() => void load()} /></div>
     {notice && <div className="notice" role="status"><Check size={20} aria-hidden="true" /><span>{notice}</span><Action icon={X} aria-label="Dismiss message" onClick={() => setNotice('')} /></div>}
-    {health?.demo && <p className="demo-label"><Info size={16} aria-hidden="true" />Development fixtures · events and ratings are illustrative</p>}
+    {health?.demo && <p className="demo-label"><Info size={16} aria-hidden="true" />Local disposable database</p>}
+    {DevTools && health?.environment === 'local' && !health.authenticationRequired && catalog && <Suspense fallback={null}><DevTools members={catalog.members} onChanged={load} /></Suspense>}
     {loading ? <div className="loading-state" role="status">Loading the film journal…</div> : error ? <Failure message={error} retry={() => void load()} /> : catalog && <>
       {page === 'home' && <div className="stack"><RotationCard catalog={catalog} rotation={rotation} viewer={viewer} onUpdated={() => void load()} /><section className="welcome card"><div><p className="eyebrow">NEXT UP</p><h2>A good night starts<br />with a good film.</h2><p>Gather the four. Choose the films. Keep the story.</p><RouteLink to="event" icon={CalendarPlus}>Start an event</RouteLink></div><Clapperboard className="welcome-icon" aria-hidden="true" /></section>
       <div className="stats-grid"><div className="card stat"><strong>{eligible.length}</strong><span>Eligible Classics</span></div><div className="card stat"><strong>{excluded.length}</strong><span>Already seen by all</span></div><a className="card stat stat-link" href="#/seen"><strong>{missing}</strong><span><Eye size={16} aria-hidden="true" />Missing answers</span></a></div>

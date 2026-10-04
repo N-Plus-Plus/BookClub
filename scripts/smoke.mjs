@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 const base = 'http://localhost:8787/api/v1';
 async function call(path,method = 'GET',body) {
-  const response = await fetch(`${base}${path}`,{method,headers: {Origin: 'http://localhost:5173',...(body ? {'Content-Type': 'application/json'} : {})},...(body ? {body: JSON.stringify(body)} : {})});
+  const response = await fetch(`${base}${path}`,{method,headers: {Origin: 'http://localhost:4173',...(body ? {'Content-Type': 'application/json'} : {})},...(body ? {body: JSON.stringify(body)} : {})});
   const result = await response.json();
   assert.equal(response.ok,true,JSON.stringify(result)); return result.data;
 }

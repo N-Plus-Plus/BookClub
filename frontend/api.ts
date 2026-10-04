@@ -1,7 +1,8 @@
 import type { Catalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, MetadataEnrichment } from '../shared/types';
 
 const configured = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/,'');
-const base = configured || (import.meta.env.DEV ? 'http://localhost:8787' : '');
+const base = import.meta.env.DEV ? 'http://localhost:8787' : configured || '';
+export function setDevMember(id: string) { if (import.meta.env.DEV) localStorage.setItem('bookclub.dev-member',id); }
 export interface Health { status: string; environment: string; authenticationRequired: boolean; googleAuthConfigured: boolean; tmdbConfigured: boolean; mdblistConfigured: boolean; omdbConfigured: boolean; demo: boolean }
 const storageKey = 'bookclub.session';
 let sessionToken: string | null = null;
@@ -26,6 +27,7 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
     response = await fetch(`${base}/api/v1${path}`, {
       method, headers: {
         ...(data === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(import.meta.env.DEV && localStorage.getItem('bookclub.dev-member') ? {'X-BookClub-Dev-Member': localStorage.getItem('bookclub.dev-member')!} : {}),
         ...(authenticated && sentToken ? { Authorization: `Bearer ${sentToken}` } : {}),
       }, ...(data === undefined ? {} : { body: JSON.stringify(data) }),
       signal: AbortSignal.timeout(path === '/movies/enrich-metadata' ? 95000 : path === '/classics/enrich' ? 65000 : 15000),

@@ -31,7 +31,11 @@ export async function hashToken(token: string): Promise<string> {
 }
 export interface AuthContext { viewer: Viewer | null; tokenHash: string | null }
 export async function authenticate(request: Request,env: Env): Promise<AuthContext> {
-  if (localBypass(env)) return { viewer: null,tokenHash: null };
+  if (localBypass(env)) {
+    const id = request.headers.get('X-BookClub-Dev-Member');
+    const viewer = id ? await env.DB.prepare('SELECT id,display_name,avatar,role,sort_order FROM members WHERE id=? AND active=1').bind(id).first<Viewer>() : null;
+    return {viewer,tokenHash:null};
+  }
   const match = request.headers.get('Authorization')?.match(/^Bearer ([a-f0-9]{64})$/i);
   if (!match) throw new ApiError(401,'SESSION_REQUIRED','Sign in to BookClub to continue.');
   const tokenHash = await hashToken(match[1]);

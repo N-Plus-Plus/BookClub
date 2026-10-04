@@ -42,20 +42,21 @@ pnpm dev
 
 `pnpm dev` first applies local migrations and seeds once, then starts both servers:
 
-- UI: **http://localhost:5173/**
+- UI: **http://localhost:4173/**
 - API: **http://localhost:8787/api/v1**
 - Status: **http://localhost:8787/api/v1/health**
 
-Use localhost (not a different hostname) to match the local CORS allowlist. The browser automatically targets port 8787 in development. A brief initial API connection error can be retried once Wrangler is ready. Ctrl+C stops both processes. Do not run two API processes over the same local database.
+Use localhost (not a different hostname) to match the local CORS allowlist. The browser automatically targets port 8787 in development. Development serves `/` (open `http://localhost:4173/#/home`); `/BookClub/` is reserved for production builds/previews. Vite binds IPv4 loopback on 4173 with strict port ownership; ToDonut uses 5173 in DevDashboard. The dev config owns `NODE_ENV=development` even when launched by a production parent, so `import.meta.env.DEV` remains true. A brief initial API connection error can be retried once Wrangler is ready. Ctrl+C stops both processes. Do not run two API processes over the same local database.
 
 | Command | Purpose |
 | --- | --- |
 | `pnpm dev` | Prepare local D1 and start both servers |
-| `pnpm dev:ui` | Start Vite only on 5173 |
+| `pnpm dev:ui` | Start Vite only on 4173 |
 | `pnpm dev:api` | Start local Worker only on 8787; run `pnpm db:setup` first |
 | `pnpm db:migrate` | Apply versioned migrations to local D1 only |
 | `pnpm db:seed` | Insert demo records once; preserve user-created records/answers |
 | `pnpm db:setup` | Local migrations followed by safe seed |
+| `corepack pnpm db:refresh-from-prod` | Explicit read-only production export and sanitised local replacement; stop local API first; Node 24+ |
 | `pnpm import:spreadsheet --file private.xlsx --config scripts/import/import-config.local.json` | Read-only analysis to ignored `.verification/import/` reports |
 | `pnpm import:resolve --plan .verification/import/plan.json --config scripts/import/import-config.local.json` | Offline canonical resolution; optional bounded `--network` TMDB stage |
 | `pnpm db:import-preview:prepare` | Migrate isolated local preview and prepare only Host 1–4 |
@@ -69,7 +70,9 @@ Use localhost (not a different hostname) to match the local CORS allowlist. The 
 | `pnpm preview` | Preview production build at http://localhost:4173/BookClub/ |
 | `node scripts/smoke.mjs` | Optional API smoke against running local servers; creates labelled test event/movie |
 
-Local D1 state is generated beneath `worker/.wrangler/`, ignored by source control. Ordinary database scripts use `--local --env local`; import preview uses an isolated config, `--local --env import_preview` and explicit separate persistence. Nothing contacts production D1. Startup is not a reset: the `seed_runs` marker ensures rerunning it never restores an intentionally undone answer or overwrites saved work.
+Local D1 state is generated beneath `worker/.wrangler/`, ignored by source control. Ordinary database scripts use `--local --env local`; import preview uses an isolated config, `--local --env import_preview` and explicit separate persistence. Normal development never contacts production D1; only the explicit refresh command reads/exports it. Startup is not a reset: the `seed_runs` marker ensures rerunning it never restores an intentionally undone answer or overwrites saved work.
+
+Development and the static production preview share port 4173; stop one before starting the other.
 
 To return to clean demo fixtures, stop the servers and run:
 
@@ -77,6 +80,24 @@ To return to clean demo fixtures, stop the servers and run:
 pnpm db:reset
 pnpm dev
 ```
+
+## Refresh development from current production
+
+Run `corepack pnpm db:refresh-from-prod` with the local API stopped. This BookClub-specific, one-way operation replaces disposable **local** data; it never writes production. It requires Node 24+, the pinned pnpm execution context, and existing Cloudflare operator authentication (`wrangler login`, or process-only Cloudflare credentials with D1 read/export permission). No database arguments or remote write options are accepted.
+
+The command verifies the exact `bookclub-prod` name/UUID, takes a current [D1 SQL export](https://developers.cloudflare.com/d1/best-practices/import-export-data/), builds a separate local D1 with current migrations, and copies compatible snapshot rows. Unknown source tables/columns, corrupt data or failed validation stop before replacement. Source rows are never reconstructed from the historical archive plan. Schema evolution requires a compatible source snapshot; missing source tables fail closed for review.
+
+All durable product rows are retained, including avatars, roles, private Builder plans, rotation, soft-deleted History, audits, scores, Seen evidence and import provenance. `auth_sessions` and `provider_cooldowns` are emptied. `member_auth` emails become unique `@bookclub.invalid` placeholders; Google subjects, binding and last-login times become null. The `demo-v1` seed marker prevents normal startup adding demo members/history to the snapshot. The raw export exists only in an ignored temporary directory during refresh and is removed on completion/handled failure. A process crash can leave ignored private temporary files; stop the processes before inspecting/removing them. Local snapshots still contain private product data: do not share or commit local state.
+
+Before switching, the replacement must pass per-table copied counts, SQLite integrity/FK checks and actual local-emulator catalog, History, Metrics, Watch Order and per-owner Builder reads. The old local D1 directory is retained at `worker/.wrangler/state/v3/d1-before-refresh-<timestamp>`. The API must be stopped before the directory swap; a failed read/import leaves the old database usable. Local filesystem rename failure restores the old directory; a supervised replacement that fails Worker startup also attempts to restore/restart the previous state. A retained backup is private disposable data, not a production backup; remove old directories manually only after stopping the API and checking their paths.
+
+Normal `corepack pnpm dev` still migrates/seeds local D1 and starts Vite (4173) plus a supervised local Wrangler Worker (8787). DevDashboard invokes this same application-owned command; it never refreshes production on startup. Both frontend and API are locked to localhost during development, including when root env files contain a production API URL. The local Node supervisor owns port 8790; Vite proxies its refresh status/action at `/__dev/refresh`. The **Local development tools** panel requires deliberate confirmation, shows progress, rejects concurrent refreshes and reloads data on success. It temporarily stops/restarts its own local Worker for replacement. The helper accepts the exact localhost frontend Origin/Host and a custom confirmation header; no refresh route is added to the application Worker. Production builds omit the panel and dev module entirely.
+
+The panel's member selector enables Builder/admin workflows without Google login. `X-BookClub-Dev-Member` is honoured only when both `APP_ENV=local` and `LOCAL_WRITE_BYPASS=true`; roles/ownership still come from the selected local member. Anonymous bypass remains available. Production bearer sessions cannot work locally because none are copied. `pnpm dev:import-preview` remains separate and has no refresh panel/helper.
+
+Run `corepack pnpm exec tsx scripts/dev/smoke.ts` against the running disposable local app for catalog/derived-screen, local member/admin and Builder/Seen CRUD checks; it deletes its Builder and restores the Seen value.
+
+The CLI reports snapshot capture completion time, source table counts, exact copied rotation, zero auth sessions and active local environment. Production changes after capture appear on the next explicit refresh; local edits are never synced back. CLI refresh refuses an active API; use the UI button while normal development is running. If the process crashes, stop its processes before removing a stale `worker/.wrangler/dev-refresh.lock` and retry. Nothing deploys or modifies production.
 
 ## What works without external credentials
 
@@ -105,7 +126,7 @@ The About & data sources footer includes the approved, unmodified TMDB logo and 
 | `TVDB_API_KEY` | Worker-only placeholder | Unused; deferred |
 | `APP_ENV` | Wrangler vars | `local` only for local development; default `production` |
 | `LOCAL_WRITE_BYPASS` | Wrangler vars | Explicit `true` only in local env; default `false` |
-| `ALLOWED_ORIGINS` | Wrangler vars | Comma-separated exact origins; local 5173/4173; production `https://n-plus-plus.github.io` |
+| `ALLOWED_ORIGINS` | Wrangler vars | Comma-separated exact origins; local 4173; production `https://n-plus-plus.github.io` |
 | `DB` | Wrangler D1 binding | Local/production database, never a browser connection |
 
 Production builds intentionally have no fallback to localhost or an invented backend. Set `VITE_API_BASE_URL` before building; if absent the UI reports a configuration error. Copy `.env.example` to `.env.local` for a configured build preview. Vite embeds both public `VITE_` values at build time; changing them requires rebuilding. The Pages workflow fails if either is missing. Application provider credentials remain Worker-only; the explicit offline tool can also read a private TMDB token for identity resolution. No provider credential uses a `VITE_` prefix. TheTVDB is deferred.
@@ -134,7 +155,7 @@ D1 is canonical; frontend state is disposable. Event headers/joins, audits, publ
 
 Migration `0005_product_state.sql` adds nullable integer member avatars (0–19, unique even for inactive members), durable `member`/`admin` roles, singleton `club_rotation`, private `builder_sets`/ordered `builder_movies`, session planning/publication/soft-delete metadata and relational `history_audit`. No fifth member represents Classics: reusable identity presentation explicitly supports either a database member or `CLSC` with the reserved `avatars/a.png`. All asset URLs use Vite's base; member names are uppercased only for presentation. Root styling, Lucide and bundled Lexend Deca remain in use. Home, History, Builder, Classics, Seen It? and Metrics form the six-item mobile navigation; direct Event creation remains available from Home and History.
 
-Builder supports multiple private sets per member, optional title/note, timestamps and ordered canonical movie IDs. There is no planned event date, three-film ceiling, sharing or copying. Search/import/manual creation reuse the same film picker as direct events. Every Builder route derives its owner from the authenticated session. **Even administrators cannot list, inspect, edit, delete or publish another member's unpublished Builder**, including its title, notes, film IDs or counts. Other-owner and nonexistent IDs both return 404. No Builder data enters the catalog. Local bypass has no owner; personal workflows need a concrete session. Development tests use fictional allow-list/session rows, not production identities.
+Builder supports multiple private sets per member, optional title/note, timestamps and ordered canonical movie IDs. There is no planned event date, three-film ceiling, sharing or copying. Search/import/manual creation reuse the same film picker as direct events. Every Builder route derives its owner from the authenticated session. **Even administrators cannot list, inspect, edit, delete or publish another member's unpublished Builder**, including its title, notes, film IDs or counts. Other-owner and nonexistent IDs both return 404. No Builder data enters the catalog. Anonymous local bypass has no owner; the dev-only member selector supplies a concrete local identity for personal workflows. Development tests use fictional allow-list/session rows, not production identities.
 
 Publish first saves the private edits, then shows the chosen event date (default: today's browser-local calendar date), current turn/cycle and actual host. Dates may be past or future. Title/note become shared History metadata on publication. A single D1 batch verifies the Builder revision, creates the event/ordered joins, removes the Builder, appends its audit and optionally completes the current turn. `sessions.planned_at` permanently retains the Builder's original `created_at`; `published_by`, Builder reference/revision and completed-turn version are immutable publication metadata. No history edit, soft deletion or restoration resets the planning timestamp. Any failure rolls back all effects, including a newly created cycle and Seen answers.
 
@@ -225,11 +246,11 @@ Before first login, an operator creates four `members` plus four `member_auth` r
 
 The Worker generates a random 256-bit opaque bearer token and stores only its SHA-256 hash in D1. Tokens expire after 90 days. Hash lookup uses indexed SQL equality; no raw-secret comparison or application signing secret is needed. Tokens travel only in HTTPS response bodies and `Authorization: Bearer ...`, never URLs or logs. Stored hashes and authorised emails are not returned by the API. Logout deletes the current session; operator revocation can delete all `auth_sessions` for a member, or deactivate the member to block all access and subsequent login. Expired rows are inert; periodic pruning is an optional operator task, not a scheduled integration.
 
-The browser deliberately stores the BookClub token in `localStorage` (`bookclub.session`) because Pages and Worker are cross-site and third-party cookies are unreliable. A 401 clears the saved token and private UI state. Clearing browser storage also signs the device out but does not itself revoke the server row. Logout clears storage after confirmed revocation; a network failure offers retry instead of claiming server logout succeeded. An authenticated member with `avatar=null`, including an existing session, sees the full-screen chooser before any private application screen loads. The 20 fixed assets are unmodified; a DB unique index protects claims, with 409 conflict recovery and refreshed choices. Selection never requires another Google login and normal UI cannot change it afterwards. The selected avatar sits above the uppercase database name at top-right; Logout is subordinate. Local bypass has no concrete viewer, so it does not impersonate a member or grant personal Builder/admin actions.
+The browser deliberately stores the BookClub token in `localStorage` (`bookclub.session`) because Pages and Worker are cross-site and third-party cookies are unreliable. A 401 clears the saved token and private UI state. Clearing browser storage also signs the device out but does not itself revoke the server row. Logout clears storage after confirmed revocation; a network failure offers retry instead of claiming server logout succeeded. An authenticated member with `avatar=null`, including an existing session, sees the full-screen chooser before any private application screen loads. The 20 fixed assets are unmodified; a DB unique index protects claims, with 409 conflict recovery and refreshed choices. Selection never requires another Google login and normal UI cannot change it afterwards. The selected avatar sits above the uppercase database name at top-right; Logout is subordinate. Anonymous local bypass has no concrete viewer. The local-only member selector supplies a selected local identity for personal Builder/admin actions; production ignores that header.
 
 This persistence trades convenience for XSS exposure: scripts on the Pages origin can access localStorage, including other apps hosted on the same origin. Only deploy trusted code on that origin. React escaping remains in use; there is no raw HTML injection or user-controlled script execution. The only added script is the fixed official GIS library URL. Treat a stolen Google ID credential as replayable until Google expiry and a stolen BookClub bearer token as usable until expiry/revocation; keep them out of diagnostics.
 
-The existing Google Web Application client should authorise JavaScript origin `https://N-Plus-Plus.github.io` (optional local testing: `http://localhost:5173`). The GIS popup callback needs no redirect URI or mail, Drive or Calendar scopes. Set matching `VITE_GOOGLE_CLIENT_ID` and Worker `GOOGLE_CLIENT_ID`; neither value is a secret. Local bypass never loads GIS.
+The existing Google Web Application client should authorise JavaScript origin `https://N-Plus-Plus.github.io` (optional local testing: `http://localhost:4173`). The GIS popup callback needs no redirect URI or mail, Drive or Calendar scopes. Set matching `VITE_GOOGLE_CLIENT_ID` and Worker `GOOGLE_CLIENT_ID`; neither value is a secret. Local bypass never loads GIS.
 
 ## Private member bootstrap
 
@@ -253,9 +274,9 @@ For a separately authorised future release:
 4. Confirm the two repository Actions variables, then manually dispatch **Publish frontend to GitHub Pages** on reviewed main. The workflow tests, typechecks, checks public configuration, builds and publishes only `dist/`.
 5. Verify the Pages shell, JS/CSS, bundled fonts, all 20 member avatars, reserved Classics `a.png`, icons, hash-route refresh and Worker health request. Inspect the build for localhost/import-preview URLs, private emails, credential values and private archive content.
 
-Automated release checks passed: private sign-in gate and official Google control render in a mobile-sized browser without runtime errors, horizontal overflow, mixed content or failed requests. All 63 published files match the local production build (text line endings normalised). Live authenticated Home/History/Builder screens and real Google login remain owner checks; underlying production catalog, History, Metrics and canonical Watch Order were verified read-only without bypassing API authentication or creating sessions.
+Automated release checks passed: private sign-in gate and official Google control render in a mobile-sized browser without runtime errors, horizontal overflow, mixed content or failed requests. All 63 published files match the local production build (text line endings normalised). Real Google login has since passed owner verification; authenticated multi-user Home/History/Builder checks remain owner checks; underlying production catalog, History, Metrics and canonical Watch Order were verified read-only without bypassing API authentication or creating sessions.
 
-The owner must verify the existing Google **Web Application** client's **Authorized JavaScript origins** includes exactly `https://n-plus-plus.github.io` (no path). The GIS popup callback requires no redirect URI or additional scopes. Google Console settings were not accessible during release; rendering the official button does not prove real login succeeds. Audience, signature, issuer and verified-email validation remain enforced in the Worker.
+The owner must verify the existing Google **Web Application** client's **Authorized JavaScript origins** includes exactly `https://n-plus-plus.github.io` (no path). The GIS popup callback requires no redirect URI or additional scopes. Google Console settings were not accessible during release; the owner has since successfully exercised real Google login. Audience, signature, issuer and verified-email validation remain enforced in the Worker.
 
 Owner smoke checklist:
 
@@ -274,4 +295,4 @@ Date-range Metrics, charts, notifications and PWA support are deferred. Event cr
 
 Tracked release readiness includes migrations through 0008, Metrics and bounded admin metadata enrichment. `pnpm prod:check` statically validates production/bypass/CORS, DB binding shape, contiguous migrations and isolated preview configuration without authenticating or accessing Cloudflare. `pnpm prod:check --frontend` additionally validates public build variables from the process environment (not ignored env files); the Pages workflow runs it before its production build. Run `pnpm build` separately. Passing this check does not verify remote bindings, Worker secrets or a matching GIS audience.
 
-Real archive reconciliation and the exact isolated local rehearsal are complete. The authorised capture, canonical year decisions, Sean/Troy admin roles and open Classics/slot-5 cutover state are settled. Production migrations, historical import and private member/auth provisioning are complete and verified. The pristine pre-migration backup is retained. Production runtime bindings, application Worker deployment, Pages publication and automated public/browser smoke checks are complete. Real Google login, authenticated multi-user checks and owner mobile visual checks remain pending. No private archive artifact is needed for ordinary development or tests.
+Real archive reconciliation and the exact isolated local rehearsal are complete. The authorised capture, canonical year decisions, Sean/Troy admin roles and open Classics/slot-5 cutover state are settled. Production migrations, historical import and private member/auth provisioning are complete and verified. The pristine pre-migration backup is retained. Production runtime bindings, application Worker deployment, Pages publication and automated public/browser smoke checks are complete. Real Google login has been successfully exercised by the owner. Authenticated multi-user checks and owner mobile visual checks remain pending. No private archive artifact is needed for ordinary development or tests.

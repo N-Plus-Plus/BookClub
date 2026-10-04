@@ -8,9 +8,9 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "dev": "pnpm db:setup && concurrently -k -n ui,api \"pnpm dev:ui\" \"pnpm dev:api\"",
+    "dev": "corepack pnpm db:setup && concurrently -k -n ui,api \"corepack pnpm dev:ui\" \"corepack pnpm dev:api\"",
     "dev:ui": "vite",
-    "dev:api": "wrangler dev --config worker/wrangler.jsonc --env local --local --port 8787",
+    "dev:api": "tsx scripts/dev/server.ts",
     "build": "vite build",
     "prod:check": "node scripts/prod-check.mjs",
     "preview": "vite preview --port 4173",
@@ -18,8 +18,8 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p worker/tsconfig.json",
     "db:migrate": "wrangler d1 migrations apply DB --config worker/wrangler.jsonc --env local --local",
     "db:seed": "wrangler d1 execute DB --config worker/wrangler.jsonc --env local --local --file worker/seed.sql",
-    "db:setup": "pnpm db:migrate && pnpm db:seed",
-    "db:reset": "wrangler d1 execute DB --config worker/wrangler.jsonc --env local --local --file worker/reset.sql && pnpm db:setup",
+    "db:setup": "corepack pnpm db:migrate && corepack pnpm db:seed",
+    "db:reset": "wrangler d1 execute DB --config worker/wrangler.jsonc --env local --local --file worker/reset.sql && corepack pnpm db:setup",
     "import:spreadsheet": "tsx scripts/import/cli.ts",
     "import:resolve": "tsx scripts/import/resolve-cli.ts",
     "import:apply:local": "tsx scripts/import/apply-cli.ts",
@@ -28,7 +28,8 @@
     "db:import-preview:prepare": "pnpm db:import-preview:migrate && wrangler d1 execute DB --config worker/wrangler.import-preview.jsonc --env import_preview --local --persist-to worker/.wrangler/import-preview --file worker/import-preview-members.sql",
     "dev:import-preview:api": "wrangler dev --config worker/wrangler.import-preview.jsonc --env import_preview --local --persist-to worker/.wrangler/import-preview --port 8787",
     "dev:import-preview:ui": "vite --mode import-preview",
-    "dev:import-preview": "pnpm db:import-preview:prepare && concurrently -k -n ui,api \"pnpm dev:import-preview:ui\" \"pnpm dev:import-preview:api\""
+    "dev:import-preview": "pnpm db:import-preview:prepare && concurrently -k -n ui,api \"pnpm dev:import-preview:ui\" \"pnpm dev:import-preview:api\"",
+    "db:refresh-from-prod": "tsx scripts/dev/refresh-cli.ts"
   },
   "dependencies": {
     "@fontsource/lexend-deca": "^5.3.0",

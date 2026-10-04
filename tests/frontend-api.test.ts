@@ -9,7 +9,22 @@ beforeEach(() => {
     removeItem: (key: string) => storage.delete(key),
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {vi.unstubAllGlobals(); vi.unstubAllEnvs();});
+it('local Vite always targets local API despite stale production variables',async () => {
+  vi.stubEnv('DEV',true); vi.stubEnv('VITE_API_BASE_URL','https://bookclub-api.troy-nissen.workers.dev');
+  const fetch = vi.fn(async (_url: string) => Response.json({data:{}})); vi.stubGlobal('fetch',fetch);
+  const {api} = await import('../frontend/api'); await api.health();
+  expect(fetch.mock.calls[0][0]).toBe('http://localhost:8787/api/v1/health');
+});
+it('production requires a public API origin and uses it when configured',async () => {
+  vi.stubEnv('DEV',false); vi.stubEnv('VITE_API_BASE_URL','');
+  const fetch = vi.fn(async (_url: string) => Response.json({data:{}})); vi.stubGlobal('fetch',fetch);
+  await expect((await import('../frontend/api')).api.health()).rejects.toThrow('Set VITE_API_BASE_URL');
+  expect(fetch).not.toHaveBeenCalled();
+  vi.resetModules(); vi.stubEnv('VITE_API_BASE_URL','https://bookclub-api.troy-nissen.workers.dev');
+  await (await import('../frontend/api')).api.health();
+  expect(fetch.mock.calls[0][0]).toBe('https://bookclub-api.troy-nissen.workers.dev/api/v1/health');
+});
 it('restores the saved bearer centrally and keeps public endpoints token-free',async () => {
   const token = 'c'.repeat(64); storage.set('bookclub.session',token);
   const fetch = vi.fn(async () => Response.json({data: {}})); vi.stubGlobal('fetch',fetch);
