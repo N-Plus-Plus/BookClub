@@ -7,7 +7,7 @@ import { analyseWorkbook } from '../scripts/import/workbook';
 import { resolvePlan } from '../scripts/import/resolution';
 import { capture,guard,sha256,productionTarget,verifyBackup,validateBootstrap,bootstrapMembers,bootstrapRotation,importProduction,verifyProduction,productionPreflight } from '../scripts/import/production';
 import runner, {type CutoverEnv} from '../scripts/import/production-worker';
-import { productionCommand,queryDatabase,remoteBoundary,wranglerInvocation } from '../scripts/import/production-remote';
+import { productionCommand,queryDatabase,remoteBoundary,writableProductionBoundary,wranglerInvocation } from '../scripts/import/production-remote';
 import { resolve } from 'node:path';
 
 const target=productionTarget(JSON.parse(readFileSync('worker/wrangler.jsonc','utf8')));
@@ -91,7 +91,7 @@ describe('disposable production workflow rehearsal',()=>{
   }finally{local.sqlite.close();}
  });
 });
-describe('native Worker binding cutover runner',()=>{
+describe('retired native Worker binding runner',()=>{
  it('requires token, exact pinned plan/bootstrap/backup and completes only reviewed data',async()=>{
   const local=disposableD1();try {
    migrationLedger(local);const plan=resolved(),bootstrap=b(),bytes=Buffer.from(JSON.stringify(plan));
@@ -154,5 +154,57 @@ describe('mocked remote boundaries and private material protection',()=>{
  it('tracked tooling and examples contain no credentials/emails or destructive SQL path',()=>{
   for(const name of ['production.ts','production-cli.ts','production-remote.ts','production-worker.ts']){const source=readFileSync('scripts/import/'+name,'utf8');expect(source).not.toMatch(/\b(?:DROP TABLE|DELETE FROM|reset\.sql)\b/i);expect(source).not.toMatch(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/);}
   expect(readFileSync('.gitignore','utf8')).toContain('.verification/');
+ });
+});
+
+
+describe('direct REST production cutover',()=>{
+ it('requires explicit apply before identity access and preserves read-only capability',async()=>{
+  const fetcher=vi.fn(async()=>Response.json({success:true,result:{uuid:target.database_id,name:target.database_name}}));
+  for(const use of [{},{action:'verify',mode:'production',confirmation:'APPLY-BOOKCLUB-PRODUCTION'},{action:'apply',mode:'local',confirmation:'APPLY-BOOKCLUB-PRODUCTION'},{action:'apply',mode:'production'}])await expect(writableProductionBoundary(target,use,fetcher)).rejects.toThrow('guarded');
+  expect(fetcher).not.toHaveBeenCalled();
+  vi.stubEnv('CLOUDFLARE_ACCOUNT_ID','a'.repeat(32));vi.stubEnv('CLOUDFLARE_API_TOKEN','fictional');
+  try {
+   const fetcher=vi.fn(async(_url,options)=>Response.json({success:true,result:options?.method==='POST'?JSON.parse(String(options.body)).batch.map(()=>({success:true,results:[],meta:{}})):{uuid:target.database_id,name:target.database_name}}));
+   const read=await remoteBoundary(target,fetcher);expect(Object.keys(read)).toEqual(['read']);
+   await expect(read.read.prepare('UPDATE members SET active=1').run()).rejects.toThrow('Read-only');
+   const use={action:'apply',mode:'production',confirmation:'APPLY-BOOKCLUB-PRODUCTION'};
+   const write=await writableProductionBoundary(target,use,fetcher);
+   await write.write.prepare('INSERT INTO members(id) VALUES(?)').bind('fictional').run();
+   await write.write.prepare('UPDATE members SET active=? WHERE id=?').bind(1,'fictional').run();
+   await expect(writableProductionBoundary(target,use,async()=>Response.json({success:true,result:{uuid:'wrong',name:target.database_name}}))).rejects.toThrow('identity');
+  }finally{vi.unstubAllEnvs();}
+ });
+ it.each([null,{success:'true',result:[]},{success:true,result:null},{success:true,result:[{success:true,results:[]},{success:false,results:[]}]},{success:true,result:[{success:true,results:[]}]},{success:true,result:[null,null]},{success:true,result:[{success:true},{success:true,results:[]}]}])('rejects malformed, incomplete or mixed responses without replay',async(payload)=>{
+  vi.stubEnv('CLOUDFLARE_ACCOUNT_ID','a'.repeat(32));vi.stubEnv('CLOUDFLARE_API_TOKEN','fictional');
+  try {
+   const fetcher=vi.fn(async(_url,options)=>Response.json(options?.method==='POST'?payload:{success:true,result:{uuid:target.database_id,name:target.database_name}}));
+   const {write}=await writableProductionBoundary(target,{action:'apply',mode:'production',confirmation:'APPLY-BOOKCLUB-PRODUCTION'},fetcher);
+   await expect(write.batch([write.prepare('INSERT INTO members(id) VALUES(?)').bind('one'),write.prepare('INSERT INTO members(id) VALUES(?)').bind('two')])).rejects.toThrow('Production');
+   expect(fetcher).toHaveBeenCalledTimes(2);
+  }finally{vi.unstubAllEnvs();}
+ });
+ it('resumes a non-atomic REST group after read-only inspection of matching rows',async()=>{
+  const local=disposableD1();try {
+   const plan=resolved(),bootstrap=b();await bootstrapMembers(local.db,bootstrap,true);
+   let failed=false;
+   const rest=queryDatabase(async queries=>{
+    const results=[];for(const q of queries){results.push(await local.db.prepare(q.sql).bind(...q.params).all());if(!failed&&q.sql.startsWith('INSERT INTO sessions(')){failed=true;throw new Error('ambiguous completion');}}return results;
+   },false);
+   await expect(importProduction(rest,plan,bootstrap)).rejects.toThrow('batch failed');
+   expect(local.sqlite.prepare('SELECT count(*) n FROM sessions').get()?.n).toBe(1);
+   const inspected=await productionPreflight(local.db,plan,bootstrap);expect(inspected.summary.conflicts).toBe(0);expect(inspected.pending).toBeGreaterThan(0);
+   await importProduction(rest,plan,bootstrap);await bootstrapRotation(rest,bootstrap,plan,true);
+   migrationLedger(local);expect(await verifyProduction(local.db,plan,bootstrap,migrations)).toMatchObject({allFingerprintsPresent:true,metricsLoads:true});
+  }finally{local.sqlite.close();}
+ });
+ it('CLI retains all offline gates and preflight before write boundary, import, rotation and verification',()=>{
+  const source=readFileSync('scripts/import/production-cli.ts','utf8');
+  expect(source).not.toMatch(/runner-url|BOOKCLUB_CUTOVER_TOKEN|runner-config|fetch\(/);
+  expect(source).toContain('strict:true');expect(source).not.toMatch(/sql:\{type/);
+  for(const gate of ['guard(','verifyBackup(','migrationHash','receipt[k]!==value','validateBootstrap(','checkMigrations(remote.read,migrations)'])expect(source).toContain(gate);
+  const start=source.lastIndexOf('await productionPreflight(remote.read,plan,b)');
+  const sequence=['await writableProductionBoundary','await importProduction','await bootstrapRotation','await verifyProduction'];let previous=start;
+  for(const step of sequence){const next=source.indexOf(step,previous+1);expect(next).toBeGreaterThan(previous);previous=next;}
  });
 });

@@ -1,3 +1,4 @@
+// RETIRED: unused native runner. The guarded CLI now uses local-operator D1 REST.
 import { Buffer } from 'node:buffer';
 import { guard, sha256, validateBootstrap, checkMigrations, productionPreflight, importProduction, bootstrapRotation, verifyProduction, type Gates, type Target, type BackupProof } from './production.ts';
 

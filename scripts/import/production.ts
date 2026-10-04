@@ -4,6 +4,7 @@ import { ImportError } from './io.ts';
 import { validateResolved, preflight, applyArchive } from './apply.ts';
 import type { ResolvedPlan } from './model.ts';
 import { Repository } from '../../worker/src/repository.ts';
+import { calculateMetrics } from '../../shared/metrics.ts';
 import { sortClassics } from '../../shared/ranking.ts';
 
 export const capture = '2026-10-04T06:53:20Z';
@@ -76,7 +77,7 @@ export function verifyBackup(proof:BackupProof|undefined,target:Target,planHash:
 }
 export async function checkMigrations(db:D1Database,names:string[]) {
   const applied=(await db.prepare('SELECT name FROM d1_migrations').all<{name:string}>()).results;
-  if(!names.includes('0008_provider_cooldowns.sql')||names.some(n=>!applied.some(a=>a.name===n)))throw new ImportError('Production migrations incomplete.');
+  if(!names.includes('0008_provider_cooldowns.sql')||applied.length!==names.length||names.some(n=>applied.filter(a=>a.name===n).length!==1))throw new ImportError('Production migrations incomplete.');
 }
 export async function productionPreflight(db:D1Database,plan:ResolvedPlan,b:Bootstrap) {
   const members=await memberPreflight(db,b);
@@ -104,5 +105,7 @@ export async function verifyProduction(db:D1Database,plan:ResolvedPlan,b:Bootstr
   if(counts[0]!==plan.cycles.length||counts[1]!==plan.events.length||counts[2]!==plan.events.reduce((n,e)=>n+e.films.length,0))throw new ImportError('Production history counts mismatch.');
   const catalog=await new Repository(db).catalog(),top=sortClassics(catalog.movies.filter(m=>m.classic)).filter(m=>m.ranking?.rankable&&m.ranking.eligible).slice(0,20).map(m=>m.title);
   if(JSON.stringify(top)!==JSON.stringify(plan.canonicalWatchOrder))throw new ImportError('Production Watch Order mismatch.');
-  return {counts,foreignKeyViolations:0,allFingerprintsPresent:true,authRows:auth,openClassicsSlot:5,catalogLoads:true,watchOrderMatches:true};
+  const metrics=calculateMetrics(catalog);
+  if(metrics.events!==plan.events.length||metrics.appearances!==plan.events.reduce((n,e)=>n+e.films.length,0))throw new ImportError('Production History/Metrics derivation mismatch.');
+  return {counts,historyLoads:true,metricsLoads:true,foreignKeyViolations:0,allFingerprintsPresent:true,authRows:auth,openClassicsSlot:5,catalogLoads:true,watchOrderMatches:true};
 }

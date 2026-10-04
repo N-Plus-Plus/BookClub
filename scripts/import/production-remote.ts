@@ -16,12 +16,12 @@ export function queryDatabase(transport:Transport,readOnly:boolean):D1Database {
     return statement;
   }
   return {prepare,batch:async(statements:(D1PreparedStatement & Query)[])=>{
-    if(statements.length>100)throw new ImportError('Production batch exceeds transaction bound.');
+    if(statements.length>100)throw new ImportError('Production batch exceeds statement bound.');
     if(readOnly&&statements.some(s=>/[;]|--|\/\*/.test(s.sql)||!/^(SELECT\b|PRAGMA (table_info\(|foreign_key_check\b))/i.test(s.sql.trim())))throw new ImportError('Read-only production boundary rejected mutation.');
     return transport(statements.map(s=>({sql:s.sql,params:s.params})));
   }} as unknown as D1Database;
 }
-export async function remoteBoundary(target:Target,fetcher:typeof fetch=fetch) {
+async function connect(target:Target,fetcher:typeof fetch) {
   const account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
   if(!account||!/^[a-f0-9]{32}$/i.test(account)||!token)throw new ImportError('CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN required for future remote execution.');
   const endpoint=`https://api.cloudflare.com/client/v4/accounts/${account}/d1/database/${target.database_id}`;
@@ -29,17 +29,26 @@ export async function remoteBoundary(target:Target,fetcher:typeof fetch=fetch) {
     try {
       const r=await fetcher(endpoint+path,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(60000)});
       const payload=await r.json() as {success:boolean;result:unknown};
-      if(!r.ok||!payload.success)throw new Error();return payload.result;
+      if(!r.ok||!payload||payload.success!==true)throw new Error();return payload.result;
     }catch{throw new ImportError('Production D1 request failed; sensitive upstream details suppressed. Re-preflight before retry.');}
   }
   const identity=await call('') as {uuid:string;name:string};
-  if(identity.uuid!==target.database_id||identity.name!==target.database_name)throw new ImportError('Remote production identity mismatch.');
+  if(!identity||identity.uuid!==target.database_id||identity.name!==target.database_name)throw new ImportError('Remote production identity mismatch.');
   const transport:Transport=async(batch)=>{
     const result=await call('/query',{batch}) as D1Result[];
-    if(!Array.isArray(result)||result.length!==batch.length||result.some(r=>!r.success||!Array.isArray(r.results)))throw new ImportError('Production query batch failed; re-preflight before retry.');
+    if(!Array.isArray(result)||result.length!==batch.length||result.some(r=>!r||r.success!==true||!Array.isArray(r.results)))throw new ImportError('Production query batch failed; re-preflight before retry.');
     return result;
   };
-  return {read:queryDatabase(transport,true)};
+  return transport;
+}
+// REST completion is checked per statement. No atomic rollback is assumed and
+// ambiguous failures are never automatically retried. Inspect immutable state first.
+export async function remoteBoundary(target:Target,fetcher:typeof fetch=fetch) {
+  return {read:queryDatabase(await connect(target,fetcher),true)};
+}
+export async function writableProductionBoundary(target:Target,use:{action?:string;mode?:string;confirmation?:string},fetcher:typeof fetch=fetch) {
+  if(use.action!=='apply'||use.mode!=='production'||use.confirmation!=='APPLY-BOOKCLUB-PRODUCTION')throw new ImportError('Explicit guarded production apply required for writes.');
+  return {write:queryDatabase(await connect(target,fetcher),false)};
 }
 export type Command=(args:string[])=>Promise<void>;
 export function wranglerInvocation(args:string[],pnpmPath=process.env.npm_execpath) {

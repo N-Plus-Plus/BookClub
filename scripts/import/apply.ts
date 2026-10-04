@@ -97,8 +97,9 @@ export async function applyArchive(db:D1Database,plan:ResolvedPlan,execute=false
   if(!execute)return {preflight:before.summary,applied:false};
   if(before.conflicts.length)throw new ImportError(`Local apply conflict: ${before.conflicts.length} immutable-state differences; no writes performed.`);
   const groups=new Map<string,Spec[]>();for(const s of before.pending)groups.set(s.group,[...groups.get(s.group)??[],s]);
-  if([...groups.values()].some(group=>group.length*2>100))throw new ImportError('Local import entity exceeds the 100-statement transaction bound; no writes performed.');
-  // Dependency-ordered, bounded D1 transactions. Each event and its ordered joins commit together.
+  if([...groups.values()].some(group=>group.length*2>100))throw new ImportError('Local import entity exceeds the 100-statement batch bound; no writes performed.');
+  // Dependency-ordered bounded groups. Native D1 batches are atomic; production REST
+  // makes no rollback assumption. Rows and fingerprints are inspected before continuation.
   for(const group of groups.values()) {
     const statements:D1PreparedStatement[]=[];
     for(const s of group) {
@@ -108,7 +109,7 @@ export async function applyArchive(db:D1Database,plan:ResolvedPlan,execute=false
       statements.push(db.prepare('INSERT INTO import_applied_entities(import_source,entity_type,import_key,payload_hash) VALUES(?,?,?,?)').bind(plan.import_source,s.table,JSON.stringify(s.key),hash(s.row)));
     }
     if(statements.length>100)throw new ImportError('Local import entity exceeds the 100-statement transaction bound; split source evidence before retry.');
-    try{await db.batch(statements);}catch{throw new ImportError('Local apply batch failed; earlier committed groups may remain. Rerun preflight to resume; sensitive database output suppressed.');}
+    try{await db.batch(statements);}catch{throw new ImportError('Import apply batch failed; partial rows or earlier groups may remain. Rerun preflight to resume; sensitive database output suppressed.');}
   }
   const after=await preflight(db,plan,scope);if(after.conflicts.length||after.pending.length)throw new ImportError('Post-apply verification failed; inspect private preview state.');
   const foreign=(await db.prepare('PRAGMA foreign_key_check').all()).results;if(foreign.length)throw new ImportError('Post-apply foreign-key verification failed.');

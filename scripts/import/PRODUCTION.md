@@ -1,8 +1,10 @@
-# Prepared production cutover
+# Guarded production cutover
 
-This workflow is preparation code, not permission to execute a cutover. Production D1, backups, remote migrations, temporary runner deployment, application Worker deployment and Pages publication require a future explicitly authorised execution pass. Ordinary development and `import:apply:local` remain local. No production operation was executed while building this tooling.
+Production historical cutover uses the trusted local operator process and authenticated Cloudflare D1 REST queries. Execution requires explicit owner authorisation; ordinary development and `import:apply:local` remain local. Application Worker deployment and Pages publication remain separate release operations.
 
-Current cutover boundary: the owner-authorised schema pass completed migrations 0001–0008 and read-only production preflight with empty application payload. The exact archive was rehearsed again after correcting unapplied 0005. The original pristine pre-migration export remains the recovery artefact. The generated private runner configuration is offline only; historical/member/auth/rotation apply, token creation and all deployment remain separately authorised operations.
+Historical import and four-member/auth bootstrap are complete and verified, with open cycle 55 / Classics slot 5 / version 0. Application deployment is pending. Do not repeat bootstrap after real user actions.
+
+Migrations 0001–0008 are complete. The exact archive was rehearsed again after the 0005 parser correction. Retain the original pristine pre-migration export and proof; do not overwrite them. Applied migrations must not change.
 
 ## Rehearse the exact archive first
 
@@ -35,7 +37,7 @@ The private rotation is explicitly open Classics, slot 5, version 0, on the revi
 
 Member/auth provisioning and rotation bootstrap check all existing state before writes. An identical pre-launch rerun is accepted. Different names, roles, emails, subjects, avatars, unknown members, active auth sessions, occupied current slot or advanced rotation version fail closed. Nothing resets established login or rotation state. Do not rerun this bootstrap after launch to change identities or rewind a turn.
 
-## Future execution gates
+## Execution gates
 
 Every action except `prepare` requires these explicit arguments, with placeholders replaced from the reviewed configuration and receipt:
 
@@ -52,7 +54,7 @@ Every action except `prepare` requires these explicit arguments, with placeholde
 
 The plan must strictly validate, contain no reconciliation blockers, match the private config and exact capture, and retain the authorised baseline. Changed plan bytes or migration contents invalidate the rehearsal receipt. Missing flags, spelling mistakes, wrong target, incomplete private bootstrap and missing or changed backup proof abort before mutation. There is no reset, wipe, arbitrary SQL or local-importer remote switch.
 
-Future remote reads additionally require process-only `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` with the appropriate D1 permissions. Do not put credentials on command lines or in tracked files. The REST boundary verifies the actual remote database UUID/name before querying it; it exposes only read queries. All raw provider/Wrangler errors and output are suppressed.
+Remote actions additionally require process-only `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` with the appropriate D1 permissions. Do not put credentials on command lines or in tracked files. The REST boundary verifies the actual remote database UUID/name before querying it; ordinary preflight/verify boundaries expose only read queries. The separate writable boundary requires explicit production apply and is opened only after offline gates, migrations and read-only preflight pass. All raw provider/Wrangler errors and output are suppressed.
 
 Launch the production CLI through `corepack pnpm import:production`. The Wrangler command boundary uses Node to run the active pnpm CLI from `npm_execpath` with `exec wrangler`, selecting the project-local dependency. Missing or non-pnpm execution context fails closed. It uses no private Wrangler package paths, global CLI fallback or shell invocation; metrics are disabled and sensitive command output remains suppressed.
 
@@ -66,22 +68,20 @@ Run `--action migrate` with all gates plus `--backup-proof <PRIVATE_PROOF_JSON>`
 
 Run `--action preflight` after migrations. This is read-only and checks schema, product invariants, score provenance, planned/existing rows, external ownership, seeds, immutable fingerprints, extra event joins, member/auth conflicts, open-slot availability and FKs. A complete roster may be projected for this read-only preflight before actual provisioning. No projected row is persisted. All conflicts must be reviewed before import.
 
-## Temporary native D1 runner
+## Direct local-operator REST apply
 
-Historical writes deliberately use the documented transaction guarantee of [Worker D1 `batch`](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch), rather than assuming REST query batches have the same rollback contract. `production-worker.ts` is a separate temporary administrative runner, never part of the ordinary application API.
+Run `--action apply` with all gates and `--backup-proof <PRIVATE_PROOF_JSON>`. No runner URL, cutover token, Worker configuration or deployment is required. The CLI verifies exact remote identity, migrations and read-only preflight, opens the explicit writable boundary, then uses the existing domain functions to provision the four members/auth rows, import the exact archive, insert open rotation last, and verify through the read-only boundary. Keep the application unavailable and prevent concurrent writers throughout cutover.
 
-After backup verification, `--action runner-config` with all gates and the backup proof creates an ignored, content-named Wrangler configuration offline. It takes its production binding from the tracked config and pins plan, private bootstrap, backup proof, rehearsal receipt and migration list. It includes Node compatibility for SHA-256 and a five-minute CPU ceiling. This action does not deploy anything.
+The authenticated [D1 query endpoint](https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/query/) accepts bounded query batches. Each request has at most 100 statements including fingerprints. We do **not** assume REST batches share native Worker `DB.batch()` atomic rollback semantics. The response envelope, result count, every result's literal success and results array must be valid. Network, HTTP, malformed, mixed or incomplete responses stop apply; upstream sensitive details are suppressed. No automatic retry occurs.
 
-In the future authorised execution pass, inspect that generated config, then deploy only this temporary runner using its exact config. Supply a fresh strong `CUTOVER_TOKEN` through Wrangler's secret mechanism, never through source/config. The operator process needs the same value as `BOOKCLUB_CUTOVER_TOKEN`. Keep the application unavailable to club users while cutover runs; no concurrent application/import writers are supported. No deployment is hidden inside an import CLI action.
+The importer preserves deterministic dependency order: movie/ref/external-ID groups, cycles, event headers/ordered joins, memberships, scores/provenance and Seen state/evidence. Immutable fingerprints and row comparison are the recovery mechanism. A failed or ambiguous request may leave some rows written. Stop and run read-only preflight before any continuation. Matching existing rows without fingerprints remain pending; differing rows/fingerprints or a fingerprint with a missing entity are conflicts. Identical continuation is safe only after inspection establishes zero conflicts and expected pending entities. Never delete partial state, reset D1, replace rows or blindly replay. The whole archive is not a single transaction.
 
-Run `--action apply` with all gates, backup proof and `--runner-url https://bookclub-cutover.<ACCOUNT_SUBDOMAIN>.workers.dev`. Only this HTTPS hostname form is allowed. The CLI rechecks migrations and clean preflight before contacting the runner. The runner requires its private bearer token and exact pinned inputs, independently checks the plan, migrations and preflight, then provisions the four members/auth rows, applies history and finally inserts open rotation. It returns aggregate verification only. It has no arbitrary SQL route, Google identities in logs, provider calls or frontend assets.
-
-The importer reuses exactly the rehearsed resolved plan. Movie/ref/external-ID groups precede cycles, event headers/ordered joins, memberships, score observations and Seen state/evidence. Each native D1 batch is bounded to 100 statements, including immutable fingerprint rows. Failed batches roll back their group; prior groups remain. Identical retries resume without duplicates. Changed payloads, removed previously imported entities, different external ownership or stale bootstrap state abort. A timed-out runner request may still be executing: do not launch another runner call until the previous request has finished; use read-only preflight to establish progress before retry. There are no compensating deletes or destructive rollback commands.
+`runner-config` and `--runner-url` are removed from the CLI. `production-worker.ts` is retained as retired, unused code; do not deploy it. No temporary Worker is part of this path.
 
 ## Verify and close the cutover
 
 `--action verify` uses REST reads only. It checks applied migrations, all imported payloads and fingerprint hashes, source refs/IDs/seeds, 55/250/465 imported history, FK integrity, four intended members and Sean/Troy admin roles, four null-sub auth rows/null avatars, score and Seen provenance, cooldown schema, open Classics slot 5/version 0 with an unoccupied current slot, catalog loading and canonical top 20. Historical event/date precision is checked by immutable plan comparison. No current Classics event is required immediately after bootstrap.
 
-Remove the temporary runner and revoke its token in the future authorised execution pass after verification. Preserve all private proofs and archive evidence. Application deployment, Worker secrets, GIS origin/audience checks, Pages publication and first-login/mobile visual checks remain distinct release operations. Do not run bootstrap again after real user actions. If any stage fails, stop, preserve the export and partial state, and use read-only preflight; never overwrite conflicts, reset D1 or delete unrelated rows.
+After verification, remove abandoned private cutover token/config material and verify no temporary runner exists. Preserve the general Cloudflare API token. Preserve all private proofs and archive evidence. Application deployment, Worker secrets, GIS origin/audience checks, Pages publication and first-login/mobile visual checks remain distinct release operations. Do not run bootstrap again after real user actions. If any stage fails, stop, preserve the export and partial state, and use read-only preflight; never overwrite conflicts, reset D1 or delete unrelated rows.
 
-Tests use fictional accounts, disposable D1 adapters and mocked commands/fetches. A local Wrangler dry build of the runner uses a fictional binding; it makes no remote deployment. Ordinary test/typecheck/build/prod-check scripts never execute production operations.
+Tests use fictional accounts, disposable D1 adapters and mocked commands/fetches. REST tests include simulated partial groups and malformed/mixed responses; they make no remote calls. Ordinary test/typecheck/build/prod-check scripts never execute production operations.
