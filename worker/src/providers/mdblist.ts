@@ -24,14 +24,14 @@ export function mdbId(ids: ExternalId[]): ExternalId | undefined {
     ?? ids.find(e => e.provider === 'tmdb' && /^[1-9]\d*$/.test(e.external_id));
 }
 export class MdbListProvider {
-  constructor(private key: string) {}
+  constructor(private key: string, private onLimits?: (headers: Headers) => Promise<void>) {}
   async scores(id: ExternalId) {
-    return parseMdbList(await ratingRequest(`https://api.mdblist.com/${id.provider}/movie/${encodeURIComponent(id.external_id)}/?apikey=${encodeURIComponent(this.key)}`,'MDBList'));
+    return parseMdbList(await ratingRequest(`https://api.mdblist.com/${id.provider}/movie/${encodeURIComponent(id.external_id)}/?apikey=${encodeURIComponent(this.key)}`,'MDBList',undefined,this.onLimits));
   }
   async batch(provider: string, ids: string[]): Promise<Map<string,Score[]>> {
     if (!ids.length || ids.length > 10) throw new RatingError('MDBList batches require 1–10 IDs.');
     const data = await ratingRequest(`https://api.mdblist.com/${provider}/movie/?apikey=${encodeURIComponent(this.key)}`,'MDBList',
-      {method: 'POST',headers: {'Content-Type': 'application/json'},body: JSON.stringify({ids: provider === 'tmdb' ? ids.map(Number) : ids})});
+      {method: 'POST',headers: {'Content-Type': 'application/json'},body: JSON.stringify({ids: provider === 'tmdb' ? ids.map(Number) : ids})},this.onLimits);
     if (!Array.isArray(data)) throw new RatingError('MDBList returned an unrecognised batch response.');
     const result = new Map<string,Score[]>(), at = new Date().toISOString();
     for (const entry of data) {

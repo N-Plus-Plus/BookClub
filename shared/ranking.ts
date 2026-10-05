@@ -1,5 +1,5 @@
 import type { Member, Movie, Ranking, Score, SeenAnswer } from './types';
-export const requiredScores = ['imdb:rating','rottentomatoes:audience','rottentomatoes:critic'] as const;
+export const requiredScores = ['imdb:rating','rottentomatoes:audience','rottentomatoes:critic','letterboxd:rating','metacritic:critic','tmdb:rating'] as const;
 export function normalizeScore(value: number, scale: number): number | null {
   if (!Number.isFinite(value) || !Number.isFinite(scale) || scale <= 0 || value < 0 || value > scale) return null;
   return value / scale * 100;
@@ -30,13 +30,20 @@ export function rankMovie(scores: Score[], answers: SeenAnswer[], members: Membe
   const sources = latestScores(scores).filter(s => requiredScores.includes(`${s.provider}:${s.metric}` as typeof requiredScores[number]))
     .map(s => ({provider: s.provider,metric: s.metric,value: scoreValue(s)!,retrieved_via: s.retrieved_via ?? 'unspecified'}));
   const missingRequiredScores = requiredScores.filter(key => !sources.some(s => `${s.provider}:${s.metric}` === key));
-  const rankable = missingRequiredScores.length === 0 && unknownCount === 0 && active.length > 0, rawScore = missingRequiredScores.length === 0 ? sources.reduce((n,s) => n+s.value**2,0) : null;
+  const availableScoreAverage = sources.length ? sources.reduce((sum,s) => sum+s.value,0)/sources.length : null;
+  const imputedScores = availableScoreAverage === null ? [] : missingRequiredScores.map(key => {
+    const [provider,metric] = key.split(':');
+    return {provider,metric,value:availableScoreAverage};
+  });
+  const rankable = sources.length > 0 && unknownCount === 0 && active.length > 0;
+  const rawScore = availableScoreAverage === null ? null : [...sources,...imputedScores].reduce((sum,s) => sum+s.value**2,0);
   const unseenMultiplier = 1.025 ** unseenCount, tieBreak = seed * 0.00001;
   const eligible = active.length > 0 && seenCount < active.length;
-  const residualScore = rawScore === null ? null : (rawScore * unseenMultiplier + tieBreak) * (eligible ? 1 : -1);
-  const warnings = [...(missingRequiredScores.length ? [`Missing: ${missingRequiredScores.join(', ')}`] : []),
+  const finalScore = rawScore === null ? null : rawScore * unseenMultiplier + tieBreak;
+  const residualScore = finalScore === null ? null : finalScore * (eligible ? 1 : -1);
+  const warnings = [...(missingRequiredScores.length ? [availableScoreAverage === null ? 'No usable Watch Order ratings' : 'Missing ratings use the available-score average'] : []),
     ...(unknownCount ? [`${unknownCount} seen answers unknown`] : []), ...(active.length ? [] : ['No active members'])];
-  return {rawScore,seenCount,unseenCount,unknownCount,unseenMultiplier,tieBreak,residualScore,finalScore: residualScore,rankable,eligible,missingRequiredScores,warnings,sources};
+  return {rawScore,seenCount,unseenCount,unknownCount,unseenMultiplier,tieBreak,residualScore,finalScore,availableScoreAverage,imputedScores,rankable,eligible,missingRequiredScores,warnings,sources};
 }
 export function sortClassics(movies: Movie[]): Movie[] {
   return [...movies].sort((a,b) => Number(Boolean(b.ranking?.eligible && b.ranking.rankable))-Number(Boolean(a.ranking?.eligible && a.ranking.rankable))

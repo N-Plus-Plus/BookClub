@@ -27,6 +27,17 @@ const text = (markup: string) => {const element=document.createElement('div');el
 
 it.each([[87,'87'],[87.5,'87.5'],[87.26,'87.3']])('formats /100 %s as %s', (value,expected) => expect(formatScore100(value as number)).toBe(expected));
 
+it.each([
+  ['exact',null,'1 January 2026 · Cycle 1 Film 1'],
+  ['cycle_rough',null,'Cycle 1 Film 1'],
+  ['unknown',null,'Cycle 1 Film 1'],
+  ['exact','legacy-spreadsheet','Cycle 1 Film 1'],
+])('Metrics ranking metadata respects %s precision and %s provenance', (precision,source,expected)=>{
+  const data={...catalog,sessions:[{...session,date_precision:precision as Session['date_precision']}],cycles:[{...catalog.cycles[0],title:'Custom cycle title',import_source:source}]};
+  const element=document.createElement('div');element.innerHTML=renderToStaticMarkup(createElement(MetricsScreen,{catalog:data,viewer:null,onUpdated:async()=>{}}));
+  expect([...element.querySelectorAll('.metrics-film-item p.meta')].map(e=>e.textContent)).toEqual([expected,expected]);
+});
+
 it('presents named historical controls without raw turn numbers or nominal terminology',() => {
   expect([1,2,3,4,5].map(historicalTurnLabel)).toEqual(["Sean's turn","Troy's turn","Matt's turn","Jess's turn",'Classics week']);
   const html=renderToStaticMarkup(createElement(TurnFields,{catalog,rotation,complete:false,onComplete:vi.fn(),cycle:'cycle',onCycle:vi.fn(),slot:1,onSlot:vi.fn()}));
@@ -94,4 +105,37 @@ it.each([
   expect(element.querySelector('.home-session-identity')).toBeTruthy();expect(element.querySelector('.session-meta')).toBeNull();
   expect(element.querySelector('.position')?.textContent).toBe('#1');expect(element.querySelector('.movie-row')?.getAttribute('href')).toBe('#/movie/film');expect(element.textContent).toContain('2001 · 100 min');
   if(event.host_member_id==='former')expect(element.textContent).toContain('Hosted by a former member');
+});
+
+it('uses cycle beginning and stored host identity in Film Detail appearances',async()=>{
+ Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
+ vi.mocked(api.detail).mockResolvedValue({...movie,appearances:[
+  {id:'hosted',event_date:'2026-01-01',date_precision:'cycle_rough',kind:'hosted',host_member_id:'m3',position:1},
+  {id:'classics',event_date:'2026-01-02',date_precision:'exact',kind:'classics',host_member_id:null,position:2},
+  {id:'former',event_date:'2026-01-03',date_precision:'unknown',kind:'hosted',host_member_id:'former',position:1},
+ ]});
+ const container=document.createElement('div');const root=createRoot(container);
+ try {
+  await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members,writesEnabled:false,isAdmin:false,onMovie:vi.fn()})));
+  expect(container.textContent).toContain("Cycle beginning 1 January 2026 · Matt's week · film 1");
+  expect(container.textContent).toContain('2 January 2026 · Classics week · film 2');
+  expect(container.textContent).toContain('Date unknown · Former member’s week');
+  expect(container.textContent).not.toMatch(/Cycle reference|actual date unknown|Book Club night|Classics Collection/);
+ } finally {await act(async()=>root.unmount());}
+ const card=text(renderToStaticMarkup(createElement(SessionCard,{session:{...session,date_precision:'cycle_rough'},members})));
+ expect(card).toContain('Cycle beginning 1 January 2026');expect(card).toContain("Matt's week");
+ const evidence=text(renderToStaticMarkup(createElement(HistoryEvidence,{json:JSON.stringify({before:{...session,date_precision:'cycle_rough'}}),catalog})));
+ expect(evidence).toContain('Cycle beginning 1 January 2026');expect(evidence).toContain("Matt's week");
+});
+
+it('compact ranking shows all six genuine labels and never presents imputation as a provider rating',()=>{
+ const extra=[['letterboxd','rating',4,5],['metacritic','critic',80,100],['tmdb','rating',8,10]].map(([provider,metric,value,scale])=>({provider:String(provider),metric:String(metric),raw_value:Number(value),raw_scale:Number(scale),normalized_value:null,vote_count:null,fetched_at:'2026-01-01'}));
+ const film={...movie,scores:[...movie.scores,...extra]};film.ranking=rankMovie(film.scores,[],members);
+ const result=text(renderToStaticMarkup(createElement(RankingScore,{movie:film,variant:'classics',compact:true})));
+ for(const label of ['IMDb 87','RT audience 87.5','RT critic 87.3','Letterboxd 80','Metacritic 80','TMDB 80'])expect(result).toContain(label);
+ expect(result).not.toMatch(/residual score|Score breakdown/);
+ const partial={...movie,scores:movie.scores.slice(0,1),ranking:rankMovie(movie.scores.slice(0,1),[],members)};
+ const element=document.createElement('div');element.innerHTML=renderToStaticMarkup(createElement(RankingScore,{movie:partial,variant:'classics',compact:true}));
+ expect(element.querySelectorAll('p.meta')[1].textContent).toBe('IMDb 87');
+ expect(element.textContent).toContain('using available-score average');
 });

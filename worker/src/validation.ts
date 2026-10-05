@@ -24,6 +24,7 @@ export const sessionSchema = z.object({
   if (s.cycle_slot != null && !s.cycle_id && !s.new_cycle && !s.complete_turn) ctx.addIssue({code: 'custom',path: ['cycle_slot'],message: 'Choose a cycle for this historical turn.'});
 });
 export const classicSchema = z.object({classic: z.boolean()}).strict();
+export const maintenanceSchema = z.object({mode: z.enum(['missing','refresh','metadata']), movie_ids: z.array(idSchema).min(1).max(10)}).strict();
 export const enrichmentSchema = z.object({limit: z.number().int().min(1).max(10).default(10)}).strict();
 export const seenSchema = z.object({ seen: z.boolean().nullable() }).strict();
 export const importSchema = z.object({ provider: z.literal('tmdb'), externalId: z.string().regex(/^[1-9]\d{0,9}$/) }).strict();

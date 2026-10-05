@@ -111,6 +111,7 @@ legend { font-size: var(--text-field-label); margin-bottom: var(--space-8); }
 .search-row { display: flex; align-items: center; gap: var(--space-10); padding-bottom: var(--space-12); border-bottom: 1px solid var(--asphalt-dark); }
 .search-row .movie-row { width: 100%; min-width: 0; }
 .search-pagination { align-items: center; justify-content: space-between; }
+.search-pagination > .button,.history-pagination > .button,.classics-pagination > .button,.recent-pagination > .button { padding-inline-end: calc(var(--button-padding-x) + 0.5rem); }
 .inspection-actions { margin-left: auto; justify-content: flex-end; }
 [hidden] { display: none !important; }
 .manual-form { padding-top: var(--space-8); }
@@ -374,8 +375,12 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .classics-pagination { align-items: center; justify-content: space-between; }
 .detail-grid-without-seen { grid-template-columns: minmax(0,1fr); }
 
-.answer-actions .seen-yes { color: var(--aqua); }
-.answer-actions .seen-no { color: var(--ruby); }
+.answer-actions .seen-yes { --button-colour: var(--aqua); --button-colour-dark: var(--aqua-dark); }
+.answer-actions .seen-no { --button-colour: var(--ruby); --button-colour-dark: var(--ruby-dark); }
+.answer-actions .seen-yes,.answer-actions .seen-no { background: var(--button-colour); color: #000; }
+.answer-actions .button:enabled:hover { background: var(--button-colour-dark); }
 .recent-pagination { align-items: center; justify-content: space-between; }
 .chart-track > .chart-bar-jeans { background: var(--jeans); }
 .chart-track > .chart-bar-lavender { background: var(--lavender); }
+
+.metrics-content { gap: calc(var(--space-16) + 1rem); }

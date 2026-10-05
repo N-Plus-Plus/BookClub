@@ -2,8 +2,8 @@ import { normalizeScore } from '../../../shared/ranking';
 import type { Score } from '../../../shared/types';
 import { ProviderError, providerJson } from './http';
 export class RatingError extends ProviderError { constructor(message: string, retryAfter?: number) { super('rating','outage',message,retryAfter); } }
-export async function ratingRequest(url: string, provider: string, init?: RequestInit): Promise<unknown> {
-  return providerJson(url,provider,init);
+export async function ratingRequest(url: string, provider: string, init?: RequestInit, onLimits?: (headers: Headers) => Promise<void>): Promise<unknown> {
+  return providerJson(url,provider,init,onLimits);
 }
 export function record(provider: string, metric: string, value: unknown, scale: number, via: string, at: string, votes?: unknown): Score | null {
   // Empty, absent and N/A never become zero.

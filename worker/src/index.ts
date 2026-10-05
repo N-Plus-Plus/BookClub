@@ -1,6 +1,6 @@
 import { z, ZodError } from 'zod';
 import { ApiError, allowedOrigins, authorizeMutation, localBypass, json, type Env } from './http';
-import { classicSchema, enrichmentSchema, idSchema, importSchema, movieSchema, seenSchema, sessionSchema } from './validation';
+import { classicSchema, maintenanceSchema, enrichmentSchema, idSchema, importSchema, movieSchema, seenSchema, sessionSchema } from './validation';
 import { ScoreService } from './score-service';
 import { Repository } from './repository';
 import { MovieService } from './services';
@@ -74,7 +74,13 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
     if (historyAction[2] === 'audit' && method === 'GET') { requireAdmin(auth.viewer); return json(await product.auditTrail(id)); }
     if (historyAction[2] === 'restore' && method === 'POST') { await product.restoreSession(requireAdmin(auth.viewer),id); return json({restored: true}); }
   }
+  if (path === '/api/v1/movies/maintain' && method === 'POST') {
+    requireAdmin(auth.viewer);
+    const input = maintenanceSchema.parse(await body(request));
+    return json(await new ScoreService(repo,env).maintain(input.mode,input.movie_ids));
+  }
   if (path === '/api/v1/classics/enrich' && method === 'POST') {
+    requireAdmin(auth.viewer);
     const input = enrichmentSchema.parse(await body(request)); return json(await new ScoreService(repo,env).enrich(input.limit));
   }
   if (path === '/api/v1/movies/enrich-metadata' && method === 'POST') {
@@ -82,7 +88,7 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
     return json(await movies.enrichMetadata(enrichmentSchema.parse(await body(request)).limit));
   }
   const refreshMatch = path.match(/^\/api\/v1\/movies\/([^/]+)\/refresh-scores$/);
-  if (refreshMatch && method === 'POST') return json(await new ScoreService(repo,env).refresh(idSchema.parse(refreshMatch[1])));
+  if (refreshMatch && method === 'POST') { requireAdmin(auth.viewer); return json(await new ScoreService(repo,env).refresh(idSchema.parse(refreshMatch[1]))); }
   const classicMatch = path.match(/^\/api\/v1\/movies\/([^/]+)\/classics$/);
   if (classicMatch && method === 'PUT') {
     const id = idSchema.parse(classicMatch[1]); await repo.setClassic(id,classicSchema.parse(await body(request)).classic); return json(await movies.detail(id));

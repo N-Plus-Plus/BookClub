@@ -6,7 +6,7 @@ import { Repository } from '../worker/src/repository';
 import type { Env } from '../worker/src/http';
 import type { Catalog, MovieDetail, RefreshResult, Session } from '../shared/types';
 let local: ReturnType<typeof disposableD1>, env: Env;
-const call = (path: string,method='GET',body?: unknown) => worker.fetch(new Request(`http://api/api/v1${path}`,{method,...(body===undefined?{}:{body:JSON.stringify(body)})}),env);
+const call = (path: string,method='GET',body?: unknown) => worker.fetch(new Request(`http://api/api/v1${path}`,{method,headers:{'X-BookClub-Dev-Member':'member-1'},...(body===undefined?{}:{body:JSON.stringify(body)})}),env);
 const data = async <T>(response: Response): Promise<T> => { expect(response.ok,await response.clone().text()).toBe(true);return (await response.json() as {data:T}).data; };
 beforeEach(()=>{local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:5173'};});
 afterEach(()=>{local.sqlite.close();vi.unstubAllGlobals();});
@@ -48,14 +48,15 @@ describe('cycles and membership',()=>{
   });
 });
 describe('persisted score refresh',()=>{
+  beforeEach(()=>local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-1'"));
   it('appends scores, keeps history, derives rank and tolerates partial failure safely',async()=>{
     env.MDBLIST_API_KEY='secret-mdb';env.OMDB_API_KEY='secret-omdb';
     const before=await data<MovieDetail>(await call('/movies/arrival'));
     await call('/movies/arrival/classics','PUT',{classic:true});
     vi.stubGlobal('fetch',vi.fn(async(url:string)=> url.includes('mdblist')?Response.json({ratings:[{source:'imdb',value:8},{source:'tomatoes',value:90},{source:'popcorn',value:85}]}):new Response('secret-omdb',{status:429,headers:{'Retry-After':'60'}})));
     const r=await data<RefreshResult>(await call('/movies/arrival/refresh-scores','POST'));
-    expect(r.movie.scores.length).toBe(before.scores.length+3);expect(r.movie.ranking?.rawScore).toBe(80**2+90**2+85**2);
-    expect(r.providers.find(p=>p.provider==='omdb')).toMatchObject({status:'skipped'});expect(JSON.stringify(r)).not.toContain('secret-');
+    expect(r.movie.scores.length).toBe(before.scores.length+3);expect(r.movie.ranking?.rawScore).toBe(80**2+90**2+85**2+83**2+2*84.5**2);expect(r.movie.ranking?.imputedScores).toHaveLength(2);
+    expect(r.providers.find(p=>p.provider==='omdb')).toMatchObject({status:'failed',retryAfter:60});expect(JSON.stringify(r)).not.toContain('secret-');
     expect(r.movie.scores.filter(s=>s.retrieved_via==='mdblist')).toHaveLength(3);
   });
   it('deduplicates a refresh operation and retains older capture times',async()=>{

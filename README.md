@@ -6,7 +6,7 @@ A mobile-first private film journal for a four-person weekly club. Repository: [
 
 The application is deployed at [BookClub](https://n-plus-plus.github.io/BookClub/), with a separate Cloudflare Worker API. Historical club data has been imported; local demo fixtures are fictional. This repository contains the current application and independent local development environment. Local schema and hosted schema must be checked separately before release.
 
-Home shows the explicit current turn. History records ordered films, actual hosts, cycles and date precision, with editing, audit and recoverable deletion. Builder saves private sets visible only to their owner and publishes them into shared History. Classics calculates Watch Order from stored ratings and Seen answers. Seen It? collects Yes/No/Unknown answers. All Time Metrics compares active History appearances, hosts, genres and IMDb coverage.
+Home shows the explicit current turn. History records ordered films, actual hosts, cycles and date precision, with editing, audit and recoverable deletion. Builder saves private sets visible only to their owner and publishes them into shared History. Classics calculates Watch Order from six stored rating dimensions (IMDb, RT audience, RT critic, Letterboxd, Metacritic and TMDB) and Seen answers. Available ratings are normalised to /100; missing dimensions use their arithmetic mean during ranking only. At least one real rating is required. Six effective squared scores are summed, then the explicit-No novelty multiplier and deterministic tie-break are applied. Seen It? collects Yes/No/Unknown answers. All Time Metrics compares active History appearances, hosts, genres and IMDb coverage.
 
 ## Requirements and setup
 

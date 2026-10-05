@@ -49,7 +49,7 @@ CORS reflects exact configured origins only, never `*`, with no cookie credentia
 | GET `/avatars`; POST `/auth/avatar` | Available integer array; `{avatar:0–19}` -> viewer. One-time claim, collision/already chosen 409. |
 | GET `/catalog` | `{members,movies,sessions,cycles}`; active History only; events include boolean `has_audit` from stored audit existence, no Builder/auth records |
 | GET `/members`, `/movies`, `/sessions`, `/cycles`, `/classics` | Arrays of shared types; Classics is derived sorted membership |
-| GET `/movies/:id`, `/sessions/:id` | MovieDetail / event with ordered movie objects; detail includes appearance event/date/kind/position |
+| GET `/movies/:id`, `/sessions/:id` | MovieDetail / event with ordered movie objects; detail includes appearance event/date/kind/position and nullable stored `host_member_id`, also returned in mutation and maintenance MovieDetail payloads |
 | GET `/movies/search?q=...` | Trimmed 1–150 chars -> `{local:SavedSearchResult[],external:SearchResult[],lookup:{available,message}}`; unavailable provider preserves local matches. Local fields: canonical `id`, `title`, nullable `year`, `tmdbId`, `poster`. External fields: provider/externalId/title/year/poster; no canonical ID. |
 | GET `/movies/preview/tmdb/:externalId` | Positive numeric TMDB ID, <=10 digits -> read-only `TmdbPreview`: provider/externalId/title/original_title/year/release_date/runtime/overview/genres/assets/director. No canonical ID, scores, Seen or appearances; no D1 writes, including cooldown bookkeeping. |
 | POST `/movies` | `{title,year?,runtime?}` -> MovieDetail (201); title 1–300, year 1870–2200, positive runtime <=10000 |
@@ -59,17 +59,18 @@ CORS reflects exact configured origins only, never `*`, with no cookie credentia
 
 Search trims/collapses whitespace, compares case-insensitively, and removes at most one leading English A or The. Any whole-title matches across the collected local/TMDB pool suppress all weaker candidates; otherwise contiguous-substring matches retain source relevance order. Year is excluded. Saved TMDB identity owners suppress external duplicates. Pagination is frontend-only, six candidates from the same result set.
 
-Movie responses preserve nullable metadata and arrays for genres/assets/IDs/scores/Seen. Ranking is nullable for nonmembers; missing input is not zero. Optional metadata/artwork check fields support deployment evolution. Neither catalog nor viewer exposes authorised emails, Google subs or session hashes.
+Movie responses preserve nullable metadata and arrays for genres/assets/IDs/scores/Seen. Ranking is nullable for nonmembers. Six recognised rating dimensions are normalised to /100; missing dimensions use the arithmetic mean of available genuine values, only at ranking time. At least one genuine recognised score and complete active-member Seen answers are required to rank. `sources` contains only fetched values; `missingRequiredScores` lists absent dimensions; `availableScoreAverage` is nullable; `imputedScores` contains derived provider/metric/value entries without retrieval provenance. No imputed source snapshots are stored. `rawScore` is the six effective squares summed, and `finalScore = rawScore * unseenMultiplier + tieBreak`; eligibility remains separate. Optional metadata/artwork check fields support deployment evolution. Neither catalog nor viewer exposes authorised emails, Google subs or session hashes.
 
 ## Maintenance routes
 
 | Method / path | Access / request / result |
 | --- | --- |
-| POST `/movies/:id/refresh-scores` | Member; explicit capture -> `{movie,providers}` |
-| POST `/classics/enrich` | Member; `{limit?:1–10}` default 10 -> `{results:RefreshResult[],remaining,unidentified}` |
+| POST `/movies/maintain` | Admin; `{mode:"missing"|"refresh"|"metadata",movie_ids:[1-10 IDs]}` -> `{results:RefreshResult[]}`. IDs deduplicate and must belong to Classics or active History. |
+| POST `/movies/:id/refresh-scores` | Admin; compatibility explicit capture -> `{movie,providers}` |
+| POST `/classics/enrich` | Admin; compatibility `{limit?:1–10}` default 10 -> `{results:RefreshResult[],remaining,unidentified}` |
 | POST `/movies/enrich-metadata` | Admin; same limit -> `{results:[{movieId,title,provider:"tmdb",status:"success"|"failed"|"conflict",message,retryAfter?}],remaining,unidentified}` |
 
-Provider result shape: `{provider,status:"success"|"failed"|"skipped",count,message,retryAfter?}`; retryAfter is seconds. Partial provider failure may be a successful HTTP response with failed/skipped items; consumers must inspect status. Score `remaining` is the unselected candidate count from that operation, not proof selected failures are now complete. Metadata `remaining` is recomputed eligible identified films; `unidentified` counts no valid TMDB identity. Browser timeouts: ordinary 15s, score enrichment 65s, metadata 95s. Provider rules belong in [INTEGRATIONS](INTEGRATIONS.md).
+Provider result shape: `{provider,status:"success"|"failed"|"skipped",count,message,retryAfter?}`; retryAfter is seconds. Partial provider failure may be a successful HTTP response with failed/skipped items; consumers must inspect status. Score `remaining` is the unselected candidate count from that operation, not proof selected failures are now complete. Metadata `remaining` is recomputed eligible identified films; `unidentified` counts no valid TMDB identity. Browser timeouts: ordinary 15s, score enrichment 65s, metadata and bulk maintenance 105s. Bulk responses contain only processed films; clients sequence a fixed ID queue rather than relying on rankability to prove completion. Populate skips films with all six genuine inputs; when called, all recognised returned MDBList ratings append as actual snapshots, while fallback captures fill absent input types; Refresh ignores old-score completeness for fallback selection. Metadata mode updates available OMDb fields without changing scores. Provider rules belong in [INTEGRATIONS](INTEGRATIONS.md).
 
 ## Events, rotation and History
 

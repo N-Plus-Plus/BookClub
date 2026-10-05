@@ -252,6 +252,8 @@ Keep destructive controls separate from routine completion.
 
 Do not add extra button styles when the existing hierarchy can express the same role.
 
+Next and Previous pagination buttons use an extra 0.5rem of padding after the label.
+
 ## 14. Icons
 
 Use the established BookClub icon family consistently.
@@ -533,17 +535,17 @@ History paginates the existing cycle order at five cycles per page, with identic
 
 ### Metrics
 
-Prioritise visual comprehension and comparison.
+Prioritise visual comprehension and comparison. The outer Metrics stack adds 1rem to the normal section gap; internal card and chart spacing retains the shared rhythm.
 
 Charts are encouraged where they reveal patterns better than text alone.
 
-Maintenance controls belong behind Admin disclosure. Contribution by host shows Films brought only, alternating jeans and lavender bars by item order; calculations remain unchanged. Use accessible comparisons from stored data with exact values and explicit missing-score coverage.
+Maintenance controls belong behind Admin disclosure. Contribution by host shows Films brought only, alternating jeans and lavender bars by item order; calculations remain unchanged. Top/Bottom 5 metadata beneath the year reads “Cycle X Film Y”, prefixed by the event date only for exact dates outside imported cycles; approximate/unknown and migrated cycle dates are omitted. Ungrouped appearances show Film Y. Use accessible comparisons from stored data with exact values and explicit missing-score coverage.
 
 ### Classics / Watch Order
 
 Make ranking, state and comparison easy to scan.
 
-Ranked, Needs Data and Already Seen remain distinct, using ListSortDescending, Library and Rows3 icons respectively. Ranked paginates 20 films; the other tabs paginate 10, resetting on tab changes and clamping after list changes. Ranked numbers remain global, white # markers. Compact responsive rows show source scores, Seen/No/Unknown counts and known director beneath year/runtime; status pills, residual scores and breakdowns are omitted on these tabs. Missing data and admin score maintenance remain available. Admin maintenance belongs behind a labelled disclosure.
+Ranked, Needs Data and Already Seen remain distinct, using ListSortDescending, Library and Rows3 icons respectively. Ranked paginates 20 films; the other tabs paginate 10, resetting on tab changes and clamping after list changes. Ranked numbers remain global, white # markers. Watch Order recognises IMDb, RT audience, RT critic, Letterboxd, Metacritic and TMDB. All values use /100; missing dimensions use the available-score arithmetic mean only during ranking. At least one genuine rating and complete active-member Seen answers are required. Compact responsive rows show only genuine source scores, Seen/No/Unknown counts and known director beneath year/runtime; status pills, residual scores and breakdowns are omitted on these tabs. Missing data remains visible on the rows. A single admin bulk-maintenance disclosure sits at the bottom of every Classics tab; per-film maintenance is omitted. Populate Missing Scores collects all recognised returned MDBList ratings for films missing any of the six inputs, Refresh Scores checks all distinct Classics/History films and may reorder Ranked, and Enrich/Refresh Metadata updates available IMDb year/runtime/director/genres. Show batch progress, saved partial results, identity gaps, provider failures/cooldowns and Stop after this batch. Maintenance uses explicit actions only.
 
 ### Builder
 
@@ -557,7 +559,7 @@ Advanced or unusual options should remain disclosed.
 
 Prioritise repeated low-friction answering for the authenticated viewer only: unanswered Classics films, personal Yes/No and Undo. Queue identity stacks year, runtime and persisted director below the title; use “HAVE YOU SEEN...” without member or Unknown badges.
 
-Yes and No retain equal geometry and accessibility, with mint Yes and ruby No labels matching Undo’s text size. Silently cache details by film ID for the current item and next three unanswered films in unchanged queue order; deduplicate in-flight reads, fall back to foreground reads after prefetch failure, and retain useful cached films through Undo. Recent answers contain current-visit activity in recent-first order, 20 per page; bottom-only controls appear above 20 entries, new answers return to page one, and Undo clamps the current page.
+Yes and No retain equal geometry and accessibility, with solid mint Yes and ruby No buttons, black icons/text and labels matching Undo’s text size. Use catalogue films directly without detail reads. Preload the actual large poster URLs for the next three unanswered films in queue order, deduplicate by URL and retain image objects through answers and Undo. Refill from the back as the queue advances; image failure preserves the normal Poster fallback. Recent answers contain current-visit activity in recent-first order, 20 per page; bottom-only controls appear above 20 entries, new answers return to page one, and Undo clamps the current page.
 
 ### Event create/edit
 
@@ -569,7 +571,7 @@ Backfill, current-turn completion and correction semantics must remain truthful.
 
 ### Film detail
 
-Lead with film identity, Seen state, ratings and shared appearances. Seen state is a read-only two-column summary shown only for Classics candidates or films with History appearances. Any History appearance places all active members in Seen It and none in Haven’t Seen It, solely as presentation inference without persisting answers. Unscreened Classics use explicit answers: Haven’t Seen It (explicit No) and Seen It (explicit Yes), with a divider and existing stacked avatar/name identities in member sort order. Unanswered members appear in neither column. Detail entered from Seen It? shows Back in the heading row and preserves the personal queue/Undo context; normal navigation shows neither Back nor Event-search controls. Use a score-only ranking view to avoid repeating identity. Disclose technical provenance and maintenance.
+Lead with film identity, Seen state, ratings and shared appearances. Rough dates read ‘Cycle beginning <date>’. Appearances use “<stored host name>'s week” or “Classics week”; never infer the host from nominal position. Seen state is a read-only two-column summary shown only for Classics candidates or films with History appearances. Any History appearance places all active members in Seen It and none in Haven’t Seen It, solely as presentation inference without persisting answers. Unscreened Classics use explicit answers: Haven’t Seen It (explicit No) and Seen It (explicit Yes), with a divider and existing stacked avatar/name identities in member sort order. Unanswered members appear in neither column. Detail entered from Seen It? shows Back in the heading row and preserves the personal queue/Undo context; normal navigation shows neither Back nor Event-search controls. Use a score-only ranking view to avoid repeating identity. Disclose technical provenance and maintenance.
 
 Only Event-search inspection shows “Nope, this isn't it” and the stronger “Yes, this one!” on the right of the Film detail heading. Nope and browser Back return to the preserved editor without removing the candidate. Yes appends a saved canonical movie, importing an external candidate only at confirmation; recoverable import errors stay inline on detail. External previews share the identity presentation and omit stored-only sections. External films are not persisted before Yes.
 

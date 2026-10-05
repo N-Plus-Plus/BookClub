@@ -7,7 +7,7 @@ import { DetailScreen } from '../frontend/DetailScreen';
 import { api } from '../frontend/api';
 import { rankMovie } from '../shared/ranking';
 import type { Movie, MovieDetail } from '../shared/types';
-vi.mock('../frontend/api',()=>({api:{detail:vi.fn(),seen:vi.fn()}}));
+vi.mock('../frontend/api',()=>({api:{detail:vi.fn(),seen:vi.fn(),maintainMovies:vi.fn()}}));
 const members=[1,2,3,4,5].map(n=>({id:'m'+n,display_name:'Member '+n,sort_order:n,active:n===5?0:1,avatar:n}));
 const scores=[['imdb','rating',80],['rottentomatoes','audience',90],['rottentomatoes','critic',85]].map(([provider,metric,value])=>({provider:String(provider),metric:String(metric),raw_value:Number(value),raw_scale:100,normalized_value:Number(value),vote_count:null,fetched_at:'2026-01-01'}));
 const film=(i:number,group='ranked'):Movie=>{
@@ -34,7 +34,7 @@ it('paginates each Classics view, retains global ranks, resets tabs and clamps s
  await render(movies.slice(0,5));expect(container.querySelectorAll('.ranking-row')).toHaveLength(5);expect(container.textContent).toContain('Page 1 of 1');expect(container.querySelector('.rank-number')?.textContent).toBe('#1');
 });
 it.each([true,false])('infers all active members from History, regardless of Classics membership (%s), without writes',async(classic)=>{
- const movie:MovieDetail={...film(1),classic,appearances:[{id:'event',event_date:'2026-01-01',date_precision:'exact',kind:'hosted',position:1}]};
+ const movie:MovieDetail={...film(1),classic,appearances:[{id:'event',event_date:'2026-01-01',date_precision:'exact',kind:'hosted',host_member_id:'m3',position:1}]};
  const original=JSON.stringify(movie.seen);vi.mocked(api.detail).mockResolvedValue(movie);
  await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members,writesEnabled:true,isAdmin:false,onMovie:vi.fn()})));
  const columns=container.querySelectorAll('.detail-seen-column');expect(columns[0].querySelectorAll('.club-identity')).toHaveLength(0);expect([...columns[1].querySelectorAll('.club-identity')].map(e=>e.textContent)).toEqual(['MEMBER 1','MEMBER 2','MEMBER 3','MEMBER 4']);
@@ -44,4 +44,22 @@ it('suppresses Seen for films outside Classics without History appearances',asyn
  const movie={...film(1),classic:false,appearances:[]};vi.mocked(api.detail).mockResolvedValue(movie);
  await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members,writesEnabled:true,isAdmin:false,onMovie:vi.fn()})));
  expect(container.querySelector('.detail-seen-summary')).toBeNull();expect(container.textContent).not.toContain('Seen It?');expect(api.seen).not.toHaveBeenCalled();
+});
+
+it('shows one bottom maintenance disclosure on all tabs for admins only and includes History in bulk work',async()=>{
+ const movies=[film(1),film(2,'missing'),film(3,'seen')].map((m,i)=>({...m,external_ids:[{provider:'imdb',external_id:`tt${String(i+1).padStart(7,'0')}`}]}));
+ const history={...film(99),classic:false,external_ids:[{provider:'imdb',external_id:'tt0000099'}]};
+ const catalog={movies:[...movies,history],members,cycles:[],sessions:[{id:'history',event_date:'2026-01-01',host_member_id:'m1',legacy_cycle_label:null,cycle_id:null,kind:'hosted' as const,date_precision:'exact' as const,cycle_slot:null,movies:[history,movies[0]]}]};
+ const viewer={id:'m1',display_name:'Member 1',sort_order:1,avatar:1,role:'admin' as const};const onMovie=vi.fn();
+ const render=async(role:'member'|'admin'='admin')=>act(async()=>root.render(createElement(ClassicsScreen,{movies,catalog,viewer:{...viewer,role},writesEnabled:true,onMovie})));
+ await render();
+ for (const tab of ['Ranked (1)','Needs Data (1)','Already Seen (1)']) {
+  await click(tab);expect(container.querySelectorAll('.utility-disclosure')).toHaveLength(1);
+  expect(container.querySelector('.ranking-list details')).toBeNull();expect(container.lastElementChild?.lastElementChild?.classList.contains('classics-maintenance')).toBe(true);
+ }
+ const disclosure=container.querySelector('details')!;disclosure.open=true;
+ vi.mocked(api.maintainMovies).mockImplementation(async(_mode,ids)=>({results:ids.map(id=>({movie:{...catalog.movies.find(m=>m.id===id)!,appearances:[]},providers:[{provider:'mdblist',status:'success',count:3,message:'Saved'}]}))}));
+ await click('Refresh Scores');expect(api.maintainMovies).toHaveBeenCalledWith('refresh',['f1','f2','f3','f99']);expect(onMovie).toHaveBeenCalled();expect(container.textContent).toContain('4 / 4 films processed');
+ await click('Populate Missing Scores');expect(api.maintainMovies).toHaveBeenLastCalledWith('missing',['f1','f2','f3','f99']);
+ await render('member');expect(container.querySelector('.classics-maintenance')).toBeNull();
 });

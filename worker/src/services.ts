@@ -45,7 +45,7 @@ export class MovieService {
     const movie = movies.find(m => m.id === id);
     if (!movie) throw new ApiError(404,'NOT_FOUND','Film not found.');
     return { ...movie, appearances: sessions.flatMap(s => s.movies.flatMap((m,i) => m.id === id
-      ? [{ id: s.id,event_date: s.event_date,date_precision: s.date_precision,kind: s.kind,position: i+1 }] : [])) };
+      ? [{ id: s.id,event_date: s.event_date,date_precision: s.date_precision,kind: s.kind,host_member_id: s.host_member_id,position: i+1 }] : [])) };
   }
   async search(query: string): Promise<SearchResponse> {
     let external: SearchResult[] = [];

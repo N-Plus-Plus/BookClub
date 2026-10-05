@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { latestScores, missingAnswers, normalizeScore, rankMovie, sortClassics } from '../shared/ranking';
+import { latestScores, requiredScores, missingAnswers, normalizeScore, rankMovie, sortClassics } from '../shared/ranking';
 import type { Member, Movie, Score, SeenAnswer } from '../shared/types';
 const members: Member[] = Array.from({length: 4},(_,i) => ({id: `m${i}`,display_name: `Member ${i+1}`,sort_order: i,active: 1}));
 const score = (provider: string,metric: string,value: number,scale = 100,via = 'legacy-spreadsheet',date = '2026-09-01T00:00:00Z'): Score => ({provider,metric,raw_value: value,raw_scale: scale,normalized_value: null,vote_count: null,fetched_at: date,retrieved_via: via});
@@ -11,13 +11,39 @@ describe('score normalisation',() => {
   it.each([[1,0],[-1,10],[11,10],[NaN,10],[1,Infinity],[Infinity,10]])('rejects invalid %s/%s',(v,s) => expect(normalizeScore(v,s)).toBeNull());
 });
 describe('historical ranking',() => {
-  it('uses exact sum of squares with row epsilon',() => { const r = rankMovie(scores(),answers(1),members,42); expect(r.rawScore).toBe(23525); expect(r.tieBreak).toBe(0.00042); expect(r.finalScore).toBe(23525*1.025**3+0.00042); });
+  it('uses exact sum of squares with row epsilon',() => { const r = rankMovie(scores(),answers(1),members,42); expect(r.rawScore).toBe((23525+3*(265/3)**2)); expect(r.tieBreak).toBe(0.00042); expect(r.finalScore).toBe((23525+3*(265/3)**2)*1.025**3+0.00042); });
   it.each([0,1,2,3,4])('uses %s explicit No multipliers',n => { const r=rankMovie(scores(),answers(0,n),members); expect(r.unseenMultiplier).toBe(1.025**n); expect(r.unseenCount).toBe(n); expect(r.unknownCount).toBe(4-n); });
-  it('Unknown is neither Yes nor No',() => { const r=rankMovie(scores(),answers(0,0),members); expect(r.finalScore).toBe(23525); expect(r.eligible).toBe(true); expect(r.rankable).toBe(false); });
-  it('all active members Seen disqualifies with negative residual',() => { expect(rankMovie(scores(),answers(4),members,2)).toMatchObject({eligible: false,finalScore: -(23525+0.00002)}); expect(rankMovie(scores(),answers(3,0),members.slice(0,3)).eligible).toBe(false); expect(rankMovie(scores(),[],[]).eligible).toBe(false); });
-  it.each([0,1,2])('missing required signal %s is not rankable',i => { const s=scores();s.splice(i,1);expect(rankMovie(s,[],members)).toMatchObject({rankable: false,finalScore: null}); });
-  it.each(['metacritic','letterboxd','tmdb'])('%s never changes rank',p => expect(rankMovie([...scores(),score(p,'rating',100)],[],members)).toEqual(rankMovie(scores(),[],members)));
-  it('invalid inputs remain missing',() => expect(rankMovie([score('imdb','rating',200),...scores().slice(1)],[],members).rankable).toBe(false));
+  it('Unknown is neither Yes nor No',() => { const r=rankMovie(scores(),answers(0,0),members); expect(r.finalScore).toBe((23525+3*(265/3)**2)); expect(r.eligible).toBe(true); expect(r.rankable).toBe(false); });
+  it('all active members Seen disqualifies with negative residual',() => { expect(rankMovie(scores(),answers(4),members,2)).toMatchObject({eligible: false,finalScore: (23525+3*(265/3)**2)+0.00002,residualScore: -((23525+3*(265/3)**2)+0.00002)}); expect(rankMovie(scores(),answers(3,0),members.slice(0,3)).eligible).toBe(false); expect(rankMovie(scores(),[],[]).eligible).toBe(false); });
+  it('recognises all six keys and squares six genuine normalised values',()=>{
+    expect(requiredScores).toEqual(['imdb:rating','rottentomatoes:audience','rottentomatoes:critic','letterboxd:rating','metacritic:critic','tmdb:rating']);
+    const inputs=[score('imdb','rating',9,10),score('rottentomatoes','audience',80),score('rottentomatoes','critic',70),score('letterboxd','rating',3,5),score('metacritic','critic',50),score('tmdb','rating',4,10)];
+    const r=rankMovie(inputs,answers(1),members,42);
+    expect(r.rawScore).toBe(27100);expect(r.sources).toHaveLength(6);expect(r.imputedScores).toEqual([]);
+    expect(r.finalScore).toBe(27100*1.025**3+0.00042);
+  });
+  it.each([[90,80,70],[75],[90,80,70,60,50]])('imputes missing dimensions from only the genuine values: %s',(...values)=>{
+    const inputs=values.map((value,i)=>{const [provider,metric]=requiredScores[i].split(':');return score(provider,metric,value);});
+    const before=structuredClone(inputs),mean=values.reduce((sum,value)=>sum+value,0)/values.length;
+    const r=rankMovie(inputs,answers(0),members);
+    expect(r.rankable).toBe(true);expect(r.availableScoreAverage).toBe(mean);
+    expect(r.imputedScores.map(s=>s.value)).toEqual(Array(6-values.length).fill(mean));
+    expect(r.rawScore).toBe(values.reduce((sum,value)=>sum+value**2,0)+(6-values.length)*mean**2);
+    expect(inputs).toEqual(before);expect(r.sources).toHaveLength(values.length);
+    if(values.length===3) expect(r.rawScore).toBe(38600);
+  });
+  it('zero usable recognised scores cannot produce a mean or rank',()=>{
+    const r=rankMovie([score('other','rating',90),score('imdb','rating',200)],answers(0),members);
+    expect(r).toMatchObject({rankable:false,rawScore:null,finalScore:null,availableScoreAverage:null,sources:[],imputedScores:[]});
+    expect(r.missingRequiredScores).toHaveLength(6);
+  });
+  it('TMDB direct snapshots retain precedence over MDBList, while other metrics prefer MDBList',()=>{
+    for(const [provider,metric] of requiredScores.map(key=>key.split(':'))) {
+      const inputs=[score(provider,metric,95,100,'legacy-spreadsheet','2026-10-01'),score(provider,metric,80,100,'omdb','2026-10-02'),score(provider,metric,70,100,'mdblist','2026-09-01')];
+      expect(latestScores(inputs)[0].raw_value).toBe(70);
+      if(provider==='tmdb')expect(latestScores([...inputs,score(provider,metric,60,100,'tmdb','2026-08-01')])[0].raw_value).toBe(60);
+    }
+  });
   it('live service supersedes newer legacy snapshot; MDBList precedes OMDb',() => {
     const s=[score('imdb','rating',95,100,'legacy-spreadsheet','2026-10-01'),score('imdb','rating',80,100,'omdb','2026-10-02'),score('imdb','rating',70,100,'mdblist','2026-09-01')];
     expect(latestScores(s)[0].raw_value).toBe(70); expect(latestScores([...s].reverse())).toEqual(latestScores(s));

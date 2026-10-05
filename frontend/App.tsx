@@ -180,7 +180,7 @@ export function App() {
         void load(); setNotice('Event saved to the film journal.'); window.location.hash = '/history';
       }} /></div>}
       {page.startsWith('event/') && !catalog.sessions.some(s => s.id === page.slice(6)) && <Empty title="Event not found">The event may have been deleted. Return to History to review available events.</Empty>}
-      {page === 'classics' && <ClassicsScreen viewer={viewer} movies={classics} writesEnabled={writesEnabled} onMovie={applyMovie} />}
+      {page === 'classics' && <ClassicsScreen viewer={viewer} catalog={catalog} onUpdated={load} movies={classics} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {(page === 'seen' || (detailContext && inspection.source === 'seen')) && <div hidden={page !== 'seen'}><SeenScreen key={viewer?.id} viewerId={viewer?.id ?? ''} catalog={catalog} answer={answer} writesEnabled={writesEnabled} /></div>}
       {isDetail && !isPreview && <DetailScreen isAdmin={viewer?.role === 'admin'} key={page} id={page.slice(6)} members={catalog.members} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {isPreview && <PreviewScreen key={page} id={page.slice('preview/tmdb/'.length)} preview={inspecting ? inspection.preview : undefined} pending={inspecting ? inspection.pending : undefined} />}

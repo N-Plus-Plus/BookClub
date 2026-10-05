@@ -147,6 +147,17 @@ export class Repository {
     const now = new Date(), until = new Date(now.getTime()+Math.max(0,seconds)*1000).toISOString();
     await this.db.prepare('INSERT INTO provider_cooldowns(provider,retry_after_until,updated_at) VALUES(?,?,?) ON CONFLICT(provider) DO UPDATE SET retry_after_until=excluded.retry_after_until,updated_at=excluded.updated_at').bind(provider,until,now.toISOString()).run();
   }
+  async enrichOmdbMetadata(id: string, imdbId: string, metadata: import('./providers/omdb').OmdbMetadata) {
+    const owner = await this.findExternal('imdb',imdbId);
+    if (owner !== id) throw new ApiError(409,'IDENTITY_CONFLICT','Stored IMDb identity changed. Refresh before retrying.');
+    const statements = [this.db.prepare(`UPDATE movies SET year=COALESCE(?,year),runtime=COALESCE(?,runtime),director=COALESCE(?,director),updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND EXISTS(SELECT 1 FROM movie_external_ids WHERE movie_id=? AND provider='imdb' AND external_id=?)`)
+      .bind(metadata.year,metadata.runtime,metadata.director,id,id,imdbId)];
+    if (metadata.genres.length) {
+      statements.push(this.db.prepare('DELETE FROM movie_genres WHERE movie_id=?').bind(id));
+      for (const genre of new Set(metadata.genres)) statements.push(this.db.prepare('INSERT INTO movie_genres(movie_id,genre) VALUES(?,?)').bind(id,genre));
+    }
+    await this.db.batch(statements);
+  }
   async enrichMetadata(id: string, tmdbId: string, m: ProviderMovie, attachment?: {import_source: string; source_refs: string[]}, captureScores = false) {
     await this.assertMovie(id);
     if (!m.external_ids.some(e => e.provider === 'tmdb' && e.external_id === tmdbId))

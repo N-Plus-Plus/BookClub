@@ -20,3 +20,8 @@ export function validationFieldLabel(path: string) {
   const labels: Record<string,string> = {cycle_slot: 'Historical turn', nominal_slot: 'Current turn', cycle_id: 'Cycle', new_cycle: 'New cycle', event_date: 'Event date', movie_ids: 'Film lineup', turn_version: 'Current turn', complete_turn: 'Turn completion', correct_anchor: 'Cycle anchor correction'};
   return labels[path.split('.')[0]] ?? 'Details';
 }
+
+export function ratingLabel(provider: string,metric: string) {
+  return provider === 'imdb' ? 'IMDb' : provider === 'rottentomatoes' ? (metric === 'audience' ? 'RT audience' : 'RT critic')
+    : provider === 'letterboxd' ? 'Letterboxd' : provider === 'metacritic' ? 'Metacritic' : provider === 'tmdb' ? 'TMDB' : provider;
+}

@@ -181,13 +181,13 @@ Vitest is configured in `vite.config.ts`, selecting `tests/**/*.test.ts`. No lin
 
 | Coverage | Files under `tests/` |
 | --- | --- |
-| Seen queue and Metrics UI | `seen-ui.test.ts` (detail preloading/deduplication/failure fallback, Undo cache preservation, current-visit pagination and contribution chart presentation) |
+| Seen queue and Metrics UI | `seen-ui.test.ts` (catalogue-only rendering without detail reads, poster preloading/deduplication/failure fallback, Undo image-cache preservation, current-visit pagination and contribution chart presentation) |
 | Presentation | `classics-presentation.test.ts` (Classics pagination/global ranks and Detail History inference/suppression), `presentation.test.ts` (human historical/current turns, audit evidence, `/100` formatting and retained native/derived precision) |
-| Domain | `ranking.test.ts`, `metrics.test.ts`, `event-validation.test.ts`, `maintenance-feedback.test.ts`, `artwork.test.ts`, `metadata-maintenance.test.ts` |
+| Domain | `ranking.test.ts` (six dimensions, scale normalisation, mean imputation, Seen multiplier, final tie-break and source precedence), `metrics.test.ts`, `event-validation.test.ts`, `maintenance-feedback.test.ts`, `artwork.test.ts`, `metadata-maintenance.test.ts` |
 | Event search/inspection | `film-search.test.ts` (matching, narrow SQL, preview no-write, credits, host), `event-inspection.test.ts` (mocked React DOM mount preservation, pagination/cache, confirmation/retry, Builder order/unavailable sets, personal Seen queue/Home count/Undo, Detail grouping and Seen-origin Back, History cycle pagination/jump/filtering, role/host-gated card actions, audit visibility/cache, director metadata, delete and History and compact Home date headings, top-two eligible/rankable Home Classics summaries and Classics summary source scores) |
 | Current-cycle rotation and Home | `rotation.test.ts` (durable swaps, positional reset, eligibility, races, Event hosts), `rotation-ui.test.ts` (mocked React DOM identity/actions/disclosure/feedback); related rotation API coverage in `product-api.test.ts` |
 | API/auth/product | `api.test.ts`, `auth.test.ts`, `product-api.test.ts`, `domain-api.test.ts`, `frontend-api.test.ts` |
-| Providers/metadata | `providers.test.ts`, `ratings.test.ts`, `metadata.test.ts` |
+| Providers/metadata | `providers.test.ts`, `ratings.test.ts`, `metadata.test.ts`, `bulk-maintenance.test.ts` (admin/scope/bounds, mixed History/Classics batches, six-signal persistence without persisted imputation, cached/direct TMDB and fresh OMDb fallback, metadata reuse, cooldown/quota suppression), `score-maintenance.test.ts` (fixed queue, sequential batches, Stop/failure/partial progress) |
 | Imports | `importer.test.ts`, `import-resolution.test.ts`, `import-io.test.ts`, `production-import.test.ts` |
 | Schema/environment | `migration.test.ts`, `dev-refresh.test.ts`, `dev-launch.test.ts`, `prod-check.test.ts`, `tmdb-pairings.test.ts`, `tmdb-merges.test.ts` |
 
