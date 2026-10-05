@@ -119,6 +119,12 @@ Version 2 uses `.verification/tmdb-pairings-round2/verification-report.json` plu
 
 Version 3 uses `pairings` with `action:"pair_or_merge_existing_owner"`, `tmdb_kind:"movie"`, `confirmation:"owner_confirmed"`, and `strict_year:false`, plus the same merge-group fields. It adds `removals:[{movie_id,title,source_refs,appearance_count,classic,action:"remove_from_active_catalogue",confirmation:"owner_confirmed"}]`, limited to the explicitly authorised final-cleanup titles described in DATA. Supplied notes/policy/roadmap fields remain data. Existing target ownership routes through the tested merge helper; new detail responses additionally capture their existing provider score data. The default ignored report directory is `.verification/tmdb-pairings-round3-final-v2`; response checkpoints are separated into `provider-cache.json` so the verification report contains concise results, actual counts, unresolved titles and preservation/integrity status.
 
+### Private production identity reconciliation manifest
+
+Version 1 records the exact production database name/ID, `identity_assignments`, ordered `merges`, explicit `removals`, `excluded_local_testing_movie_ids`, verified local counts and scoped `expected_production_counts`. Each identity/member carries canonical `movie_id`, `import_source`, `import_key` and exact `source_refs:[{import_source,source_ref}]`. Merges specify obsolete IDs, survivor ID, TMDB ID and durable local operation evidence. Removals carry the owner-authorised action, exact identity/provenance and expected appearance/membership state. Historical evidence hashes and the exact manifest-byte SHA-256 bind the package to its preflight, backup and apply receipts.
+
+This ignored operator package contains identity/canonical decisions only: no local metadata, artwork, scores, provider timestamps or response bodies. It authorises no application deployment or provider calls. The full preservation, audit-storage, backup and supported D1 integrity rules are owned by [DATA](DATA.md#production-identity-reconciliation-maintenance).
+
 ## Configuration and public paths
 
 | Name / path | Contract |

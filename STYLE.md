@@ -292,7 +292,7 @@ Do not hide primary destinations behind a hamburger menu when there is sufficien
 
 Desktop navigation should normally adapt into a desktop-appropriate form rather than simply preserving the mobile navigation unchanged.
 
-Active state must be clear.
+Active state must be clear. The desktop current tab keeps its gentle background highlight and a straight vertical accent outside its left edge.
 
 ## 17. Responsive behaviour
 
@@ -567,7 +567,7 @@ Provider, maintenance and provenance controls should remain subordinate.
 
 ### Avatar onboarding
 
-Keep the choice focused, obvious and recoverable.
+Keep the choice focused, obvious and recoverable. Offer available avatars in a horizontal native scroll-snap carousel. Initially centre and nominate the third available avatar, or the last available avatar when fewer than three remain. The centred avatar is nominated and committed by Choose and continue; tapping an option centres it. Load availability once per interaction, with claim collisions using the normal error path. Hide the scrollbar on mobile and keep it slim on desktop. Group actions on the right with Log out followed by Choose and continue. Use restrained selection emphasis and respect reduced motion.
 
 ### Sign-in
 

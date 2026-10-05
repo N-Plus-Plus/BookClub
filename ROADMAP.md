@@ -100,7 +100,12 @@ Periodically prune completed history when it no longer helps future work, but do
 
 ## Current roadmap
 
-No roadmap items have been recorded yet.
+### Priority 3 - Non-movie screen works
+Status: Incomplete
+
+Support non-movie screen works such as television series, miniseries and anthology episodes, including provider identity modelling and UI behaviour.
+
+Depends on: None
 
 ## Priority 0.5 - stale/failing tests
 

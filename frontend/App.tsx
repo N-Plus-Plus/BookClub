@@ -3,7 +3,7 @@ import { ChartNoAxesColumn, CalendarPlus, ListPlus, Check, ChevronRight, Clapper
 import type { Catalog, Movie, MovieDetail, Viewer, Rotation } from '../shared/types';
 import { missingAnswers, sortClassics } from '../shared/ranking';
 import { SignInScreen } from './SignInScreen';
-import { api, ApiClientError, clearSession, hasSession, setUnauthorizedHandler, storeSession, type Health } from './api';
+import { api, ApiClientError, clearSession, hasSession, setDevMember, setUnauthorizedHandler, storeSession, type Health } from './api';
 import { Action, Empty, Failure, LoadingView, RankingCard, RouteLink, SessionCard } from './components';
 import { EventScreen } from './EventScreen';
 import { SeenScreen } from './SeenScreen';
@@ -19,6 +19,7 @@ import { MetricsScreen } from './MetricsScreen';
 import { Navigation, destinations } from './Navigation';
 
 const DevTools = import.meta.env.DEV && import.meta.env.MODE !== 'import-preview' ? lazy(() => import('./DevTools')) : null;
+const localLogin = import.meta.env.DEV && import.meta.env.MODE !== 'import-preview';
 const route = () => window.location.hash.slice(2) || 'home';
 export function App() {
   const [page,setPage] = useState(route);
@@ -51,7 +52,12 @@ export function App() {
         setViewer(result.viewer);
         if (needsAvatar(result.viewer)) { setCatalog(null); return; }
       }
-      if (import.meta.env.DEV && !status.authenticationRequired) setViewer((await api.me()).viewer);
+      if (import.meta.env.DEV && !status.authenticationRequired) {
+        const result = await api.me();
+        if (current !== generation.current) return;
+        setViewer(result.viewer);
+        if (localLogin && (!result.viewer || needsAvatar(result.viewer))) { setCatalog(null); setRotation(null); return; }
+      }
       const [data,turn] = await Promise.all([api.catalog(),api.rotation()]);
       if (current === generation.current) { setCatalog(data); setRotation(turn); }
     } catch (e) {
@@ -66,9 +72,22 @@ export function App() {
     catch (e) { setError(e instanceof Error ? e.message : 'Could not sign in.'); }
     finally { setAuthBusy(false); }
   };
+  const signInAsTroy = async () => {
+    if (!localLogin || authBusy) return;
+    setAuthBusy(true); setError('');
+    try {
+      if (health?.environment !== 'local' || health.authenticationRequired) throw new Error('Start the local BookClub API with development authentication enabled, then retry.');
+      // Reuse the local identity header; never create a member or a Google binding.
+      setDevMember('club-member-2');
+      const result = await api.me();
+      if (result.viewer?.id !== 'club-member-2') throw new Error('Troy’s existing member record is unavailable in the local database.');
+      await load();
+    } catch (e) { setDevMember(''); setError(e instanceof Error ? e.message : 'Could not sign in.'); }
+    finally { setAuthBusy(false); }
+  };
   const logout = async () => {
     setAuthBusy(true);
-    try { await api.logout(); clearSession(); window.google?.accounts.id.disableAutoSelect(); resetAuth(); }
+    try { await api.logout(); if (localLogin) setDevMember(''); clearSession(); window.google?.accounts.id.disableAutoSelect(); resetAuth(); }
     catch (e) {
       // Preserve the session on network failure so server revocation can be retried.
       setError(e instanceof Error ? e.message : 'Could not log out. Please retry.');
@@ -92,7 +111,7 @@ export function App() {
   const isDetail = page.startsWith('movie/');
   const title = (page === 'event' || page.startsWith('event/')) ? 'Event' : isDetail ? 'Film detail' : destinations.find(d => d.path === page)?.label ?? 'Page not found';
   const writesEnabled = Boolean(health && (!health.authenticationRequired || viewer));
-  if (health?.authenticationRequired && !viewer && !loading) return <SignInScreen configured={health.googleAuthConfigured} error={error} busy={authBusy} onCredential={signIn} onRetry={() => void load()} />;
+  if ((localLogin || health?.authenticationRequired) && health && !viewer && !loading) return <SignInScreen configured={health.googleAuthConfigured} error={error} busy={authBusy} onCredential={signIn} onLocalLogin={localLogin ? signInAsTroy : undefined} onRetry={() => void load()} />;
   if (needsAvatar(viewer) && viewer) return <AvatarScreen viewer={viewer} externalError={error} onClaimed={claimed => { setViewer(claimed); void load(); }} onLogout={() => void logout()} />;
   return <div className={`app-layout ${navigationExpanded ? 'navigation-expanded' : 'navigation-collapsed'}`}><Navigation page={page} expanded={navigationExpanded} onToggle={() => setNavigationExpanded(value => !value)} /><div className="bookclub-shell"><header className="site-header"><a className="brand" href="#/home"><Clapperboard aria-hidden="true" /><span>BookClub<small>THE WEEKLY FILM JOURNAL</small></span></a><div className="viewer-controls">{viewer ? <><ClubIdentity identity={{kind: 'member',member: viewer}} /><Action icon={LogOut} aria-label="Log out of BookClub" disabled={authBusy} onClick={() => void logout()} /></> : <span className="header-tag">{health?.demo ? 'LOCAL DEMO' : 'FILM CLUB'}</span>}</div></header>
     <main id="main"><div className="page-heading"><div><h1 ref={heading} tabIndex={-1}>{title}</h1>{page.startsWith('event/') && <p className="subtitle">Correct the event details and film lineup.</p>}</div><Action icon={RefreshCw} aria-label="Refresh BookClub data" disabled={refreshing} onClick={() => void load()} /></div>

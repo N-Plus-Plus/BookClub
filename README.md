@@ -17,7 +17,7 @@ corepack pnpm install
 corepack pnpm dev
 ```
 
-Open **http://localhost:4173/#/home**. The API is **http://localhost:8787/api/v1**. Use localhost to match CORS. Startup applies local migrations, seeds once and starts both servers; it preserves saved work. Ctrl+C stops them. Do not run competing API processes over the same local database.
+Open **http://localhost:4173/#/home**. The API is **http://localhost:8787/api/v1**. Use localhost to match CORS. Startup applies local migrations, seeds once and starts both servers; it preserves saved work. The local landing screen offers **Log in as Troy**, using the existing second member record and its stored avatar/role. A missing avatar enters the normal avatar chooser; production retains Google sign-in. Ctrl+C stops them. Do not run competing API processes over the same local database.
 
 ## Common commands
 
