@@ -48,8 +48,8 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
   if (path === '/api/v1/avatars' && method === 'GET') { requireViewer(auth.viewer); return json(await product.availableAvatars()); }
   if (path === '/api/v1/auth/avatar' && method === 'POST') return json(await product.claimAvatar(requireViewer(auth.viewer),avatarSchema.parse(await body(request)).avatar));
   if (path === '/api/v1/rotation' && method === 'GET') return json(await product.rotation());
-  if (path === '/api/v1/rotation' && method === 'PUT') {
-    const actor = requireAdmin(auth.viewer); return json(await product.correctRotation(actor,rotationSchema.parse(await body(request))));
+  if (path === '/api/v1/rotation/swap' && method === 'POST') {
+    const actor = requireAdmin(auth.viewer); return json(await product.swapRotation(actor,rotationSchema.parse(await body(request))));
   }
   const builderMatch = path.match(/^\/api\/v1\/builders\/([^/]+)(?:\/(publish))?$/);
   if (path === '/api/v1/builders' || builderMatch) {

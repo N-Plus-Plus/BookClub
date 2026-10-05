@@ -1,5 +1,6 @@
-import type { BuilderInput, BuilderSet, HistoryAudit, Rotation, SessionInput, Viewer } from '../../shared/types';
+import type { Member, BuilderInput, BuilderSet, HistoryAudit, Rotation, SessionInput, Viewer } from '../../shared/types';
 import { ApiError } from './http';
+import { effectiveMember, swapTargets } from '../../shared/rotation';
 
 const conflict = (message: string) => new ApiError(409,'STATE_CONFLICT',message);
 const missing = () => new ApiError(404,'NOT_FOUND','Record not found.');
@@ -44,18 +45,22 @@ export class ProductRepository {
     return row;
   }
   async rotation(): Promise<Rotation | null> {
-    return this.db.prepare('SELECT * FROM club_rotation WHERE id=1').first<Rotation>();
+    const row = await this.db.prepare('SELECT * FROM club_rotation WHERE id=1').first<Omit<Rotation,'human_order'> & {human_order:string}>();
+    return row ? {...row,human_order:JSON.parse(row.human_order) as Record<string,string>} : null;
   }
-  async correctRotation(actor: Viewer, input: {cycle_id: string | null; nominal_slot: number; version: number | null; reason: string}) {
+  async swapRotation(actor: Viewer, input: {target_member_id: string; version: number}) {
     const before = await this.rotation();
-    if ((before?.version ?? null) !== input.version) throw conflict('Rotation changed. Refresh before correcting it.');
-    if (input.nominal_slot === 1 ? input.cycle_id !== null : !input.cycle_id) throw new ApiError(422,'INVALID_ROTATION','Slot 1 awaits a new cycle; later slots require an existing cycle.');
-    if (input.cycle_id && !await this.db.prepare('SELECT id FROM cycles WHERE id=?').bind(input.cycle_id).first()) throw new ApiError(422,'INVALID_CYCLE','Choose an existing cycle.');
-    // The version trigger catches a concurrent admin correction or publication.
-    const statement = before ? this.db.prepare(`UPDATE club_rotation SET cycle_id=?,nominal_slot=?,version=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=1`)
-      .bind(input.cycle_id,input.nominal_slot,before.version+1)
-      : this.db.prepare('INSERT INTO club_rotation(id,cycle_id,nominal_slot) VALUES(1,?,?)').bind(input.cycle_id,input.nominal_slot);
-    await this.batch([statement,this.audit(actor,null,'rotation',{before,after: input})]);
+    if (!before || before.version !== input.version) throw conflict('Current turn changed. Reload before swapping.');
+    const members = (await this.db.prepare('SELECT * FROM members').all<Member>()).results;
+    const sessions = (await this.db.prepare('SELECT cycle_id,cycle_slot,host_member_id,deleted_at FROM sessions WHERE cycle_id=? AND deleted_at IS NULL').bind(before.cycle_id).all<{cycle_id:string;cycle_slot:number;host_member_id:string|null;deleted_at:null}>()).results;
+    const current = effectiveMember(members,before);
+    const target = swapTargets(members,before,sessions).find(target => target.member.id === input.target_member_id);
+    if (!current || !target) throw new ApiError(422,'INVALID_SWAP','Choose an active member with a future, uncompleted turn and no Event this cycle.');
+    const order = {...before.human_order,[before.nominal_slot]:target.member.id,[target.slot]:current.id};
+    await this.batch([
+      this.db.prepare("UPDATE club_rotation SET human_order=?,version=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=1").bind(JSON.stringify(order),input.version+1),
+      this.audit(actor,null,'rotation',{before,after:{...before,human_order:order,version:input.version+1},swap:{current_member_id:current.id,target_member_id:target.member.id,target_slot:target.slot}}),
+    ]);
     return this.rotation();
   }
   async builders(owner: string): Promise<BuilderSet[]> {
@@ -100,7 +105,8 @@ export class ProductRepository {
     } else if (!builder) {
       const current = await this.rotation();
       if (!current) throw new ApiError(409,'CURRENT_TURN_UNAVAILABLE','The current turn is unavailable. Ask an administrator to initialise rotation.');
-      const member = current.nominal_slot === 5 ? null : await this.db.prepare('SELECT id FROM members WHERE active=1 AND sort_order=?').bind(current.nominal_slot).first<{id:string}>();
+      const members = (await this.db.prepare('SELECT * FROM members').all<Member>()).results;
+      const member = effectiveMember(members,current);
       if (current.nominal_slot !== 5 && !member) throw new ApiError(422,'CURRENT_HOST_UNAVAILABLE','The current turn has no active member. Ask an administrator to correct the rotation roster.');
       input = {...input,kind:current.nominal_slot === 5 ? 'classics' : 'hosted',host_member_id:member?.id ?? null};
     }

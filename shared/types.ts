@@ -39,7 +39,7 @@ export interface TmdbPreview {
   release_date: string | null; runtime: number | null; overview: string | null; genres: string[]; assets: Asset[]; director: string | null;
 }
 export type FilmCandidate = {kind: 'local'; movie: SavedSearchResult} | {kind: 'external'; movie: SearchResult};
-export interface Rotation { id: number; cycle_id: string | null; nominal_slot: number; version: number; updated_at: string }
+export interface Rotation { id: number; cycle_id: string | null; nominal_slot: number; version: number; updated_at: string; human_order?: Record<string,string> }
 export interface BuilderSet { id: string; owner_member_id: string; title: string | null; notes: string | null; created_at: string; updated_at: string; revision: number; movie_ids: string[] }
 export interface BuilderInput { title?: string; notes?: string; movie_ids: string[]; revision?: number }
 export interface BuilderPublishInput { revision: number; event_date: string; cycle_id: string | null; cycle_slot: number; complete_turn: boolean; turn_version?: number; new_cycle?: CycleInput }

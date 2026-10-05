@@ -517,9 +517,9 @@ Local developer tooling must remain clearly separate from member-facing workflow
 
 ### Home
 
-Centre Home on the current-turn identity and actions in one wrapping row, without redundant turn metadata or prose. The viewer’s own turn uses “It is your turn”, a prominent Builder action and a straight external selection bar beside the indented card, matching desktop navigation. The Watch Order shortcut is CLSC-only. On their own turn, viewers may choose a private Builder set to prefill only the films of a new Event in saved order; the set remains private and untouched. Rotation correction belongs in an Admin disclosure.
+Centre Home on a two-column current-turn card: heading and effective avatar/identity on the left; a right-aligned, bottom-aligned vertical action stack on the right. The viewer’s own turn uses “It is your turn” and a straight external selection bar beside the indented card, matching desktop navigation. Plan in Builder and Use from Builder are ordinary secondary actions, in that order. Record an Event is the constructive primary action and always bottom-most. The Watch Order shortcut is CLSC-only, above Record an Event. On their own turn, viewers may choose a private Builder set to prefill only the films of a new Event in saved order; the set remains private and untouched. A full-width Admin · swap current turn disclosure sits below the columns for human turns only, with one eligible future member selector and Swap turns; no generic rotation editor.
 
-Do not let recent history, admin correction, developer tools or secondary widgets compete with that orientation.
+Do not let recent history, admin swap, developer tools or secondary widgets compete with that orientation.
 
 ### History
 
@@ -559,7 +559,7 @@ Yes and No should remain equally reachable and should not visually bias the answ
 
 ### Event create/edit
 
-Use details → ordered films → review → completion as the essential Event reading order. The first card contains only Actual event date and “Complete the current turn”, checked by default for new events. Editing reflects stored completion without advancing rotation. Host is not selectable: new Events derive hosted identity from the active member at the current rotation slot 1–4; slot 5 is hostless Classics. Unchecking completion does not change identity. Corrections preserve stored historical host and kind; historical date controls remain disclosed. Event titles, notes, swap explanations and turn-helper prose are absent. Field errors preserve input and focus the first invalid control.
+Use details → ordered films → review → completion as the essential Event reading order. The first card contains only Actual event date and “Complete the current turn”, checked by default for new events. Editing reflects stored completion without advancing rotation. Host is not selectable: new Events derive hosted identity from the effective active member assigned to the current cycle position 1–4; slot 5 is hostless Classics. Unchecking completion does not change identity. Corrections preserve stored historical host and kind; historical date controls remain disclosed. Event titles, notes, swap explanations and turn-helper prose are absent. Field errors preserve input and focus the first invalid control.
 
 Find a film shows at most six candidates per page with Previous / Next and Page N of M. Whole-title matches after whitespace/case normalisation and removal of at most one leading A or The suppress weaker contiguous-substring results; year text is not a title match. Each linked result shows a left poster and title, year and director, with Unknown/no-poster fallbacks. Inspection keeps the Event editor and its search mounted, preserving all draft fields, lineup order, query, results, pagination and manual input. Builder prefill seeds once in exact saved order; incomplete or unavailable sets cannot be used.
 

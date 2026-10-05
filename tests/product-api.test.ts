@@ -59,7 +59,7 @@ describe('active slots and universal swap integrity',()=>{
     expect(s.host_member_id).toBe('member-1');expect(await turn()).toEqual(before);
     expect((await call(`/sessions/${s.id}`,'PUT',{event_date:s.event_date,kind:'hosted',host_member_id:'member-2',...backfill,movie_ids:['moon']})).status).toBe(200);
     expect((await data<Session>(await call(`/sessions/${s.id}`))).host_member_id).toBe('member-1');
-    await call('/sessions/demo-2','DELETE');await call('/rotation','PUT',{cycle_id:'demo-cycle-a',nominal_slot:2,version:1,reason:'Synthetic review'},2);
+    await call('/sessions/demo-2','DELETE');local.sqlite.exec("UPDATE club_rotation SET nominal_slot=2,version=version+1");
     const completed = await data<Session>(await session({cycle_id:'demo-cycle-a',cycle_slot:2,complete_turn:true,turn_version:2}));
     expect(completed.host_member_id).toBe('member-2');
   });
@@ -143,17 +143,20 @@ describe('private Builders and publication',()=>{
   });
 });
 describe('explicit rotation, Classics and History',()=>{
-  it('requires admins for correction, supports multiple admins, audits reason and protects stale versions',async()=>{
-    const input={cycle_id:null,nominal_slot:1,version:0,reason:'Reviewed history'};
-    expect((await call('/rotation','PUT',input)).status).toBe(403);
-    expect((await call('/rotation','PUT',input,2)).status).toBe(200);expect((await call('/rotation','PUT',input,3)).status).toBe(409);
-    expect((await call('/rotation','PUT',{...input,cycle_id:'demo-cycle-a',nominal_slot:2,version:1},3)).status).toBe(200);
+  it('requires admins for swaps, rejects generic correction and protects stale versions',async()=>{
+    local.sqlite.exec('UPDATE club_rotation SET nominal_slot=1,cycle_id=NULL,version=version+1');
+    const input={target_member_id:'member-3',version:1};
+    expect((await call('/rotation/swap','POST',input)).status).toBe(403);
+    expect((await call('/rotation/swap','POST',input,2)).status).toBe(200);
+    expect((await call('/rotation/swap','POST',input,3)).status).toBe(409);
+    expect((await call('/rotation/swap','POST',{target_member_id:'member-4',version:2},3)).status).toBe(200);
+    expect((await call('/rotation/swap','POST',{...input,reason:'no'},2)).status).toBe(422);
+    expect((await call('/rotation','PUT',{cycle_id:null,nominal_slot:1,version:3,reason:'no'},2)).status).toBe(404);
     expect(local.sqlite.prepare("SELECT count(*) n FROM history_audit WHERE action='rotation'").get()?.n).toBe(2);
-    expect((await call('/rotation','PUT',{...input,nominal_slot:2,version:2},2)).status).toBe(422);
   });
-  it('migration leaves rotation uninitialised; private setup explicitly initialises it',async()=>{
+  it('migration leaves rotation uninitialised; swap cannot initialise it',async()=>{
     local.sqlite.exec('DELETE FROM club_rotation');expect(await data(await call('/rotation'))).toBeNull();
-    expect((await call('/rotation','PUT',{cycle_id:null,nominal_slot:1,version:null,reason:'Initial setup'},2)).status).toBe(200);
+    expect((await call('/rotation/swap','POST',{target_member_id:'member-3',version:0},2)).status).toBe(409);
   });
   it('Classics completion marks all four Seen and awaits next slot 1; dates/calendar reads defer without effects',async()=>{
     await call('/sessions/demo-classics','DELETE');
@@ -170,7 +173,7 @@ describe('explicit rotation, Classics and History',()=>{
     expect((await session({kind:'classics',host_member_id:null,cycle_id:before.cycle_id,cycle_slot:5,event_date:'1999-01-01'})).status).toBe(201);expect(await turn()).toEqual(before);expect(local.sqlite.prepare('SELECT * FROM seen_states ORDER BY movie_id,member_id').all()).toEqual(seen);
   });
   it('follows 1→2→3→4→5→next 1 with independent dates, derived host and permanent anchor',async()=>{
-    await call('/rotation','PUT',{cycle_id:null,nominal_slot:1,version:0,reason:'Start reviewed round'},2);
+    local.sqlite.exec('UPDATE club_rotation SET cycle_id=NULL,nominal_slot=1,version=version+1');
     let cycleId:string|null=null;
     for(let slot=1;slot<=5;slot++) {
       const state=await turn();expect(state.nominal_slot).toBe(slot);
@@ -185,7 +188,7 @@ describe('explicit rotation, Classics and History',()=>{
   });
   it('permits off-turn completion without requiring admin',async()=>{
     await call('/sessions/demo-2','DELETE');
-    await call('/rotation','PUT',{cycle_id:'demo-cycle-a',nominal_slot:2,version:0,reason:'Reviewed turn'},2);
+    local.sqlite.exec('UPDATE club_rotation SET nominal_slot=2,version=version+1');
     const b=await builder();const input={revision:0,event_date:'2000-01-01',cycle_id:'demo-cycle-a',cycle_slot:2,complete_turn:true,turn_version:1};
     const s=await data<Session>(await call(`/builders/${b.id}/publish`,'POST',{...input}));expect(s).toMatchObject({host_member_id:'member-1',cycle_slot:2});expect((await turn()).nominal_slot).toBe(3);
   });
@@ -235,7 +238,7 @@ describe('explicit rotation, Classics and History',()=>{
     expect(()=>local.sqlite.exec(`UPDATE sessions SET planned_at='changed' WHERE id='${s.id}'`)).toThrow('IMMUTABLE_PUBLICATION');
   });
   it('all new routes require authentication; local bypass never impersonates an owner or admin',async()=>{
-    const protectedRoutes=[['/avatars','GET'],['/auth/avatar','POST'],['/rotation','GET'],['/rotation','PUT'],['/builders','GET'],['/builders/x','DELETE'],['/builders/x/publish','POST'],['/sessions/x/audit','GET'],['/sessions/x/restore','POST']];
+    const protectedRoutes=[['/avatars','GET'],['/auth/avatar','POST'],['/rotation','GET'],['/rotation/swap','POST'],['/builders','GET'],['/builders/x','DELETE'],['/builders/x/publish','POST'],['/sessions/x/audit','GET'],['/sessions/x/restore','POST']];
     const db=env.DB;env.DB={} as D1Database;for(const [path,method] of protectedRoutes) expect((await worker.fetch(new Request(`http://api/api/v1${path}`,{method}),env)).status).toBe(401);
     env.DB=db;env.LOCAL_WRITE_BYPASS='true';for(const [path,method] of protectedRoutes.filter(([p,m])=>!(p==='/rotation'&&m==='GET')&&!p.endsWith('/audit'))) expect((await call(path,method,method==='GET'?undefined:{})).status).toBe(401);
   });

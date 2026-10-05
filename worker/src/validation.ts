@@ -30,5 +30,5 @@ export const importSchema = z.object({ provider: z.literal('tmdb'), externalId: 
 export const avatarSchema = z.object({avatar: z.number().int().min(0).max(19)}).strict();
 export const builderSchema = z.object({title: z.string().trim().max(300).optional(),notes: z.string().trim().max(10000).optional(),movie_ids: z.array(idSchema),revision: z.number().int().nonnegative().optional()}).strict();
 export const revisionSchema = z.object({revision: z.number().int().nonnegative()}).strict();
-export const rotationSchema = z.object({cycle_id: idSchema.nullable(),nominal_slot: z.number().int().min(1).max(5),version: z.number().int().nonnegative().nullable(),reason: z.string().trim().min(1).max(2000)}).strict();
+export const rotationSchema = z.object({target_member_id: idSchema,version: z.number().int().nonnegative()}).strict();
 export const publishSchema = z.object({revision: z.number().int().nonnegative(),event_date: dateSchema,cycle_id: idSchema.nullable(),cycle_slot: z.number().int().min(1).max(5),complete_turn: z.boolean(),turn_version: z.number().int().nonnegative().optional(),new_cycle: cycleSchema.optional()}).strict();

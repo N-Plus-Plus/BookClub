@@ -183,6 +183,7 @@ Vitest is configured in `vite.config.ts`, selecting `tests/**/*.test.ts`. No lin
 | --- | --- |
 | Domain | `ranking.test.ts`, `metrics.test.ts`, `event-validation.test.ts`, `maintenance-feedback.test.ts`, `artwork.test.ts`, `metadata-maintenance.test.ts` |
 | Event search/inspection | `film-search.test.ts` (matching, narrow SQL, preview no-write, credits, host), `event-inspection.test.ts` (mocked React DOM mount preservation, pagination/cache, confirmation/retry, Builder order/unavailable sets) |
+| Current-cycle rotation and Home | `rotation.test.ts` (durable swaps, positional reset, eligibility, races, Event hosts), `rotation-ui.test.ts` (mocked React DOM identity/actions/disclosure/feedback); related rotation API coverage in `product-api.test.ts` |
 | API/auth/product | `api.test.ts`, `auth.test.ts`, `product-api.test.ts`, `domain-api.test.ts`, `frontend-api.test.ts` |
 | Providers/metadata | `providers.test.ts`, `ratings.test.ts`, `metadata.test.ts` |
 | Imports | `importer.test.ts`, `import-resolution.test.ts`, `import-io.test.ts`, `production-import.test.ts` |
