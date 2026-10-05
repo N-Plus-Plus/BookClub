@@ -112,7 +112,7 @@ it('scopes smaller mobile titles to Classics and keeps tabs in one flexible touc
  expect(css).toContain('.movie-title { display: block; font-weight: 600; font-size: var(--text-movie-title); }');
  expect(css).toContain('.classics-filters { display: flex; flex-wrap: nowrap;');
  expect(css).toContain('flex: 1 1 0; min-width: 0; min-height: var(--target-min)');
- expect(css).toContain('font-size: calc(var(--text-body) * .9); white-space: nowrap;');
+ expect(css).toContain('font-size: var(--text-body); white-space: nowrap;');
  expect(css).toContain('.classics-filters .button svg { width: 14.4px; height: 14.4px; }');
  expect(css).toContain('.classics-filters .button[aria-pressed="true"]::after');
  expect(css).toContain('bottom: 0; height: 3px; background: var(--focus-outline)');

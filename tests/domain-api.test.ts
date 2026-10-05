@@ -55,7 +55,23 @@ describe('persisted score refresh',()=>{
     await call('/movies/arrival/classics','PUT',{classic:true});
     vi.stubGlobal('fetch',vi.fn(async(url:string)=> url.includes('mdblist')?Response.json({ratings:[{source:'imdb',value:8},{source:'tomatoes',value:90},{source:'popcorn',value:85}]}):new Response('secret-omdb',{status:429,headers:{'Retry-After':'60'}})));
     const r=await data<RefreshResult>(await call('/movies/arrival/refresh-scores','POST'));
-    expect(r.movie.scores.length).toBe(before.scores.length+3);expect(r.movie.ranking?.rawScore).toBe(80**2+90**2+85**2+83**2+2*84.5**2);expect(r.movie.ranking?.imputedScores).toHaveLength(2);
+    expect(r.movie.scores.length).toBe(before.scores.length+3);
+    // Three distinct live dimensions retire demo ranking inputs without deleting history.
+    expect(r.movie.ranking?.sources).toEqual([
+      {provider:'imdb',metric:'rating',value:80,retrieved_via:'mdblist'},
+      {provider:'rottentomatoes',metric:'audience',value:85,retrieved_via:'mdblist'},
+      {provider:'rottentomatoes',metric:'critic',value:90,retrieved_via:'mdblist'},
+    ]);
+    expect(r.movie.ranking?.availableScoreAverage).toBe(85);
+    expect(r.movie.ranking?.imputedScores).toEqual([
+      {provider:'letterboxd',metric:'rating',value:85},
+      {provider:'metacritic',metric:'critic',value:85},
+      {provider:'tmdb',metric:'rating',value:85},
+    ]);
+    expect(r.movie.ranking?.rawScore).toBe(43_400);
+    const demoTmdb=before.scores.find(s=>s.provider==='tmdb'&&s.metric==='rating'&&s.retrieved_via==='development-demo');
+    expect(demoTmdb).toMatchObject({raw_value:8.3,raw_scale:10});
+    expect(r.movie.scores).toContainEqual(demoTmdb);
     expect(r.providers.find(p=>p.provider==='omdb')).toMatchObject({status:'failed',retryAfter:60});expect(JSON.stringify(r)).not.toContain('secret-');
     expect(r.movie.scores.filter(s=>s.retrieved_via==='mdblist')).toHaveLength(3);
   });

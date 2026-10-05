@@ -376,6 +376,7 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .history-event-identity { max-width: 12ch; overflow-wrap: anywhere; }
 .history-event-identity .club-avatar { width: 36px; height: 36px; }
 
+.classics-ranking-row { padding-bottom: calc(var(--space-16) + var(--space-12)); }
 .classics-ranking-row .rank-number { color: var(--text-primary); font-size: 1.12rem; font-weight: 600; }
 .classics-ranking-row .movie-title { overflow-wrap: anywhere; }
 .classics-ranking-row .ranking-source-scores { overflow-wrap: anywhere; }
@@ -383,7 +384,7 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
   .classics-ranking-row .movie-title { font-size: calc(var(--text-movie-title) * .75); }
 }
 .classics-filters { display: flex; flex-wrap: nowrap; gap: var(--space-4); }
-.classics-filters .button { position: relative; flex: 1 1 0; min-width: 0; min-height: var(--target-min); gap: var(--space-4); padding: var(--space-8) 0 var(--space-12); font-size: calc(var(--text-body) * .9); white-space: nowrap; border: 0; border-radius: 0; background: transparent; color: var(--text-secondary); box-shadow: none; }
+.classics-filters .button { position: relative; flex: 1 1 0; min-width: 0; min-height: var(--target-min); gap: var(--space-4); padding: var(--space-8) 0 var(--space-12); font-size: var(--text-body); white-space: nowrap; border: 0; border-radius: 0; background: transparent; color: var(--text-secondary); box-shadow: none; }
 .classics-filters .button svg { width: 14.4px; height: 14.4px; }
 .classics-filters .button:enabled:hover { background: transparent; color: var(--text-primary); }
 .classics-filters .button[aria-pressed="true"] { background: transparent; color: var(--text-primary); }
