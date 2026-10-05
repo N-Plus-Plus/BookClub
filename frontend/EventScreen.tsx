@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Save } from 'lucide-react';
 import type { Catalog, Movie, Rotation, Session, Viewer } from '../shared/types';
 import { localToday } from '../shared/identity';
@@ -8,12 +8,13 @@ import { ClubIdentity } from './ClubIdentity';
 import { FilmPicker } from './FilmPicker';
 import { TurnFields } from './TurnFields';
 import { routeEventValidation } from './event-validation';
-export function EventScreen({catalog,writesEnabled,onMovie,onSaved,rotation,viewer,initial}: {catalog: Catalog; writesEnabled: boolean; onMovie: (m: Movie) => void; onSaved: (s: Session) => void; rotation: Rotation | null; viewer: Viewer | null; initial?: Session}) {
+export function EventScreen({catalog,writesEnabled,onMovie,onSaved,rotation,viewer,initial,prefillMovieIds,onPrefillConsumed}: {catalog: Catalog; writesEnabled: boolean; onMovie: (m: Movie) => void; onSaved: (s: Session) => void; rotation: Rotation | null; viewer: Viewer | null; initial?: Session; prefillMovieIds?: string[] | null; onPrefillConsumed?: () => void}) {
   const [date,setDate] = useState(initial?.event_date ?? localToday());
   const [host,setHost] = useState(initial?.host_member_id ?? viewer?.id ?? ''), [kind,setKind] = useState<Session['kind']>(initial?.kind ?? (rotation?.nominal_slot === 5 ? 'classics' : 'hosted'));
   const [cycle,setCycle] = useState(initial ? initial.cycle_id ?? '' : rotation?.cycle_id ?? ''), [slot,setSlot] = useState<number | null>(initial ? initial.cycle_slot : rotation?.nominal_slot ?? null), [complete,setComplete] = useState(!initial);
   const [precision,setPrecision] = useState<Session['date_precision']>(initial?.date_precision ?? 'exact');
-  const [selected,setSelected] = useState<Movie[]>(initial?.movies ?? []), [error,setError] = useState(''), [busy,setBusy] = useState(false);
+  const [selected,setSelected] = useState<Movie[]>(() => initial?.movies ?? (prefillMovieIds ?? []).flatMap(id => { const movie = catalog.movies.find(m => m.id === id); return movie ? [movie] : []; })), [error,setError] = useState(''), [busy,setBusy] = useState(false);
+  useEffect(() => { onPrefillConsumed?.(); },[onPrefillConsumed]);
   const [correctAnchor,setCorrectAnchor] = useState(false);
   const workflow = useRef<HTMLDivElement>(null);
   const formError = useRef<HTMLParagraphElement>(null);

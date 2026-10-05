@@ -23,6 +23,8 @@ const localLogin = import.meta.env.DEV && import.meta.env.MODE !== 'import-previ
 const route = () => window.location.hash.slice(2) || 'home';
 export function App() {
   const [page,setPage] = useState(route);
+  const [eventPrefill,setEventPrefill] = useState<string[] | null>(null);
+  const consumeEventPrefill = useCallback(() => setEventPrefill(null),[]);
   const [navigationExpanded,setNavigationExpanded] = useState(true);
   const [catalog,setCatalog] = useState<Catalog | null>(null);
   const [health,setHealth] = useState<Health | null>(null);
@@ -37,7 +39,7 @@ export function App() {
   const [refreshing,setRefreshing] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const resetAuth = useCallback(() => {
-    generation.current++; setRotation(null); setCatalog(null); setViewer(null); setNotice(''); setLoadError(''); setActionError(''); setLoading(false);
+    generation.current++; setEventPrefill(null); setRotation(null); setCatalog(null); setViewer(null); setNotice(''); setLoadError(''); setActionError(''); setLoading(false);
   },[]);
   const load = useCallback(async () => {
     const current = ++generation.current;
@@ -95,7 +97,7 @@ export function App() {
     } finally { setAuthBusy(false); }
   };
   useEffect(() => {
-    const update = () => { setPage(route()); window.scrollTo(0,0); requestAnimationFrame(() => heading.current?.focus()); };
+    const update = () => { const next = route(); if (next !== 'event') setEventPrefill(null); setPage(next); window.scrollTo(0,0); requestAnimationFrame(() => heading.current?.focus()); };
     window.addEventListener('hashchange',update); return () => window.removeEventListener('hashchange',update);
   },[]);
   const applyMovie = (movie: MovieDetail | Movie) => setCatalog(current => current ? ({...current,
@@ -123,14 +125,14 @@ export function App() {
     {actionError && <p className="error-message" role="alert">{actionError}</p>}
     {catalog && refreshing && <p className="meta refresh-status" role="status">Refreshing the journal…</p>}
     {loading && !catalog ? <LoadingView /> : !catalog && loadError ? <Failure message={loadError} retry={() => void load()} /> : catalog && <>
-      {page === 'home' && <div className="stack"><RotationCard catalog={catalog} rotation={rotation} viewer={viewer} onUpdated={() => void load()} />
+      {page === 'home' && <div className="stack"><RotationCard catalog={catalog} rotation={rotation} viewer={viewer} onUpdated={() => void load()} onUseBuilder={movieIds => { setEventPrefill(movieIds); window.location.hash = '/event'; }} />
       <div className="stats-grid"><div className="card stat"><strong>{eligible.length}</strong><span>Eligible Classics</span></div><div className="card stat"><strong>{excluded.length}</strong><span>Already seen by all</span></div><a className="card stat stat-link" href="#/seen"><strong>{missing}</strong><span><Eye size={16} aria-hidden="true" />Missing answers</span></a></div>
       <div className="dashboard-grid"><section className="stack"><div className="section-title"><h2>Last time together</h2><RouteLink to="history" icon={History} variant="tertiary">History</RouteLink></div>{catalog.sessions[0] ? <SessionCard session={catalog.sessions[0]} members={catalog.members} /> : <Empty title="Your first night is waiting">Create an event to begin your shared history.</Empty>}</section>
       <section className="stack"><div className="section-title"><h2>On the shortlist</h2><RouteLink to="classics" icon={ChevronRight} variant="tertiary">View all</RouteLink></div>{eligible.slice(0,3).map((m,i) => <RankingCard key={m.id} movie={m} rank={i+1} />)}{!eligible.length && <Empty title="No eligible Classics">Open Classics to inspect the candidate pool.</Empty>}</section></div></div>}
       {page === 'history' && <HistoryScreen catalog={catalog} onChanged={() => void load()} />}
       {page === 'metrics' && <MetricsScreen catalog={catalog} viewer={viewer} onUpdated={load} />}
       {page === 'builder' && <BuilderScreen key={viewer?.id} catalog={catalog} viewer={viewer} rotation={rotation} onMovie={applyMovie} onPublished={() => { void load(); setNotice('Published to History.'); window.location.hash = '/history'; }} />}
-      {(page === 'event' || (page.startsWith('event/') && catalog.sessions.some(s => s.id === page.slice(6)))) && <EventScreen key={page} initial={catalog.sessions.find(s => s.id === page.slice(6))} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={session => {
+      {(page === 'event' || (page.startsWith('event/') && catalog.sessions.some(s => s.id === page.slice(6)))) && <EventScreen key={page} prefillMovieIds={page === 'event' ? eventPrefill : null} onPrefillConsumed={consumeEventPrefill} initial={page === 'event' ? undefined : catalog.sessions.find(s => s.id === page.slice(6))} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={session => {
         setCatalog(c => c ? {...c,sessions: [session,...c.sessions.filter(s => s.id !== session.id)].sort((a,b) => b.event_date.localeCompare(a.event_date))} : c);
         void load(); setNotice('Event saved to the film journal.'); window.location.hash = '/history';
       }} />}

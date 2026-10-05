@@ -517,7 +517,7 @@ Local developer tooling must remain clearly separate from member-facing workflow
 
 ### Home
 
-Centre Home on the current turn, its state and useful action. A logged-in nominal host receives explicit “This is your turn” emphasis and a prominent Builder action. Rotation correction belongs in an Admin disclosure.
+Centre Home on the current-turn identity and actions in one wrapping row, without redundant turn metadata or prose. The viewer’s own turn uses “It is your turn”, a prominent Builder action and a straight external selection bar beside the indented card, matching desktop navigation. The Watch Order shortcut is CLSC-only. On their own turn, viewers may choose a private Builder set to prefill only the films of a new Event in saved order; the set remains private and untouched. Rotation correction belongs in an Admin disclosure.
 
 Do not let recent history, admin correction, developer tools or secondary widgets compete with that orientation.
 
