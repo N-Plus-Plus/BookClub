@@ -3,6 +3,7 @@ import { createElement, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BuilderSet, Catalog, Movie, SearchResponse, TmdbPreview } from '../shared/types';
+import { rankMovie, sortClassics } from '../shared/ranking';
 import { api } from '../frontend/api';
 import { App } from '../frontend/App';
 import { BuilderSetPicker } from '../frontend/BuilderSetPicker';
@@ -201,7 +202,7 @@ it('Seen queue, Home count, Undo and Detail context belong to the viewer',async(
 it('Detail groups explicit answers in member order and omits unanswered members',async()=>{
   const members=[4,2,1,3].map(n=>({id:`m${n}`,display_name:`Person ${n}`,sort_order:n,active:1,avatar:n}));
   vi.mocked(api.catalog).mockResolvedValue({...catalog,members});
-  vi.mocked(api.detail).mockResolvedValue({...movies[0],appearances:[],seen:[{member_id:'m4',seen:0,updated_at:''},{member_id:'m1',seen:0,updated_at:''},{member_id:'m3',seen:1,updated_at:''}]});
+  vi.mocked(api.detail).mockResolvedValue({...movies[0],classic:true,appearances:[],seen:[{member_id:'m4',seen:0,updated_at:''},{member_id:'m1',seen:0,updated_at:''},{member_id:'m3',seen:1,updated_at:''}]});
   await act(async()=>root.unmount()); root=createRoot(container); window.location.hash='/movie/saved-0';
   await act(async()=>root.render(createElement(App))); await flush();
   const groups=[...container.querySelectorAll('.detail-seen-column')].map(column=>[...column.querySelectorAll('.club-identity')].map(member=>member.textContent));
@@ -212,12 +213,12 @@ it('Detail groups explicit answers in member order and omits unanswered members'
 describe('History cycle archive',() => {
   const archive = (): Catalog => {
     const cycles = Array.from({length:11},(_,i) => ({id:`cycle-${11-i}`,ordinal:11-i,rough_date:'2026-08-30',title:null,import_source:null,import_key:null,created_at:'',updated_at:''}));
-    const sessions: Catalog['sessions'] = cycles.flatMap((cycle,i) => [1,2].map(slot => ({id:`event-${i}-${slot}`,event_date:slot === 1 ? '2026-08-30' : '2026-09-01',host_member_id:i === 10 ? null : 'member-2',legacy_cycle_label:null,movies:movies.slice(0,3),cycle_id:cycle.id,kind:i === 10 ? 'classics' as const : 'hosted' as const,date_precision:slot === 1 ? 'cycle_rough' as const : 'exact' as const,cycle_slot:slot})));
+    const sessions: Catalog['sessions'] = cycles.flatMap((cycle,i) => [1,2].map(slot => ({id:`event-${i}-${slot}`,event_date:slot === 1 ? '2026-08-30' : '2026-09-01',host_member_id:i === 10 ? null : 'member-2',legacy_cycle_label:null,movies:movies.slice(0,3),cycle_id:cycle.id,kind:i === 10 ? 'classics' as const : 'hosted' as const,date_precision:slot === 1 ? 'cycle_rough' as const : 'exact' as const,cycle_slot:slot,has_audit:true})));
     sessions.push({...sessions[0],id:'ungrouped',cycle_id:null});
     return {...catalog,cycles,sessions};
   };
   const mountHistory = async (data = archive(), onChanged = vi.fn()) => {
-    await act(async () => { root.render(createElement(HistoryScreen,{catalog:data,onChanged})); }); return onChanged;
+    await act(async () => { root.render(createElement(HistoryScreen,{catalog:data,onChanged,viewer:{id:'member-2',display_name:'Member 2',sort_order:2,avatar:2,role:'admin'}})); }); return onChanged;
   };
   const select = async (index: number,value: string) => {
     await act(async () => { const element = container.querySelectorAll('select')[index]; element.value = value; element.dispatchEvent(new Event('change',{bubbles:true})); });
@@ -247,7 +248,7 @@ describe('History cycle archive',() => {
     vi.mocked(api.audit).mockResolvedValue([]); vi.mocked(api.deleteSession).mockResolvedValue({ok:true} as Awaited<ReturnType<typeof api.deleteSession>>);
     const onChanged = await mountHistory();
     const event = container.querySelector<HTMLElement>('.history-event')!;
-    const actions = event.querySelectorAll<HTMLElement>('.session-card .history-event-actions > *');
+    const actions = event.querySelectorAll<HTMLElement>('.session-card .history-event-actions > .button');
     expect([...actions].map(node => node.getAttribute('aria-label'))).toEqual(['Edit event','Audit event','Delete event']);
     expect([...actions].every(node => node.title && !node.textContent)).toBe(true);
     expect(actions[0].getAttribute('href')).toBe('#/event/event-0-1');
@@ -261,7 +262,7 @@ describe('History cycle archive',() => {
     await click(actions[2]); expect(api.deleteSession).toHaveBeenCalledWith('event-0-1'); expect(onChanged).toHaveBeenCalledOnce();
     vi.restoreAllMocks();
   });
-  it('uses concise History dates and ordered Film Detail links while retaining Home headings',async () => {
+  it('uses concise History dates and ordered Film Detail links alongside compact Home headings',async () => {
     const data = archive(); await mountHistory(data);
     const cards = container.querySelectorAll('.session-card');
     expect(cards[0].querySelector('.eyebrow')?.textContent).toBe('Cycle beginning 30 August 2026');
@@ -273,13 +274,39 @@ describe('History cycle archive',() => {
     expect(context.querySelectorAll('svg.lucide-arrow-right')).toHaveLength(4);
     expect([...cards[0].querySelectorAll('.position')].map(node => node.textContent)).toEqual(['#1','#2','#3']);
     expect([...cards[0].querySelectorAll('.film-list a')].map(node => node.getAttribute('href'))).toEqual(movies.slice(0,3).map(movie => `#/movie/${movie.id}`));
-    await act(async () => { root.render(createElement(SessionCard,{session:data.sessions[0],members:data.members})); });
-    expect(container.querySelector('h3')?.textContent).toBe('Book Club night');
-    expect(container.querySelector('.position')?.textContent).toBe('1');
-    expect(container.querySelector('.eyebrow')?.textContent).toBe('Cycle reference (event date unknown): 30 August 2026 · 3 films');
+    await act(async () => { root.render(createElement(SessionCard,{variant:'home',session:data.sessions[0],members:data.members})); });
+    expect(container.querySelector('h3')?.textContent).toBe("Member 2's turn");
+    expect(container.querySelector('.position')?.textContent).toBe('#1');
+    expect(container.querySelector('.eyebrow')?.textContent).toBe('Cycle beginning 30 August 2026');
     await mountHistory({...data,sessions:[{...data.sessions[0],kind:'classics',host_member_id:null}]});
     expect(container.querySelector('.session-card h3')?.textContent).toBe('Classics week');
     await mountHistory({...data,cycles:[],sessions:[{...data.sessions[0],cycle_id:null}]});
     expect(container.textContent).toContain('Ungrouped events'); expect(container.querySelector('.history-pagination')).toBeNull();
   });
+});
+
+it('Home shows only the top two eligible rankable Classics with summary scores',async()=>{
+  const scores=[{provider:'imdb',metric:'rating',raw_value:8,raw_scale:10,normalized_value:80,vote_count:null,fetched_at:'2026-01-01'},{provider:'rottentomatoes',metric:'audience',raw_value:90,raw_scale:100,normalized_value:90,vote_count:null,fetched_at:'2026-01-01'},{provider:'rottentomatoes',metric:'critic',raw_value:85,raw_scale:100,normalized_value:85,vote_count:null,fetched_at:'2026-01-01'}];
+  const pool=movies.slice(0,5).map((m,i)=>({...m,classic:true,scores:i===3?[]:scores,seen:[{member_id:'member-2',seen:i===4?1:0,updated_at:'2026-01-01'}],ranking:rankMovie(i===3?[]:scores,[{member_id:'member-2',seen:i===4?1:0,updated_at:'2026-01-01'}],catalog.members)}));
+  await act(async()=>root.unmount());root=createRoot(container);
+  vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:pool,sessions:[{id:'last',event_date:'2026-01-01',date_precision:'exact',host_member_id:'member-2',kind:'hosted',cycle_id:null,cycle_slot:2,legacy_cycle_label:null,movies:pool.slice(0,2)}]});
+  window.location.hash='/home';await act(async()=>root.render(createElement(App)));await flush();
+  expect([...container.querySelectorAll('.section-title h2')].map(e=>e.textContent)).toEqual(['Last turn','Next Classics']);
+  const cards=container.querySelectorAll('.home-rank-card');expect(cards).toHaveLength(2);
+  const top=sortClassics(pool).filter(m=>m.ranking?.eligible&&m.ranking.rankable).slice(0,2);
+  expect([...cards].map(e=>e.querySelector('a')?.getAttribute('href'))).toEqual(top.map(m=>'#/movie/'+m.id));
+  expect([...cards].map(e=>e.querySelector('.rank-number')?.textContent)).toEqual(['#1','#2']);
+  for(const card of cards){expect(card.textContent).toContain('0 Seen · 1 No');expect(card.textContent).toContain('IMDb 80 · RT audience 90 · RT critic 85');expect(card.textContent).not.toMatch(/Ranked|Unknown|residual score|Score breakdown/);expect(card.querySelector('details,.score,.badge')).toBeNull();}
+  expect(container.querySelector('.home-session-card .eyebrow')?.textContent).toBe('1 January 2026');
+  await navigate('classics');expect(container.querySelector('.ranking-row .score, .ranking-row details')).toBeNull();expect(container.querySelector('.ranking-row')?.textContent).toContain('IMDb 80');
+});
+
+it('History hides other-host edits and member admin actions without fetching audits',async()=>{
+ const own={id:'own',event_date:'2026-01-01',date_precision:'exact' as const,host_member_id:'member-2',kind:'hosted' as const,cycle_id:null,cycle_slot:2,legacy_cycle_label:null,has_audit:true,movies:[{...movies[0],director:'A Director'},movies[1]]};
+ const data={...catalog,sessions:[own,{...own,id:'other',host_member_id:'former'},{...own,id:'classics',kind:'classics' as const,host_member_id:null}]};
+ const render=async(role:'admin'|'member',hasAudit=true)=>act(async()=>root.render(createElement(HistoryScreen,{catalog:{...data,sessions:data.sessions.map(s=>({...s,has_audit:hasAudit}))},viewer:{id:'member-2',display_name:'Member 2',sort_order:2,avatar:2,role},onChanged:vi.fn()})));
+ await render('member');const cards=container.querySelectorAll('.session-card');
+ expect(cards[0].querySelector('[aria-label="Edit event"]')).toBeTruthy();expect(cards[1].querySelector('[aria-label="Edit event"]')).toBeNull();expect(cards[2].querySelector('[aria-label="Edit event"]')).toBeNull();expect(container.querySelector('[aria-label="Audit event"],[aria-label="Delete event"]')).toBeNull();
+ expect(cards[0].querySelector('.history-event-actions')?.lastElementChild?.className).toBe('history-event-identity');expect(cards[0].querySelector('.session-meta')).toBeNull();expect(cards[0].querySelectorAll('.history-film-director')).toHaveLength(1);expect(cards[0].querySelector('.history-film-director')?.textContent).toBe('A Director');
+ await render('admin',false);expect(container.querySelectorAll('[aria-label="Edit event"]')).toHaveLength(3);expect(container.querySelectorAll('[aria-label="Delete event"]')).toHaveLength(3);expect(container.querySelector('[aria-label="Audit event"]')).toBeNull();expect(api.audit).not.toHaveBeenCalled();
 });

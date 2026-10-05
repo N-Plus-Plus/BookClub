@@ -129,7 +129,7 @@ progress { width: 100%; height: 10px; accent-color: var(--concrete); }
 .answer-copy .eyebrow { line-height: 1.6; }
 .answer-copy .badge { margin-top: var(--space-12); }
 .answer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10); }
-.answer-actions .button { min-width: 0; font-size: var(--text-body-small); height: var(--control-answer-height); padding: 0 var(--space-8); }
+.answer-actions .button { min-width: 0; font-size: var(--button-font-size); height: var(--control-answer-height); padding: 0 var(--space-8); }
 .recent-list { display: grid; gap: var(--space-16); }
 .recent-answer { padding-bottom: var(--space-16); border-bottom: 1px solid var(--asphalt-dark); font-size: var(--text-body); }
 .recent-answer .button { margin-top: var(--space-10); font-size: var(--text-compact); }
@@ -265,6 +265,7 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .button[data-variant="primary"] { font-weight: 600; }
 .stats-grid { gap: 0; padding-block: var(--space-16); border-block: 1px solid var(--asphalt-dark); }
 .stats-grid .stat,.metrics-summary .stat { border: 0; background: transparent; }
+.stats-grid .stat { border-radius: 0; }
 .stats-grid .stat + .stat { border-left: 1px solid var(--asphalt-dark); }
 .utility-disclosure { border-top: 1px solid var(--asphalt-dark); color: var(--text-secondary); }
 .utility-disclosure > div { padding-block: var(--space-16); }
@@ -341,7 +342,7 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 /* History-specific card composition leaves Home session cards unchanged. */
 .history-event { min-width: 0; }
 .history-event .session-card { display: flow-root; }
-.history-event-actions { float: right; display: flex; gap: var(--space-8); margin: 0 0 var(--space-12) var(--space-12); }
+.history-event-actions { float: right; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: flex-start; max-width: 100%; gap: var(--space-8); margin: 0 0 var(--space-12) var(--space-12); }
 .history-event .film-list { clear: both; grid-template-columns: minmax(0,1fr); }
 .history-event .film-list li { min-width: 0; }
 .history-event .movie-title { font-size: 1.12rem; overflow-wrap: anywhere; }
@@ -350,3 +351,31 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .history-cycle-order { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
 .history-cycle-turn { display: inline-flex; align-items: center; gap: var(--space-8); }
 .history-pagination { align-items: center; justify-content: space-between; }
+
+/* Compact Home summaries; fuller shared presentations retain their own layout. */
+.home-session-card { display: flow-root; }
+.home-session-identity { float: right; margin: 0 0 var(--space-10) var(--space-12); max-width: 40%; }
+.home-session-identity .club-identity { flex-direction: column; text-align: center; overflow-wrap: anywhere; }
+.home-session-card .film-list { clear: both; }
+.home-session-card .film-list li { min-width: 0; }
+.home-session-card .movie-title,.home-rank-card .movie-title { overflow-wrap: anywhere; }
+.home-session-card .position,.home-rank-card .rank-number { font-size: 1.12rem; font-weight: 600; color: var(--text-primary); min-width: 2ch; }
+.home-rank-card { gap: var(--space-10); }
+.home-rank-card .ranking-score { gap: var(--space-8); }
+
+.history-event-identity { max-width: 12ch; overflow-wrap: anywhere; }
+.history-event-identity .club-avatar { width: 36px; height: 36px; }
+@media (max-width: 480px) {
+  .history-event-actions { float: none; margin-left: 0; }
+}
+
+.classics-ranking-row .rank-number { color: var(--text-primary); font-size: 1.12rem; font-weight: 600; }
+.classics-ranking-row .movie-title { overflow-wrap: anywhere; }
+.classics-pagination { align-items: center; justify-content: space-between; }
+.detail-grid-without-seen { grid-template-columns: minmax(0,1fr); }
+
+.answer-actions .seen-yes { color: var(--aqua); }
+.answer-actions .seen-no { color: var(--ruby); }
+.recent-pagination { align-items: center; justify-content: space-between; }
+.chart-track > .chart-bar-jeans { background: var(--jeans); }
+.chart-track > .chart-bar-lavender { background: var(--lavender); }

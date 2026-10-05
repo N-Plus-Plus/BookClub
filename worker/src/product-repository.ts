@@ -99,6 +99,10 @@ export class ProductRepository {
   async saveSession(input: SessionInput, actor: Viewer | null, existingId?: string, builder?: BuilderSet) {
     const before = existingId ? await this.db.prepare('SELECT * FROM sessions WHERE id=? AND deleted_at IS NULL').bind(existingId).first<Record<string,unknown>>() : null;
     if (existingId && !before) throw missing();
+    if (before) {
+      const viewer = requireViewer(actor);
+      if (viewer.role !== 'admin' && (before.kind !== 'hosted' || before.host_member_id !== viewer.id)) throw new ApiError(403,'FORBIDDEN','You may edit only events you hosted.');
+    }
     if (existingId && input.complete_turn) throw new ApiError(422,'INVALID_COMPLETION','An existing History event cannot complete a new turn.');
     if (before) {
       input = {...input,kind:before.kind as SessionInput['kind'],host_member_id:before.host_member_id as string | null};
@@ -173,6 +177,7 @@ export class ProductRepository {
     return this.saveSession({...input,movie_ids: builder.movie_ids,host_member_id: input.kind === 'classics' ? null : actor.id},actor,undefined,builder);
   }
   async deleteSession(actor: Viewer | null, id: string) {
+    requireAdmin(actor);
     const before = await this.db.prepare('SELECT * FROM sessions WHERE id=? AND deleted_at IS NULL').bind(id).first();
     if (!before) throw missing();
     await this.batch([this.db.prepare(`UPDATE sessions SET deleted_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),deleted_by=? WHERE id=?`).bind(actor?.id ?? null,id),

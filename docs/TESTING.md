@@ -181,9 +181,10 @@ Vitest is configured in `vite.config.ts`, selecting `tests/**/*.test.ts`. No lin
 
 | Coverage | Files under `tests/` |
 | --- | --- |
-| Presentation | `presentation.test.ts` (human historical/current turns, audit evidence, `/100` formatting and retained native/derived precision) |
+| Seen queue and Metrics UI | `seen-ui.test.ts` (detail preloading/deduplication/failure fallback, Undo cache preservation, current-visit pagination and contribution chart presentation) |
+| Presentation | `classics-presentation.test.ts` (Classics pagination/global ranks and Detail History inference/suppression), `presentation.test.ts` (human historical/current turns, audit evidence, `/100` formatting and retained native/derived precision) |
 | Domain | `ranking.test.ts`, `metrics.test.ts`, `event-validation.test.ts`, `maintenance-feedback.test.ts`, `artwork.test.ts`, `metadata-maintenance.test.ts` |
-| Event search/inspection | `film-search.test.ts` (matching, narrow SQL, preview no-write, credits, host), `event-inspection.test.ts` (mocked React DOM mount preservation, pagination/cache, confirmation/retry, Builder order/unavailable sets, personal Seen queue/Home count/Undo, Detail grouping and Seen-origin Back, History cycle pagination/jump/filtering, card actions/audit/delete and History-only date headings) |
+| Event search/inspection | `film-search.test.ts` (matching, narrow SQL, preview no-write, credits, host), `event-inspection.test.ts` (mocked React DOM mount preservation, pagination/cache, confirmation/retry, Builder order/unavailable sets, personal Seen queue/Home count/Undo, Detail grouping and Seen-origin Back, History cycle pagination/jump/filtering, role/host-gated card actions, audit visibility/cache, director metadata, delete and History and compact Home date headings, top-two eligible/rankable Home Classics summaries and Classics summary source scores) |
 | Current-cycle rotation and Home | `rotation.test.ts` (durable swaps, positional reset, eligibility, races, Event hosts), `rotation-ui.test.ts` (mocked React DOM identity/actions/disclosure/feedback); related rotation API coverage in `product-api.test.ts` |
 | API/auth/product | `api.test.ts`, `auth.test.ts`, `product-api.test.ts`, `domain-api.test.ts`, `frontend-api.test.ts` |
 | Providers/metadata | `providers.test.ts`, `ratings.test.ts`, `metadata.test.ts` |

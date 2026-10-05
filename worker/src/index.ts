@@ -71,7 +71,7 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
   const historyAction = path.match(/^\/api\/v1\/sessions\/([^/]+)\/(audit|restore)$/);
   if (historyAction) {
     const id = idSchema.parse(historyAction[1]);
-    if (historyAction[2] === 'audit' && method === 'GET') return json(await product.auditTrail(id));
+    if (historyAction[2] === 'audit' && method === 'GET') { requireAdmin(auth.viewer); return json(await product.auditTrail(id)); }
     if (historyAction[2] === 'restore' && method === 'POST') { await product.restoreSession(requireAdmin(auth.viewer),id); return json({restored: true}); }
   }
   if (path === '/api/v1/classics/enrich' && method === 'POST') {

@@ -21,6 +21,7 @@ export interface Movie {
   classics_membership?: { rank_seed: number; added_at: string; source: string | null } | null;
 }
 export interface Session {
+  has_audit?: boolean;
   deleted_at?: string | null;
   id: string; event_date: string; host_member_id: string | null;
   legacy_cycle_label: string | null; movies: Movie[];

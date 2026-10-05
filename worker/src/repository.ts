@@ -41,7 +41,7 @@ export class Repository {
       this.db.prepare('SELECT movie_id,member_id,seen,updated_at FROM seen_states'),
       this.db.prepare('SELECT movie_id,rank_seed,added_at,source FROM classics'),
       this.db.prepare('SELECT movie_id,genre FROM movie_genres ORDER BY genre'),
-      this.db.prepare('SELECT id,event_date,host_member_id,legacy_cycle_label,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,completed_turn_version FROM sessions WHERE deleted_at IS NULL ORDER BY event_date DESC,created_at DESC,id'),
+      this.db.prepare('SELECT id,event_date,host_member_id,legacy_cycle_label,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,completed_turn_version,EXISTS(SELECT 1 FROM history_audit WHERE session_id=sessions.id) AS has_audit FROM sessions WHERE deleted_at IS NULL ORDER BY event_date DESC,created_at DESC,id'),
       this.db.prepare('SELECT session_id,movie_id,position FROM session_movies ORDER BY position'),
       this.db.prepare('SELECT * FROM cycles ORDER BY ordinal DESC,id'),
     ]);
@@ -58,7 +58,7 @@ export class Repository {
         external_ids: rows<WithMovie<ExternalId>>(3).filter(e => e.movie_id === m.id) };
     });
     const movieMap = new Map(movies.map(m => [m.id,m]));
-    const sessions = rows<SessionRow>(8).map(s => ({ ...s,
+    const sessions = rows<SessionRow>(8).map(s => ({ ...s, has_audit: Boolean(s.has_audit),
       movies: rows<{session_id: string; movie_id: string; position: number}>(9)
         .filter(j => j.session_id === s.id).map(j => movieMap.get(j.movie_id)!).filter(Boolean) }));
     return { members, movies, sessions, cycles: rows<Cycle>(10) };

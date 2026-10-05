@@ -82,3 +82,16 @@ it('keeps raw Detail observations and explicit scales while formatting normalise
     expect(result).not.toContain('normalised 87.0');
   } finally {await act(async()=>root.unmount());}
 });
+
+it.each([
+  [{...session,date_precision:'cycle_rough' as const},"Matt's turn",'Cycle beginning 1 January 2026'],
+  [{...session,kind:'classics' as const,host_member_id:null},'Classics week','1 January 2026'],
+  [{...session,host_member_id:'former'},'Former member’s turn','1 January 2026'],
+  [{...session,date_precision:'unknown' as const},"Matt's turn",'Date unknown'],
+])('Home last turn preserves date precision and historical identity', (event,heading,date)=>{
+  const element=document.createElement('div');element.innerHTML=renderToStaticMarkup(createElement(SessionCard,{variant:'home',session:event,members}));
+  expect(element.querySelector('h3')?.textContent).toBe(heading);expect(element.querySelector('.eyebrow')?.textContent).toBe(date);
+  expect(element.querySelector('.home-session-identity')).toBeTruthy();expect(element.querySelector('.session-meta')).toBeNull();
+  expect(element.querySelector('.position')?.textContent).toBe('#1');expect(element.querySelector('.movie-row')?.getAttribute('href')).toBe('#/movie/film');expect(element.textContent).toContain('2001 · 100 min');
+  if(event.host_member_id==='former')expect(element.textContent).toContain('Hosted by a former member');
+});

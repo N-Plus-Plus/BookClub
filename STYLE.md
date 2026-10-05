@@ -521,7 +521,7 @@ Local developer tooling must remain clearly separate from member-facing workflow
 
 Centre Home on a two-column current-turn card: heading and effective avatar/identity on the left; a right-aligned, bottom-aligned vertical action stack on the right. The viewer’s own turn uses “It is your turn” and a straight external selection bar beside the indented card, matching desktop navigation. Plan in Builder and Use from Builder are ordinary secondary actions, in that order. Record an Event is the constructive primary action and always bottom-most. The Watch Order shortcut is CLSC-only, above Record an Event. On their own turn, viewers may choose a private Builder set to prefill only the films of a new Event in saved order; the set remains private and untouched. A full-width Admin · swap current turn disclosure sits below the columns for human turns only, with one eligible future member selector and Swap turns; no generic rotation editor.
 
-Do not let recent history, admin swap, developer tools or secondary widgets compete with that orientation.
+Do not let recent history, admin swap, developer tools or secondary widgets compete with that orientation. The Classics stat strip uses straight divider lines with square segment edges. Last turn uses a concise date (Cycle beginning <date> for approximate dates), no film count, stored host’s “<Name>'s turn” or “Classics week”, and identity docked at the top-right. Film order uses larger primary-text # markers. Next Classics shows only the top two eligible, rankable films with larger primary-text # ranks, Seen/No counts and source scores; status pills, Unknown counts, residual scores and score breakdowns are omitted on Home only.
 
 ### History
 
@@ -529,7 +529,7 @@ Prioritise scanning and understanding past nights.
 
 Host, date precision, film order and cycle context should remain clear.
 
-History paginates the existing cycle order at five cycles per page, with identical Previous / Next and page indicators above and below the cycles. Actual-host filtering resets to page one; cycle jump opens the containing page before scrolling. Ungrouped events follow the last page and do not count as a cycle. Keep accessible icon-only Edit, Audit and restrained destructive Delete at the top-right of each event card. Audit toggles beneath its card and reuses loaded evidence. History films use one stacked full Film Detail link per film in viewing order: a larger primary-text # marker, poster, then title above subordinate year/runtime. History film titles match the event heading size without changing titles elsewhere. Hosted headings use the stored actual host’s “<Name>'s week”; Classics uses “Classics week”. Cycle context reads “Cycle starting: <date>” followed by normal turn names separated by aligned Lucide ArrowRight icons, wrapping on narrow screens. History headings omit film counts and label approximate dates “Cycle beginning <date>”; Home retains its existing presentation.
+History paginates the existing cycle order at five cycles per page, with identical Previous / Next and page indicators above and below the cycles. Actual-host filtering resets to page one; cycle jump opens the containing page before scrolling. Ungrouped events follow the last page and do not count as a cycle. Keep a wrapping top-right row ordered Edit, Audit, restrained destructive Delete, then stacked host/Classics avatar and name. Do not repeat identity below the week heading. Edit is available to admins or the stored actual host; Audit and Delete are admin-only. Show Audit only when catalog evidence indicates a recorded audit trail; details load on demand beneath the card and reuse loaded evidence. History films use one stacked full Film Detail link per film in viewing order: a larger primary-text # marker, poster, then title above subordinate year/runtime. Show a known director below year/runtime, omitting the line when unknown. History film titles match the event heading size without changing titles elsewhere. Hosted headings use the stored actual host’s “<Name>'s week”; Classics uses “Classics week”. Cycle context reads “Cycle starting: <date>” followed by normal turn names separated by aligned Lucide ArrowRight icons, wrapping on narrow screens. History headings omit film counts and label approximate dates “Cycle beginning <date>”.
 
 ### Metrics
 
@@ -537,13 +537,13 @@ Prioritise visual comprehension and comparison.
 
 Charts are encouraged where they reveal patterns better than text alone.
 
-Maintenance controls belong behind Admin disclosure. Use accessible comparisons from stored data with exact values and explicit missing-score coverage.
+Maintenance controls belong behind Admin disclosure. Contribution by host shows Films brought only, alternating jeans and lavender bars by item order; calculations remain unchanged. Use accessible comparisons from stored data with exact values and explicit missing-score coverage.
 
 ### Classics / Watch Order
 
 Make ranking, state and comparison easy to scan.
 
-Ranked, Needs Data and Disqualified must remain distinct. Large rankings use compact responsive aligned rows; score details remain disclosed. Admin maintenance belongs behind a labelled disclosure.
+Ranked, Needs Data and Already Seen remain distinct, using ListSortDescending, Library and Rows3 icons respectively. Ranked paginates 20 films; the other tabs paginate 10, resetting on tab changes and clamping after list changes. Ranked numbers remain global, white # markers. Compact responsive rows show source scores, Seen/No/Unknown counts and known director beneath year/runtime; status pills, residual scores and breakdowns are omitted on these tabs. Missing data and admin score maintenance remain available. Admin maintenance belongs behind a labelled disclosure.
 
 ### Builder
 
@@ -557,7 +557,7 @@ Advanced or unusual options should remain disclosed.
 
 Prioritise repeated low-friction answering for the authenticated viewer only: unanswered Classics films, personal Yes/No and Undo. Queue identity stacks year, runtime and persisted director below the title; use “HAVE YOU SEEN...” without member or Unknown badges.
 
-Yes and No should remain equally reachable and should not visually bias the answer.
+Yes and No retain equal geometry and accessibility, with mint Yes and ruby No labels matching Undo’s text size. Silently cache details by film ID for the current item and next three unanswered films in unchanged queue order; deduplicate in-flight reads, fall back to foreground reads after prefetch failure, and retain useful cached films through Undo. Recent answers contain current-visit activity in recent-first order, 20 per page; bottom-only controls appear above 20 entries, new answers return to page one, and Undo clamps the current page.
 
 ### Event create/edit
 
@@ -569,7 +569,7 @@ Backfill, current-turn completion and correction semantics must remain truthful.
 
 ### Film detail
 
-Lead with film identity, Seen state, ratings and shared appearances. Seen state is a read-only two-column summary: Haven’t Seen It (explicit No) and Seen It (explicit Yes), with a divider and existing stacked avatar/name identities in member sort order. Unanswered members appear in neither column. Detail entered from Seen It? shows Back in the heading row and preserves the personal queue/Undo context; normal navigation shows neither Back nor Event-search controls. Use a score-only ranking view to avoid repeating identity. Disclose technical provenance and maintenance.
+Lead with film identity, Seen state, ratings and shared appearances. Seen state is a read-only two-column summary shown only for Classics candidates or films with History appearances. Any History appearance places all active members in Seen It and none in Haven’t Seen It, solely as presentation inference without persisting answers. Unscreened Classics use explicit answers: Haven’t Seen It (explicit No) and Seen It (explicit Yes), with a divider and existing stacked avatar/name identities in member sort order. Unanswered members appear in neither column. Detail entered from Seen It? shows Back in the heading row and preserves the personal queue/Undo context; normal navigation shows neither Back nor Event-search controls. Use a score-only ranking view to avoid repeating identity. Disclose technical provenance and maintenance.
 
 Only Event-search inspection shows “Nope, this isn't it” and the stronger “Yes, this one!” on the right of the Film detail heading. Nope and browser Back return to the preserved editor without removing the candidate. Yes appends a saved canonical movie, importing an external candidate only at confirmation; recoverable import errors stay inline on detail. External previews share the identity presentation and omit stored-only sections. External films are not persisted before Yes.
 
@@ -581,7 +581,7 @@ Keep the choice focused, obvious and recoverable. Offer available avatars in a h
 
 ### Authenticated header
 
-Keep the slate icon and BookClub wordmark with the small tagline “HAVE YOU UPDATED THE SPREAD... WEB APP?”. The existing avatar and uppercase member name form a button that toggles a compact Logout dropdown. Outside clicks, leaving the account controls with keyboard focus, and Escape dismiss it; Logout uses the existing session behaviour.
+Keep the slate icon and BookClub wordmark with the small tagline “HAVE YOU UPDATED THE SPREADSH... WEB APP?”. The existing avatar and uppercase member name form a button that toggles a compact Logout dropdown. Outside clicks, leaving the account controls with keyboard focus, and Escape dismiss it; Logout uses the existing session behaviour.
 
 ### Sign-in
 

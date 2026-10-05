@@ -47,7 +47,7 @@ CORS reflects exact configured origins only, never `*`, with no cookie credentia
 | GET `/auth/me` | `{viewer}`; null for anonymous local bypass |
 | POST `/auth/logout` | Revoke current hash -> `{loggedOut:true}` |
 | GET `/avatars`; POST `/auth/avatar` | Available integer array; `{avatar:0–19}` -> viewer. One-time claim, collision/already chosen 409. |
-| GET `/catalog` | `{members,movies,sessions,cycles}`; active History only, no Builder/auth records |
+| GET `/catalog` | `{members,movies,sessions,cycles}`; active History only; events include boolean `has_audit` from stored audit existence, no Builder/auth records |
 | GET `/members`, `/movies`, `/sessions`, `/cycles`, `/classics` | Arrays of shared types; Classics is derived sorted membership |
 | GET `/movies/:id`, `/sessions/:id` | MovieDetail / event with ordered movie objects; detail includes appearance event/date/kind/position |
 | GET `/movies/search?q=...` | Trimmed 1–150 chars -> `{local:SavedSearchResult[],external:SearchResult[],lookup:{available,message}}`; unavailable provider preserves local matches. Local fields: canonical `id`, `title`, nullable `year`, `tmdbId`, `poster`. External fields: provider/externalId/title/year/poster; no canonical ID. |
@@ -91,6 +91,8 @@ Nonempty ordered lineup, no three-film ceiling. Cycle title/legacy label max 300
 Historical actual hosts may differ from nominal positions and remain stored; Event entry has no host selector. Builder publication retains its separate publisher-host contract. Unchecking new Event completion does not change current-turn host identity. Occupied active cycle/slot returns 409 with related work rolled back. Current completion requires correct turn/version and advances only explicitly. Slots follow fixed human positions then hostless Classics; completing Classics returns to slot 1 awaiting new cycle. Current Classics completion atomically marks films Seen for all active members; backfills/edits/restores do not.
 
 GET `/rotation` -> singleton (including parsed `human_order` position/member map) or null before private initialisation. Admin POST `/rotation/swap` accepts only `{target_member_id:string,version:number}` and returns Rotation. Current position must be human; target must be an active human member distinct from the effective current member, assigned to a future/uncompleted position, with no active Event in the current cycle. Invalid targets return 422; stale/concurrent changes return 409 with no swap/audit partial write. Swaps exchange those two assignments for this cycle only, including before slot 1 creates its Cycle row. CLSC remains position 5; its completion clears the map for the next normal cycle. Generic PUT `/rotation` is unavailable. Admin status does not grant Builder access.
+
+PUT `/sessions/:id` requires an admin or the stored actual host of a hosted event; submitted host/kind cannot grant ownership or change historical identity. DELETE and audit reads require admin, including in local bypass.
 
 GET `/sessions/:id/audit` -> `HistoryAudit[]`, including deleted events, with actor/time/action/structured changes JSON. DELETE `/sessions/:id` -> `{deleted:true}` soft-deletes; POST `/sessions/:id/restore` -> `{restored:true}` admin only. Delete/restore never rewind rotation or reapply Seen; completed-turn edit/delete flags review. Replacement remains last-write-wins; do not imply a History revision guard exists.
 
