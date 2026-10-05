@@ -49,3 +49,11 @@ it('allows punctuation, original titles and minor spelling; rejects material dif
  expect(compatibility(p,{...m,title:'The Fictional Film: A Fictional Subtitle'})).toBeNull();
 });
 it('rejects duplicate IDs and ignores manual_review data',()=>{expect(()=>parseManifest({version:1,matched_count:2,pairings:[p,p]})).toThrow();expect(manifest().pairings).toHaveLength(1);});
+
+it('post-apply verification still rejects a genuine Detail metadata discrepancy',async()=>{
+ vi.stubGlobal('fetch',vi.fn().mockImplementation(response));
+ const original=Repository.prototype.movieDetails;
+ const spy=vi.spyOn(Repository.prototype,'movieDetails').mockImplementation(async function(this:Repository,ids:string[],scope?:boolean){return (await original.call(this,ids,scope)).map(movie=>({...movie,runtime:999}));});
+ try {await expect(runPairings(local.db,manifest(),{apply:true,token:'synthetic',save:async()=>{}})).rejects.toThrow('Local post-apply verification failed');}
+ finally {spy.mockRestore();}
+});

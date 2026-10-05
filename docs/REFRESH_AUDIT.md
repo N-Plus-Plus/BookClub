@@ -1,53 +1,35 @@
 # Refresh audit
 
-Actioned 5 October 2026 against current main (`8ec6193`), preserving existing uncommitted UI revisions. This document describes the current implementation; the earlier cleanup recommendations are complete. Review was source-only: no tests, typecheck, build, prod:check, browser automation or production access.
-
 ## Current controls
 
-There is no routine member-facing manual freshness control. The page-heading **Refresh BookClub data** action is removed without replacement.
+There is no routine member-facing manual freshness control. Conditional load-error Retry/Try again and explicit admin/provider maintenance remain. A failed refresh preserves the last loaded journal; load failures remain separate from action failures, including logout. Connection recovery may bootstrap again. No polling, focus/visibility refresh, service worker or route-entry global reload exists.
 
-| Area | Current behaviour |
-| --- | --- |
-| App load failure with a loaded catalogue | **Try again** calls `App.load()` only after a load failure, preserving the last loaded journal. Load errors are separate from auth/action errors, so a failed logout does not offer a catalogue retry. |
-| App / Detail initial load failure | **Couldn't load this view** → **Retry** remains conditional error recovery. |
-| Sign-in | **Retry Google sign-in** and **Retry BookClub connection** remain failure-only explicit recovery; neither creates an automatic retry loop. Connection recovery rereads BookClub state rather than resubmitting a Google credential. |
-| Detail Seen answers / Classics membership | Failed writes retain their targeted Retry actions and last confirmed data. Membership remains available to ordinary members behind **Classics membership**. |
-| Detail score maintenance | **Admin · score maintenance** contains **Refresh scores**, provider feedback, score failure, **Check saved film data** and failed reconciliation retry. Saved-data reads are failure recovery, not routine refresh. |
-| Classics Needs Data | Candidate rows and film links remain visible to members. Per-film **Refresh scores** and feedback are behind an admin-only disclosure. |
-| Classics bulk maintenance | Admin **Enrich up to 10 films** remains explicit, bounded provider capture. |
-| Metrics maintenance | Admin **Fill missing metadata** and **Stop after this batch** retain their sequencing, lightweight metadata path and one final automatic catalogue read. |
-| Local developer maintenance | **Refresh Dev DB from Production** and **Confirm local replacement** retain their existing guards and explicit confirmation. This workflow was not executed. |
+Admin maintenance lives on the URL-only authenticated admin route. Score work applies returned Movie patches during a run and performs one final shared-data reconciliation. TMDB metadata maintenance uses bounded requests, response counts, Stop after this batch and one final shared-data read after completion, stop or failure. Local developer snapshot replacement remains separately guarded and explicitly confirmed.
 
-Score maintenance visibility is admin-only in the UI; existing API authorisation, provider semantics and cooldowns are unchanged. No provider capture occurs merely by opening Detail or Needs Data.
+## Loading and mutation reconciliation
 
-## Automatic updates after confirmed changes
+`App.load()` is bootstrap: health, authentication/avatar establishment, then concurrent compact catalogue and rotation. It remains for startup, sign-in, avatar completion, explicit connection recovery and developer identity/data replacement.
 
-`App.load()` remains generation-guarded: health/auth gating precedes concurrent catalogue and rotation reads. Failed reads preserve usable loaded data; 401 handling resets authentication. Its caught failures do not reject the returned promise.
+`App.refreshData()` fetches only catalogue and rotation after authenticated broad changes. Both reads are generation-guarded, retain last-good data after failures and rely on central 401 handling. Their caught failures do not reject the returned promise. The normal client timeout remains 15 seconds.
 
 | Action | State update |
 | --- | --- |
-| Initial mount, successful sign-in, avatar completion | Existing automatic `App.load()`; avatar completion also applies returned viewer. |
-| Seen answers, Undo and corrections | Returned movie patches catalogue movies and matching session references; Detail also applies its local movie. |
-| Detail Classics membership, score capture and saved-data recovery | Returned movie patches Detail and catalogue. |
-| Classics single/bulk score capture | Each returned movie patches catalogue and derived rankings. |
-| FilmPicker creation/import | Returned movie patches catalogue and editor selection. |
-| Builder save/delete/review | Existing local sets and editing updates/reads. |
-| Event save, History deletion, rotation correction, Builder publication | Existing automatic catalogue/rotation reads; event save also patches its confirmed session. |
-| Metrics metadata maintenance | Local progress updates per batch, then one final `App.load()` after completion, stop or failure. |
-| Developer identity change / successful local replacement | Existing automatic `App.load()`. |
+| Rotation swap | Apply returned Rotation directly; no shared-data or bootstrap reload. A rotation revision guard prevents an older in-flight shared read from replacing it while allowing that catalogue read to finish. |
+| Event save/update, Builder publication, History delete/restore | One shared-data refresh; no preliminary local Session patch or health/auth reread. |
+| Seen, Undo, corrections, Classics membership, per-film maintenance/saved-data recovery | Targeted returned Movie patch, including matching History references. |
+| Score bulk maintenance | Returned Movie patches during the run, one final shared-data reconciliation. |
+| TMDB metadata maintenance | Local response-based progress, one final shared-data refresh. |
+| FilmPicker creation/import | Returned Movie patch and editor selection. |
+| Private Builder save/delete/review | Narrow owner-only Builder state; no public catalogue reload. |
 
-These are confirmed-response updates, not speculative writes. No successful app mutation requires a member to manually refresh.
+Catalogue reads overlay latest queued/saving/failed Seen intentions before becoming visible. Read-scoped intention maps also preserve writes confirmed while an older catalogue snapshot is in flight; maps are released after the request. FIFO persistence, manual failure retry and visit-local Undo remain.
 
-## Deliberate staleness and narrow reads
+## Transport and deliberate staleness
 
-Home, History, Classics, Seen It? and Metrics use the global catalogue snapshot. Event forms also seed from that snapshot. Changes from another device/session may remain stale until full document reload. Hash navigation only changes the page, scroll and heading focus; it does not reread the catalogue.
+Normal frontend `api.catalog()` requests `/catalog/compact`: canonical Movies once with effective score snapshots, Sessions with ordered movie IDs. Hydration restores the existing in-memory Catalog and shared Movie references. An older Worker's 404/405/501 falls back to legacy `/catalog`; other failures are not hidden. Selected-film Detail retains richer saved score history.
 
-Detail retains its keyed mount/re-entry movie read. Its initial read updates only local Detail state; writes and saved-data recovery patch both local and catalogue state. Builder retains its mount/viewer reads of private sets. `App.load()` does not reload an already mounted Detail movie or Builder sets/form.
+Home, History, Classics, Seen It? and Metrics use the global snapshot. Event forms seed from it. Other-client changes may remain stale until full document reload. Hash navigation only changes the page, scroll and heading focus. Detail retains its keyed narrow mount read and Builder its private mount/viewer reads; neither is automatically reloaded by shared-data reconciliation.
 
-History Audit retains lazy per-entry evidence reads and caching, with reopening after a failed read recovering the request. Avatar availability remains once per chooser interaction. FilmPicker retains explicit query-driven search.
+History audit evidence remains lazy and cached. Avatar availability is per chooser interaction. FilmPicker search is explicit and preview/details are requested only for actual external inspection, sharing in-flight and successful per-mount previews. Rendering or paginating search rows makes no preview calls.
 
-Stored provider scores and metadata remain snapshots until explicit maintenance; document reload reads saved observations without contacting providers.
-
-No catalogue polling, websockets, focus/visibility refresh, service workers or route-entry global refresh was added. Existing developer replacement status polling and user-started bounded metadata batches remain intentional maintenance operations.
-
-Source search of frontend refresh/reload labels and `RefreshCw` actions found only conditional error recovery and admin/developer maintenance after removal of the heading action. STYLE.md records the lasting freshness rule.
+Stored scores/metadata remain snapshots until explicit maintenance. Normal catalogue/Detail reads never contact providers. Architectural regression tests cover these refresh, transport and provider-traffic boundaries; production behaviour/performance remains unverified.

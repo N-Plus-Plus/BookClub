@@ -124,9 +124,8 @@ export class ScoreService {
   }
   async enrich(limit: number) {
     if (!Number.isInteger(limit) || limit < 1 || limit > 10) throw new ApiError(422,'INVALID_LIMIT','Choose 1–10 films.');
-    const {movies} = await this.repo.catalog();
-    const candidates = movies.filter(m => m.classic && !m.ranking?.rankable && mdbId(m.external_ids));
-    const selected = candidates.slice(0,limit), batch = new Map<string,{scores?: Score[]; error?: unknown}>(), failures = new Map<string,ProviderError>();
+    const candidates = await this.repo.enrichmentCandidates(limit);
+    const selected = await this.repo.movieDetails(candidates.ids), batch = new Map<string,{scores?: Score[]; error?: unknown}>(), failures = new Map<string,ProviderError>();
     if (this.env.MDBLIST_API_KEY) for (const provider of ['imdb','tmdb']) {
       const group = selected.filter(m => mdbId(m.external_ids)?.provider === provider);
       if (!group.length) continue;
@@ -138,9 +137,7 @@ export class ScoreService {
     const results = [];
     // Sequential fallback prevents a provider-wide failure from multiplying calls.
     for (const m of selected) results.push({id:m.id,providers:await this.capture(m,batch.get(m.id),failures)});
-    const current = await this.repo.catalog();
-    return {results: results.map(r => ({providers: r.providers,movie: {...current.movies.find(m => m.id === r.id)!,
-      appearances: current.sessions.flatMap(s => s.movies.flatMap((m,i) => m.id === r.id ? [{id: s.id,event_date: s.event_date,date_precision: s.date_precision,kind: s.kind,host_member_id: s.host_member_id,position: i+1}] : []))}})),
-      remaining: Math.max(0,candidates.length-selected.length),unidentified: movies.filter(m => m.classic && !m.ranking?.rankable && !mdbId(m.external_ids)).length};
+    const current = await this.repo.movieDetails(results.map(r => r.id));
+    return {results:results.map((r,i) => ({providers:r.providers,movie:current[i]})),remaining:candidates.remaining,unidentified:candidates.unidentified};
   }
 }

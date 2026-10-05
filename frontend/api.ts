@@ -1,6 +1,7 @@
+import { hydrateCatalog } from '../shared/catalog';
 import { METADATA_MAINTENANCE_BATCH_SIZE } from '../shared/score-maintenance';
 import { validationFieldLabel } from './presentation';
-import type { Catalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, MetadataEnrichment, ScoreMaintenance, TmdbPreview } from '../shared/types';
+import type { Catalog, CompactCatalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, MetadataEnrichment, ScoreMaintenance, TmdbPreview } from '../shared/types';
 
 const configured = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/,'');
 const base = import.meta.env.DEV ? 'http://localhost:8787' : configured || '';
@@ -43,7 +44,13 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
   return payload.data as T;
 }
 export const api = {
-  catalog: () => request<Catalog>('/catalog'), health: () => request<Health>('/health','GET',undefined,false),
+  catalog: async (): Promise<Catalog> => {
+    try { return hydrateCatalog(await request<CompactCatalog>('/catalog/compact')); }
+    catch (error) {
+      if (!(error instanceof ApiClientError) || ![404,405,501].includes(error.status)) throw error;
+      return request<Catalog>('/catalog');
+    }
+  }, health: () => request<Health>('/health','GET',undefined,false),
   scoreMaintenanceStatus: () => request<import('../shared/types').ScoreMaintenanceStatus>('/movies/maintenance-status'),
   maintainMovies: (mode: import('../shared/score-maintenance').MaintenanceMode,movie_ids: string[]) => request<ScoreMaintenance>('/movies/maintain','POST',{mode,movie_ids}),
   enrichMetadata: (limit = METADATA_MAINTENANCE_BATCH_SIZE) => request<MetadataEnrichment>('/movies/enrich-metadata','POST',{limit:Math.min(limit,METADATA_MAINTENANCE_BATCH_SIZE)}),

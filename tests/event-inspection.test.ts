@@ -11,7 +11,7 @@ import { HistoryScreen } from '../frontend/HistoryScreen';
 import { SessionCard } from '../frontend/components';
 
 vi.mock('../frontend/api',() => ({
-  api:{scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:['f1','f2','f3','f99','saved-7'],eligibleDimensions:30,unavailableDimensions:0,unavailableFilms:0})),maintainMovies:vi.fn(),enrichMetadata:vi.fn(),audit:vi.fn(),deleteSession:vi.fn(),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn()},
+  api:{swapRotation:vi.fn(),scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:['f1','f2','f3','f99','saved-7'],eligibleDimensions:30,unavailableDimensions:0,unavailableFilms:0})),maintainMovies:vi.fn(),enrichMetadata:vi.fn(),audit:vi.fn(),deleteSession:vi.fn(),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn()},
   ApiClientError:class extends Error {},hasSession:() => true,setUnauthorizedHandler:vi.fn(),setDevMember:vi.fn(),clearSession:vi.fn(),storeSession:vi.fn(),
 }));
 const movies: Movie[] = Array.from({length:8},(_,i) => ({id:`saved-${i}`,title:`Film ${i}`,year:1998,original_title:null,release_date:null,runtime:100,overview:'Overview',genres:[],assets:[],external_ids:i === 7 ? [{provider:'tmdb',external_id:'107'}] : [],scores:[],seen:[],classic:false,ranking:null}));
@@ -92,14 +92,14 @@ describe('preserved Event film inspection',() => {
     expect(lineup()).toEqual(['Film 0','Film 0']);
     await navigate('movie/saved-0'); expect(button('Yes, this one!')).toBeUndefined();
   });
-  it('enriches only the visible page, caches on Previous/Next and imports external only on Yes with retry',async () => {
+  it('loads preview only on inspection, caches on Previous/Next and imports external only on Yes with retry',async () => {
     await search(); expect(api.preview).not.toHaveBeenCalled();
-    await click(button('Next')); expect(api.preview).toHaveBeenCalledTimes(2);
-    expect(container.querySelectorAll('.search-row')[2].textContent).toContain('2001 · Director: Director Name');
-    await click(button('Previous')); await click(button('Next')); expect(api.preview).toHaveBeenCalledTimes(2);
+    await click(button('Next')); expect(api.preview).not.toHaveBeenCalled();
+    expect(container.querySelectorAll('.search-row')[2].textContent).toContain('2001 · Director: Unknown');
+    await click(button('Previous')); await click(button('Next')); expect(api.preview).not.toHaveBeenCalled();
     const editor = container.querySelector('.event-workflow');
     await click(container.querySelectorAll<HTMLAnchorElement>('.search-row a')[2]);
-    expect(api.preview).toHaveBeenCalledTimes(2); expect(api.importMovie).not.toHaveBeenCalled();
+    expect(api.preview).toHaveBeenCalledTimes(1); expect(api.importMovie).not.toHaveBeenCalled();
     expect(container.querySelector('.detail-header')?.textContent).toContain('Preview only');
     expect(container.querySelector('.detail-grid')).toBeNull();
     vi.mocked(api.importMovie).mockRejectedValueOnce(new Error('Import temporarily unavailable.'));
@@ -114,27 +114,29 @@ describe('preserved Event film inspection',() => {
     await search(); await click(button('Next'));
     expect(container.querySelectorAll('.search-row')).toHaveLength(3);
     expect(container.querySelectorAll('.search-row')[2].textContent).toContain('Director: Unknown');
-    await click(button('Previous')); await click(button('Next')); expect(api.preview).toHaveBeenCalledTimes(2);
+    await click(button('Previous')); await click(button('Next')); expect(api.preview).not.toHaveBeenCalled();
   });
-  it('bounds enrichment to six visible external candidates and reuses all previews on return',async () => {
+  it('never prefetches visible external rows and deduplicates actual inspections',async () => {
     vi.mocked(api.search).mockResolvedValue({local:[],external:Array.from({length:14},(_,i) => ({provider:'tmdb',externalId:String(i+1),title:`Candidate ${i+1}`,year:null,poster:null})),lookup:{available:true,message:null}});
     await search(); await flush();
-    expect(api.preview).toHaveBeenCalledTimes(6); expect(container.querySelectorAll('.search-row')).toHaveLength(6);
-    expect(vi.mocked(api.preview).mock.calls.map(call => call[0])).toEqual(['1','2','3','4','5','6']);
-    await click(button('Next')); await flush(); expect(api.preview).toHaveBeenCalledTimes(12);
-    await click(button('Previous')); expect(api.preview).toHaveBeenCalledTimes(12);
+    expect(api.preview).not.toHaveBeenCalled(); expect(container.querySelectorAll('.search-row')).toHaveLength(6);
+    await click(button('Next')); await click(button('Previous')); expect(api.preview).not.toHaveBeenCalled();
+    await click(container.querySelector<HTMLAnchorElement>('.search-row a')!); expect(api.preview).toHaveBeenCalledTimes(1);
+    await click(button("Nope, this isn't it"));
+    await click(container.querySelector<HTMLAnchorElement>('.search-row a')!); expect(api.preview).toHaveBeenCalledTimes(1);
   });
-  it('shares an inspection request for a candidate whose sequential enrichment has not started',async () => {
-    vi.mocked(api.search).mockResolvedValue({local:[],external:Array.from({length:6},(_,i) => ({provider:'tmdb',externalId:String(i+1),title:`Candidate ${i+1}`,year:null,poster:null})),lookup:{available:true,message:null}});
-    let resolveFirst!: (value: TmdbPreview) => void;
-    vi.mocked(api.preview).mockImplementation(id => id === '1' ? new Promise(resolve => { resolveFirst = resolve; }) : Promise.resolve({...preview,externalId:id}));
-    await search(); expect(api.preview).toHaveBeenCalledTimes(1);
-    await click(container.querySelectorAll<HTMLAnchorElement>('.search-row a')[5]);
-    expect(api.preview).toHaveBeenCalledTimes(2); expect(api.importMovie).not.toHaveBeenCalled();
-    await act(async () => { resolveFirst({...preview,externalId:'1'}); }); await flush();
-    expect(vi.mocked(api.preview).mock.calls.filter(call => call[0] === '6')).toHaveLength(1);
-    expect(api.preview).toHaveBeenCalledTimes(6);
-    await click(button("Nope, this isn't it")); await flush(); expect(lineup()).toEqual([]);
+  it('shares an in-flight preview across repeated inspections',async () => {
+    vi.mocked(api.search).mockResolvedValue({local:[],external:[{provider:'tmdb',externalId:'1',title:'Candidate',year:null,poster:null}],lookup:{available:true,message:null}});
+    let resolve!: (value: TmdbPreview) => void;
+    vi.mocked(api.preview).mockImplementation(() => new Promise(done => { resolve = done; }));
+    await search(); expect(api.preview).not.toHaveBeenCalled();
+    await click(container.querySelector<HTMLAnchorElement>('.search-row a')!);
+    await click(button("Nope, this isn't it"));
+    await click(container.querySelector<HTMLAnchorElement>('.search-row a')!);
+    expect(api.preview).toHaveBeenCalledTimes(1);
+    await act(async () => { resolve({...preview,externalId:'1'}); }); await flush();
+    expect(container.querySelector('.detail-header')?.textContent).toContain('Preview only');
+    expect(api.importMovie).not.toHaveBeenCalled();
   });
   it('Builder prefill seeds once in exact order and survives Nope and Yes',async () => {
     await navigate('home');
@@ -352,6 +354,7 @@ describe('URL-only Admin screen',() => {
     vi.mocked(api.maintainMovies).mockResolvedValue({results:[{movie:{...movie,appearances:[]},providers:[{provider:'tmdb',status:'success',count:1,message:'Saved'}]}]} as Awaited<ReturnType<typeof api.maintainMovies>>);
     vi.mocked(api.enrichMetadata).mockResolvedValue({remaining:0,unidentified:7,results:[{movieId:movie.id,title:movie.title,provider:'tmdb',status:'success',message:'Updated.'}]});
     await asAdmin(); await navigate('admin');
+    const bootstrapCalls=[vi.mocked(api.health).mock.calls.length,vi.mocked(api.me).mock.calls.length],catalogCalls=vi.mocked(api.catalog).mock.calls.length;
     await click(button('Refresh Scores'));
     expect(api.maintainMovies).toHaveBeenCalledWith('refresh',[movie.id]);
     expect(container.querySelector('progress')?.value).toBe(1);
@@ -359,6 +362,8 @@ describe('URL-only Admin screen',() => {
     expect(api.enrichMetadata).toHaveBeenCalledOnce();
     expect(container.textContent).toContain('1 successfully updated');
     expect(container.textContent).toContain('0 identified films remaining');
+    expect([vi.mocked(api.health).mock.calls.length,vi.mocked(api.me).mock.calls.length]).toEqual(bootstrapCalls);
+    expect(api.catalog).toHaveBeenCalledTimes(catalogCalls+2);
   });
   it('does not render admin controls without an authenticated viewer',async()=>{
     vi.mocked(api.me).mockResolvedValue({viewer:null});
@@ -414,4 +419,42 @@ it('keeps App-owned Seen saves serial through navigation and exposes failures fo
  await click(button('Retry saving Film 0'));expect(api.seen).toHaveBeenLastCalledWith('saved-0','member-2',true);
  await act(async()=>requests[2].resolve({...pool[0],seen:[{member_id:'member-2',seen:1,updated_at:'saved'}]}));await flush();
  expect(container.querySelector('[role="alert"]')).toBeNull();
+});
+
+it('Event save performs one shared-data reconciliation without repeating bootstrap health or auth',async()=>{
+ await search();await click(container.querySelector<HTMLAnchorElement>('.search-row a')!);await click(button('Yes, this one!'));
+ await input(container.querySelector<HTMLInputElement>('input[name="event_date"]')!,'2030-01-01');
+ await click(container.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+ vi.mocked(api.saveSession).mockResolvedValue({id:'new-event',movies:[movies[0]],event_date:'2030-01-01',host_member_id:'member-2',kind:'hosted',date_precision:'exact',cycle_id:null,cycle_slot:null,legacy_cycle_label:null});
+ await click(button('Save event'));await flush();
+ expect(api.saveSession).toHaveBeenCalledOnce();expect(api.catalog).toHaveBeenCalledTimes(2);expect(api.rotation).toHaveBeenCalledTimes(2);
+ expect(api.health).toHaveBeenCalledOnce();expect(api.me).toHaveBeenCalledOnce();
+});
+it('App applies the returned rotation swap without catalogue, rotation, health or auth reloads',async()=>{
+ vi.mocked(api.catalog).mockResolvedValue({...catalog,members:[...catalog.members,{id:'member-3',display_name:'Member 3',sort_order:3,active:1,avatar:3}]});
+ vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'admin'}});
+ await act(async()=>root.unmount());root=createRoot(container);window.location.hash='/home';await act(async()=>root.render(createElement(App)));await flush();
+ vi.clearAllMocks();
+ const turn={id:1,nominal_slot:2,cycle_id:null,version:1,updated_at:'saved',human_order:{'2':'member-3','3':'member-2'}};
+ vi.mocked(api.swapRotation).mockResolvedValue(turn);
+ await act(async()=>{const select=container.querySelector('.turn-card')!.querySelector('select')!;select.value='member-3';select.dispatchEvent(new Event('change',{bubbles:true}));});
+ await act(async()=>container.querySelector('.turn-card form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));await flush();
+ expect(api.swapRotation).toHaveBeenCalledOnce();expect(container.querySelector('.turn-identity')?.textContent).toContain('MEMBER 3');
+ expect(api.catalog).not.toHaveBeenCalled();expect(api.rotation).not.toHaveBeenCalled();expect(api.health).not.toHaveBeenCalled();expect(api.me).not.toHaveBeenCalled();
+});
+
+it('a returned swap does not discard an in-flight broad catalogue refresh or get overwritten by its older Rotation',async()=>{
+ const club={...catalog,members:[...catalog.members,{id:'member-3',display_name:'Member 3',sort_order:3,active:1,avatar:3}]};
+ vi.mocked(api.catalog).mockResolvedValue(club);vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'admin'}});
+ await act(async()=>root.unmount());root=createRoot(container);window.location.hash='/admin';await act(async()=>root.render(createElement(App)));await flush();vi.clearAllMocks();
+ let release!:(catalog:Catalog)=>void;vi.mocked(api.catalog).mockReturnValueOnce(new Promise(resolve=>{release=resolve;}));
+ vi.mocked(api.enrichMetadata).mockResolvedValue({remaining:0,unidentified:0,results:[{movieId:'saved-7',title:'Fixture',provider:'tmdb',status:'success',message:'Saved'}]});
+ await click(button('Fill missing metadata'));expect(api.catalog).toHaveBeenCalledOnce();
+ await navigate('home');vi.mocked(api.swapRotation).mockResolvedValue({id:1,nominal_slot:2,cycle_id:null,version:1,updated_at:'saved',human_order:{'2':'member-3','3':'member-2'}});
+ await act(async()=>{const select=container.querySelector('.turn-card')!.querySelector('select')!;select.value='member-3';select.dispatchEvent(new Event('change',{bubbles:true}));});
+ await act(async()=>container.querySelector('.turn-card form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));await flush();
+ const fresh={...movies[0],title:'Metadata reconciled'};
+ await act(async()=>release({...club,movies:[fresh,...movies.slice(1)],sessions:[{id:'fresh',movies:[fresh],event_date:'2030-01-01',host_member_id:'member-2',kind:'hosted',date_precision:'exact',cycle_id:null,cycle_slot:null,legacy_cycle_label:null}]}));await flush();
+ expect(container.querySelector('.turn-identity')?.textContent).toContain('MEMBER 3');expect(container.textContent).toContain('Metadata reconciled');
+ expect(api.catalog).toHaveBeenCalledOnce();expect(api.health).not.toHaveBeenCalled();expect(api.me).not.toHaveBeenCalled();
 });

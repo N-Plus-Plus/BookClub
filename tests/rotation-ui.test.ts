@@ -32,7 +32,7 @@ it('offers only eligible future members and submits the narrow versioned swap wi
  vi.mocked(api.swapRotation).mockResolvedValue({...turn,human_order:{'1':'m3','3':'m1'},version:5});
  await act(async()=>{const select=container.querySelector('select')!;select.value='m3';select.dispatchEvent(new Event('change',{bubbles:true}));});
  await act(async()=>container.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
- expect(api.swapRotation).toHaveBeenCalledWith({target_member_id:'m3',version:4});expect(updated).toHaveBeenCalledOnce();expect(container.querySelector('[role=status]')?.textContent).toContain('MEMBER 3 is current now');
+ expect(api.swapRotation).toHaveBeenCalledWith({target_member_id:'m3',version:4});expect(updated).toHaveBeenCalledExactlyOnceWith({...turn,human_order:{'1':'m3','3':'m1'},version:5});expect(container.querySelector('[role=status]')?.textContent).toContain('MEMBER 3 is current now');
 });
 it('shows local errors and preserves the selected target',async()=>{
  await render();vi.mocked(api.swapRotation).mockRejectedValue(new Error('Current turn changed.'));

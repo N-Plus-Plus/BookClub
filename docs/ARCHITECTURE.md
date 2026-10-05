@@ -54,6 +54,8 @@ React serves a static, hash-routed frontend. `index.html` and `frontend/main.tsx
 
 `#/admin` is an authenticated admin-only, URL-only route, excluded from navigation. `AdminScreen` composes `ClassicsMaintenance` (bulk scores/OMDb metadata) and `MetadataMaintenance` (TMDB metadata/artwork); record-scoped controls stay with their records.
 
+The frontend requests additive compact catalogue transport and hydrates ordered History film IDs into canonical Movie references, falling back to legacy `/catalog` on an older Worker. Bootstrap reads health/auth plus shared data; authenticated mutation reconciliation reads only catalogue/rotation. Rotation swaps and film writes use returned state. Pending/failed Seen intentions survive catalogue snapshots, including writes confirmed while a snapshot is in flight.
+
 The independently deployed Worker (`worker/src/index.ts`) owns validation, authorisation, persistence and provider credentials. Zod validates boundaries; jose verifies Google JWTs. D1 is the canonical database. Shared TypeScript holds pure ranking, Metrics and identity rules; the UI derives presentation from the authenticated catalog.
 
 Normal development prepares local D1, then runs Vite and a Node supervisor that starts/stops local Wrangler. Vite proxies `/__dev/refresh` to loopback 8790. `frontend/DevTools.tsx` and the supervisor support an explicitly confirmed one-way production snapshot replacement; neither is present in production. Development fixes its API to localhost even if root env files specify production.
@@ -66,7 +68,7 @@ Normal development prepares local D1, then runs Vite and a Node supervisor that 
 | UI system | `style.css`, `frontend/app.css`, `frontend/components.tsx`, `frontend/ClubIdentity.tsx` | Preserve root tokens/primitives; extensions use app.css. Lucide and bundled Lexend Deca; no CSS framework. [STYLE](../STYLE.md) owns design decisions. |
 | Domain | `shared/ranking.ts`, `metrics.ts`, `genres.ts`, `identity.ts`, `metadata.ts`, `artwork.ts` | Effective scores, appearance calculations, finite genres, dates/identities, maintenance eligibility and poster sizing |
 | Worker boundary | `worker/src/index.ts`, `validation.ts`, `http.ts`, `auth.ts`, `auth-repository.ts` | Routing, safe errors, exact CORS, central mutation guard and D1-backed sessions |
-| Persistence/product | `worker/src/repository.ts`, `product-repository.ts`, `worker/migrations/` | Canonical catalog; transactional Builder/rotation/History; versioned schema |
+| Persistence/product | `worker/src/repository.ts`, `product-repository.ts`, `worker/migrations/` | One-pass catalogue assembly; bounded film/Session reads; SQL maintenance selection; transactional Builder/rotation/History; versioned schema |
 | Providers | `worker/src/services.ts`, `score-service.ts`, `providers/` | Narrow local search, read-only TMDB preview, explicit metadata import/maintenance and score capture |
 | Snapshot tooling | `scripts/dev/` | Fixed production read/export source, sanitised staging, verification and local-only replacement; explicit local TMDB pairing maintenance |
 | Archive tooling | `scripts/import/` | Development-only ExcelJS/tsx parser, resolver, local apply and separate guarded operator production CLI |
@@ -94,4 +96,4 @@ External calls use Google JWK verification, TMDB search/details, MDBList Media I
 
 The static browser has no D1/provider secrets; ordinary fetches go through `frontend/api.ts`. CORS is not authentication. Builder ownership is enforced server-side even for admins. Catalogue and stored-film page loads never call provider APIs; explicit search and unsaved-film preview may call TMDB; poster display/failure never triggers metadata repair. Local/production/preview stores remain separate. Generated builds, private snapshots, credentials and archive reports stay ignored.
 
-Remote schema, current rotation and provisioning are live state: tracked code cannot certify them. Previous project records report production through 0008; current source includes 0009–0013, which must be checked/applied under authorised data scope before deploying code that requires them. No live verification is required for ordinary documentation or tests.
+Remote schema, current rotation and provisioning are live state: tracked code cannot certify them. Previous project records report production through 0008; current source includes 0009–0014, which must be checked/applied under authorised data scope before deploying code that requires them. No live verification is required for ordinary documentation or tests.

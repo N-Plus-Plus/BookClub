@@ -60,7 +60,7 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
     if (id && builderMatch?.[2] === 'publish' && method === 'POST') {
       const {revision,...input} = publishSchema.parse(await body(request));
       const sessionId = await product.publishBuilder(actor,id,revision,{...input,movie_ids: [],kind: input.cycle_slot === 5 ? 'classics' : 'hosted',date_precision: 'exact'});
-      return json((await repo.catalog()).sessions.find(s => s.id === sessionId),201);
+      return json(await repo.session(sessionId),201);
     }
     if (id && !builderMatch?.[2]) {
       if (method === 'GET') return json(await product.builder(actor.id,id));
@@ -121,20 +121,19 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
   if ((path === '/api/v1/sessions' && method === 'POST') || (sessionMatch && method === 'PUT')) {
     const input = sessionSchema.parse(await body(request));
     const id = await product.saveSession(input,auth.viewer,sessionMatch ? idSchema.parse(sessionMatch[1]) : undefined);
-    return json((await repo.catalog()).sessions.find(s => s.id === id),sessionMatch ? 200 : 201);
+    return json(await repo.session(id),sessionMatch ? 200 : 201);
   }
+  if (path === '/api/v1/catalog/compact' && method === 'GET') return json(await repo.compactCatalog());
   if (method === 'GET' && ['/api/v1/catalog','/api/v1/members','/api/v1/movies','/api/v1/sessions','/api/v1/classics','/api/v1/cycles'].includes(path)) {
-    const catalog = await repo.catalog();
-    if (path.endsWith('/catalog')) return json(catalog);
-    if (path.endsWith('/classics')) return json(sortClassics(catalog.movies.filter(m => m.classic)));
-    if (path.endsWith('/members')) return json(catalog.members);
-    if (path.endsWith('/cycles')) return json(catalog.cycles);
-    if (path.endsWith('/movies')) return json(catalog.movies);
-    return json(catalog.sessions);
+    if (path.endsWith('/catalog')) return json(await repo.catalog());
+    if (path.endsWith('/classics')) return json(sortClassics(await repo.movies(true)));
+    if (path.endsWith('/members')) return json(await repo.members());
+    if (path.endsWith('/cycles')) return json(await repo.cycles());
+    if (path.endsWith('/movies')) return json(await repo.movies());
+    return json(await repo.sessions());
   }
   if (sessionMatch && method === 'GET') {
-    const session = (await repo.catalog()).sessions.find(s => s.id === idSchema.parse(sessionMatch[1]));
-    if (!session) throw new ApiError(404,'NOT_FOUND','Event not found.'); return json(session);
+    return json(await repo.session(idSchema.parse(sessionMatch[1])));
   }
   throw new ApiError(404,'NOT_FOUND','API route not found.');
 }

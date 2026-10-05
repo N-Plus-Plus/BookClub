@@ -7,7 +7,7 @@ import { Action, RouteLink } from './components';
 import { ClubIdentity } from './ClubIdentity';
 import { BuilderSetPicker } from './BuilderSetPicker';
 
-export function RotationCard({catalog,rotation,viewer,onUpdated,onUseBuilder}: {catalog: Catalog; rotation: Rotation | null; viewer: Viewer | null; onUpdated: () => void; onUseBuilder: (movieIds: string[]) => void}) {
+export function RotationCard({catalog,rotation,viewer,onUpdated,onUseBuilder}: {catalog: Catalog; rotation: Rotation | null; viewer: Viewer | null; onUpdated: (rotation: Rotation | null) => void; onUseBuilder: (movieIds: string[]) => void}) {
   const current = rotation ? effectiveMember(catalog.members,rotation) : undefined;
   const personal = current && viewer?.id === current.id;
   const targets = rotation ? swapTargets(catalog.members,rotation,catalog.sessions) : [];
@@ -28,7 +28,7 @@ export function RotationCard({catalog,rotation,viewer,onUpdated,onUseBuilder}: {
       e.preventDefault(); if (!current || !selected || busy) return;
       const message = `${selected.display_name.toUpperCase()} is current now; ${current.display_name.toUpperCase()} moves to their position for this cycle.`;
       setBusy(true); setError(''); setFeedback('');
-      void api.swapRotation({target_member_id:selected.id,version:rotation.version}).then(() => { setTargetId(''); setFeedback(message); onUpdated(); }).catch(e => setError(e instanceof Error ? e.message : 'Swap failed.')).finally(() => setBusy(false));
+      void api.swapRotation({target_member_id:selected.id,version:rotation.version}).then(turn => { setTargetId(''); setFeedback(message); onUpdated(turn); }).catch(e => setError(e instanceof Error ? e.message : 'Swap failed.')).finally(() => setBusy(false));
     }}>
       {current && <p className="meta">Swap {current.display_name.toUpperCase()} with another member who has not yet had their turn this cycle. They become current now; {current.display_name.toUpperCase()} moves to their position for this cycle only. Next cycle returns to normal order.</p>}
       {targets.length ? <><label className="input-label">Swap current turn<select required className="field__input" value={selected?.id ?? ''} disabled={busy} onChange={e => setTargetId(e.target.value)}><option value="">Choose a member</option>{targets.map(({member}) => <option value={member.id} key={member.id}>{member.display_name.toUpperCase()}</option>)}</select></label><Action icon={ArrowLeftRight} type="submit" disabled={busy || !selected}>Swap turns</Action></> : <p className="meta">No eligible future turns this cycle.</p>}

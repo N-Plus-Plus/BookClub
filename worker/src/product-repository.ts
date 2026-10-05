@@ -73,14 +73,25 @@ export class ProductRepository {
       this.db.prepare('SELECT bm.* FROM builder_movies bm JOIN builder_sets b ON b.id=bm.builder_id WHERE b.owner_member_id=? ORDER BY bm.position').bind(owner),
     ]);
     const films = results[1].results as {builder_id: string; movie_id: string}[];
-    return (results[0].results as Omit<BuilderSet,'movie_ids'>[]).map(b => ({...b,movie_ids: films.filter(f => f.builder_id === b.id).map(f => f.movie_id)}));
+    const byBuilder = new Map<string,string[]>();
+    for (const film of films) { const group = byBuilder.get(film.builder_id) ?? []; group.push(film.movie_id); byBuilder.set(film.builder_id,group); }
+    return (results[0].results as Omit<BuilderSet,'movie_ids'>[]).map(b => ({...b,movie_ids:byBuilder.get(b.id) ?? []}));
   }
   async builder(owner: string, id: string) {
-    const row = (await this.builders(owner)).find(b => b.id === id);
-    if (!row) throw missing(); return row;
+    const results = await this.db.batch([
+      this.db.prepare('SELECT * FROM builder_sets WHERE owner_member_id=? AND id=?').bind(owner,id),
+      this.db.prepare('SELECT movie_id FROM builder_movies WHERE builder_id=? AND EXISTS(SELECT 1 FROM builder_sets WHERE id=? AND owner_member_id=?) ORDER BY position').bind(id,id,owner),
+    ]);
+    const row = results[0].results[0] as Omit<BuilderSet,'movie_ids'> | undefined;
+    if (!row) throw missing();
+    return {...row,movie_ids:(results[1].results as {movie_id:string}[]).map(r => r.movie_id)};
   }
   private async validateMovies(ids: string[]) {
-    for (const id of new Set(ids)) if (!await this.db.prepare('SELECT id FROM movies WHERE id=?').bind(id).first()) throw new ApiError(422,'INVALID_MOVIE','Choose saved films.');
+    const unique = [...new Set(ids)];
+    if (!unique.length) return;
+    // JSON keeps parameter count bounded even for long, valid lineups.
+    const rows = await this.db.prepare('SELECT id FROM movies WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(unique)).all<{id:string}>();
+    if (rows.results.length !== unique.length) throw new ApiError(422,'INVALID_MOVIE','Choose saved films.');
   }
   async saveBuilder(owner: string, input: BuilderInput, id: string = crypto.randomUUID(), existing = false) {
     if (existing) {

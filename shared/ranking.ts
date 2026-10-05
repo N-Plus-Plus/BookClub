@@ -4,9 +4,11 @@ export function normalizeScore(value: number, scale: number): number | null {
   if (!Number.isFinite(value) || !Number.isFinite(scale) || scale <= 0 || value < 0 || value > scale) return null;
   return value / scale * 100;
 }
+export const scoreServiceOrder = ['mdblist','omdb','legacy-spreadsheet','development-demo','unspecified'];
+export const tmdbScoreServiceOrder = ['tmdb','mdblist','legacy-spreadsheet'];
 const precedence = (s: Score) => {
   const via = s.retrieved_via ?? (s.provider === 'tmdb' ? 'tmdb' : 'unspecified');
-  const order = s.provider === 'tmdb' ? ['tmdb','mdblist','legacy-spreadsheet'] : ['mdblist','omdb','legacy-spreadsheet','development-demo','unspecified'];
+  const order = s.provider === 'tmdb' ? tmdbScoreServiceOrder : scoreServiceOrder;
   const index = order.indexOf(via); return index < 0 ? order.length : index;
 };
 export function scoreValue(s: Score): number | null {

@@ -219,6 +219,8 @@ The current Worker supports both schema 0009 and 0012. For the 0010–0012 trans
 
 Migration 0013 only adds `movie_score_checks` and is compatible with the previously deployed Worker. Once the database is at 0012, a future authorised release applies 0013 after a fresh backup and schema verification, then deploys the new Worker, then publishes Pages. The new score-maintenance routes require 0013; do not publish the new frontend before its Worker. If upgrading from 0009, retain the separate 0010–0012 bridge sequence above before this additive step.
 
+Migration `0014_session_movie_lookup.sql` only adds a reverse History covering index; old and new Workers safely ignore its absence/presence for correctness. For a future authorised release, retain the 0010–0013 schema gates above, back up and apply additive 0014, deploy the Worker with `/catalog/compact`, then publish Pages. Old Pages retain `/catalog`; new Pages fall back to it when an older Worker returns 404/405/501 for the compact route. No score rows are rewritten or deleted.
+
 Where practical, migrations should be designed so future releases have a clear compatible sequence.
 
 ## Applying production migrations

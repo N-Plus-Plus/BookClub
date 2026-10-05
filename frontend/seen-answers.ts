@@ -17,14 +17,15 @@ export function useSeenAnswers(viewerId: string, setCatalog: Dispatch<SetStateAc
   save: (movieId:string,memberId:string,seen:boolean|null) => Promise<MovieDetail>) {
   const [saves,setSaves] = useState<SeenSave[]>([]);
   const latest = useRef(new Map<string,SeenSave>()), queue = useRef<SeenSave[]>([]), running = useRef(false);
+  const catalogReads = useRef(new Set<Map<string,SeenSave>>());
   const identity = useRef(viewerId), generation = useRef(0), mounted = useRef(true);
   const saveRef = useRef(save); saveRef.current = save;
   const key = (task: SeenSave) => `${task.movieId}:${task.memberId}`;
   const publish = () => { if (mounted.current) setSaves([...latest.current.values()].map(task => ({...task}))); };
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; generation.current++; queue.current = []; latest.current.clear(); }; },[]);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; generation.current++; queue.current = []; latest.current.clear(); catalogReads.current.clear(); }; },[]);
   useEffect(() => {
     if (identity.current === viewerId) return;
-    identity.current = viewerId; generation.current++; queue.current = []; latest.current.clear(); publish();
+    identity.current = viewerId; generation.current++; queue.current = []; latest.current.clear(); catalogReads.current.clear(); publish();
   },[viewerId]);
   const reconcile = (movie: Movie, catalog: Catalog) => {
     for (const task of latest.current.values()) if (task.movieId === movie.id) movie = withAnswer(movie,task,catalog);
@@ -55,6 +56,7 @@ export function useSeenAnswers(viewerId: string, setCatalog: Dispatch<SetStateAc
     if (!viewerId || memberId !== viewerId) return;
     const task: SeenSave = {movieId,memberId,seen,title,status:'queued'};
     latest.current.set(key(task),task); queue.current.push(task);
+    for (const read of catalogReads.current) read.set(key(task),task);
     setCatalog(catalog => {
       const movie = catalog?.movies.find(m => m.id === movieId);
       return catalog && movie ? patchCatalogMovie(catalog,withAnswer(movie,task,catalog)) : catalog;
@@ -65,5 +67,24 @@ export function useSeenAnswers(viewerId: string, setCatalog: Dispatch<SetStateAc
     const current = latest.current.get(key(task));
     if (current?.status === 'failed') answer(current.movieId,current.memberId,current.seen,current.title);
   };
-  return {answer,retry,reconcile,pending:saves.filter(s => s.status !== 'failed').length,failures:saves.filter(s => s.status === 'failed')};
+  const reconcileCatalog = (catalog:Catalog, intentions:Iterable<SeenSave> = latest.current.values()): Catalog => {
+    const byMovie = new Map<string,SeenSave[]>();
+    for (const task of intentions) { const group = byMovie.get(task.movieId) ?? []; group.push(task); byMovie.set(task.movieId,group); }
+    const movies = catalog.movies.map(movie => {
+      for (const task of byMovie.get(movie.id) ?? []) movie = withAnswer(movie,task,catalog);
+      return movie;
+    });
+    const byId = new Map(movies.map(movie => [movie.id,movie]));
+    return {...catalog,movies,sessions:catalog.sessions.map(session => ({...session,movies:session.movies.map(movie => byId.get(movie.id) ?? movie)}))};
+  };
+  // Keep intentions during an in-flight snapshot even if their writes finish
+  // before that older snapshot arrives. Drop this temporary map after the read.
+  const beginCatalogRead = () => {
+    const intentions = new Map(latest.current); catalogReads.current.add(intentions);
+    return {apply:(catalog:Catalog) => {
+      for (const [key,task] of latest.current) intentions.set(key,task);
+      return reconcileCatalog(catalog,intentions.values());
+    },release:() => { catalogReads.current.delete(intentions); }};
+  };
+  return {answer,retry,reconcile,reconcileCatalog,beginCatalogRead,pending:saves.filter(s => s.status !== 'failed').length,failures:saves.filter(s => s.status === 'failed')};
 }

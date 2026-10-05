@@ -110,7 +110,7 @@ describe('bounded existing-film metadata enrichment',()=>{
     expect(movie.tmdb_metadata_checked_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(movie).toMatchObject({id:'arrival',title:'Fictional refreshed film',original_title:'Original film',year:2001,release_date:'2001-01-02',runtime:99,overview:'Fictional overview',genres:['Drama','Science Fiction']});
     expect(movie.assets.filter(a=>a.preferred===1).map(a=>a.reference).sort()).toEqual(['https://image.tmdb.org/t/p/w1280/fictional-backdrop.jpg','https://image.tmdb.org/t/p/w500/fictional.jpg']);
-    expect(movie.external_ids.filter(e=>e.provider==='imdb')).toEqual([{movie_id:'arrival',provider:'imdb',external_id:'tt2543164'}]);
+    expect(movie.external_ids.filter(e=>e.provider==='imdb')).toEqual([{provider:'imdb',external_id:'tt2543164'}]);
     expect(preserved.map(t=>local.sqlite.prepare(`SELECT * FROM ${t}`).all())).toEqual(before);
     const snapshot=await new (await import('../worker/src/providers/tmdb')).TmdbProvider('synthetic-token').details('329865');
     await repo.enrichMetadata('arrival','329865',snapshot);expect(local.sqlite.prepare('SELECT count(*) n FROM movies').get()?.n).toBe(7);

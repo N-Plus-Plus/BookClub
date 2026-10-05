@@ -70,7 +70,7 @@ it('uses a human historical turn label in Builder validation errors while retain
 it('bounds browser TMDB maintenance to two films and retains ordinary request timeouts',async()=>{
  vi.stubEnv('DEV',true);
  const timeout=vi.spyOn(AbortSignal,'timeout');
- const fetch=vi.fn(async(_url:string,_init:RequestInit)=>Response.json({data:{}}));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn(async(_url:string,_init:RequestInit)=>Response.json({data:{members:[],movies:[],sessions:[],cycles:[]}}));vi.stubGlobal('fetch',fetch);
  try {
   const {api}=await import('../frontend/api');
   await api.enrichMetadata();await api.enrichMetadata(10);await api.enrichMetadata(1);
@@ -78,4 +78,16 @@ it('bounds browser TMDB maintenance to two films and retains ordinary request ti
   await api.catalog();await api.me();await api.seen('film','member',true);
   expect(timeout.mock.calls.map(([ms])=>ms)).toEqual([105000,105000,105000,15000,15000,15000]);
  } finally {timeout.mockRestore();}
+});
+
+it('hydrates compact references and falls back only when an older Worker lacks the capability',async () => {
+  vi.stubEnv('DEV',true);
+  const movie={id:'film',title:'Fixture'},wire={members:[],cycles:[],movies:[movie],sessions:[{id:'event',movie_ids:['film','film']}]};
+  const fetch=vi.fn(async(_url:string)=>Response.json({data:wire}));vi.stubGlobal('fetch',fetch);
+  const {api}=await import('../frontend/api');const catalog=await api.catalog();
+  expect(fetch.mock.calls).toHaveLength(1);expect(catalog.sessions[0].movies).toEqual([movie,movie]);expect(catalog.sessions[0].movies[0]).toBe(catalog.movies[0]);
+  fetch.mockResolvedValueOnce(Response.json({error:{message:'API route not found.'}},{status:404}));
+  fetch.mockResolvedValueOnce(Response.json({data:catalog}));expect(await api.catalog()).toEqual(catalog);
+  expect(fetch.mock.calls[1][0]).toMatch(/catalog\/compact$/);expect(fetch.mock.calls[2][0]).toMatch(/catalog$/);
+  fetch.mockResolvedValueOnce(Response.json({error:{message:'Database unavailable.'}},{status:500}));await expect(api.catalog()).rejects.toMatchObject({status:500});expect(fetch).toHaveBeenCalledTimes(4);
 });

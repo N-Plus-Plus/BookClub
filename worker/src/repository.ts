@@ -1,12 +1,15 @@
-import type { Asset, Catalog, Cycle, ExternalId, Member, Movie, Score, SeenAnswer, Session, SessionInput, ManualMovieInput, SavedSearchResult } from '../../shared/types';
+import type { Asset, Catalog, CompactCatalog, Cycle, ExternalId, Member, Movie, Score, SeenAnswer, Session, SessionInput, ManualMovieInput, SavedSearchResult } from '../../shared/types';
 import { normalizeTitle } from '../../shared/search';
-import { metadataCandidate, metadataGaps, tmdbIdentity, type MetadataMovie } from '../../shared/metadata';
-import { rankMovie, requiredScores } from '../../shared/ranking';
+import { type MetadataMovie } from '../../shared/metadata';
+import { requiredScores } from '../../shared/ranking';
 import type { ProviderMovie } from './providers/types';
 import { ApiError } from './http';
 import { ProductRepository } from './product-repository';
 
-type MovieRow = Pick<Movie, 'id' | 'title' | 'original_title' | 'year' | 'release_date' | 'runtime' | 'overview' | 'director' | 'tmdb_metadata_checked_at' | 'tmdb_artwork_checked_at'>;
+import { assembleMovies, groupMovies } from './catalog-assembly';
+import { effectiveScoreSql, usableScoreSql } from './score-sql';
+import { metadataSql, metadataPrioritySql, validTmdbSql, validImdbSql } from './metadata-sql';
+
 type SessionRow = Omit<Session,'movies'>;
 type WithMovie<T> = T & { movie_id: string };
 
@@ -36,7 +39,7 @@ export class Repository {
     const identities = new Set(tmdbIds), term = normalizeTitle(query);
     return rows.filter(movie => normalizeTitle(movie.title).includes(term) || (movie.tmdbId !== null && identities.has(movie.tmdbId)));
   }
-  async catalog(): Promise<Catalog> {
+  private async catalogSnapshot(compact = false): Promise<Catalog> {
     const director = await this.hasDirector();
     // D1 batch gives one consistent transactional read for the derived rankings.
     const result = await this.db.batch([
@@ -44,31 +47,73 @@ export class Repository {
       this.db.prepare(`SELECT id,title,original_title,year,release_date,runtime,overview,${director ? 'director' : 'NULL AS director'},tmdb_metadata_checked_at,tmdb_artwork_checked_at FROM movies ORDER BY title,id`),
       this.db.prepare('SELECT movie_id,provider,asset_type,reference,width,height,preferred FROM movie_assets ORDER BY preferred DESC,id'),
       this.db.prepare('SELECT movie_id,provider,external_id FROM movie_external_ids'),
-      this.db.prepare('SELECT movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via,upstream_updated_at,source_ref,source_ordinal,legacy_preferred FROM source_scores ORDER BY fetched_at,id'),
+      this.db.prepare(compact ? effectiveScoreSql() : 'SELECT movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via,upstream_updated_at,source_ref,source_ordinal,legacy_preferred FROM source_scores ORDER BY fetched_at,id'),
       this.db.prepare('SELECT movie_id,member_id,seen,updated_at FROM seen_states'),
       this.db.prepare('SELECT movie_id,rank_seed,added_at,source FROM classics'),
       this.db.prepare('SELECT movie_id,genre FROM movie_genres ORDER BY genre'),
       this.db.prepare('SELECT id,event_date,host_member_id,legacy_cycle_label,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,completed_turn_version,EXISTS(SELECT 1 FROM history_audit WHERE session_id=sessions.id) AS has_audit FROM sessions WHERE deleted_at IS NULL ORDER BY event_date DESC,created_at DESC,id'),
-      this.db.prepare('SELECT session_id,movie_id,position FROM session_movies ORDER BY position'),
+      this.db.prepare('SELECT sm.session_id,sm.movie_id,sm.position FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE s.deleted_at IS NULL ORDER BY sm.position'),
       this.db.prepare('SELECT * FROM cycles ORDER BY ordinal DESC,id'),
     ]);
     const rows = <T>(i: number) => result[i].results as T[];
     const members = rows<Member>(0);
-    const movies = rows<MovieRow>(1).map(m => {
-      const scores = rows<WithMovie<Score>>(4).filter(s => s.movie_id === m.id);
-      const seen = rows<WithMovie<SeenAnswer>>(5).filter(s => s.movie_id === m.id);
-      const membership = rows<{movie_id: string; rank_seed: number; added_at: string; source: string | null}>(6).find(c => c.movie_id === m.id);
-      const classic = Boolean(membership);
-      return { ...m, scores, seen, classic, classics_membership: membership ?? null, ranking: membership ? rankMovie(scores,seen,members,membership.rank_seed) : null,
-        genres: rows<{movie_id: string; genre: string}>(7).filter(g => g.movie_id === m.id).map(g => g.genre),
-        assets: rows<WithMovie<Asset>>(2).filter(a => a.movie_id === m.id),
-        external_ids: rows<WithMovie<ExternalId>>(3).filter(e => e.movie_id === m.id) };
-    });
+    const movies = assembleMovies(result,compact);
     const movieMap = new Map(movies.map(m => [m.id,m]));
+    const lineups = new Map<string,string[]>();
+    for (const row of rows<{session_id:string;movie_id:string}>(9)) {
+      const group = lineups.get(row.session_id) ?? []; group.push(row.movie_id); lineups.set(row.session_id,group);
+    }
     const sessions = rows<SessionRow>(8).map(s => ({ ...s, has_audit: Boolean(s.has_audit),
-      movies: rows<{session_id: string; movie_id: string; position: number}>(9)
-        .filter(j => j.session_id === s.id).map(j => movieMap.get(j.movie_id)!).filter(Boolean) }));
+      movies: (lineups.get(s.id) ?? []).map(id => movieMap.get(id)!).filter(Boolean) }));
     return { members, movies, sessions, cycles: rows<Cycle>(10) };
+  }
+  async catalog(): Promise<Catalog> { return this.catalogSnapshot(); }
+  async compactCatalog(): Promise<CompactCatalog> {
+    const catalog = await this.catalogSnapshot(true);
+    return {...catalog,sessions:catalog.sessions.map(({movies,...session}) => ({...session,movie_ids:movies.map(m => m.id)}))};
+  }
+  async members(): Promise<Member[]> {
+    return (await this.db.prepare('SELECT id,display_name,sort_order,active,avatar FROM members ORDER BY sort_order,id').all<Member>()).results;
+  }
+  async cycles(): Promise<Cycle[]> { return (await this.db.prepare('SELECT * FROM cycles ORDER BY ordinal DESC,id').all<Cycle>()).results; }
+  async movies(classicsOnly = false): Promise<Movie[]> {
+    return this.movieCollection(classicsOnly ? 'id IN (SELECT movie_id FROM classics)' : '1=1');
+  }
+  private movieStatements(scope:string, values:string[], director:boolean): D1PreparedStatement[] {
+    const selected = `SELECT id FROM movies WHERE ${scope}`;
+    const scoped = (sql:string) => this.db.prepare(sql).bind(...values);
+    return [
+      this.db.prepare('SELECT id,display_name,sort_order,active,avatar FROM members ORDER BY sort_order,id'),
+      scoped(`SELECT id,title,original_title,year,release_date,runtime,overview,${director ? 'director' : 'NULL AS director'},tmdb_metadata_checked_at,tmdb_artwork_checked_at FROM movies WHERE ${scope} ORDER BY title,id`),
+      scoped(`SELECT movie_id,provider,asset_type,reference,width,height,preferred FROM movie_assets WHERE movie_id IN (${selected}) ORDER BY preferred DESC,id`),
+      scoped(`SELECT movie_id,provider,external_id FROM movie_external_ids WHERE movie_id IN (${selected}) ORDER BY rowid`),
+      scoped(`SELECT movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via,upstream_updated_at,source_ref,source_ordinal,legacy_preferred FROM source_scores WHERE movie_id IN (${selected}) ORDER BY fetched_at,id`),
+      scoped(`SELECT movie_id,member_id,seen,updated_at FROM seen_states WHERE movie_id IN (${selected}) ORDER BY rowid`),
+      scoped(`SELECT movie_id,rank_seed,added_at,source FROM classics WHERE movie_id IN (${selected})`),
+      scoped(`SELECT movie_id,genre FROM movie_genres WHERE movie_id IN (${selected}) ORDER BY genre`),
+    ];
+  }
+  private async movieCollection(scope:string, values:string[] = []): Promise<Movie[]> {
+    return assembleMovies(await this.db.batch(this.movieStatements(scope,values,await this.hasDirector())));
+  }
+  async sessions(id?:string): Promise<Session[]> {
+    const where = id ? ' AND id=?' : '';
+    const query = this.db.prepare(`SELECT id,event_date,host_member_id,legacy_cycle_label,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,completed_turn_version,EXISTS(SELECT 1 FROM history_audit WHERE session_id=sessions.id) AS has_audit FROM sessions WHERE deleted_at IS NULL${where} ORDER BY event_date DESC,created_at DESC,id`);
+    const joins = this.db.prepare(`SELECT sm.session_id,sm.movie_id FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE s.deleted_at IS NULL${id ? ' AND s.id=?' : ''} ORDER BY sm.position`);
+    const scope = `id IN (SELECT sm.movie_id FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE s.deleted_at IS NULL${id ? ' AND s.id=?' : ''})`;
+    const result = await this.db.batch([...this.movieStatements(scope,id ? [id] : [],await this.hasDirector()),...(id ? [query.bind(id),joins.bind(id)] : [query,joins])]);
+    const lineups = new Map<string,string[]>();
+    for (const row of result[9].results as {session_id:string;movie_id:string}[]) {
+      const group = lineups.get(row.session_id) ?? []; group.push(row.movie_id); lineups.set(row.session_id,group);
+    }
+    const movies = assembleMovies(result);
+    const byId = new Map(movies.map(m => [m.id,m]));
+    return (result[8].results as SessionRow[]).map(s => ({...s,has_audit:Boolean(s.has_audit),movies:(lineups.get(s.id) ?? []).map(id => byId.get(id)!).filter(Boolean)}));
+  }
+  async session(id:string): Promise<Session> {
+    const session = (await this.sessions(id))[0];
+    if (!session) throw new ApiError(404,'NOT_FOUND','Event not found.');
+    return session;
   }
   /** Selected-film snapshot; never loads unrelated movies, relationships or cycles. */
   async movieDetails(ids: string[], validateScope = false): Promise<import('../../shared/types').MovieDetail[]> {
@@ -88,19 +133,8 @@ export class Repository {
       selected(`SELECT sm.movie_id,s.id,s.event_date,s.date_precision,s.kind,s.host_member_id,sm.position FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE s.deleted_at IS NULL AND sm.movie_id IN (${placeholders}) ORDER BY s.event_date DESC,s.created_at DESC,s.id,sm.position`),
     ]);
     const rows = <T>(i: number) => result[i].results as T[];
-    const members = rows<Member>(0);
-    const movies = rows<MovieRow>(1).map(m => {
-      const scores = rows<WithMovie<Score>>(4).filter(s => s.movie_id === m.id);
-      const seen = rows<WithMovie<SeenAnswer>>(5).filter(s => s.movie_id === m.id);
-      const membership = rows<{movie_id:string; rank_seed:number; added_at:string; source:string|null}>(6).find(c => c.movie_id === m.id);
-      const appearances = rows<WithMovie<import('../../shared/types').MovieDetail['appearances'][number]>>(8)
-        .filter(a => a.movie_id === m.id).map(({movie_id: _movieId,...appearance}) => appearance);
-      return {...m,scores,seen,classic:Boolean(membership),classics_membership:membership ?? null,
-        ranking:membership ? rankMovie(scores,seen,members,membership.rank_seed) : null,
-        genres:rows<{movie_id:string;genre:string}>(7).filter(g => g.movie_id === m.id).map(g => g.genre),
-        assets:rows<WithMovie<Asset>>(2).filter(a => a.movie_id === m.id),
-        external_ids:rows<WithMovie<ExternalId>>(3).filter(e => e.movie_id === m.id),appearances};
-    });
+    const appearances = groupMovies(rows<WithMovie<import('../../shared/types').MovieDetail['appearances'][number]>>(8));
+    const movies = assembleMovies(result).map(movie => ({...movie,appearances:appearances.get(movie.id) ?? []}));
     const byId = new Map(movies.map(m => [m.id,m]));
     return ids.map(id => {
       const movie = byId.get(id);
@@ -137,32 +171,39 @@ export class Repository {
     return {candidateIds:[...new Set(rows.filter(r => r.available !== 0).map(r => r.id))],eligibleDimensions:rows.filter(r => r.available !== 0).length,
       unavailableDimensions:rows.filter(r => r.available === 0).length,unavailableFilms:new Set(rows.filter(r => r.available === 0).map(r => r.id)).size};
   }
-  private async metadataRows(priority = true) {
-    const director = await this.hasDirector();
-    const rows = (await this.db.prepare(`SELECT ${priority ? 'm.id,m.title,m.original_title,m.release_date,m.runtime,m.overview,' : ''}
-      ${director ? 'm.director' : 'NULL AS director'},m.tmdb_metadata_checked_at,m.tmdb_artwork_checked_at,
-      (SELECT external_id FROM movie_external_ids WHERE movie_id=m.id AND provider='tmdb') AS tmdb_id,
-      ${priority ? '(SELECT json_group_array(genre) FROM movie_genres WHERE movie_id=m.id)' : "'[]'"} AS genres_json,
-      EXISTS(SELECT 1 FROM movie_assets WHERE movie_id=m.id AND provider='tmdb' AND asset_type='poster') AS poster,
-      EXISTS(SELECT 1 FROM movie_assets WHERE movie_id=m.id AND provider='tmdb' AND asset_type='backdrop') AS backdrop
-      FROM movies m`).all<Omit<MetadataMovie,'assets'|'external_ids'|'genres'> & {
-        tmdb_id: string | null; genres_json: string; poster: number; backdrop: number;
-      }>()).results;
-    return rows.map(({tmdb_id,genres_json,poster,backdrop,...movie}): MetadataMovie => ({...movie,
-      external_ids: tmdb_id === null ? [] : [{provider:'tmdb',external_id:tmdb_id}],
-      genres: JSON.parse(genres_json) as string[],
-      // Eligibility/priority needs existence only, including non-preferred historical artwork.
-      assets: (['poster','backdrop'] as const).filter(type => type === 'poster' ? poster : backdrop)
-        .map(asset_type => ({provider:'tmdb',asset_type,reference:'',width:null,height:null,preferred:0})),
-    }));
-  }
   async metadataCandidates(limit: number): Promise<MetadataMovie[]> {
-    return (await this.metadataRows()).filter(metadataCandidate)
-      .sort((a,b) => metadataGaps(b)-metadataGaps(a) || a.id.localeCompare(b.id)).slice(0,limit);
+    const sql = metadataSql(await this.hasDirector(),true);
+    const rows = (await this.db.prepare(`${sql}
+      SELECT id,title,original_title,release_date,runtime,overview,metadata_director AS director,tmdb_metadata_checked_at,tmdb_artwork_checked_at,tmdb_id,poster,backdrop
+      FROM eligible WHERE identified=1 AND candidate ORDER BY ${metadataPrioritySql} DESC,lower(id),id DESC LIMIT ?`)
+      .bind(new Date().toISOString(),limit).all<Omit<MetadataMovie,'assets'|'external_ids'|'genres'> & {tmdb_id:string;poster:number;backdrop:number}>()).results;
+    if (!rows.length) return [];
+    const genres = groupMovies((await this.db.prepare(`SELECT movie_id,genre FROM movie_genres WHERE movie_id IN (${rows.map(() => '?').join(',')}) ORDER BY genre`).bind(...rows.map(r => r.id)).all<{movie_id:string;genre:string}>()).results);
+    return rows.map(({tmdb_id,poster,backdrop,...movie}) => ({...movie,external_ids:[{provider:'tmdb',external_id:tmdb_id}],
+      genres:(genres.get(movie.id) ?? []).map(g => g.genre),
+      assets:(['poster','backdrop'] as const).filter(type => type === 'poster' ? poster : backdrop)
+        .map(asset_type => ({provider:'tmdb',asset_type,reference:'',width:null,height:null,preferred:0}))}));
   }
   async metadataCounts(): Promise<{remaining: number; unidentified: number}> {
-    const movies = await this.metadataRows(false);
-    return {remaining: movies.filter(metadataCandidate).length,unidentified: movies.filter(m => !tmdbIdentity(m)).length};
+    return (await this.db.prepare(`${metadataSql(await this.hasDirector(),false)}
+      SELECT coalesce(sum(identified=1 AND candidate),0) AS remaining,coalesce(sum(identified=0),0) AS unidentified FROM eligible`)
+      .bind(new Date().toISOString()).first<{remaining:number;unidentified:number}>())!;
+  }
+  /** Compatibility selection uses only identity, usable score existence and roster completeness. */
+  async enrichmentCandidates(limit:number) {
+    const sql = `WITH active AS (SELECT id FROM members WHERE active=1), recognised(score_key) AS (VALUES ${requiredScores.map(k => "('"+k+"')").join(',')}),
+      scored AS (SELECT DISTINCT movie_id FROM source_scores ss JOIN recognised r ON r.score_key=ss.provider||':'||ss.metric WHERE ${usableScoreSql()}),
+      answered AS (SELECT movie_id,count(*) AS count FROM seen_states JOIN active ON active.id=member_id WHERE seen IN (0,1) GROUP BY movie_id),
+      identified AS (SELECT DISTINCT movie_id FROM movie_external_ids WHERE (provider='tmdb' AND ${validTmdbSql('external_id',false)}) OR (provider='imdb' AND ${validImdbSql('external_id')})),
+      candidates AS (SELECT m.id,m.title,i.movie_id IS NOT NULL AS identified FROM movies m JOIN classics c ON c.movie_id=m.id
+        LEFT JOIN scored s ON s.movie_id=m.id LEFT JOIN answered a ON a.movie_id=m.id LEFT JOIN identified i ON i.movie_id=m.id
+        WHERE s.movie_id IS NULL OR coalesce(a.count,0)<>(SELECT count(*) FROM active) OR (SELECT count(*) FROM active)=0)`;
+    const results = await this.db.batch([
+      this.db.prepare(`${sql} SELECT id FROM candidates WHERE identified ORDER BY title,id LIMIT ?`).bind(limit),
+      this.db.prepare(`${sql} SELECT coalesce(sum(identified),0) AS eligible,coalesce(sum(NOT identified),0) AS unidentified FROM candidates`),
+    ]);
+    const ids = (results[0].results as {id:string}[]).map(r => r.id), counts = results[1].results[0] as {eligible:number;unidentified:number};
+    return {ids,remaining:Math.max(0,counts.eligible-ids.length),unidentified:counts.unidentified};
   }
   async assertMovie(id: string) {
     if (!await this.db.prepare('SELECT id FROM movies WHERE id=?').bind(id).first()) throw new ApiError(404,'NOT_FOUND','Film not found.');

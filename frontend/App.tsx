@@ -43,8 +43,10 @@ export function App() {
   const [rotation,setRotation] = useState<Rotation | null>(null);
   const [viewer,setViewer] = useState<Viewer | null>(null);
   const seenAnswers = useSeenAnswers(viewer?.id ?? '',setCatalog,api.seen);
+  const seenRef = useRef(seenAnswers); seenRef.current = seenAnswers;
   const [authBusy,setAuthBusy] = useState(false);
   const generation = useRef(0);
+  const rotationRevision = useRef(0);
   const [loadError,setLoadError] = useState('');
   const [actionError,setActionError] = useState('');
   const [loading,setLoading] = useState(true);
@@ -74,10 +76,26 @@ export function App() {
         setViewer(result.viewer);
         if (localLogin && (!result.viewer || needsAvatar(result.viewer))) { setCatalog(null); setRotation(null); return; }
       }
-      const [data,turn] = await Promise.all([api.catalog(),api.rotation()]);
-      if (current === generation.current) { setCatalog(data); setRotation(turn); }
+      const read = seenRef.current.beginCatalogRead(), turnRevision = rotationRevision.current;
+      try {
+        const [data,turn] = await Promise.all([api.catalog(),api.rotation()]);
+        if (current === generation.current) { setCatalog(read.apply(data)); if (turnRevision === rotationRevision.current) setRotation(turn); }
+      } finally { read.release(); }
     } catch (e) {
       if (current === generation.current && !(e instanceof ApiClientError && e.status === 401)) setLoadError(e instanceof Error ? e.message : 'Could not load BookClub.');
+    } finally { if (current === generation.current) { setLoading(false); setRefreshing(false); } }
+  },[]);
+  const refreshData = useCallback(async () => {
+    const current = ++generation.current;
+    setRefreshing(true); setLoadError('');
+    try {
+      const read = seenRef.current.beginCatalogRead(), turnRevision = rotationRevision.current;
+      try {
+        const [data,turn] = await Promise.all([api.catalog(),api.rotation()]);
+        if (current === generation.current) { setCatalog(read.apply(data)); if (turnRevision === rotationRevision.current) setRotation(turn); }
+      } finally { read.release(); }
+    } catch (error) {
+      if (current === generation.current && !(error instanceof ApiClientError && error.status === 401)) setLoadError(error instanceof Error ? error.message : 'Could not load BookClub.');
     } finally { if (current === generation.current) { setLoading(false); setRefreshing(false); } }
   },[]);
   useEffect(() => { setUnauthorizedHandler(resetAuth); void load(); return () => { generation.current++; setUnauthorizedHandler(); }; },[load,resetAuth]);
@@ -170,20 +188,19 @@ export function App() {
     {actionError && <p className="error-message" role="alert">{actionError}</p>}
     {catalog && refreshing && <p className="meta refresh-status" role="status">Refreshing the journal…</p>}
     {loading && !catalog ? <LoadingView /> : !catalog && loadError ? <Failure message={loadError} retry={() => void load()} /> : catalog && <>
-      {page === 'home' && <div className="stack"><RotationCard catalog={catalog} rotation={rotation} viewer={viewer} onUpdated={() => void load()} onUseBuilder={movieIds => { setEventPrefill(movieIds); window.location.hash = '/event'; }} />
+      {page === 'home' && <div className="stack"><RotationCard catalog={catalog} rotation={rotation} viewer={viewer} onUpdated={turn => { rotationRevision.current++; setRotation(turn); }} onUseBuilder={movieIds => { setEventPrefill(movieIds); window.location.hash = '/event'; }} />
       <div className="stats-grid"><div className="card stat"><strong>{eligible.length}</strong><span>Eligible Classics</span></div><div className="card stat"><strong>{excluded.length}</strong><span>Already seen by all</span></div><a className="card stat stat-link" href="#/seen"><strong>{missing}</strong><span><Eye size={16} aria-hidden="true" />Missing answers</span></a></div>
       <div className="dashboard-grid"><section className="stack"><div className="section-title"><h2>Last turn</h2><RouteLink to="history" icon={History} variant="tertiary">History</RouteLink></div>{catalog.sessions[0] ? <SessionCard variant="home" session={catalog.sessions[0]} members={catalog.members} /> : <Empty title="Your first night is waiting">Create an event to begin your shared history.</Empty>}</section>
       <section className="stack"><div className="section-title"><h2>Next Classics</h2><RouteLink to="classics" icon={ChevronRight} variant="tertiary">View all</RouteLink></div>{eligible.slice(0,2).map((m,i) => <RankingCard variant="home" key={m.id} movie={m} rank={i+1} />)}{!eligible.length && <Empty title="No eligible Classics">Open Classics to inspect the candidate pool.</Empty>}</section></div></div>}
-      {page === 'history' && <HistoryScreen viewer={viewer} catalog={catalog} onChanged={() => void load()} />}
-      {isAdminPage && <AdminScreen catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onUpdated={load} />}
-      {page === 'metrics' && <MetricsScreen catalog={catalog} viewer={viewer} onUpdated={load} />}
-      {page === 'builder' && <BuilderScreen key={viewer?.id} catalog={catalog} viewer={viewer} rotation={rotation} onMovie={applyMovie} onPublished={() => { void load(); setNotice('Published to History.'); window.location.hash = '/history'; }} />}
-      {eventRoute && (eventRoute === 'event' || catalog.sessions.some(s => s.id === eventRoute.slice(6))) && <div hidden={Boolean(inspecting)} key={eventRoute}><EventScreen onInspect={inspect} confirmedMovie={confirmedMovie} onConfirmedConsumed={consumeConfirmedMovie} prefillMovieIds={eventRoute === 'event' ? eventPrefill : null} onPrefillConsumed={consumeEventPrefill} initial={eventRoute === 'event' ? undefined : catalog.sessions.find(s => s.id === eventRoute.slice(6))} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={session => {
-        setCatalog(c => c ? {...c,sessions: [session,...c.sessions.filter(s => s.id !== session.id)].sort((a,b) => b.event_date.localeCompare(a.event_date))} : c);
-        void load(); setNotice('Event saved to the film journal.'); window.location.hash = '/history';
+      {page === 'history' && <HistoryScreen viewer={viewer} catalog={catalog} onChanged={() => void refreshData()} />}
+      {isAdminPage && <AdminScreen catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onUpdated={refreshData} />}
+      {page === 'metrics' && <MetricsScreen catalog={catalog} viewer={viewer} onUpdated={refreshData} />}
+      {page === 'builder' && <BuilderScreen key={viewer?.id} catalog={catalog} viewer={viewer} rotation={rotation} onMovie={applyMovie} onPublished={() => { void refreshData(); setNotice('Published to History.'); window.location.hash = '/history'; }} />}
+      {eventRoute && (eventRoute === 'event' || catalog.sessions.some(s => s.id === eventRoute.slice(6))) && <div hidden={Boolean(inspecting)} key={eventRoute}><EventScreen onInspect={inspect} confirmedMovie={confirmedMovie} onConfirmedConsumed={consumeConfirmedMovie} prefillMovieIds={eventRoute === 'event' ? eventPrefill : null} onPrefillConsumed={consumeEventPrefill} initial={eventRoute === 'event' ? undefined : catalog.sessions.find(s => s.id === eventRoute.slice(6))} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={() => {
+        void refreshData(); setNotice('Event saved to the film journal.'); window.location.hash = '/history';
       }} /></div>}
       {page.startsWith('event/') && !catalog.sessions.some(s => s.id === page.slice(6)) && <Empty title="Event not found">The event may have been deleted. Return to History to review available events.</Empty>}
-      {page === 'classics' && <ClassicsScreen viewer={viewer} catalog={catalog} onUpdated={load} movies={classics} writesEnabled={writesEnabled} onMovie={applyMovie} />}
+      {page === 'classics' && <ClassicsScreen viewer={viewer} catalog={catalog} onUpdated={refreshData} movies={classics} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {(page === 'seen' || (detailContext && inspection.source === 'seen')) && <div hidden={page !== 'seen'}><SeenScreen key={viewer?.id} viewerId={viewer?.id ?? ''} catalog={catalog} answer={seenAnswers.answer} pending={seenAnswers.pending} failures={seenAnswers.failures} retry={seenAnswers.retry} writesEnabled={writesEnabled} /></div>}
       {isDetail && !isPreview && <DetailScreen isAdmin={viewer?.role === 'admin'} key={page} id={page.slice(6)} members={catalog.members} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {isPreview && <PreviewScreen key={page} id={page.slice('preview/tmdb/'.length)} preview={inspecting ? inspection.preview : undefined} pending={inspecting ? inspection.pending : undefined} />}

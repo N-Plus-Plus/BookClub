@@ -34,6 +34,8 @@ export interface Cycle { id: string; ordinal: number; rough_date: string; title:
 export interface CycleInput { rough_date: string; title?: string; ordinal?: number }
 export interface MovieDetail extends Movie { appearances: { id: string; event_date: string; date_precision: Session['date_precision']; kind: Session['kind']; host_member_id: string | null; position: number }[] }
 export interface Catalog { members: Member[]; movies: Movie[]; sessions: Session[]; cycles: Cycle[] }
+export interface CompactSession extends Omit<Session,'movies'> { movie_ids: string[] }
+export interface CompactCatalog { members: Member[]; movies: Movie[]; sessions: CompactSession[]; cycles: Cycle[] }
 export interface SearchResult { provider: string; externalId: string; title: string; year: number | null; poster: string | null }
 export interface SavedSearchResult { id: string; title: string; year: number | null; tmdbId: string | null; poster: string | null }
 export interface SearchResponse { local: SavedSearchResult[]; external: SearchResult[]; lookup: { available: boolean; message: string | null } }

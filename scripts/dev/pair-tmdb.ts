@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from 'node:util';
+import type { Movie } from '../../shared/types.ts';
 import { z } from 'zod';
 import { Repository } from '../../worker/src/repository.ts';
 import { MovieService } from '../../worker/src/services.ts';
@@ -90,7 +92,9 @@ export async function runPairings(db:D1Database,manifest:ReturnType<typeof parse
   const preserved=original.every(e=>after.movies.find(m=>m.id===e.movie_id)?.external_ids.some(i=>i.provider==='tmdb'&&i.external_id===e.external_id));
   const service=new MovieService(repo,{DB:db} as Env);
   let exposed=true;
-  for(const p of manifest.pairings.filter(p=>report.accepted.some(a=>(a as {movie_id:string}).movie_id===p.movie_id))){const catalog=after.movies.find(m=>m.id===p.movie_id)!;const detail=await service.detail(p.movie_id);if(!catalog.tmdb_metadata_checked_at||!catalog.tmdb_artwork_checked_at||JSON.stringify({...detail,appearances:undefined})!==JSON.stringify(catalog))exposed=false;}
+  // Identity/Seen rows are sets; their query plan must not decide verification.
+  const comparable=(movie:Movie)=>({...movie,external_ids:[...movie.external_ids].sort((a,b)=>a.provider.localeCompare(b.provider)),seen:[...movie.seen].sort((a,b)=>a.member_id.localeCompare(b.member_id))});
+  for(const p of manifest.pairings.filter(p=>report.accepted.some(a=>(a as {movie_id:string}).movie_id===p.movie_id))){const catalog=after.movies.find(m=>m.id===p.movie_id)!;const {appearances:_appearances,...detail}=await service.detail(p.movie_id);if(!catalog.tmdb_metadata_checked_at||!catalog.tmdb_artwork_checked_at||!isDeepStrictEqual(comparable(detail),comparable(catalog)))exposed=false;}
   report.verification={integrity,fks,duplicate_tmdb_ids:duplicates,original_identities_preserved:preserved,count_delta_correct:unidentified-report.remaining_without_tmdb===report.accepted.length,catalogue_detail_metadata_artwork:exposed};
   await options.save(report);
   if(fks.length||duplicates.length||!preserved||!report.verification.count_delta_correct||!exposed||integrity.some(row=>Object.values(row)[0]!=='ok'))throw new Error('Local post-apply verification failed; inspect ignored report.');

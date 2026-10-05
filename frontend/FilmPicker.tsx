@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react';
+import { useCallback, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import type { FilmCandidate, Movie, SearchResponse, TmdbPreview } from '../shared/types';
 import { api } from './api';
@@ -31,18 +31,6 @@ export function FilmPicker({selected,onSelected,onMovie,disabled = false,onInspe
   },[]);
   const candidates = useMemo(() => results ? searchCandidates(results) : [],[results]);
   const visible = useMemo(() => candidatePage(candidates,page),[candidates,page]);
-  useEffect(() => {
-    const controller = new AbortController();
-    // Sequential enrichment keeps page changes from accumulating provider traffic.
-    void (async () => {
-      for (const candidate of visible.items) {
-        const id = candidate.kind === 'local' ? candidate.movie.tmdbId : candidate.movie.externalId;
-        if (!id || cache.current.has(id) || controller.signal.aborted) continue;
-        try { await loadPreview(id,controller.signal); } catch { /* Keep valid candidates available without director data. */ }
-      }
-    })();
-    return () => controller.abort();
-  },[visible,loadPreview]);
   const add = (movie: Movie) => onSelected([...selected,movie]);
   const run = async (work: () => Promise<void>) => { setBusy(true); setError(''); try { await work(); } catch (e) { setError(e instanceof Error ? e.message : 'Action failed.'); } finally { setBusy(false); } };
   const search = async (e: FormEvent) => {
