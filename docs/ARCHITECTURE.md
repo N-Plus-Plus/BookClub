@@ -58,7 +58,7 @@ The frontend requests additive compact catalogue transport and hydrates ordered 
 
 The independently deployed Worker (`worker/src/index.ts`) owns validation, authorisation, persistence and provider credentials. Zod validates boundaries; jose verifies Google JWTs. D1 is the canonical database. Shared TypeScript holds pure ranking, Metrics and identity rules; the UI derives presentation from the authenticated catalog.
 
-Normal development prepares local D1, then runs Vite and a Node supervisor that starts/stops local Wrangler. Vite proxies `/__dev/refresh` to loopback 8790. `frontend/DevTools.tsx` and the supervisor support an explicitly confirmed one-way production snapshot replacement; neither is present in production. Development fixes its API to localhost even if root env files specify production.
+Normal development prepares local D1, then runs Vite and a Node supervisor that starts/stops local Wrangler. Vite proxies `/__dev/refresh` to loopback 8790. `frontend/DevTools.tsx`, rendered only on local Admin (never import-preview), and the supervisor support an explicitly confirmed one-way production snapshot replacement; neither is present in production. Member switching and completed local replacement use the full auth-aware bootstrap reload. Development fixes its API to localhost even if root env files specify production.
 
 ## Internal technical dependencies
 

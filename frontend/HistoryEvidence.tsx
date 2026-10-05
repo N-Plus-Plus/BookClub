@@ -1,5 +1,5 @@
 import type { Catalog, Rotation, Session } from '../shared/types';
-import { currentTurnLabel, historicalTurnLabel } from './presentation';
+import { currentTurnLabel, historicalTurnLabel, possessiveName } from './presentation';
 import { dateLabel, eventDateLabel } from './components';
 
 type Evidence = Record<string,unknown>;
@@ -19,7 +19,7 @@ export function HistoryEvidence({json,catalog}: {json: string; catalog: Catalog}
     const films = Array.isArray(data.movie_ids) ? data.movie_ids : Array.isArray(data.films) ? [...data.films].sort((a,b) => Number(record(a).position) - Number(record(b).position)).map(f => record(f).movie_id) : null;
     return <section className="stack"><h4>{heading}</h4>
       {validDate(data.event_date) && <p className="meta">Event date: {eventDateLabel({event_date:data.event_date,date_precision:(['exact','cycle_rough','unknown'].includes(String(data.date_precision)) ? data.date_precision : 'exact') as Session['date_precision']})}</p>}
-      {Object.hasOwn(data,'kind') && <p className="meta">Event: {data.kind === 'classics' ? 'Classics week' : `${memberName(data.host_member_id)}'s week`}</p>}
+      {Object.hasOwn(data,'kind') && <p className="meta">Event: {data.kind === 'classics' ? 'Classics week' : `${possessiveName(memberName(data.host_member_id))} week`}</p>}
       {Object.hasOwn(data,'host_member_id') && <p className="meta">Host: {data.host_member_id ? memberName(data.host_member_id) : 'Hostless'}</p>}
       {Object.hasOwn(data,'cycle_id') && <p className="meta">Cycle: {cycleName(data.cycle_id)}</p>}
       {Object.hasOwn(data,'cycle_slot') && <p className="meta">Historical turn: {historicalTurnLabel(typeof data.cycle_slot === 'number' ? data.cycle_slot : null)}</p>}

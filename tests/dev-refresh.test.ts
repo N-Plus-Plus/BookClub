@@ -138,6 +138,15 @@ describe('production to local refresh safety',() => {
   it('keeps the helper and operator tooling outside the Worker/frontend production boundary',() => {
     const app = readFileSync('frontend/App.tsx','utf8');
     expect(app).toContain("import.meta.env.DEV && import.meta.env.MODE !== 'import-preview' ? lazy(() => import('./DevTools')) : null");
+    expect(app).toContain("const localLogin = import.meta.env.DEV && import.meta.env.MODE !== 'import-preview'");
+    expect(app).toContain("localLogin && health?.environment === 'local' && !health.authenticationRequired");
+    expect(app).toContain('isAdminPage && DevTools && localDevelopment && catalog');
+    expect(app).toContain('onChanged={load}');
+    expect(app).toContain('localDevelopment && health?.demo');
+    const css = readFileSync('frontend/app.css','utf8');
+    expect(css).toContain('.app-layout { position: relative;');
+    expect(css).toMatch(/\.demo-label \{ position: absolute;[^}]*top: \.5rem;[^}]*left: \.5rem;[^}]*color: var\(--straw\);[^}]*margin: 0;/);
+    expect(css).toContain('--straw: var(--sunflower)');
     expect(readFileSync('worker/src/index.ts','utf8')).not.toContain('/__dev/refresh');
     for (const file of readdirSync('frontend').filter(f => /\.(tsx?|css)$/.test(f))) {
       const contents = readFileSync(`frontend/${file}`,'utf8');

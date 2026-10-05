@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
 import type { Catalog, Movie, Rotation, Session } from '../shared/types';
 import { rankMovie } from '../shared/ranking';
-import { formatScore100, currentTurnLabel, historicalTurnLabel } from '../frontend/presentation';
-import { SessionCard, RankingScore } from '../frontend/components';
+import { formatScore100, currentTurnLabel, historicalTurnLabel, possessiveName } from '../frontend/presentation';
+import { SessionCard, RankingScore, eventDateLabel } from '../frontend/components';
 import { TurnFields } from '../frontend/TurnFields';
 import { HistoryEvidence } from '../frontend/HistoryEvidence';
 import { MetricsScreen } from '../frontend/MetricsScreen';
@@ -39,10 +40,10 @@ it.each([
 });
 
 it('presents named historical controls without raw turn numbers or nominal terminology',() => {
-  expect([1,2,3,4,5].map(historicalTurnLabel)).toEqual(["Sean's turn","Troy's turn","Matt's turn","Jess's turn",'Classics week']);
+  expect([1,2,3,4,5].map(historicalTurnLabel)).toEqual(["Sean's turn","Troy's turn","Matt's turn","Jess' turn",'Classics week']);
   const html=renderToStaticMarkup(createElement(TurnFields,{catalog,rotation,complete:false,onComplete:vi.fn(),cycle:'cycle',onCycle:vi.fn(),slot:1,onSlot:vi.fn()}));
   const element=document.createElement('div');element.innerHTML=html;
-  expect([...element.querySelectorAll('[name=cycle_slot] option')].map(e=>e.textContent)).toEqual(['Turn not recorded',"Sean's turn","Troy's turn","Matt's turn","Jess's turn",'Classics week']);
+  expect([...element.querySelectorAll('[name=cycle_slot] option')].map(e=>e.textContent)).toEqual(['Turn not recorded',"Sean's turn","Troy's turn","Matt's turn","Jess' turn",'Classics week']);
   expect(element.textContent).toContain('Historical backfill · cycle & turn');
   expect(element.textContent).toContain("New cycle (Sean's turn only)");
   expect(element.textContent).not.toMatch(/nominal|slot/i);
@@ -95,7 +96,7 @@ it('keeps raw Detail observations and explicit scales while formatting normalise
 });
 
 it.each([
-  [{...session,date_precision:'cycle_rough' as const},"Matt's turn",'Cycle beginning 1 January 2026'],
+  [{...session,date_precision:'cycle_rough' as const},"Matt's turn",'Cycle started 1 January 2026'],
   [{...session,kind:'classics' as const,host_member_id:null},'Classics week','1 January 2026'],
   [{...session,host_member_id:'former'},'Former member’s turn','1 January 2026'],
   [{...session,date_precision:'unknown' as const},"Matt's turn",'Date unknown'],
@@ -107,35 +108,98 @@ it.each([
   if(event.host_member_id==='former')expect(element.textContent).toContain('Hosted by a former member');
 });
 
-it('uses cycle beginning and stored host identity in Film Detail appearances',async()=>{
+it('uses cycle started and stored host identity in Film Detail appearances',async()=>{
  Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
  vi.mocked(api.detail).mockResolvedValue({...movie,appearances:[
   {id:'hosted',event_date:'2026-01-01',date_precision:'cycle_rough',kind:'hosted',host_member_id:'m3',position:1},
+  {id:'jess',event_date:'2026-11-28',date_precision:'cycle_rough',kind:'hosted',host_member_id:'m4',position:1},
   {id:'classics',event_date:'2026-01-02',date_precision:'exact',kind:'classics',host_member_id:null,position:2},
   {id:'former',event_date:'2026-01-03',date_precision:'unknown',kind:'hosted',host_member_id:'former',position:1},
  ]});
  const container=document.createElement('div');const root=createRoot(container);
  try {
   await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members,writesEnabled:false,isAdmin:false,onMovie:vi.fn()})));
-  expect(container.textContent).toContain("Cycle beginning 1 January 2026 · Matt's week · film 1");
+  expect(container.textContent).toContain("Cycle started 1 January 2026 · Matt's week · film 1");
+  expect(container.textContent).toContain("Cycle started 28 November 2026 · Jess' week · film 1");
   expect(container.textContent).toContain('2 January 2026 · Classics week · film 2');
   expect(container.textContent).toContain('Date unknown · Former member’s week');
   expect(container.textContent).not.toMatch(/Cycle reference|actual date unknown|Book Club night|Classics Collection/);
  } finally {await act(async()=>root.unmount());}
  const card=text(renderToStaticMarkup(createElement(SessionCard,{session:{...session,date_precision:'cycle_rough'},members})));
- expect(card).toContain('Cycle beginning 1 January 2026');expect(card).toContain("Matt's week");
+ expect(card).toContain('Cycle started 1 January 2026');expect(card).toContain("Matt's week");
  const evidence=text(renderToStaticMarkup(createElement(HistoryEvidence,{json:JSON.stringify({before:{...session,date_precision:'cycle_rough'}}),catalog})));
- expect(evidence).toContain('Cycle beginning 1 January 2026');expect(evidence).toContain("Matt's week");
+ expect(evidence).toContain('Cycle started 1 January 2026');expect(evidence).toContain("Matt's week");
 });
 
 it('compact ranking shows all six genuine labels and never presents imputation as a provider rating',()=>{
  const extra=[['letterboxd','rating',4,5],['metacritic','critic',80,100],['tmdb','rating',8,10]].map(([provider,metric,value,scale])=>({provider:String(provider),metric:String(metric),raw_value:Number(value),raw_scale:Number(scale),normalized_value:null,vote_count:null,fetched_at:'2026-01-01'}));
  const film={...movie,scores:[...movie.scores,...extra]};film.ranking=rankMovie(film.scores,[],members);
  const result=text(renderToStaticMarkup(createElement(RankingScore,{movie:film,variant:'classics',compact:true})));
- for(const label of ['IMDb 87','RT audience 87.5','RT critic 87.3','Letterboxd 80','Metacritic 80','TMDB 80'])expect(result).toContain(label);
+ for(const label of ['IMDb 87','RT Aud. 87.5','RT Critic 87.3','L.boxd 80','M.critic 80','TMDB 80'])expect(result).toContain(label);
  expect(result).not.toMatch(/residual score|Score breakdown/);
  const partial={...movie,scores:movie.scores.slice(0,1),ranking:rankMovie(movie.scores.slice(0,1),[],members)};
  const element=document.createElement('div');element.innerHTML=renderToStaticMarkup(createElement(RankingScore,{movie:partial,variant:'classics',compact:true}));
  expect(element.querySelectorAll('p.meta')[1].textContent).toBe('IMDb 87');
- expect(element.textContent).toContain('using available-score average');
+ expect(element.textContent).not.toContain('using available-score average');
+});
+
+
+it.each([['Sean',"Sean's"],['Troy',"Troy's"],['Matt',"Matt's"],['Jess',"Jess'"],['JESS',"JESS'"],['James',"James'"],['Alex',"Alex's"]])('formats possessive display name %s', (name,expected) => {
+  expect(possessiveName(name)).toBe(expected);
+});
+
+it.each([['m1',"Sean's week"],['m4',"Jess' week"],[null,'Classics week']])('groups History date and %s heading opposite actions and identity', (host,expected) => {
+  const event = {...session,event_date:'2026-11-28',date_precision:'cycle_rough' as const,host_member_id:host,kind:host ? 'hosted' as const : 'classics' as const};
+  const actions = createElement('button',{'aria-label':'Edit event',className:'button button--icon'},'Edit');
+  const element = document.createElement('div');
+  element.innerHTML = renderToStaticMarkup(createElement(SessionCard,{variant:'history',session:event,members,actions}));
+  const header = element.querySelector('.history-event-header')!;
+  expect([...header.children].map(child=>child.className)).toEqual(['history-event-heading','history-event-actions']);
+  const heading = header.firstElementChild!;
+  expect(heading.querySelector('.eyebrow')?.textContent).toBe('Cycle started 28 November 2026');
+  expect(heading.querySelector('h3')?.textContent).toBe(expected);
+  expect(header.lastElementChild?.querySelector('[aria-label="Edit event"]')).toBeTruthy();
+  expect(header.lastElementChild?.querySelector('.history-event-identity .club-identity')).toBeTruthy();
+  expect(header.querySelector('.film-list')).toBeNull();
+  expect(element.querySelector('.film-list')?.parentElement).toBe(header.parentElement);
+  expect(eventDateLabel(event)).toBe('Cycle started 28 November 2026');
+});
+
+it('uses Jess’ turn for Home and effective current rotation and Jess’ week in audit evidence',()=>{
+  const event = {...session,host_member_id:'m4'};
+  const element = document.createElement('div');
+  element.innerHTML = renderToStaticMarkup(createElement(SessionCard,{variant:'home',session:event,members}));
+  expect(element.querySelector('h3')?.textContent).toBe("Jess' turn");
+  expect(currentTurnLabel(members,{...rotation,nominal_slot:4,human_order:{}})).toBe("Jess' turn");
+  expect(historicalTurnLabel(4)).toBe("Jess' turn");
+  expect(text(renderToStaticMarkup(createElement(HistoryEvidence,{json:JSON.stringify({before:event}),catalog})))).toContain("Jess' week");
+});
+
+
+it.each([false,true])('keeps History action order with audit=%s followed by identity', (audit) => {
+  const buttons = ['Edit event',...(audit ? ['Audit event'] : []), 'Delete event'].map(label => createElement('button',{key:label,'aria-label':label,className:'button button--icon'}));
+  const element = document.createElement('div');
+  element.innerHTML = renderToStaticMarkup(createElement(SessionCard,{variant:'history',session,members,actions:buttons}));
+  const group = element.querySelector('.history-event-actions')!;
+  expect([...group.children].map(child => child.getAttribute('aria-label') ?? child.className)).toEqual(['Edit event',...(audit ? ['Audit event'] : []),'Delete event','history-event-identity']);
+});
+
+
+it('applies a single row of full-width controls beside a flexible History text column',()=>{
+  const stylesheet=document.createElement('style');
+  stylesheet.textContent=readFileSync('frontend/app.css','utf8');
+  const element=document.createElement('div');
+  const buttons=['Edit event','Audit event','Delete event'].map(label=>createElement('button',{key:label,'aria-label':label,className:'button button--icon'}));
+  element.innerHTML=renderToStaticMarkup(createElement(SessionCard,{variant:'history',session,members,actions:buttons}));
+  document.head.appendChild(stylesheet);document.body.appendChild(element);
+  try {
+    const header=getComputedStyle(element.querySelector('.history-event-header')!);
+    const controls=getComputedStyle(element.querySelector('.history-event-actions')!);
+    expect(header.gridTemplateColumns).toBe('minmax(0,1fr) max-content');
+    expect(controls.display).toBe('grid');
+    expect(controls.gridAutoFlow).toBe('column');
+    expect(controls.gridAutoColumns).toBe('max-content');
+    expect(getComputedStyle(element.querySelector('.history-event-heading')!).minWidth).toBe('0');
+    expect(getComputedStyle(element.querySelector('.eyebrow')!).whiteSpace).toBe('normal');
+  } finally {stylesheet.remove();element.remove();}
 });

@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BuilderSet, Catalog, Movie, SearchResponse, TmdbPreview } from '../shared/types';
 import { rankMovie, sortClassics } from '../shared/ranking';
-import { api } from '../frontend/api';
+import { api, setDevMember } from '../frontend/api';
 import { App } from '../frontend/App';
 import { BuilderSetPicker } from '../frontend/BuilderSetPicker';
 import { HistoryScreen } from '../frontend/HistoryScreen';
@@ -267,7 +267,7 @@ describe('History cycle archive',() => {
   it('uses concise History dates and ordered Film Detail links alongside compact Home headings',async () => {
     const data = archive(); await mountHistory(data);
     const cards = container.querySelectorAll('.session-card');
-    expect(cards[0].querySelector('.eyebrow')?.textContent).toBe('Cycle beginning 30 August 2026');
+    expect(cards[0].querySelector('.eyebrow')?.textContent).toBe('Cycle started 30 August 2026');
     expect(cards[1].querySelector('.eyebrow')?.textContent).toBe('1 September 2026');
     expect(cards[0].querySelector('h3')?.textContent).toBe("Member 2's week");
     expect(cards[0].querySelector('.film-list a .position')?.textContent).toBe('#1');
@@ -279,7 +279,7 @@ describe('History cycle archive',() => {
     await act(async () => { root.render(createElement(SessionCard,{variant:'home',session:data.sessions[0],members:data.members})); });
     expect(container.querySelector('h3')?.textContent).toBe("Member 2's turn");
     expect(container.querySelector('.position')?.textContent).toBe('#1');
-    expect(container.querySelector('.eyebrow')?.textContent).toBe('Cycle beginning 30 August 2026');
+    expect(container.querySelector('.eyebrow')?.textContent).toBe('Cycle started 30 August 2026');
     await mountHistory({...data,sessions:[{...data.sessions[0],kind:'classics',host_member_id:null}]});
     expect(container.querySelector('.session-card h3')?.textContent).toBe('Classics week');
     await mountHistory({...data,cycles:[],sessions:[{...data.sessions[0],cycle_id:null}]});
@@ -339,7 +339,7 @@ describe('URL-only Admin screen',() => {
     expect(container.querySelector('a[href="#/admin"]')).toBeNull();
     for(const nav of container.querySelectorAll('nav')) expect(nav.textContent).not.toContain('Admin');
     await navigate('classics');
-    for(const tab of ['Ranked (0)','Needs Data (0)','Already Seen (0)']) {
+    for(const tab of ['Ranked0','Unranked0','Seen0']) {
       await click(button(tab)); expect(button('Populate Missing Scores')).toBeUndefined();
       expect(container.querySelector('.classics-maintenance')).toBeNull();
     }
@@ -462,4 +462,28 @@ it('a returned swap does not discard an in-flight broad catalogue refresh or get
  await act(async()=>release({...club,movies:[fresh,...movies.slice(1)],sessions:[{id:'fresh',movies:[fresh],event_date:'2030-01-01',host_member_id:'member-2',kind:'hosted',date_precision:'exact',cycle_id:null,cycle_slot:null,legacy_cycle_label:null}]}));await flush();
  expect(container.querySelector('.turn-identity')?.textContent).toContain('MEMBER 3');expect(container.textContent).toContain('Metadata reconciled');
  expect(api.catalog).toHaveBeenCalledOnce();expect(api.health).not.toHaveBeenCalled();expect(api.me).not.toHaveBeenCalled();
+});
+
+it('shows dev tools only on local Admin and reloads identity through bootstrap',async()=>{
+ vi.mocked(api.health).mockResolvedValue({status:'ok',environment:'local',authenticationRequired:false,googleAuthConfigured:false,tmdbConfigured:false,mdblistConfigured:false,omdbConfigured:false,demo:true});
+ vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'admin'}});
+ await act(async()=>root.unmount());root=createRoot(container);await act(async()=>root.render(createElement(App)));await flush();
+ await navigate('classics');expect(container.querySelector('.developer-tools')).toBeNull();
+ expect(container.querySelector('.app-layout > .demo-label')?.textContent).toBe('Local disposable database');
+ expect(container.querySelector('main .demo-label,.page-heading .demo-label')).toBeNull();
+ await navigate('admin');await flush();expect(container.querySelector('.developer-tools')).toBeTruthy();
+ expect(button('Refresh Dev DB from Production')).toBeTruthy();expect(button('Confirm local replacement')).toBeUndefined();
+ await click(button('Refresh Dev DB from Production'));expect(button('Confirm local replacement')).toBeTruthy();await click(button('Cancel'));
+ const before=[vi.mocked(api.health).mock.calls.length,vi.mocked(api.me).mock.calls.length];
+ vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'member'}});
+ await act(async()=>{const select=container.querySelector('.developer-tools select')!;Object.assign(select,{value:catalog.members[0].id});select.dispatchEvent(new Event('change',{bubbles:true}));});await flush();
+ expect(setDevMember).toHaveBeenCalledWith(catalog.members[0].id);
+ expect([vi.mocked(api.health).mock.calls.length,vi.mocked(api.me).mock.calls.length]).toEqual(before.map(n=>n+1));
+ expect(container.querySelector('h1')?.textContent).toBe('Page not found');expect(container.querySelector('.developer-tools')).toBeNull();
+});
+it.each(['production','import-preview'])('hides the local indicator and dev tools for %s even with demo set',async(environment)=>{
+ vi.mocked(api.health).mockResolvedValue({status:'ok',environment,authenticationRequired:true,googleAuthConfigured:false,tmdbConfigured:false,mdblistConfigured:false,omdbConfigured:false,demo:true});
+ vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'admin'}});
+ await act(async()=>root.unmount());root=createRoot(container);await act(async()=>root.render(createElement(App)));await flush();await navigate('admin');
+ expect(container.querySelector('.demo-label,.developer-tools')).toBeNull();expect(button('Populate Missing Scores')).toBeTruthy();
 });

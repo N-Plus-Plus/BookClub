@@ -1,7 +1,7 @@
 import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Eye, Film, RefreshCw, type LucideIcon } from 'lucide-react';
 import { posterReference } from '../shared/artwork';
-import { formatScore100, ratingLabel } from './presentation';
+import { formatScore100, possessiveName, ratingLabel } from './presentation';
 import { ClubIdentity } from './ClubIdentity';
 import type { Member, Movie, Session } from '../shared/types';
 
@@ -44,14 +44,15 @@ export function dateLabel(date: string) {
 }
 export function eventDateLabel(event: Pick<Session,'event_date'|'date_precision'>) {
   if (event.date_precision === 'unknown') return 'Date unknown';
-  return `${event.date_precision === 'cycle_rough' ? 'Cycle beginning ' : ''}${dateLabel(event.event_date)}`;
+  return `${event.date_precision === 'cycle_rough' ? 'Cycle started ' : ''}${dateLabel(event.event_date)}`;
 }
 export function SessionCard({session,members,actions,dateHeading,variant}: {session: Session; members: Member[]; actions?: ReactNode; dateHeading?: string; variant?: 'history' | 'home'}) {
   const host = members.find(m => m.id === session.host_member_id);
   const home = variant === 'home';
   const identity = session.kind === 'classics' ? <ClubIdentity identity={{kind: 'classics'}} /> : host ? <ClubIdentity identity={{kind: 'member',member: host}} /> : <span>Hosted by a former member</span>;
-  return <article className={home ? 'card session-card home-session-card' : 'card session-card'}>{variant === 'history' ? <div className="history-event-actions">{actions}<div className="history-event-identity">{identity}</div></div> : actions}{home && <div className="home-session-identity">{identity}</div>}<div className="eyebrow">{dateHeading ?? (home ? (session.date_precision === 'cycle_rough' ? `Cycle beginning ${dateLabel(session.event_date)}` : eventDateLabel(session)) : <>{eventDateLabel(session)} · {session.movies.length} film{session.movies.length === 1 ? '' : 's'}</>)}</div>
-    <h3>{home ? (session.kind === 'classics' ? 'Classics week' : host ? `${host.display_name}'s turn` : 'Former member’s turn') : (session.kind === 'classics' ? 'Classics week' : host ? `${host.display_name}'s week` : 'Former member’s week')}</h3>{((!home && variant !== 'history') || session.legacy_cycle_label) && <div className="session-meta">
+  const heading = <><div className="eyebrow">{dateHeading ?? (home || variant === 'history' ? eventDateLabel(session) : <>{eventDateLabel(session)} · {session.movies.length} film{session.movies.length === 1 ? '' : 's'}</>)}</div>
+    <h3>{session.kind === 'classics' ? 'Classics week' : host ? `${possessiveName(host.display_name)} ${home ? 'turn' : 'week'}` : home ? 'Former member’s turn' : 'Former member’s week'}</h3></>;
+  return <article className={home ? 'card session-card home-session-card' : 'card session-card'}>{variant === 'history' ? <div className="history-event-header"><div className="history-event-heading">{heading}</div><div className="history-event-actions">{actions}<div className="history-event-identity">{identity}</div></div></div> : <>{actions}{home && <div className="home-session-identity">{identity}</div>}{heading}</>}{((!home && variant !== 'history') || session.legacy_cycle_label) && <div className="session-meta">
       {!home && variant !== 'history' && session.kind === 'classics' && <ClubIdentity identity={{kind: 'classics'}} />}
       {!home && variant !== 'history' && session.host_member_id && (members.find(m => m.id === session.host_member_id) ? <ClubIdentity identity={{kind: 'member',member: members.find(m => m.id === session.host_member_id)!}} /> : <span>Hosted by a former member</span>)}
       {session.legacy_cycle_label && <span className="badge">{session.legacy_cycle_label}</span>}</div>}
@@ -59,14 +60,23 @@ export function SessionCard({session,members,actions,dateHeading,variant}: {sess
     {session.planned_at && <p className="meta">Planned {new Date(session.planned_at).toLocaleString('en-AU')}</p>}
   </article>;
 }
+// Classics keeps compact labels and presentation order independent of other views.
+const classicsRatings = [
+  ['imdb','rating','IMDb'], ['letterboxd','rating','L.boxd'], ['metacritic','critic','M.critic'],
+  ['rottentomatoes','audience','RT Aud.'], ['rottentomatoes','critic','RT Critic'], ['tmdb','rating','TMDB'],
+] as const;
 export function RankingScore({movie,compact = false,variant}: {movie: Movie; compact?: boolean; variant?: 'home' | 'classics'}) {
   const r = movie.ranking!;
+  const scoreLine = variant === 'classics' ? classicsRatings.flatMap(([provider,metric,label]) => {
+    const source = r.sources.find(s => s.provider === provider && s.metric === metric);
+    return source ? [`${label} ${formatScore100(source.value)}`] : [];
+  }).join(' · ') : r.sources.map(s => `${ratingLabel(s.provider,s.metric)} ${formatScore100(s.value)}`).join(' · ');
   return <div className="stack ranking-score">{!variant && <div className="rank-top">
     <span className="badge" data-intent={r.eligible ? 'constructive' : 'destructive'}>{!r.eligible ? 'Disqualified' : r.rankable ? 'Ranked' : 'Needs Data'}</span>
     <strong className="score numeric">{r.finalScore?.toFixed(2) ?? '—'}<small>residual score</small></strong></div>}
     <p className="meta">{r.seenCount} Seen · {r.unseenCount} No{variant !== 'home' && <> · {r.unknownCount} Unknown</>}</p>
-    {(!compact || variant === 'classics') && <p className="meta">{r.sources.map(s => `${ratingLabel(s.provider,s.metric)} ${formatScore100(s.value)}`).join(' · ')}</p>}
-    {r.missingRequiredScores.length > 0 && <p className="meta">Missing: {r.missingRequiredScores.map(key => { const [provider,metric] = key.split(':'); return ratingLabel(provider,metric); }).join(', ')}{r.imputedScores.length > 0 && ' · using available-score average'}</p>}
+    {(!compact || variant === 'classics') && <p className="meta ranking-source-scores">{scoreLine}</p>}
+    {variant !== 'classics' && r.missingRequiredScores.length > 0 && <p className="meta">Missing: {r.missingRequiredScores.map(key => { const [provider,metric] = key.split(':'); return ratingLabel(provider,metric); }).join(', ')}{r.imputedScores.length > 0 && ' · using available-score average'}</p>}
     {!variant && <details><summary><Eye size={17} aria-hidden="true" />Score breakdown</summary><div className="breakdown">
       <p>Sum of squares <strong>{r.rawScore?.toFixed(2) ?? 'Incomplete'}</strong></p><p>Unseen multiplier <strong>{r.unseenMultiplier.toFixed(6)}</strong></p>
       {r.sources.map(s => <p key={`${s.provider}:${s.metric}`}>{s.provider} ({s.metric})<strong>{formatScore100(s.value)} / 100</strong></p>)}

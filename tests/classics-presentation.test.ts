@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -19,7 +20,7 @@ const film=(i:number,group='ranked'):Movie=>{
 let root:Root,container:HTMLDivElement;
 beforeEach(()=>{vi.clearAllMocks();Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});container=document.createElement('div');document.body.appendChild(container);root=createRoot(container);});
 afterEach(async()=>{await act(async()=>root.unmount());container.remove();vi.useRealTimers();});
-const click=async(label:string)=>act(async()=>{[...container.querySelectorAll('button')].find(b=>b.textContent===label)!.click();});
+const click=async(label:string)=>act(async()=>{[...container.querySelectorAll('button')].find(b=>b.textContent===label || b.getAttribute('aria-label')?.startsWith(label+':'))!.click();});
 it('paginates each Classics view, retains global ranks, resets tabs and clamps shrinking lists',async()=>{
  const movies=[...Array.from({length:42},(_,i)=>film(i+1)),...Array.from({length:11},(_,i)=>film(i+100,'missing')),...Array.from({length:11},(_,i)=>film(i+200,'seen'))];
  const render=async(list=movies)=>act(async()=>root.render(createElement(ClassicsScreen,{movies:list,viewer:null,writesEnabled:false,onMovie:vi.fn()})));
@@ -28,10 +29,10 @@ it('paginates each Classics view, retains global ranks, resets tabs and clamps s
  expect(container.querySelector('.ranking-row .score,.ranking-row .badge,.ranking-row details')).toBeNull();expect(container.querySelector('.ranking-row')?.textContent).toContain('IMDb 80');
  expect(container.querySelector('.lucide-list-sort-descending')).toBeTruthy();expect(container.querySelector('.lucide-rows-3')).toBeTruthy();
  await click('Next');expect(container.querySelector('.rank-number')?.textContent).toBe('#21');
- await click('Needs Data (11)');expect(container.querySelectorAll('.ranking-row')).toHaveLength(10);expect(container.textContent).toContain('Page 1 of 2');expect(container.textContent).toContain('Missing:');
+ await click('Unranked');expect(container.querySelector('.movie-title')?.textContent).toBe('Film 100');expect(container.querySelectorAll('.ranking-row')).toHaveLength(10);expect(container.textContent).toContain('Page 1 of 2');expect(container.textContent).not.toContain('Missing:');
  await click('Next');expect(container.querySelectorAll('.ranking-row')).toHaveLength(1);
- await click('Already Seen (11)');expect(container.querySelectorAll('.ranking-row')).toHaveLength(10);expect(container.textContent).toContain('Page 1 of 2');
- await click('Ranked (42)');await click('Next');await click('Next');expect(container.querySelector('.rank-number')?.textContent).toBe('#41');
+ await click('Seen');expect(container.querySelectorAll('.ranking-row')).toHaveLength(10);expect(container.textContent).toContain('Page 1 of 2');
+ await click('Ranked');await click('Next');await click('Next');expect(container.querySelector('.rank-number')?.textContent).toBe('#41');
  await render(movies.slice(0,5));expect(container.querySelectorAll('.ranking-row')).toHaveLength(5);expect(container.textContent).toContain('Page 1 of 1');expect(container.querySelector('.rank-number')?.textContent).toBe('#1');
 });
 it.each([true,false])('infers all active members from History, regardless of Classics membership (%s), without writes',async(classic)=>{
@@ -54,7 +55,7 @@ it('omits maintenance on all Classics tabs and includes History in Admin bulk wo
  const viewer={id:'m1',display_name:'Member 1',sort_order:1,avatar:1,role:'admin' as const};const onMovie=vi.fn();
  const render=async(role:'member'|'admin'='admin')=>act(async()=>root.render(createElement(ClassicsScreen,{movies,catalog,viewer:{...viewer,role},writesEnabled:true,onMovie})));
  await render();
- for (const tab of ['Ranked (1)','Needs Data (1)','Already Seen (1)']) {
+ for (const tab of ['Ranked','Unranked','Seen']) {
   await click(tab);expect(container.querySelectorAll('.classics-maintenance')).toHaveLength(0);
   expect(container.querySelector('.ranking-list details')).toBeNull();expect(container.textContent).not.toContain('Populate Missing Scores');
  }
@@ -75,4 +76,45 @@ it('keeps the Admin DOM compact through a 980-film no-data run',async()=>{
  expect(onMovie).toHaveBeenCalledTimes(980);expect(container.textContent).toContain('980 / 980 films processed');expect(container.textContent).toContain('980 with no new scores');
  expect(container.querySelectorAll('.classics-maintenance li')).toHaveLength(1);expect(container.querySelectorAll('.classics-maintenance strong')).toHaveLength(0);
  expect(container.querySelector('progress')?.value).toBe(980);
+});
+
+it('uses exact ordered compact Classics scores, omits missing ratings and explanation copy',async()=>{
+ const extra=[['tmdb','rating',70],['metacritic','critic',81.5],['letterboxd','rating',82]].map(([provider,metric,value])=>({...scores[0],provider:String(provider),metric:String(metric),raw_value:Number(value),normalized_value:Number(value)}));
+ const inputs=[...extra,...scores];const movie={...film(1),scores:inputs,ranking:rankMovie(inputs,film(1).seen,members)};
+ const render=async(m:Movie)=>act(async()=>root.render(createElement(ClassicsScreen,{movies:[m],viewer:null,writesEnabled:false,onMovie:vi.fn()})));
+ await render(movie);
+ expect(container.querySelector('.ranking-source-scores')?.textContent).toBe('IMDb 80 · L.boxd 82 · M.critic 81.5 · RT Aud. 90 · RT Critic 85 · TMDB 70');
+ await render(film(1));
+ expect(container.querySelector('.ranking-source-scores')?.textContent).toBe('IMDb 80 · RT Aud. 90 · RT Critic 85');
+ expect(container.textContent).not.toContain('Missing:');expect(container.textContent).not.toContain('using available-score average');
+ expect(container.textContent).not.toContain('Watch Order uses six ratings');
+ expect(container.querySelector('.developer-tools')).toBeNull();
+});
+it.each([0,99,100])('uses small distinct count pills with full accessible counts (%s)',async(count)=>{
+ const movies=['ranked','missing','seen'].flatMap((group,g)=>Array.from({length:count},(_,i)=>film(g*1000+i,group)));
+ await act(async()=>root.render(createElement(ClassicsScreen,{movies,viewer:null,writesEnabled:false,onMovie:vi.fn()})));
+ const filters=[...container.querySelectorAll('.classics-filters button')];
+ expect(filters.map(b=>b.querySelector('span')?.textContent)).toEqual(['Ranked','Unranked','Seen']);
+ expect(filters.map(b=>b.querySelector('.classics-count')?.textContent)).toEqual(Array(3).fill(count>99?'99+':String(count)));
+ expect(filters.map(b=>b.querySelector('.classics-count')?.className)).toEqual(['classics-count classics-count-ranked','classics-count classics-count-needs-data','classics-count classics-count-seen']);
+ for(const b of filters) expect(b.getAttribute('type')).toBe('button');
+ for(const b of filters) expect(b.getAttribute('aria-label')).toContain(`${count} films`);
+ expect(filters.map(b=>b.getAttribute('aria-pressed'))).toEqual(['true','false','false']);
+ await click('Seen');expect(filters.map(b=>b.getAttribute('aria-pressed'))).toEqual(['false','false','true']);
+ const css=readFileSync('frontend/app.css','utf8');
+ for(const [state,token] of [['ranked','grass'],['needs-data','rose'],['seen','mandarin']]) expect(css).toContain(`.classics-count-${state} { background: var(--${token}); }`);
+ expect(css).toContain('--mandarin: var(--pumpkin)');expect(css).toContain('font-size: var(--text-eyebrow)');
+});
+
+it('scopes smaller mobile titles to Classics and keeps tabs in one flexible touch strip',()=>{
+ const css=readFileSync('frontend/app.css','utf8');
+ expect(css).toMatch(/@media \(max-width: 719px\)\s*\{\s*\.classics-ranking-row \.movie-title \{ font-size: calc\(var\(--text-movie-title\) \* \.75\); \}\s*\}/);
+ expect(css).toContain('.movie-title { display: block; font-weight: 600; font-size: var(--text-movie-title); }');
+ expect(css).toContain('.classics-filters { display: flex; flex-wrap: nowrap;');
+ expect(css).toContain('flex: 1 1 0; min-width: 0; min-height: var(--target-min)');
+ expect(css).toContain('font-size: calc(var(--text-body) * .9); white-space: nowrap;');
+ expect(css).toContain('.classics-filters .button svg { width: 14.4px; height: 14.4px; }');
+ expect(css).toContain('.classics-filters .button[aria-pressed="true"]::after');
+ expect(css).toContain('bottom: 0; height: 3px; background: var(--focus-outline)');
+ expect(css).toContain('padding: 0 var(--space-4); border-radius: var(--radius-pill); font-size: var(--text-eyebrow); line-height: 1.5;');
 });
