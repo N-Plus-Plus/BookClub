@@ -198,6 +198,8 @@ Prefer weight, size, spacing and contrast over many different font sizes or deco
 
 Uppercase text is acceptable sparingly for short identity elements, compact labels and established member-name treatment. Do not convert ordinary prose or controls to uppercase for decoration.
 
+Linked film presentations use the shared movie-title typography role at approximately 1.5 times their base item-title size (or their existing larger title role). Keep year/runtime metadata subordinate. The full film identity container, including its poster and supporting metadata, is a native Film Detail link with visible hover and keyboard focus treatment; independent actions remain outside the link. Do not use decorative Eye icons to indicate Film Detail navigation. Informational film displays remain unlinked unless navigation is already intended.
+
 Use Australian English throughout the interface.
 
 ## 12. Copy and microcopy
@@ -286,7 +288,7 @@ BookClub must keep clear access to:
 - Seen It?;
 - Metrics.
 
-Mobile retains fixed bottom navigation with safe-area space. At 720px and above, desktop uses a collapsible side drawer with visible destination labels when expanded and named icons with focus/hover explanations when collapsed. Content reserves the drawer width; component state is sufficient.
+Mobile retains fixed bottom navigation with safe-area space. At 720px and above, desktop uses a collapsible side drawer with visible destination labels when expanded and named icons with focus/hover explanations when collapsed. Content reserves the drawer width; component state is sufficient. The expanded collapse-control row also shows a small, randomly selected bundled fav image that collapses the drawer when clicked; it is hidden when collapsed.
 
 Do not hide primary destinations behind a hamburger menu when there is sufficient room to expose them directly.
 
@@ -568,6 +570,10 @@ Provider, maintenance and provenance controls should remain subordinate.
 ### Avatar onboarding
 
 Keep the choice focused, obvious and recoverable. Offer available avatars in a horizontal native scroll-snap carousel. Initially centre and nominate the third available avatar, or the last available avatar when fewer than three remain. The centred avatar is nominated and committed by Choose and continue; tapping an option centres it. Load availability once per interaction, with claim collisions using the normal error path. Hide the scrollbar on mobile and keep it slim on desktop. Group actions on the right with Log out followed by Choose and continue. Use restrained selection emphasis and respect reduced motion.
+
+### Authenticated header
+
+Keep the slate icon and BookClub wordmark with the small tagline “HAVE YOU UPDATED THE SPREAD... WEB APP?”. The existing avatar and uppercase member name form a button that toggles a compact Logout dropdown. Outside clicks, leaving the account controls with keyboard focus, and Escape dismiss it; Logout uses the existing session behaviour.
 
 ### Sign-in
 

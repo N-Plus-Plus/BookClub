@@ -29,11 +29,11 @@ export function Poster({movie,large = false}: {movie: Pick<Movie,'title'|'assets
   return reference && failedReference !== reference ? <img className={`poster ${large ? 'poster-large' : ''}`} src={reference} alt={`${movie.title} poster`} loading="lazy" onError={() => setFailedReference(reference)} />
     : <div className={`poster poster-empty ${large ? 'poster-large' : ''}`} role="img" aria-label={`No poster available for ${movie.title}`}><Film size={large ? 48 : 25} aria-hidden="true" /><span>No poster</span></div>;
 }
-export function MovieLink({movie}: {movie: Movie}) {
-  return <a className="movie-link" href={`#/movie/${movie.id}`}><Eye size={17} aria-hidden="true" /><span>{movie.title}</span></a>;
+export function MovieLink({movie,children,className = ''}: {movie: Movie; children?: ReactNode; className?: string}) {
+  return <a className={`movie-link ${className}`} href={`#/movie/${movie.id}`} aria-label={movie.title}>{children ?? <span className="movie-title">{movie.title}</span>}</a>;
 }
 export function MovieRow({movie,children}: {movie: Movie; children?: ReactNode}) {
-  return <div className="movie-row"><Poster movie={movie} /><div className="movie-copy"><MovieLink movie={movie} /><p className="meta">{movie.year ?? 'Year unknown'}{movie.runtime ? ` · ${movie.runtime} min` : ''}</p>{children}</div></div>;
+  return <MovieLink movie={movie} className="movie-row"><Poster movie={movie} /><div className="movie-copy"><span className="movie-title">{movie.title}</span><p className="meta">{movie.year ?? 'Year unknown'}{movie.runtime ? ` · ${movie.runtime} min` : ''}</p>{children}</div></MovieLink>;
 }
 export function dateLabel(date: string) {
   return new Intl.DateTimeFormat('en-AU',{day: 'numeric',month: 'long',year: 'numeric'}).format(new Date(`${date}T12:00:00`));
