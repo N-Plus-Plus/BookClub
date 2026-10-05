@@ -1,4 +1,4 @@
-import type { Catalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, MetadataEnrichment } from '../shared/types';
+import type { Catalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, MetadataEnrichment, TmdbPreview } from '../shared/types';
 
 const configured = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/,'');
 const base = import.meta.env.DEV ? 'http://localhost:8787' : configured || '';
@@ -19,7 +19,7 @@ export function storeSession(token: string) {
   sessionToken = token;
 }
 export function clearSession() { sessionToken = null; try { localStorage.removeItem(storageKey); } catch { /* In-memory session is still cleared. */ } }
-async function request<T>(path: string, method = 'GET', data?: unknown, authenticated = true): Promise<T> {
+async function request<T>(path: string, method = 'GET', data?: unknown, authenticated = true, signal?: AbortSignal): Promise<T> {
   if (!base) throw new Error('Set VITE_API_BASE_URL to the Worker origin before building the production frontend.');
   const sentToken = sessionToken;
   let response: Response;
@@ -30,7 +30,7 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
         ...(import.meta.env.DEV && localStorage.getItem('bookclub.dev-member') ? {'X-BookClub-Dev-Member': localStorage.getItem('bookclub.dev-member')!} : {}),
         ...(authenticated && sentToken ? { Authorization: `Bearer ${sentToken}` } : {}),
       }, ...(data === undefined ? {} : { body: JSON.stringify(data) }),
-      signal: AbortSignal.timeout(path === '/movies/enrich-metadata' ? 95000 : path === '/classics/enrich' ? 65000 : 15000),
+      signal: signal ? AbortSignal.any([signal,AbortSignal.timeout(15000)]) : AbortSignal.timeout(path === '/movies/enrich-metadata' ? 95000 : path === '/classics/enrich' ? 65000 : 15000),
     });
   } catch { throw new Error('Could not reach BookClub. Check your connection and that the API is running, then retry.'); }
   if (response.status === 401 && authenticated && sentToken === sessionToken) { clearSession(); unauthorized?.(); }
@@ -48,6 +48,7 @@ export const api = {
   logout: () => request<{loggedOut: boolean}>('/auth/logout','POST'),
   detail: (id: string) => request<MovieDetail>(`/movies/${encodeURIComponent(id)}`),
   search: (query: string) => request<SearchResponse>(`/movies/search?q=${encodeURIComponent(query)}`),
+  preview: (externalId: string, signal?: AbortSignal) => request<TmdbPreview>(`/movies/preview/tmdb/${encodeURIComponent(externalId)}`,'GET',undefined,true,signal),
   createMovie: (input: ManualMovieInput) => request<MovieDetail>('/movies','POST',input),
   importMovie: (externalId: string) => request<MovieDetail>('/movies/import','POST',{provider: 'tmdb',externalId}),
   saveSession: (input: SessionInput,id?: string) => request<Session>(id ? `/sessions/${encodeURIComponent(id)}` : '/sessions',id ? 'PUT' : 'POST',input),

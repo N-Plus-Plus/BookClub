@@ -20,11 +20,8 @@ export const sessionSchema = z.object({
   cycle_slot: z.number().int().min(1).max(5).nullable().optional(),
 }).strict().superRefine((s,ctx) => {
   if (s.cycle_id && s.new_cycle) ctx.addIssue({code: 'custom',path: ['cycle_id'],message: 'Choose an existing or new cycle, not both.'});
-  if (s.kind === 'classics' && s.host_member_id) ctx.addIssue({code: 'custom',path: ['host_member_id'],message: 'Classics events have no host.'});
-  if (s.kind === 'hosted' && !s.host_member_id) ctx.addIssue({code: 'custom',path: ['host_member_id'],message: 'Choose a host for a hosted event.'});
   if (s.date_precision === 'cycle_rough' && !s.cycle_id && !s.new_cycle) ctx.addIssue({code: 'custom',path: ['cycle_id'],message: 'An approximate cycle date requires a cycle.'});
   if (s.cycle_slot != null && !s.cycle_id && !s.new_cycle && !s.complete_turn) ctx.addIssue({code: 'custom',path: ['cycle_slot'],message: 'A source slot requires a cycle.'});
-  if (s.cycle_slot != null && ((s.kind === 'classics' && s.cycle_slot !== 5) || (s.kind !== 'classics' && s.cycle_slot === 5))) ctx.addIssue({code: 'custom',path: ['cycle_slot'],message: 'Slot 5 is for Classics; slots 1–4 are hosted.'});
 });
 export const classicSchema = z.object({classic: z.boolean()}).strict();
 export const enrichmentSchema = z.object({limit: z.number().int().min(1).max(10).default(10)}).strict();

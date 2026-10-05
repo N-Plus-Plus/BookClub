@@ -94,6 +94,8 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
   if (path === '/api/v1/movies/import' && method === 'POST') {
     const input = importSchema.parse(await body(request)); return json(await movies.import(input.provider,input.externalId),201);
   }
+  const previewMatch = path.match(/^\/api\/v1\/movies\/preview\/tmdb\/([^/]+)$/);
+  if (previewMatch && method === 'GET') return json(await movies.preview(importSchema.shape.externalId.parse(previewMatch[1])));
   if (path === '/api/v1/movies' && method === 'POST') {
     const id = await repo.manualMovie(movieSchema.parse(await body(request))); return json(await movies.detail(id),201);
   }

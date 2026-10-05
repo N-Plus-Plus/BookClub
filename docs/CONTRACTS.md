@@ -50,11 +50,14 @@ CORS reflects exact configured origins only, never `*`, with no cookie credentia
 | GET `/catalog` | `{members,movies,sessions,cycles}`; active History only, no Builder/auth records |
 | GET `/members`, `/movies`, `/sessions`, `/cycles`, `/classics` | Arrays of shared types; Classics is derived sorted membership |
 | GET `/movies/:id`, `/sessions/:id` | MovieDetail / event with ordered movie objects; detail includes appearance event/date/kind/position |
-| GET `/movies/search?q=...` | Trimmed 1–150 chars -> `{local,external,lookup:{available,message}}`; unavailable provider preserves local matches |
+| GET `/movies/search?q=...` | Trimmed 1–150 chars -> `{local:SavedSearchResult[],external:SearchResult[],lookup:{available,message}}`; unavailable provider preserves local matches. Local fields: canonical `id`, `title`, nullable `year`, `tmdbId`, `poster`. External fields: provider/externalId/title/year/poster; no canonical ID. |
+| GET `/movies/preview/tmdb/:externalId` | Positive numeric TMDB ID, <=10 digits -> read-only `TmdbPreview`: provider/externalId/title/original_title/year/release_date/runtime/overview/genres/assets/director. No canonical ID, scores, Seen or appearances; no D1 writes, including cooldown bookkeeping. |
 | POST `/movies` | `{title,year?,runtime?}` -> MovieDetail (201); title 1–300, year 1870–2200, positive runtime <=10000 |
 | POST `/movies/import` | `{provider:"tmdb",externalId}` (positive numeric string, <=10 digits) -> persisted/reused MovieDetail (201) |
 | PUT `/movies/:id/classics` | `{classic:boolean}` -> MovieDetail; preserves canonical movie/allocated seed |
 | PUT `/movies/:id/seen/:memberId` | `{seen:true|false|null}` -> MovieDetail; null returns Unknown by removing row |
+
+Search trims/collapses whitespace, compares case-insensitively, and removes at most one leading English A or The. Any whole-title matches across the collected local/TMDB pool suppress all weaker candidates; otherwise contiguous-substring matches retain source relevance order. Year is excluded. Saved TMDB identity owners suppress external duplicates. Pagination is frontend-only, six candidates from the same result set.
 
 Movie responses preserve nullable metadata and arrays for genres/assets/IDs/scores/Seen. Ranking is nullable for nonmembers; missing input is not zero. Optional metadata/artwork check fields support deployment evolution. Neither catalog nor viewer exposes authorised emails, Google subs or session hashes.
 
@@ -83,9 +86,9 @@ POST `/sessions` and PUT `/sessions/:id` accept:
 }
 ```
 
-Nonempty ordered lineup, no three-film ceiling. Cycle title/legacy label max 300. Event title, notes and swap explanations are not accepted or stored. The UI derives internal kind from turn/slot context and retains it on edits; new-event completion defaults checked. Existing/new cycle are exclusive; slot 5 is Classics, 1–4 hosted. Classics has no host; hosted requires one. `cycle_rough` requires cycle context. Slot-1 new cycle requires exact matching anchor; later exact dates are independent. Changing an exact slot-1 date requires explicit `correct_anchor:true`; only unknown legacy reference dates follow. Edits never complete a turn. Creation returns event/201, replacement event/200.
+Nonempty ordered lineup, no three-film ceiling. Cycle title/legacy label max 300. Event title, notes and swap explanations are not accepted or stored. New Event host/kind are derived server-side from the current rotation (active member at sort_order 1–4; slot 5 hostless Classics), independently of viewer, submitted host/kind or completion. Corrections retain stored host/kind, including inactive historical hosts; new-event completion defaults checked. Existing/new cycle are exclusive; slot 5 is Classics, 1–4 hosted. Classics has no host; hosted requires one. `cycle_rough` requires cycle context. Slot-1 new cycle requires exact matching anchor; later exact dates are independent. Changing an exact slot-1 date requires explicit `correct_anchor:true`; only unknown legacy reference dates follow. Edits never complete a turn. Creation returns event/201, replacement event/200.
 
-Actual hosts may differ from the nominal member without an explanation; the fixed rotation remains unchanged. Occupied active cycle/slot returns 409 with related work rolled back. Current completion requires correct turn/version and advances only explicitly. Slots follow fixed human positions then hostless Classics; completing Classics returns to slot 1 awaiting new cycle. Current Classics completion atomically marks films Seen for all active members; backfills/edits/restores do not.
+Historical actual hosts may differ from nominal positions and remain stored; Event entry has no host selector. Builder publication retains its separate publisher-host contract. Unchecking new Event completion does not change current-turn host identity. Occupied active cycle/slot returns 409 with related work rolled back. Current completion requires correct turn/version and advances only explicitly. Slots follow fixed human positions then hostless Classics; completing Classics returns to slot 1 awaiting new cycle. Current Classics completion atomically marks films Seen for all active members; backfills/edits/restores do not.
 
 GET `/rotation` -> singleton or null before private initialisation. Admin PUT `/rotation` accepts `{cycle_id:string|null,nominal_slot:1–5,version:number|null,reason}`; reason nonblank <=2000, version detects stale correction. Returns Rotation. Admin status does not grant Builder access.
 

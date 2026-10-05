@@ -1,7 +1,8 @@
 import { Repository } from './repository';
 import { ApiError, type Env } from './http';
 import { TmdbProvider } from './providers/tmdb';
-import type { MovieDetail, SearchResponse, MetadataEnrichment } from '../../shared/types';
+import type { MovieDetail, SearchResponse, MetadataEnrichment, SearchResult, TmdbPreview } from '../../shared/types';
+import { matchTitles } from '../../shared/search';
 import { ProviderError } from './providers/http';
 
 import { tmdbIdentity } from '../../shared/metadata';
@@ -11,12 +12,12 @@ export { metadataGaps } from '../../shared/metadata';
 
 export class MovieService {
   constructor(private repo: Repository, private env: Env) {}
-  private async tmdb<T>(call: () => Promise<T>): Promise<T> {
+  private async tmdb<T>(call: () => Promise<T>, readOnly = false): Promise<T> {
     const cooldown = this.repo as Repository & { providerCooldown?: (provider:string) => Promise<number|null>; setProviderCooldown?: (provider:string,seconds:number) => Promise<void> };
-    const wait = cooldown.providerCooldown ? await cooldown.providerCooldown('tmdb') : null;
+    const wait = cooldown.providerCooldown ? await cooldown.providerCooldown('tmdb',readOnly) : null;
     if (wait !== null) throw new ProviderError('TMDB','rate_limited','TMDB is cooling down after a rate limit. Try later.',wait);
     try { return await call(); }
-    catch (error) { if (error instanceof ProviderError && error.kind === 'rate_limited' && cooldown.setProviderCooldown) await cooldown.setProviderCooldown('tmdb',error.retryAfter ?? 60); throw error; }
+    catch (error) { if (!readOnly && error instanceof ProviderError && error.kind === 'rate_limited' && cooldown.setProviderCooldown) await cooldown.setProviderCooldown('tmdb',error.retryAfter ?? 60); throw error; }
   }
   async enrichMetadata(limit: number): Promise<MetadataEnrichment> {
     if (!Number.isInteger(limit) || limit < 1 || limit > 10) throw new ApiError(422,'INVALID_LIMIT','Choose a limit from 1 to 10.');
@@ -47,15 +48,27 @@ export class MovieService {
       ? [{ id: s.id,event_date: s.event_date,date_precision: s.date_precision,kind: s.kind,position: i+1 }] : [])) };
   }
   async search(query: string): Promise<SearchResponse> {
-    const { movies } = await this.repo.catalog();
-    const local = movies.filter(m => `${m.title} ${m.original_title ?? ''} ${m.year ?? ''}`.toLowerCase().includes(query.toLowerCase())).slice(0,30);
-    if (!this.env.TMDB_READ_TOKEN) return { local, external: [], lookup: { available: false, message: 'TMDB lookup is not configured. Search saved films or add one manually.' } };
-    try {
-      return { local, external: await this.tmdb(() => new TmdbProvider(this.env.TMDB_READ_TOKEN!).search(query)), lookup: { available: true,message: null } };
-    } catch (error) {
-      if (!(error instanceof ApiError)) throw error;
-      return { local, external: [], lookup: { available: false,message: error.message } };
+    let external: SearchResult[] = [];
+    let lookup: SearchResponse['lookup'] = {available:false,message:'TMDB lookup is not configured. Search saved films or add one manually.'};
+    if (this.env.TMDB_READ_TOKEN) {
+      try { external = await this.tmdb(() => new TmdbProvider(this.env.TMDB_READ_TOKEN!).search(query)); lookup = {available:true,message:null}; }
+      catch (error) { if (!(error instanceof ApiError)) throw error; lookup = {available:false,message:error.message}; }
     }
+    const local = await this.repo.searchMovies(query,external.map(movie => movie.externalId));
+    const pool = [...local.map(movie => ({title:movie.title,local:movie})),...external.map(movie => ({title:movie.title,external:movie}))];
+    const matched = matchTitles(pool,query);
+    const saved = new Map(matched.flatMap(candidate => 'local' in candidate ? [[candidate.local.id,candidate.local] as const] : []));
+    const remaining = matched.flatMap(candidate => {
+      if (!('external' in candidate)) return [];
+      const owner = local.find(movie => movie.tmdbId === candidate.external.externalId);
+      if (owner) { saved.set(owner.id,owner); return []; }
+      return [candidate.external];
+    });
+    return {local:[...saved.values()],external:remaining,lookup};
+  }
+  async preview(externalId: string): Promise<TmdbPreview> {
+    if (!this.env.TMDB_READ_TOKEN) throw new ApiError(503,'PROVIDER_NOT_CONFIGURED','TMDB lookup is not configured.');
+    return this.tmdb(() => new TmdbProvider(this.env.TMDB_READ_TOKEN!).preview(externalId),true);
   }
   async import(provider: string, externalId: string) {
     const existing = await this.repo.findExternal(provider,externalId);

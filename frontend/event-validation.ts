@@ -1,6 +1,6 @@
 const fieldLabels: Record<string,string> = {
   event_date: 'Event date', kind: 'Event context',
-  date_precision: 'Date precision', host_member_id: 'Actual host', movie_ids: 'Film lineup',
+  date_precision: 'Date precision', movie_ids: 'Film lineup',
   cycle_id: 'Cycle', cycle_slot: 'Nominal slot',
   correct_anchor: 'Cycle anchor correction',
 };

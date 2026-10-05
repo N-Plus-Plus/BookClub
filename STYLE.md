@@ -559,13 +559,17 @@ Yes and No should remain equally reachable and should not visually bias the answ
 
 ### Event create/edit
 
-Use details → ordered films → review → completion as the essential Event reading order. The first card contains only Actual event date and “Complete the current turn”, checked by default for new events. Editing reflects stored completion without advancing rotation. Keep host and historical controls below this card; kind is internal, derived from turn/slot or preserved historical context. Event titles, notes, swap explanations and turn-helper prose are absent. Field errors preserve input and focus the first invalid control.
+Use details → ordered films → review → completion as the essential Event reading order. The first card contains only Actual event date and “Complete the current turn”, checked by default for new events. Editing reflects stored completion without advancing rotation. Host is not selectable: new Events derive hosted identity from the active member at the current rotation slot 1–4; slot 5 is hostless Classics. Unchecking completion does not change identity. Corrections preserve stored historical host and kind; historical date controls remain disclosed. Event titles, notes, swap explanations and turn-helper prose are absent. Field errors preserve input and focus the first invalid control.
+
+Find a film shows at most six candidates per page with Previous / Next and Page N of M. Whole-title matches after whitespace/case normalisation and removal of at most one leading A or The suppress weaker contiguous-substring results; year text is not a title match. Each linked result shows a left poster and title, year and director, with Unknown/no-poster fallbacks. Inspection keeps the Event editor and its search mounted, preserving all draft fields, lineup order, query, results, pagination and manual input. Builder prefill seeds once in exact saved order; incomplete or unavailable sets cannot be used.
 
 Backfill, current-turn completion and correction semantics must remain truthful.
 
 ### Film detail
 
 Lead with film identity, Seen state, ratings and shared appearances. Use a score-only ranking view to avoid repeating identity. Disclose technical provenance and maintenance.
+
+Only Event-search inspection shows “Nope, this isn't it” and the stronger “Yes, this one!” on the right of the Film detail heading. Nope and browser Back return to the preserved editor without removing the candidate. Yes appends a saved canonical movie, importing an external candidate only at confirmation; recoverable import errors stay inline on detail. External previews share the identity presentation and omit stored-only sections. External films are not persisted before Yes.
 
 Provider, maintenance and provenance controls should remain subordinate.
 

@@ -16,7 +16,7 @@ Describe the as-is state. Remove stale descriptions rather than preserving histo
 
 ## Data overview and stores
 
-D1 is canonical. Provider observations are persisted snapshots; ranking and Metrics are regenerated from them and active History. Browser component state is disposable. Image binaries are served by the CDN rather than stored in D1.
+D1 is canonical. Provider observations are persisted snapshots; ranking and Metrics are regenerated from them and active History. Browser component state is disposable. Event drafts/search remain in their mounted components during transient Film Detail inspection; App carries only candidate/preview coordination and a one-movie confirmation handoff. Preview/director cache is per FilmPicker mount, never stored in D1 or browser storage. Image binaries are served by the CDN rather than stored in D1.
 
 | Store | Technology / location | Ownership and environment |
 | --- | --- | --- |
@@ -54,7 +54,7 @@ Human positions are `club-member-1` through `club-member-4` in Sean/Troy/Matt/Je
 
 Slot 1 establishes an exact cycle anchor; later exact event dates never retime it. Imported Tracker Ruff Date is exact only for slot 1; later slots use `cycle_rough` reference because their actual dates are unknown. Explicit slot-1 anchor correction updates only legacy reference dates, including on later restoration, with audit; it does not retime later exact dates or rotation. See [CONTRACTS](CONTRACTS.md#events-rotation-and-history).
 
-Hosted slot 1–4 resolves nominal member by sort_order; the actual host may differ without a swap explanation, including backfills and edits. Classics slot 5 is hostless. Soft deletion frees occupied slots; restoration checks conflicts and requires admin. Correcting/deleting a completed-turn event flags review in audit without silently rewinding rotation.
+New Event entry derives host/kind from the current rotation: active member at sort_order 1–4, or hostless Classics at slot 5, regardless of viewer or completion. Missing active roster identity fails clearly. Corrections preserve stored historical host/kind, including inactive hosts and historical differences from nominal position. Builder publication retains its publisher-host rule. Soft deletion frees occupied slots; restoration checks conflicts and requires admin. Correcting/deleting a completed-turn event flags review in audit without silently rewinding rotation.
 
 Native Worker D1 batches atomically combine headers/joins, publication, audits, Builder deletion, rotation and qualifying Seen changes. Builder revision and rotation version guard concurrent updates; History replacement remains last-write-wins. Current-turn Classics completion marks lineup Seen for all active members; backfilled Classics, edits, restores and hosted events do not.
 
@@ -108,7 +108,7 @@ Supported archive workflow is [scripts/import/README](../scripts/import/README.m
 
 The production importer is a separate operator CLI; [PRODUCTION](../scripts/import/PRODUCTION.md) owns its target/hash/capture/export-proof gates and partial-write recovery. Its initial bootstrap is complete according to existing project records; do not replay it after real logins/actions. REST batches have at most 100 statements and no assumed atomic rollback. Inspect read-only preflight after failure; identical continuation requires zero conflicts. The local importer has no remote path.
 
-Wrangler applies ordered SQL migrations and records `d1_migrations`. Current source contains 0001–0009 (0007 metadata, 0008 cooldowns, 0009 artwork check). Add migrations; applied migrations are immutable. Preserve 0005 LF and trigger `WHEN` parser guards. Previous records report production through 0008; remote ledger verification is a separate authorised operation. New-column Worker releases require the matching migration first, with verified backup and separate production data authority. No general schema rollback is established.
+Wrangler applies ordered SQL migrations and records `d1_migrations`. Current source contains 0001–0010 (0007 metadata, 0008 cooldowns, 0009 artwork check, 0010 removal of obsolete event text/swap guards). Add migrations; applied migrations are immutable. Preserve 0005 LF and trigger `WHEN` parser guards. Previous records report production through 0008; remote ledger verification is a separate authorised operation. New-column Worker releases require the matching migration first, with verified backup and separate production data authority. No general schema rollback is established.
 
 ## Backup, recovery and local snapshots
 

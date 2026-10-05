@@ -95,8 +95,17 @@ export class ProductRepository {
     const before = existingId ? await this.db.prepare('SELECT * FROM sessions WHERE id=? AND deleted_at IS NULL').bind(existingId).first<Record<string,unknown>>() : null;
     if (existingId && !before) throw missing();
     if (existingId && input.complete_turn) throw new ApiError(422,'INVALID_COMPLETION','An existing History event cannot complete a new turn.');
+    if (before) {
+      input = {...input,kind:before.kind as SessionInput['kind'],host_member_id:before.host_member_id as string | null};
+    } else if (!builder) {
+      const current = await this.rotation();
+      if (!current) throw new ApiError(409,'CURRENT_TURN_UNAVAILABLE','The current turn is unavailable. Ask an administrator to initialise rotation.');
+      const member = current.nominal_slot === 5 ? null : await this.db.prepare('SELECT id FROM members WHERE active=1 AND sort_order=?').bind(current.nominal_slot).first<{id:string}>();
+      if (current.nominal_slot !== 5 && !member) throw new ApiError(422,'CURRENT_HOST_UNAVAILABLE','The current turn has no active member. Ask an administrator to correct the rotation roster.');
+      input = {...input,kind:current.nominal_slot === 5 ? 'classics' : 'hosted',host_member_id:member?.id ?? null};
+    }
     await this.validateMovies(input.movie_ids);
-    if (input.host_member_id && !await this.db.prepare('SELECT id FROM members WHERE id=? AND active=1').bind(input.host_member_id).first()) throw new ApiError(422,'INVALID_HOST','Choose an active host.');
+    if (!before && input.host_member_id && !await this.db.prepare('SELECT id FROM members WHERE id=? AND active=1').bind(input.host_member_id).first()) throw new ApiError(422,'INVALID_HOST','The event host is unavailable.');
     let cycleId = input.cycle_id ?? null, slot = input.cycle_slot ?? null;
     const kind = input.kind ?? 'hosted', precision = input.date_precision ?? 'exact';
     const statements: D1PreparedStatement[] = [];
@@ -113,7 +122,7 @@ export class ProductRepository {
     }
     if (slot === 5 ? kind !== 'classics' : slot !== null && kind !== 'hosted') throw new ApiError(422,'INVALID_SLOT','Slot 5 is Classics; slots 1–4 are hosted.');
     if (kind === 'classics' && input.host_member_id) throw new ApiError(422,'INVALID_HOST','Classics is hostless.');
-    if (kind === 'hosted' && slot !== null && slot <= 4) {
+    if (!before && kind === 'hosted' && slot !== null && slot <= 4) {
       const nominal = await this.db.prepare('SELECT id FROM members WHERE sort_order=?').bind(slot).first<{id: string}>();
       if (!input.host_member_id || !nominal) throw new ApiError(422,'INVALID_HOST','Choose an active host with a provisioned nominal roster.');
     }

@@ -109,6 +109,10 @@ legend { font-size: var(--text-field-label); margin-bottom: var(--space-8); }
 .host-option input { accent-color: var(--concrete); }
 .two-fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); }
 .search-row { display: flex; align-items: center; gap: var(--space-10); padding-bottom: var(--space-12); border-bottom: 1px solid var(--asphalt-dark); }
+.search-row .movie-row { width: 100%; min-width: 0; }
+.search-pagination { align-items: center; justify-content: space-between; }
+.inspection-actions { margin-left: auto; justify-content: flex-end; }
+[hidden] { display: none !important; }
 .manual-form { padding-top: var(--space-8); }
 .lineup-list li { display: grid; gap: var(--space-8); padding-bottom: var(--space-16); border-bottom: 1px solid var(--asphalt-dark); }
 .lineup-list .button-set { justify-content: flex-end; }

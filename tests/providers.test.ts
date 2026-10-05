@@ -3,7 +3,7 @@ import { TmdbProvider } from '../worker/src/providers/tmdb';
 import { MovieService } from '../worker/src/services';
 import type { Repository } from '../worker/src/repository';
 import type { Env } from '../worker/src/http';
-import type { Catalog, Movie } from '../shared/types';
+import type { Movie } from '../shared/types';
 import { retryAfter } from '../worker/src/providers/http';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -39,7 +39,7 @@ describe('provider-neutral TMDB snapshots',() => {
 });
 describe('optional lookup service',() => {
   const local = {id: 'local',title: 'Moon',original_title: null,year: 2009} as Movie;
-  const repo = {catalog: async () => ({members: [],movies: [local],sessions: [],cycles: []} as Catalog)} as Repository;
+  const repo = {searchMovies: async () => [local]} as unknown as Repository;
   it('serves local search without invoking external APIs when credentials are absent',async () => {
     const fetchMock = vi.fn(); vi.stubGlobal('fetch',fetchMock);
     const result = await new MovieService(repo,{} as Env).search('moon');

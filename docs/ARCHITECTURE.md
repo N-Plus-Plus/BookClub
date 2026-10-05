@@ -50,7 +50,7 @@ Vite binds IPv4 loopback with strict port 4173. Use the localhost origin for COR
 
 ## Application shape
 
-React serves a static, hash-routed frontend. `index.html` and `frontend/main.tsx` start it; `frontend/App.tsx` gates authentication/avatar onboarding and owns navigation/catalog state. Vite uses `/` for development and `/BookClub/` for builds/previews. GitHub Pages serves only generated `dist/`: no SSR, server rewrites, backend, filesystem or Node runtime is required there.
+React serves a static, hash-routed frontend. `index.html` and `frontend/main.tsx` start it; `frontend/App.tsx` gates authentication/avatar onboarding and owns navigation/catalog state plus transient Event inspection context and a one-movie confirmation handoff. EventScreen owns its draft; FilmPicker owns query/results/page and per-mount preview cache. During inspection the same Event pane stays mounted and is hidden, with a stable source-route identity. Saved candidates use stored Detail; unsaved candidates share its identity header through FilmIdentity and use read-only PreviewScreen. No draft storage or route-entry refresh is involved. Vite uses `/` for development and `/BookClub/` for builds/previews. GitHub Pages serves only generated `dist/`: no SSR, server rewrites, backend, filesystem or Node runtime is required there.
 
 The independently deployed Worker (`worker/src/index.ts`) owns validation, authorisation, persistence and provider credentials. Zod validates boundaries; jose verifies Google JWTs. D1 is the canonical database. Shared TypeScript holds pure ranking, Metrics and identity rules; the UI derives presentation from the authenticated catalog.
 
@@ -65,7 +65,7 @@ Normal development prepares local D1, then runs Vite and a Node supervisor that 
 | Domain | `shared/ranking.ts`, `metrics.ts`, `genres.ts`, `identity.ts`, `metadata.ts`, `artwork.ts` | Effective scores, appearance calculations, finite genres, dates/identities, maintenance eligibility and poster sizing |
 | Worker boundary | `worker/src/index.ts`, `validation.ts`, `http.ts`, `auth.ts`, `auth-repository.ts` | Routing, safe errors, exact CORS, central mutation guard and D1-backed sessions |
 | Persistence/product | `worker/src/repository.ts`, `product-repository.ts`, `worker/migrations/` | Canonical catalog; transactional Builder/rotation/History; versioned schema |
-| Providers | `worker/src/services.ts`, `score-service.ts`, `providers/` | Explicit metadata import/maintenance and score capture |
+| Providers | `worker/src/services.ts`, `score-service.ts`, `providers/` | Narrow local search, read-only TMDB preview, explicit metadata import/maintenance and score capture |
 | Snapshot tooling | `scripts/dev/` | Fixed production read/export source, sanitised staging, verification and local-only replacement; explicit local TMDB pairing maintenance |
 | Archive tooling | `scripts/import/` | Development-only ExcelJS/tsx parser, resolver, local apply and separate guarded operator production CLI |
 | Build/release | `vite.config.ts`, `worker/wrangler.jsonc`, `.github/workflows/pages.yml` | Static frontend build, independent Worker deploy, manual Pages publication |
@@ -90,6 +90,6 @@ External calls use Google JWK verification, TMDB search/details, MDBList Media I
 
 ## Architectural invariants and unknowns
 
-The static browser has no D1/provider secrets; ordinary fetches go through `frontend/api.ts`. CORS is not authentication. Builder ownership is enforced server-side even for admins. Ordinary page loads never call provider APIs; poster display/failure never triggers metadata repair. Local/production/preview stores remain separate. Generated builds, private snapshots, credentials and archive reports stay ignored.
+The static browser has no D1/provider secrets; ordinary fetches go through `frontend/api.ts`. CORS is not authentication. Builder ownership is enforced server-side even for admins. Catalogue and stored-film page loads never call provider APIs; explicit search and unsaved-film preview may call TMDB; poster display/failure never triggers metadata repair. Local/production/preview stores remain separate. Generated builds, private snapshots, credentials and archive reports stay ignored.
 
 Remote schema, current rotation and provisioning are live state: tracked code cannot certify them. Previous project records report production through 0008; current source includes 0009–0010, which must be checked/applied under authorised data scope before deploying code that requires them. No live verification is required for ordinary documentation or tests.

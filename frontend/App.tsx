@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { ChartNoAxesColumn, CalendarPlus, ListPlus, Check, ChevronRight, Clapperboard, Eye, History, Home, Info, Library, RefreshCw, X } from 'lucide-react';
-import type { Catalog, Movie, MovieDetail, Viewer, Rotation } from '../shared/types';
+import type { Catalog, FilmCandidate, Movie, MovieDetail, TmdbPreview, Viewer, Rotation } from '../shared/types';
 import { missingAnswers, sortClassics } from '../shared/ranking';
 import { SignInScreen } from './SignInScreen';
 import { api, ApiClientError, clearSession, hasSession, setDevMember, setUnauthorizedHandler, storeSession, type Health } from './api';
@@ -8,6 +8,7 @@ import { Action, Empty, Failure, LoadingView, RankingCard, RouteLink, SessionCar
 import { EventScreen } from './EventScreen';
 import { SeenScreen } from './SeenScreen';
 import { DetailScreen } from './DetailScreen';
+import { PreviewScreen } from './PreviewScreen';
 import { HistoryScreen } from './HistoryScreen';
 import { ClassicsScreen } from './ClassicsScreen';
 import { AvatarScreen } from './AvatarScreen';
@@ -20,9 +21,17 @@ import { Navigation, destinations } from './Navigation';
 
 const DevTools = import.meta.env.DEV && import.meta.env.MODE !== 'import-preview' ? lazy(() => import('./DevTools')) : null;
 const localLogin = import.meta.env.DEV && import.meta.env.MODE !== 'import-preview';
+type Inspection = {source: string; target: string; candidate: FilmCandidate; preview?: TmdbPreview; pending?: Promise<TmdbPreview>};
 const route = () => window.location.hash.slice(2) || 'home';
 export function App() {
   const [page,setPage] = useState(route);
+  const [inspection,setInspection] = useState<Inspection | null>(null);
+  const inspectionRef = useRef<Inspection | null>(null);
+  const [confirmedMovie,setConfirmedMovie] = useState<Movie | null>(null);
+  const consumeConfirmedMovie = useCallback(() => setConfirmedMovie(null),[]);
+  const [inspectionError,setInspectionError] = useState('');
+  const [confirming,setConfirming] = useState(false);
+  const confirmInFlight = useRef(false);
   const [eventPrefill,setEventPrefill] = useState<string[] | null>(null);
   const consumeEventPrefill = useCallback(() => setEventPrefill(null),[]);
   const [navigationExpanded,setNavigationExpanded] = useState(true);
@@ -39,7 +48,7 @@ export function App() {
   const [refreshing,setRefreshing] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const resetAuth = useCallback(() => {
-    generation.current++; setEventPrefill(null); setRotation(null); setCatalog(null); setViewer(null); setNotice(''); setLoadError(''); setActionError(''); setLoading(false);
+    generation.current++; inspectionRef.current = null; setInspection(null); setConfirmedMovie(null); setEventPrefill(null); setRotation(null); setCatalog(null); setViewer(null); setNotice(''); setLoadError(''); setActionError(''); setLoading(false);
   },[]);
   const load = useCallback(async () => {
     const current = ++generation.current;
@@ -97,13 +106,37 @@ export function App() {
     } finally { setAuthBusy(false); }
   };
   useEffect(() => {
-    const update = () => { const next = route(); if (next !== 'event') setEventPrefill(null); setPage(next); window.scrollTo(0,0); requestAnimationFrame(() => heading.current?.focus()); };
+    const update = () => { const next = route();
+      const context = inspectionRef.current;
+      if (context && next !== context.target) { inspectionRef.current = null; setInspection(null); setInspectionError(''); if (next !== context.source) setConfirmedMovie(null); }
+      if (next !== 'event' && next !== context?.target) setEventPrefill(null);
+      setPage(next); window.scrollTo(0,0); requestAnimationFrame(() => heading.current?.focus()); };
     window.addEventListener('hashchange',update); return () => window.removeEventListener('hashchange',update);
   },[]);
   const applyMovie = (movie: MovieDetail | Movie) => setCatalog(current => current ? ({...current,
     movies: current.movies.some(m => m.id === movie.id) ? current.movies.map(m => m.id === movie.id ? movie : m) : [...current.movies,movie],
     sessions: current.sessions.map(s => ({...s,movies: s.movies.map(m => m.id === movie.id ? movie : m)})),
   }) : current);
+  const inspect = (candidate: FilmCandidate,preview?: TmdbPreview,pending?: Promise<TmdbPreview>) => {
+    const target = candidate.kind === 'local' ? `movie/${candidate.movie.id}` : `preview/tmdb/${candidate.movie.externalId}`;
+    const context = {source:page,target,candidate,preview,pending};
+    inspectionRef.current = context; setInspection(context); setInspectionError(''); window.location.hash = `/${target}`;
+  };
+  const confirmFilm = async () => {
+    const context = inspectionRef.current;
+    if (!context || confirmInFlight.current) return;
+    confirmInFlight.current = true; setConfirming(true); setInspectionError('');
+    try {
+      const candidate = context.candidate;
+      const movie = candidate.kind === 'local'
+        ? catalog?.movies.find(movie => movie.id === candidate.movie.id) ?? await api.detail(candidate.movie.id)
+        : await api.importMovie(candidate.movie.externalId);
+      if (inspectionRef.current !== context) return;
+      applyMovie(movie); setConfirmedMovie(movie); window.location.hash = `/${context.source}`;
+    } catch (error) {
+      if (inspectionRef.current === context) setInspectionError(error instanceof Error ? error.message : 'Could not add this film. Try again.');
+    } finally { confirmInFlight.current = false; setConfirming(false); }
+  };
   const answer = async (movieId: string,memberId: string,seen: boolean | null) => {
     const movie = await api.seen(movieId,memberId,seen); applyMovie(movie); return movie;
   };
@@ -111,13 +144,17 @@ export function App() {
   const eligible = classics.filter(m => m.ranking?.eligible && m.ranking.rankable);
   const excluded = classics.filter(m => !m.ranking?.eligible);
   const missing = catalog ? missingAnswers(catalog.movies,catalog.members).length : 0;
-  const isDetail = page.startsWith('movie/');
+  const isPreview = page.startsWith('preview/tmdb/');
+  const isDetail = page.startsWith('movie/') || isPreview;
+  const inspecting = inspection && page === inspection.target;
+  const eventRoute = page === 'event' || page.startsWith('event/') ? page : inspecting ? inspection.source : null;
   const title = (page === 'event' || page.startsWith('event/')) ? 'Event' : isDetail ? 'Film detail' : destinations.find(d => d.path === page)?.label ?? 'Page not found';
   const writesEnabled = Boolean(health && (!health.authenticationRequired || viewer));
   if ((localLogin || health?.authenticationRequired) && health && !viewer && !loading) return <SignInScreen configured={health.googleAuthConfigured} error={actionError || loadError} busy={authBusy} onCredential={signIn} onLocalLogin={localLogin ? signInAsTroy : undefined} onRetry={() => void load()} />;
   if (needsAvatar(viewer) && viewer) return <AvatarScreen viewer={viewer} externalError={actionError || loadError} onClaimed={claimed => { setViewer(claimed); void load(); }} onLogout={() => void logout()} />;
   return <div className={`app-layout ${navigationExpanded ? 'navigation-expanded' : 'navigation-collapsed'}`}><Navigation page={page} expanded={navigationExpanded} onToggle={() => setNavigationExpanded(value => !value)} /><div className="bookclub-shell"><header className="site-header"><a className="brand" href="#/home"><Clapperboard aria-hidden="true" /><span>BookClub<small>HAVE YOU UPDATED THE SPREAD... WEB APP?</small></span></a><div className="viewer-controls">{viewer ? <AccountMenu viewer={viewer} busy={authBusy} onLogout={() => void logout()} /> : <span className="header-tag">{health?.demo ? 'LOCAL DEMO' : 'FILM CLUB'}</span>}</div></header>
-    <main id="main"><div className="page-heading"><div><h1 ref={heading} tabIndex={-1}>{title}</h1>{page.startsWith('event/') && <p className="subtitle">Correct the event details and film lineup.</p>}</div></div>
+    <main id="main"><div className="page-heading"><div><h1 ref={heading} tabIndex={-1}>{title}</h1>{page.startsWith('event/') && <p className="subtitle">Correct the event details and film lineup.</p>}</div>{inspecting && <div className="button-set inspection-actions"><Action icon={X} disabled={confirming} onClick={() => { window.location.hash = `/${inspection.source}`; }}>Nope, this isn't it</Action><Action icon={Check} variant="primary" disabled={confirming || !writesEnabled} onClick={() => void confirmFilm()}>{confirming ? 'Adding…' : 'Yes, this one!'}</Action></div>}</div>
+    {inspectionError && inspecting && <p className="error-message" role="alert">{inspectionError}</p>}
     {notice && <div className="notice" role="status"><Check size={20} aria-hidden="true" /><span>{notice}</span><Action icon={X} aria-label="Dismiss message" onClick={() => setNotice('')} /></div>}
     {health?.demo && <p className="demo-label"><Info size={16} aria-hidden="true" />Local disposable database</p>}
     {DevTools && health?.environment === 'local' && !health.authenticationRequired && catalog && <Suspense fallback={null}><DevTools members={catalog.members} onChanged={load} /></Suspense>}
@@ -132,14 +169,15 @@ export function App() {
       {page === 'history' && <HistoryScreen catalog={catalog} onChanged={() => void load()} />}
       {page === 'metrics' && <MetricsScreen catalog={catalog} viewer={viewer} onUpdated={load} />}
       {page === 'builder' && <BuilderScreen key={viewer?.id} catalog={catalog} viewer={viewer} rotation={rotation} onMovie={applyMovie} onPublished={() => { void load(); setNotice('Published to History.'); window.location.hash = '/history'; }} />}
-      {(page === 'event' || (page.startsWith('event/') && catalog.sessions.some(s => s.id === page.slice(6)))) && <EventScreen key={page} prefillMovieIds={page === 'event' ? eventPrefill : null} onPrefillConsumed={consumeEventPrefill} initial={page === 'event' ? undefined : catalog.sessions.find(s => s.id === page.slice(6))} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={session => {
+      {eventRoute && (eventRoute === 'event' || catalog.sessions.some(s => s.id === eventRoute.slice(6))) && <div hidden={Boolean(inspecting)} key={eventRoute}><EventScreen onInspect={inspect} confirmedMovie={confirmedMovie} onConfirmedConsumed={consumeConfirmedMovie} prefillMovieIds={eventRoute === 'event' ? eventPrefill : null} onPrefillConsumed={consumeEventPrefill} initial={eventRoute === 'event' ? undefined : catalog.sessions.find(s => s.id === eventRoute.slice(6))} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={session => {
         setCatalog(c => c ? {...c,sessions: [session,...c.sessions.filter(s => s.id !== session.id)].sort((a,b) => b.event_date.localeCompare(a.event_date))} : c);
         void load(); setNotice('Event saved to the film journal.'); window.location.hash = '/history';
-      }} />}
+      }} /></div>}
       {page.startsWith('event/') && !catalog.sessions.some(s => s.id === page.slice(6)) && <Empty title="Event not found">The event may have been deleted. Return to History to review available events.</Empty>}
       {page === 'classics' && <ClassicsScreen viewer={viewer} movies={classics} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {page === 'seen' && <SeenScreen catalog={catalog} answer={answer} writesEnabled={writesEnabled} />}
-      {isDetail && <DetailScreen isAdmin={viewer?.role === 'admin'} key={page} id={page.slice(6)} members={catalog.members} answer={answer} writesEnabled={writesEnabled} onMovie={applyMovie} />}
+      {isDetail && !isPreview && <DetailScreen isAdmin={viewer?.role === 'admin'} key={page} id={page.slice(6)} members={catalog.members} answer={answer} writesEnabled={writesEnabled} onMovie={applyMovie} />}
+      {isPreview && <PreviewScreen key={page} id={page.slice('preview/tmdb/'.length)} preview={inspecting ? inspection.preview : undefined} pending={inspecting ? inspection.pending : undefined} />}
       {!isDetail && page !== 'event' && !page.startsWith('event/') && !destinations.some(d => d.path === page) && <Empty title="Page not found"><RouteLink to="home" icon={Home}>Go home</RouteLink></Empty>}
     </>}
     <footer className="data-sources"><details><summary><Info size={18} aria-hidden="true" />Data sources & attribution</summary><div className="stack"><p>Ratings are stored snapshots, not live values. MDBList and OMDb retrieve third-party ratings; BookClub has no direct IMDb, Rotten Tomatoes or Letterboxd API relationship.</p><p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p><a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer"><img className="tmdb-logo" src={`${import.meta.env.BASE_URL}tmdb-logo.svg`} alt="The Movie Database" /></a><p><a href="https://mdblist.com/" target="_blank" rel="noreferrer">MDBList</a> · <a href="https://www.omdbapi.com/" target="_blank" rel="noreferrer">OMDb</a></p></div></details></footer>

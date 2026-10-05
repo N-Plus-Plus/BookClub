@@ -1,4 +1,5 @@
-import type { Asset, Catalog, Cycle, ExternalId, Member, Movie, Score, SeenAnswer, Session, SessionInput, ManualMovieInput } from '../../shared/types';
+import type { Asset, Catalog, Cycle, ExternalId, Member, Movie, Score, SeenAnswer, Session, SessionInput, ManualMovieInput, SavedSearchResult } from '../../shared/types';
+import { normalizeTitle } from '../../shared/search';
 import { metadataCandidate, metadataGaps, tmdbIdentity, type MetadataMovie } from '../../shared/metadata';
 import { rankMovie } from '../../shared/ranking';
 import type { ProviderMovie } from './providers/types';
@@ -11,6 +12,24 @@ type WithMovie<T> = T & { movie_id: string };
 
 export class Repository {
   constructor(private db: D1Database) {}
+  async searchMovies(query: string, tmdbIds: string[] = []): Promise<SavedSearchResult[]> {
+    // Normalise whitespace in SQL before matching; return only identification fields.
+    const rows = (await this.db.prepare(`WITH RECURSIVE titles(id,title,year,normal) AS (
+      SELECT id,title,year,lower(trim(replace(replace(replace(title,char(9),' '),char(10),' '),char(13),' '))) FROM movies
+      UNION ALL SELECT id,title,year,replace(normal,'  ',' ') FROM titles WHERE instr(normal,'  ')>0
+    ) SELECT id,title,year,
+      (SELECT external_id FROM movie_external_ids WHERE movie_id=t.id AND provider='tmdb') AS tmdbId,
+      (SELECT reference FROM movie_assets WHERE movie_id=t.id AND asset_type='poster' ORDER BY preferred DESC,id LIMIT 1) AS poster
+    FROM titles t WHERE instr(normal,'  ')=0 AND (
+      instr(CASE WHEN normal LIKE 'the %' THEN substr(normal,5) WHEN normal LIKE 'a %' THEN substr(normal,3) ELSE normal END,?)>0
+      OR normal GLOB '*[^ -~]*'
+      ${tmdbIds.length ? `OR id IN (SELECT movie_id FROM movie_external_ids WHERE provider='tmdb' AND external_id IN (${tmdbIds.map(() => '?').join(',')}))` : ''}
+    ) ORDER BY title COLLATE NOCASE,id`).bind(normalizeTitle(query),...tmdbIds).all<SavedSearchResult>()).results;
+    // SQLite lower() is ASCII-only. Narrow non-ASCII candidates still use the
+    // shared Unicode case/whitespace rule before being returned to the service.
+    const identities = new Set(tmdbIds), term = normalizeTitle(query);
+    return rows.filter(movie => normalizeTitle(movie.title).includes(term) || (movie.tmdbId !== null && identities.has(movie.tmdbId)));
+  }
   async catalog(): Promise<Catalog> {
     // D1 batch gives one consistent transactional read for the derived rankings.
     const result = await this.db.batch([
@@ -118,11 +137,11 @@ export class Repository {
     await this.db.batch(statements);
     return id;
   }
-  async providerCooldown(provider: string): Promise<number | null> {
+  async providerCooldown(provider: string, readOnly = false): Promise<number | null> {
     const row = await this.db.prepare('SELECT retry_after_until FROM provider_cooldowns WHERE provider=?').bind(provider).first<{retry_after_until:string}>();
     if (!row) return null; const seconds = Math.ceil((Date.parse(row.retry_after_until)-Date.now())/1000);
     if (seconds > 0) return seconds;
-    await this.db.prepare('DELETE FROM provider_cooldowns WHERE provider=?').bind(provider).run(); return null;
+    if (!readOnly) await this.db.prepare('DELETE FROM provider_cooldowns WHERE provider=?').bind(provider).run(); return null;
   }
   async setProviderCooldown(provider: string, seconds: number) {
     const now = new Date(), until = new Date(now.getTime()+Math.max(0,seconds)*1000).toISOString();

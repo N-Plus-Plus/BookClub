@@ -32,7 +32,13 @@ export interface CycleInput { rough_date: string; title?: string; ordinal?: numb
 export interface MovieDetail extends Movie { appearances: { id: string; event_date: string; date_precision: Session['date_precision']; kind: Session['kind']; position: number }[] }
 export interface Catalog { members: Member[]; movies: Movie[]; sessions: Session[]; cycles: Cycle[] }
 export interface SearchResult { provider: string; externalId: string; title: string; year: number | null; poster: string | null }
-export interface SearchResponse { local: Movie[]; external: SearchResult[]; lookup: { available: boolean; message: string | null } }
+export interface SavedSearchResult { id: string; title: string; year: number | null; tmdbId: string | null; poster: string | null }
+export interface SearchResponse { local: SavedSearchResult[]; external: SearchResult[]; lookup: { available: boolean; message: string | null } }
+export interface TmdbPreview {
+  provider: 'tmdb'; externalId: string; title: string; original_title: string | null; year: number | null;
+  release_date: string | null; runtime: number | null; overview: string | null; genres: string[]; assets: Asset[]; director: string | null;
+}
+export type FilmCandidate = {kind: 'local'; movie: SavedSearchResult} | {kind: 'external'; movie: SearchResult};
 export interface Rotation { id: number; cycle_id: string | null; nominal_slot: number; version: number; updated_at: string }
 export interface BuilderSet { id: string; owner_member_id: string; title: string | null; notes: string | null; created_at: string; updated_at: string; revision: number; movie_ids: string[] }
 export interface BuilderInput { title?: string; notes?: string; movie_ids: string[]; revision?: number }
