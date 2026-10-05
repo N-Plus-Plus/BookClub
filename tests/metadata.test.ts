@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { disposableD1 } from './d1';
 import { Repository } from '../worker/src/repository';
 import { MovieService, TMDB_METADATA_REFRESH_DAYS, tmdbMetadataIsStale } from '../worker/src/services';
+import { metadataCandidate, metadataGaps, tmdbIdentity } from '../shared/metadata';
 import { hashToken } from '../worker/src/auth';
 import worker from '../worker/src/index';
 import type { Env } from '../worker/src/http';
@@ -21,6 +22,33 @@ beforeEach(async()=>{
 afterEach(()=>{local.sqlite.close();vi.unstubAllGlobals();});
 const call=(input:unknown={limit:10})=>worker.fetch(new Request('http://api/api/v1/movies/enrich-metadata',{method:'POST',headers:{Authorization:`Bearer ${token}`},body:JSON.stringify(input)}),env);
 describe('bounded existing-film metadata enrichment',()=>{
+  it('uses narrow selection/counts without any full catalogue reconstruction',async()=>{
+    const catalog=vi.spyOn(repo,'catalog').mockRejectedValue(new Error('Full catalogue forbidden'));
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(details())));
+    expect(await service.enrichMetadata(10)).toMatchObject({results:[{movieId:'arrival',status:'success'}],remaining:0,unidentified:6});
+    expect(catalog).not.toHaveBeenCalled();
+  });
+  it('matches existing eligibility, genre priority, artwork presence and ID ordering',async()=>{
+    const now=new Date().toISOString(),boundary=new Date(Date.now()-150*86400000).toISOString();
+    const fixtures=[
+      ['unchecked',null,null,'42','unknown'],['stale',boundary,now,'43','Drama'],
+      ['known-absent',now,now,'44',''],['missing-art',now,null,'45','SCI-FI'],
+      ['invalid-date','invalid',now,'46','Drama'],['invalid-id',null,null,'00047',''],
+      ['too-long',null,null,'12345678901',''],['zero',null,null,'0',''],
+      ['complete-art',now,null,'48','Drama'],['A-tie',null,null,'49',''],['a-tie',null,null,'50',''],
+    ];
+    for(const [id,checked,art,tmdb,genre] of fixtures){
+      local.sqlite.prepare('INSERT INTO movies(id,title,tmdb_metadata_checked_at,tmdb_artwork_checked_at) VALUES(?,?,?,?)').run(id,id,checked,art);
+      local.sqlite.prepare("INSERT INTO movie_external_ids VALUES(?,'tmdb',?)").run(id,tmdb);
+      if(genre)local.sqlite.prepare('INSERT INTO movie_genres VALUES(?,?)').run(id,genre);
+    }
+    for(const type of ['poster','backdrop'])local.sqlite.prepare("INSERT INTO movie_assets(id,movie_id,provider,asset_type,reference,preferred,fetched_at) VALUES(?,'complete-art','tmdb',?,?,0,?)").run(type,type,type,now);
+    const movies=(await repo.catalog()).movies;
+    const expected=movies.filter(metadataCandidate).sort((a,b)=>metadataGaps(b)-metadataGaps(a)||a.id.localeCompare(b.id));
+    vi.spyOn(repo,'catalog').mockRejectedValue(new Error('Full catalogue forbidden'));
+    expect((await repo.metadataCandidates(10)).map(m=>m.id)).toEqual(expected.slice(0,10).map(m=>m.id));
+    expect(await repo.metadataCounts()).toEqual({remaining:expected.length,unidentified:movies.filter(m=>!tmdbIdentity(m)).length});
+  });
   it('checks genuinely unpopulated artwork immediately despite recent metadata, then excludes a known no-artwork response',async()=>{
     local.sqlite.exec("DELETE FROM movie_assets WHERE movie_id='arrival'");
     local.sqlite.prepare("UPDATE movies SET tmdb_metadata_checked_at=? WHERE id='arrival'").run(new Date().toISOString());

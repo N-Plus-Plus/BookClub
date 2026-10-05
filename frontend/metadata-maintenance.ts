@@ -1,7 +1,7 @@
 import type { MetadataEnrichment } from '../shared/types';
 
 export interface MetadataRun extends MetadataEnrichment { processed: number; updated: number; message: string }
-/** Await every bounded request and progress refresh before considering another. */
+/** Await every bounded request and local progress update before considering another. */
 export async function maintainMetadata(options: {
   batch: () => Promise<MetadataEnrichment>; stopped: () => boolean;
   progress: (run: MetadataRun) => Promise<void>; initial: Pick<MetadataEnrichment,'remaining'|'unidentified'>;

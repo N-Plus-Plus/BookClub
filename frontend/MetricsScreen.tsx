@@ -15,8 +15,8 @@ export function MetricsScreen({catalog,viewer,onUpdated}: {catalog: Catalog; vie
   const [result,setResult] = useState<MetadataRun | null>(null);
   const stop = useRef(false), active = useRef(false);
   useEffect(() => () => { stop.current = true; },[]);
-  const remaining = catalog.movies.filter(metadataCandidate).length;
-  const unidentified = catalog.movies.filter(m => !tmdbIdentity(m)).length;
+  const remaining = result?.remaining ?? catalog.movies.filter(metadataCandidate).length;
+  const unidentified = result?.unidentified ?? catalog.movies.filter(m => !tmdbIdentity(m)).length;
   const contributions = [...catalog.members.map(m => ({label:m.display_name.toUpperCase(),value:calculateMetrics(catalog,{kind:'member',memberId:m.id})})),{label:'CLSC',value:calculateMetrics(catalog,{kind:'classics'})}];
   const metrics = calculateMetrics(catalog,filter);
   const maintain = async () => {
@@ -27,10 +27,13 @@ export function MetricsScreen({catalog,viewer,onUpdated}: {catalog: Catalog; vie
       await maintainMetadata({batch: () => api.enrichMetadata(),stopped: () => stop.current,
         initial: {remaining,unidentified},progress: async run => {
           setResult(run);
-          await onUpdated();
         }});
     } catch (e) { setError(e instanceof Error ? e.message : 'Metadata enrichment failed. Completed updates are saved; resume later.'); }
-    finally { active.current = false; setBusy(false); }
+    finally {
+      try { await onUpdated(); }
+      catch (e) { setError(`${e instanceof Error ? e.message : 'Could not refresh BookClub.'} Completed updates are saved; refresh or resume later.`); }
+      finally { active.current = false; setBusy(false); }
+    }
   };
   const list = (title: string,rows: Appearance[]) => <section className="card stack"><h2>{title}</h2>{!rows.length ? <p className="meta">No appearances with IMDb scores yet.</p> : <ol className="metrics-list">{rows.map(row => {
     const host = catalog.members.find(m => m.id === row.session.host_member_id);

@@ -1,4 +1,5 @@
 import type { Asset, Catalog, Cycle, ExternalId, Member, Movie, Score, SeenAnswer, Session, SessionInput, ManualMovieInput } from '../../shared/types';
+import { metadataCandidate, metadataGaps, tmdbIdentity, type MetadataMovie } from '../../shared/metadata';
 import { rankMovie } from '../../shared/ranking';
 import type { ProviderMovie } from './providers/types';
 import { ApiError } from './http';
@@ -42,6 +43,32 @@ export class Repository {
       movies: rows<{session_id: string; movie_id: string; position: number}>(9)
         .filter(j => j.session_id === s.id).map(j => movieMap.get(j.movie_id)!).filter(Boolean) }));
     return { members, movies, sessions, cycles: rows<Cycle>(10) };
+  }
+  private async metadataRows(priority = true) {
+    const rows = (await this.db.prepare(`SELECT ${priority ? 'm.id,m.title,m.original_title,m.release_date,m.runtime,m.overview,' : ''}
+      m.tmdb_metadata_checked_at,m.tmdb_artwork_checked_at,
+      (SELECT external_id FROM movie_external_ids WHERE movie_id=m.id AND provider='tmdb') AS tmdb_id,
+      ${priority ? '(SELECT json_group_array(genre) FROM movie_genres WHERE movie_id=m.id)' : "'[]'"} AS genres_json,
+      EXISTS(SELECT 1 FROM movie_assets WHERE movie_id=m.id AND provider='tmdb' AND asset_type='poster') AS poster,
+      EXISTS(SELECT 1 FROM movie_assets WHERE movie_id=m.id AND provider='tmdb' AND asset_type='backdrop') AS backdrop
+      FROM movies m`).all<Omit<MetadataMovie,'assets'|'external_ids'|'genres'> & {
+        tmdb_id: string | null; genres_json: string; poster: number; backdrop: number;
+      }>()).results;
+    return rows.map(({tmdb_id,genres_json,poster,backdrop,...movie}): MetadataMovie => ({...movie,
+      external_ids: tmdb_id === null ? [] : [{provider:'tmdb',external_id:tmdb_id}],
+      genres: JSON.parse(genres_json) as string[],
+      // Eligibility/priority needs existence only, including non-preferred historical artwork.
+      assets: (['poster','backdrop'] as const).filter(type => type === 'poster' ? poster : backdrop)
+        .map(asset_type => ({provider:'tmdb',asset_type,reference:'',width:null,height:null,preferred:0})),
+    }));
+  }
+  async metadataCandidates(limit: number): Promise<MetadataMovie[]> {
+    return (await this.metadataRows()).filter(metadataCandidate)
+      .sort((a,b) => metadataGaps(b)-metadataGaps(a) || a.id.localeCompare(b.id)).slice(0,limit);
+  }
+  async metadataCounts(): Promise<{remaining: number; unidentified: number}> {
+    const movies = await this.metadataRows(false);
+    return {remaining: movies.filter(metadataCandidate).length,unidentified: movies.filter(m => !tmdbIdentity(m)).length};
   }
   async assertMovie(id: string) {
     if (!await this.db.prepare('SELECT id FROM movies WHERE id=?').bind(id).first()) throw new ApiError(404,'NOT_FOUND','Film not found.');

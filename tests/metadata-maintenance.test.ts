@@ -53,19 +53,19 @@ describe('Fill missing metadata action', () => {
     expect(controls[0].disabled).toBe(false);
     expect(screen(async()=>{},'member')).toEqual([]);
   });
-  it('continues after ten successes and refreshes before every next batch despite a stale catalogue', async () => {
+  it('continues with local progress and refreshes once at the end despite a stale catalogue', async () => {
     const request=vi.mocked(api.enrichMetadata);
     let refreshed=0;
     request.mockImplementation(async () => {
-      expect(refreshed).toBe(request.mock.calls.length-1);
+      expect(refreshed).toBe(0);
       return response([20,10,0][request.mock.calls.length-1]);
     });
     const done=deferred<void>();
-    const refresh=vi.fn(async()=>{ refreshed++; if(refreshed===3) done.resolve(); });
+    const refresh=vi.fn(async()=>{ refreshed++; if(refreshed===1) done.resolve(); });
     screen(refresh)[0].onClick();
     await done.promise;
     expect(request).toHaveBeenCalledTimes(3);
-    expect(refresh).toHaveBeenCalledTimes(3);
+    expect(refresh).toHaveBeenCalledTimes(1);
     // This unchanged catalogue has only one candidate; responses are authoritative.
     expect(catalog.movies).toHaveLength(1);
     expect(hooks.values[3]).toMatchObject({processed:30,updated:30,remaining:0});
@@ -81,8 +81,34 @@ describe('Fill missing metadata action', () => {
     pending.resolve(response(20));
     await vi.waitFor(()=>expect(hooks.values[1]).toBe(false));
     expect(api.enrichMetadata).toHaveBeenCalledTimes(1);
-    expect(refresh).toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledTimes(1);
     expect(hooks.values[3]).toMatchObject({updated:10,remaining:20,message:expect.stringContaining('Stopped.')});
+  });
+  it.each(['network','provider','no progress'])('refreshes once after %s failure and retains resumable progress', async kind => {
+    const request=vi.mocked(api.enrichMetadata);
+    request.mockResolvedValueOnce(response(20));
+    if (kind === 'network') request.mockRejectedValueOnce(new Error('API unreachable'));
+    else if (kind === 'provider') request.mockResolvedValueOnce({...response(20,1),results:[{movieId:'failed',title:'Fixture',provider:'tmdb',status:'failed',message:'Cooling down'}]});
+    else request.mockResolvedValueOnce(response(20,0));
+    const refresh=vi.fn(async()=>{});
+    screen(refresh)[0].onClick();
+    await vi.waitFor(()=>expect(hooks.values[1]).toBe(false));
+    expect(request).toHaveBeenCalledTimes(2); expect(refresh).toHaveBeenCalledTimes(1);
+    expect(hooks.values[3]).toMatchObject({remaining:20,updated:10,message:expect.any(String)});
+  });
+  it('shows authoritative counts during a batch without refreshing', async () => {
+    const pending=deferred<MetadataEnrichment>();
+    vi.mocked(api.enrichMetadata).mockResolvedValueOnce(response(892)).mockReturnValueOnce(pending.promise);
+    const refresh=vi.fn(async()=>{});
+    screen(refresh)[0].onClick();
+    await vi.waitFor(()=>expect(api.enrichMetadata).toHaveBeenCalledTimes(2));
+    hooks.cursor=0;
+    const tree=MetricsScreen({catalog,viewer,onUpdated:refresh});
+    expect(JSON.stringify(tree)).toContain('892'); expect(refresh).not.toHaveBeenCalled();
+    screen(refresh).find(a=>a.children==='Stop after this batch')!.onClick();
+    pending.resolve(response(882));
+    await vi.waitFor(()=>expect(hooks.values[1]).toBe(false));
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
   it('unmount during a batch prevents subsequent requests', async () => {
     const pending=deferred<MetadataEnrichment>();

@@ -1,17 +1,13 @@
 import { Repository } from './repository';
 import { ApiError, type Env } from './http';
 import { TmdbProvider } from './providers/tmdb';
-import type { Movie, MovieDetail, SearchResponse, MetadataEnrichment } from '../../shared/types';
-import { normalizedGenres } from '../../shared/genres';
+import type { MovieDetail, SearchResponse, MetadataEnrichment } from '../../shared/types';
 import { ProviderError } from './providers/http';
 
-import { metadataCandidate, tmdbIdentity } from '../../shared/metadata';
+import { tmdbIdentity } from '../../shared/metadata';
 export { TMDB_METADATA_REFRESH_DAYS, tmdbMetadataIsStale } from '../../shared/metadata';
 
-export function metadataGaps(movie: Movie): number {
-  return (normalizedGenres(movie.genres).length ? 0 : 10) + [movie.original_title,movie.release_date,movie.runtime,movie.overview,
-    movie.assets.find(a => a.provider === 'tmdb' && a.asset_type === 'poster'),movie.assets.find(a => a.provider === 'tmdb' && a.asset_type === 'backdrop')].filter(v => !v).length;
-}
+export { metadataGaps } from '../../shared/metadata';
 
 export class MovieService {
   constructor(private repo: Repository, private env: Env) {}
@@ -25,14 +21,12 @@ export class MovieService {
   async enrichMetadata(limit: number): Promise<MetadataEnrichment> {
     if (!Number.isInteger(limit) || limit < 1 || limit > 10) throw new ApiError(422,'INVALID_LIMIT','Choose a limit from 1 to 10.');
     if (!this.env.TMDB_READ_TOKEN) throw new ApiError(503,'PROVIDER_NOT_CONFIGURED','TMDB metadata enrichment is not configured.');
-    const catalog = await this.repo.catalog();
-    const identity = tmdbIdentity;
-    const candidates = catalog.movies.filter(m => metadataCandidate(m)).sort((a,b) => metadataGaps(b)-metadataGaps(a) || a.id.localeCompare(b.id)).slice(0,limit);
+    const candidates = await this.repo.metadataCandidates(limit);
     const results: MetadataEnrichment['results'] = [];
     const provider = new TmdbProvider(this.env.TMDB_READ_TOKEN);
     for (const movie of candidates) {
       try {
-        const tmdb = identity(movie)!;
+        const tmdb = tmdbIdentity(movie)!;
         if (!/^[1-9]\d{0,9}$/.test(tmdb)) throw new ApiError(422,'INVALID_IDENTITY','Stored TMDB identity needs owner review.');
         await this.repo.enrichMetadata(movie.id,tmdb,await this.tmdb(() => provider.details(tmdb)));
         results.push({movieId: movie.id,title: movie.title,provider: 'tmdb',status: 'success',message: 'Stored metadata updated.'});
@@ -43,8 +37,7 @@ export class MovieService {
         if (error instanceof ProviderError && ['rate_limited','credentials','outage','network'].includes(error.kind)) break;
       }
     }
-    const updated = await this.repo.catalog();
-    return {results,remaining: updated.movies.filter(m => metadataCandidate(m)).length,unidentified: updated.movies.filter(m => !identity(m)).length};
+    return {results,...await this.repo.metadataCounts()};
   }
   async detail(id: string): Promise<MovieDetail> {
     const { movies,sessions } = await this.repo.catalog();
