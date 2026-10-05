@@ -6,8 +6,8 @@ import { MdbListProvider, mdbId } from './providers/mdblist';
 import { TmdbProvider } from './providers/tmdb';
 import { OmdbProvider } from './providers/omdb';
 import { ProviderError } from './providers/http';
-import { missingScores, type MaintenanceMode } from '../../shared/score-maintenance';
-import { rankMovie } from '../../shared/ranking';
+import { type MaintenanceMode } from '../../shared/score-maintenance';
+import { rankMovie, requiredScores } from '../../shared/ranking';
 const failure = (provider: string, error: unknown): ProviderResult => ({provider,status: 'failed',count: 0,
   message: error instanceof ApiError ? error.message : `${provider} refresh failed. Try later.`,
   ...(error instanceof ProviderError && error.retryAfter !== undefined ? {retryAfter: error.retryAfter} : {})});
@@ -37,22 +37,24 @@ export class ScoreService {
     };
   }
   private needs(movie: Movie, snapshots: Score[]) { return rankMovie([...movie.scores,...snapshots],movie.seen,[],movie.classics_membership?.rank_seed ?? 0).missingRequiredScores; }
-  private async capture(movie: Movie, batch?: {scores?: Score[]; error?: unknown}, failures?: Map<string,ProviderError>, refresh = false, missingOnly = false): Promise<ProviderResult[]> {
+  private async capture(movie: Movie, batch?: {scores?: Score[]; error?: unknown}, failures?: Map<string,ProviderError>, refresh = false, missingOnly = false, eligible?: string[]): Promise<ProviderResult[]> {
     const providers: ProviderResult[] = [], snapshots: Score[] = [];
     const id = mdbId(movie.external_ids), imdb = movie.external_ids.find(e => e.provider === 'imdb' && /^tt\d{7,10}$/.test(e.external_id));
     if (batch?.error) { providers.push(failure('mdblist',batch.error)); }
     else if (failures?.has('mdblist')) providers.push(this.suppressed('mdblist',failures.get('mdblist')!));
     else if (!this.env.MDBLIST_API_KEY) providers.push({provider:'mdblist',status:'skipped',count:0,message:'Not configured.'});
     else if (!id) providers.push({provider:'mdblist',status:'skipped',count:0,message:'A supported external ID is required.'});
+    else if (batch && batch.scores === undefined) providers.push({provider:'mdblist',status:'failed',count:0,message:'Incomplete batch response. Try later.'});
     else try { const scores = batch ? batch.scores ?? [] : await this.providerCall('mdblist',() => new MdbListProvider(this.env.MDBLIST_API_KEY!,this.limits('mdblist')).scores(id)); snapshots.push(...scores); providers.push({provider:'mdblist',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { if (failures && this.providerWide(error)) failures.set('mdblist',error); providers.push(failure('mdblist',error)); }
     const missing = refresh ? this.needs({...movie,scores:[]},snapshots) : this.needs(movie,snapshots);
-    const omdbUseful = Boolean(imdb && (missing.includes('imdb:rating') || missing.includes('rottentomatoes:critic') || missing.includes('metacritic:critic')));
+    const unresolved = missing.filter(key => !eligible || eligible.includes(key));
+    const omdbUseful = Boolean(imdb && ['imdb:rating','rottentomatoes:critic','metacritic:critic'].some(key => unresolved.includes(key)));
     if (failures?.has('omdb')) providers.push(this.suppressed('omdb',failures.get('omdb')!));
     else if (!this.env.OMDB_API_KEY) providers.push({provider:'omdb',status:'skipped',count:0,message:'Not configured.'});
     else if (!omdbUseful) providers.push({provider:'omdb',status:'skipped',count:0,message:'No missing score OMDb can supply.'});
     else try { const detail = await this.providerCall('omdb',() => new OmdbProvider(this.env.OMDB_API_KEY!,this.limits('omdb')).details(imdb!.external_id)); const scores = detail.scores; if (refresh || missingOnly) await this.repo.enrichOmdbMetadata(movie.id,imdb!.external_id,detail.metadata); snapshots.push(...scores); providers.push({provider:'omdb',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { if (failures && this.providerWide(error)) failures.set('omdb',error); providers.push(failure('omdb',error)); }
     const tmdb = movie.external_ids.find(e => e.provider === 'tmdb' && /^[1-9]\d{0,9}$/.test(e.external_id));
-    const tmdbMissing = this.needs(refresh ? {...movie,scores:[]} : movie,snapshots).includes('tmdb:rating');
+    const tmdbMissing = this.needs(refresh ? {...movie,scores:[]} : movie,snapshots).includes('tmdb:rating') && (!eligible || eligible.includes('tmdb:rating'));
     if (!tmdbMissing) providers.push({provider:'tmdb',status:'skipped',count:0,message:'TMDB rating already available.'});
     else if (failures?.has('tmdb')) providers.push(this.suppressed('tmdb',failures.get('tmdb')!));
     else if (!this.env.TMDB_READ_TOKEN || !tmdb) providers.push({provider:'tmdb',status:'skipped',count:0,message:!tmdb ? 'A valid TMDB identity is required.' : 'Not configured.'});
@@ -67,6 +69,16 @@ export class ScoreService {
       p.message = p.count ? 'Available scores captured.' : 'No missing scores supplied.';
     }
     await this.repo.appendScores(movie.id,captured);
+    if (refresh || missingOnly) {
+      const freshMissing = this.needs({...movie,scores:[]},snapshots);
+      const checks = (eligible ?? [...requiredScores]).flatMap(key => {
+        if (!freshMissing.includes(key)) return [{key,available:true}];
+        // Every identity-applicable path must complete. Missing credentials and failures are inconclusive.
+        const paths = ['mdblist',...(['imdb:rating','rottentomatoes:critic','metacritic:critic'].includes(key) && imdb ? ['omdb'] : []),...(key === 'tmdb:rating' && tmdb ? ['tmdb'] : [])];
+        return paths.every(name => providers.some(p => p.provider === name && p.status === 'success')) ? [{key,available:false}] : [];
+      });
+      await this.repo.saveScoreChecks(movie.id,checks);
+    }
     return providers.sort((a,b) => a.provider.localeCompare(b.provider));
   }
   async refresh(id: string): Promise<RefreshResult> {
@@ -78,7 +90,9 @@ export class ScoreService {
     if (!ids.length || ids.length > 10) throw new ApiError(422,'INVALID_LIMIT','Choose 1–10 films.');
     const selected = await this.repo.maintenanceDetails([...new Set(ids)],true);
     const failures = new Map<string,ProviderError>(), batch = new Map<string,{scores?: Score[]; error?: unknown}>();
-    const candidates = selected.filter(m => mode !== 'missing' || missingScores(m));
+    const checks = mode === 'missing' ? await this.repo.scoreChecks(selected.map(m => m.id)) : [];
+    const eligible = (m: Movie) => this.needs(m,[]).filter(key => !checks.some(c => c.movie_id === m.id && c.score_key === key && c.available === 0));
+    const candidates = selected.filter(m => mode !== 'missing' || eligible(m).length > 0);
     if (mode !== 'metadata' && this.env.MDBLIST_API_KEY) for (const provider of ['imdb','tmdb']) {
       const group = candidates.filter(m => mdbId(m.external_ids)?.provider === provider);
       if (!group.length || failures.has('mdblist')) continue;
@@ -93,7 +107,7 @@ export class ScoreService {
     const results: {id:string; providers:ProviderResult[]}[] = [];
     for (const movie of candidates) {
       if (results.length && !failures.size) await new Promise(resolve => setTimeout(resolve,500));
-      if (mode !== 'metadata') { results.push({id:movie.id,providers:await this.capture(movie,batch.get(movie.id),failures,mode === 'refresh',mode === 'missing')}); continue; }
+      if (mode !== 'metadata') { results.push({id:movie.id,providers:await this.capture(movie,batch.get(movie.id),failures,mode === 'refresh',mode === 'missing',mode === 'missing' ? eligible(movie) : undefined)}); continue; }
       const imdb = movie.external_ids.find(e => e.provider === 'imdb' && /^tt\d{7,10}$/.test(e.external_id));
       let result: ProviderResult;
       if (failures.has('omdb')) result = this.suppressed('omdb',failures.get('omdb')!);

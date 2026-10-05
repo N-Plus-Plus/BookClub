@@ -1,7 +1,7 @@
 import type { Asset, Catalog, Cycle, ExternalId, Member, Movie, Score, SeenAnswer, Session, SessionInput, ManualMovieInput, SavedSearchResult } from '../../shared/types';
 import { normalizeTitle } from '../../shared/search';
 import { metadataCandidate, metadataGaps, tmdbIdentity, type MetadataMovie } from '../../shared/metadata';
-import { rankMovie } from '../../shared/ranking';
+import { rankMovie, requiredScores } from '../../shared/ranking';
 import type { ProviderMovie } from './providers/types';
 import { ApiError } from './http';
 import { ProductRepository } from './product-repository';
@@ -70,8 +70,8 @@ export class Repository {
         .filter(j => j.session_id === s.id).map(j => movieMap.get(j.movie_id)!).filter(Boolean) }));
     return { members, movies, sessions, cycles: rows<Cycle>(10) };
   }
-  /** Selected-film maintenance snapshot; never loads unrelated film relationships or cycles. */
-  async maintenanceDetails(ids: string[], validateScope = false): Promise<import('../../shared/types').MovieDetail[]> {
+  /** Selected-film snapshot; never loads unrelated movies, relationships or cycles. */
+  async movieDetails(ids: string[], validateScope = false): Promise<import('../../shared/types').MovieDetail[]> {
     if (!ids.length) return [];
     const director = await this.hasDirector();
     const placeholders = ids.map(() => '?').join(',');
@@ -109,6 +109,33 @@ export class Repository {
       if (!movie) throw new ApiError(404,'NOT_FOUND','Film not found.');
       return movie;
     });
+  }
+  /** Maintenance adds scope validation to the shared selected-film loader. */
+  async maintenanceDetails(ids: string[], validateScope = false) {
+    return this.movieDetails(ids,validateScope);
+  }
+  async scoreChecks(ids: string[]) {
+    if (!ids.length) return [];
+    return (await this.db.prepare(`SELECT movie_id,score_key,available FROM movie_score_checks WHERE movie_id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all<{movie_id:string;score_key:string;available:number}>()).results;
+  }
+  async saveScoreChecks(id: string, checks: {key:string;available:boolean}[]) {
+    if (!checks.length) return;
+    const at = new Date().toISOString();
+    await this.db.batch(checks.map(check => this.db.prepare(`INSERT INTO movie_score_checks(movie_id,score_key,available,checked_at) VALUES(?,?,?,?) ON CONFLICT(movie_id,score_key) DO UPDATE SET available=excluded.available,checked_at=excluded.checked_at`).bind(id,check.key,Number(check.available),at)));
+  }
+  async scoreMaintenanceStatus(): Promise<import('../../shared/types').ScoreMaintenanceStatus> {
+    const rows = (await this.db.prepare(`WITH scope AS (
+      SELECT id FROM movies WHERE EXISTS(SELECT 1 FROM classics WHERE movie_id=movies.id)
+      OR EXISTS(SELECT 1 FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE sm.movie_id=movies.id AND s.deleted_at IS NULL)
+    ), keys(score_key) AS (VALUES ${requiredScores.map(key => "('"+key+"')").join(',')})
+    SELECT scope.id,keys.score_key,coalesce(c.available,1) AS available FROM scope CROSS JOIN keys
+    LEFT JOIN movie_score_checks c ON c.movie_id=scope.id AND c.score_key=keys.score_key
+    WHERE NOT EXISTS(SELECT 1 FROM source_scores ss WHERE ss.movie_id=scope.id AND ss.provider||':'||ss.metric=keys.score_key
+      AND CASE WHEN ss.raw_scale IS NOT NULL THEN ss.raw_scale>0 AND ss.raw_value>=0 AND ss.raw_value<=ss.raw_scale
+      ELSE ss.normalized_value>=0 AND ss.normalized_value<=100 END)
+    ORDER BY scope.id,keys.score_key`).all<{id:string;score_key:string;available:number}>()).results;
+    return {candidateIds:[...new Set(rows.filter(r => r.available !== 0).map(r => r.id))],eligibleDimensions:rows.filter(r => r.available !== 0).length,
+      unavailableDimensions:rows.filter(r => r.available === 0).length,unavailableFilms:new Set(rows.filter(r => r.available === 0).map(r => r.id)).size};
   }
   private async metadataRows(priority = true) {
     const director = await this.hasDirector();

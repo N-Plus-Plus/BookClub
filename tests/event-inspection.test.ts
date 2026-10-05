@@ -11,7 +11,7 @@ import { HistoryScreen } from '../frontend/HistoryScreen';
 import { SessionCard } from '../frontend/components';
 
 vi.mock('../frontend/api',() => ({
-  api:{maintainMovies:vi.fn(),enrichMetadata:vi.fn(),audit:vi.fn(),deleteSession:vi.fn(),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn()},
+  api:{scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:['f1','f2','f3','f99','saved-7'],eligibleDimensions:30,unavailableDimensions:0,unavailableFilms:0})),maintainMovies:vi.fn(),enrichMetadata:vi.fn(),audit:vi.fn(),deleteSession:vi.fn(),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn()},
   ApiClientError:class extends Error {},hasSession:() => true,setUnauthorizedHandler:vi.fn(),setDevMember:vi.fn(),clearSession:vi.fn(),storeSession:vi.fn(),
 }));
 const movies: Movie[] = Array.from({length:8},(_,i) => ({id:`saved-${i}`,title:`Film ${i}`,year:1998,original_title:null,release_date:null,runtime:100,overview:'Overview',genres:[],assets:[],external_ids:i === 7 ? [{provider:'tmdb',external_id:'107'}] : [],scores:[],seen:[],classic:false,ranking:null}));
@@ -397,4 +397,21 @@ describe('URL-only Admin screen',() => {
     expect(tmdbSection?.textContent).toContain('Completed updates are saved');
     expect(api.enrichMetadata).toHaveBeenCalledOnce();
   });
+});
+
+it('keeps App-owned Seen saves serial through navigation and exposes failures for retry on return',async()=>{
+ const pool=movies.slice(0,3).map(m=>({...m,classic:true}));
+ vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:pool});
+ await act(async()=>root.unmount());root=createRoot(container);await act(async()=>root.render(createElement(App)));await flush();
+ const requests:{resolve:(movie:Movie)=>void;reject:(error:Error)=>void}[]=[];
+ vi.mocked(api.seen).mockImplementation(()=>new Promise((resolve,reject)=>requests.push({resolve:movie=>resolve({...movie,appearances:[]}),reject})));
+ await navigate('seen');await click(button('Yes, seen it'));expect(container.querySelector('.answer-card')?.textContent).toContain('Film 1');
+ await click(button('No, not yet'));expect(api.seen).toHaveBeenCalledTimes(1);expect(container.querySelectorAll('.recent-answer')).toHaveLength(2);
+ await navigate('home');await act(async()=>requests[0].reject(new Error('Offline')));await flush();
+ expect(api.seen).toHaveBeenCalledTimes(2);expect(container.textContent).toContain('Seen answers are unsaved');
+ await act(async()=>requests[1].resolve({...pool[1],seen:[{member_id:'member-2',seen:0,updated_at:'saved'}]}));await flush();
+ await navigate('seen');expect(container.textContent).toContain('Film 0: Seen');expect(container.querySelector('.answer-card')?.textContent).toContain('Film 2');
+ await click(button('Retry saving Film 0'));expect(api.seen).toHaveBeenLastCalledWith('saved-0','member-2',true);
+ await act(async()=>requests[2].resolve({...pool[0],seen:[{member_id:'member-2',seen:1,updated_at:'saved'}]}));await flush();
+ expect(container.querySelector('[role="alert"]')).toBeNull();
 });

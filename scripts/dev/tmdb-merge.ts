@@ -7,7 +7,7 @@ export type Member = {movie_id:string;title:string;source_refs:string[]};
 export type Merge = {tmdb_id:string;members:Member[];kind:'existing'|'group';owner_confirmed?:true};
 type Value = string|number|null;
 export type Row = Record<string,Value>;
-export const relatedTables=['movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies'] as const;
+export const relatedTables=['movie_score_checks','movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies'] as const;
 export const receiptTable='local_movie_merge_receipts';
 const quote=(s:string)=>'"'+s.replaceAll('"','""')+'"';
 const hash=(op:Merge)=>createHash('sha256').update(JSON.stringify({kind:op.kind,tmdb_id:op.tmdb_id,members:[...op.members].sort((a,b)=>a.movie_id.localeCompare(b.movie_id)).map(m=>({...m,source_refs:[...m.source_refs].sort()}))})).digest('hex');
@@ -154,6 +154,10 @@ export async function applyMerge(db:D1Database,plan:MergePlan,metadata?:Provider
   const removedWhere=removed.map(()=>'?').join(',');
   const update=(table:string)=>statements.push(db.prepare(`UPDATE ${quote(table)} SET movie_id=? WHERE movie_id IN (${removedWhere})`).bind(survivor,...removed));
   for(const table of ['session_movies','builder_movies','movie_import_refs','source_scores','seen_import_observations'])update(table);
+  // Latest conclusive dimension wins; equal timestamps prefer available, then survivor.
+  const checks=[...snapshot.movie_score_checks].sort((a,b)=>String(b.checked_at).localeCompare(String(a.checked_at))||Number(b.available)-Number(a.available)||Number(b.movie_id===survivor)-Number(a.movie_id===survivor));
+  const checkKeys=new Set<Value>();
+  for(const check of checks){if(checkKeys.has(check.score_key))continue;checkKeys.add(check.score_key);statements.push(db.prepare(`INSERT INTO movie_score_checks(movie_id,score_key,available,checked_at) VALUES(?,?,?,?) ON CONFLICT(movie_id,score_key) DO UPDATE SET available=excluded.available,checked_at=excluded.checked_at`).bind(survivor,check.score_key,check.available,check.checked_at));}
   // Keep asset observations; exactly one deterministic preferred reference per type.
   statements.push(db.prepare(`UPDATE movie_assets SET preferred=0 WHERE movie_id IN (${ids.map(()=>'?').join(',')})`).bind(...ids));update('movie_assets');
   for(const type of ['poster','backdrop']){const asset=snapshot.movie_assets.filter(r=>r.asset_type===type).sort((a,b)=>Number(b.movie_id===survivor)-Number(a.movie_id===survivor)||Number(b.preferred)-Number(a.preferred)||String(b.fetched_at).localeCompare(String(a.fetched_at))||String(a.id).localeCompare(String(b.id)))[0];if(asset)statements.push(db.prepare('UPDATE movie_assets SET preferred=1 WHERE id=?').bind(asset.id));}

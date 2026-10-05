@@ -8,7 +8,7 @@ import { DetailScreen } from '../frontend/DetailScreen';
 import { api } from '../frontend/api';
 import { rankMovie } from '../shared/ranking';
 import type { Movie, MovieDetail } from '../shared/types';
-vi.mock('../frontend/api',()=>({api:{detail:vi.fn(),seen:vi.fn(),maintainMovies:vi.fn()}}));
+vi.mock('../frontend/api',()=>({api:{detail:vi.fn(),seen:vi.fn(),scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:['f1','f2','f3','f99','saved-7'],eligibleDimensions:30,unavailableDimensions:0,unavailableFilms:0})),maintainMovies:vi.fn()}}));
 const members=[1,2,3,4,5].map(n=>({id:'m'+n,display_name:'Member '+n,sort_order:n,active:n===5?0:1,avatar:n}));
 const scores=[['imdb','rating',80],['rottentomatoes','audience',90],['rottentomatoes','critic',85]].map(([provider,metric,value])=>({provider:String(provider),metric:String(metric),raw_value:Number(value),raw_scale:100,normalized_value:Number(value),vote_count:null,fetched_at:'2026-01-01'}));
 const film=(i:number,group='ranked'):Movie=>{
@@ -65,4 +65,14 @@ it('omits maintenance on all Classics tabs and includes History in Admin bulk wo
  await click('Populate Missing Scores');await act(async()=>{ await vi.runAllTimersAsync(); });expect(vi.mocked(api.maintainMovies).mock.calls.filter(([mode])=>mode==='missing').flatMap(([,ids])=>ids)).toEqual(['f1','f2','f3','f99']);
  vi.useRealTimers();
  await render('member');expect(container.querySelector('.classics-maintenance')).toBeNull();
+});
+
+it('keeps the Admin DOM compact through a 980-film no-data run',async()=>{
+ vi.useFakeTimers();const movies=Array.from({length:980},(_,i)=>({...film(i),external_ids:[{provider:'imdb',external_id:'tt0000001'}]}));
+ const onMovie=vi.fn();vi.mocked(api.maintainMovies).mockImplementation(async(_mode,ids)=>({results:ids.map(id=>({movie:{...movies.find(m=>m.id===id)!,appearances:[]},providers:[{provider:'mdblist',status:'success',count:0,message:'No usable ratings supplied.'}]}))}));
+ await act(async()=>root.render(createElement(AdminScreen,{catalog:{movies,members,sessions:[],cycles:[]},writesEnabled:true,onMovie,onUpdated:async()=>{}})));
+ await click('Refresh Scores');await act(async()=>{await vi.runAllTimersAsync();});
+ expect(onMovie).toHaveBeenCalledTimes(980);expect(container.textContent).toContain('980 / 980 films processed');expect(container.textContent).toContain('980 with no new scores');
+ expect(container.querySelectorAll('.classics-maintenance li')).toHaveLength(1);expect(container.querySelectorAll('.classics-maintenance strong')).toHaveLength(0);
+ expect(container.querySelector('progress')?.value).toBe(980);
 });

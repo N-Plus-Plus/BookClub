@@ -14,6 +14,10 @@ Describe the current contract, not its historical evolution. Do not duplicate st
 
 # CONTRACTS.md
 
+## Admin score maintenance status
+
+Authenticated admin-only `GET /api/v1/movies/maintenance-status` returns `candidateIds`, `eligibleDimensions`, `unavailableDimensions` and `unavailableFilms` for distinct Classics/active History films. Candidates have at least one missing genuine score without a conclusive negative check; the browser filters valid operation identities. Unavailable counts cover absent dimensions with negative observations, excluding stored usable scores. Ordinary catalog, detail, auth and navigation payloads do not include score-check rows. Batch mutation responses remain bounded and unchanged.
+
 ## Scope and contract index
 
 Read [DATA](DATA.md) alongside any data-bearing change. This file owns durable interfaces, not a copied storage schema.
@@ -55,9 +59,11 @@ CORS reflects exact configured origins only, never `*`, with no cookie credentia
 | POST `/movies` | `{title,year?,runtime?}` -> MovieDetail (201); title 1–300, year 1870–2200, positive runtime <=10000 |
 | POST `/movies/import` | `{provider:"tmdb",externalId}` (positive numeric string, <=10 digits) -> persisted/reused MovieDetail (201) |
 | PUT `/movies/:id/classics` | `{classic:boolean}` -> MovieDetail; preserves canonical movie/allocated seed |
-| PUT `/movies/:id/seen/:memberId` | `{seen:true|false|null}` -> MovieDetail; null returns Unknown by removing row |
+| PUT `/movies/:id/seen/:memberId` | `{seen:true|false|null}` -> MovieDetail; null returns Unknown by removing row; idempotent state-setting write, selected-film response read |
 
 Search trims/collapses whitespace, compares case-insensitively, and removes at most one leading English A or The. Any whole-title matches across the collected local/TMDB pool suppress all weaker candidates; otherwise contiguous-substring matches retain source relevance order. Year is excluded. Saved TMDB identity owners suppress external duplicates. Pagination is frontend-only, six candidates from the same result set.
+
+Ordinary film detail reads and Seen responses share the selected-film query used by maintenance: movie relationships, ranking roster and that film's active History appearances only, with no unrelated catalog/session/cycle read. The normal 15-second timeout is unchanged.
 
 Movie responses preserve nullable metadata and arrays for genres/assets/IDs/scores/Seen. Ranking is nullable for nonmembers. Six recognised rating dimensions are normalised to /100; missing dimensions use the arithmetic mean of available genuine values, only at ranking time. At least one genuine recognised score and complete active-member Seen answers are required to rank. `sources` contains only fetched values; `missingRequiredScores` lists absent dimensions; `availableScoreAverage` is nullable; `imputedScores` contains derived provider/metric/value entries without retrieval provenance. No imputed source snapshots are stored. `rawScore` is the six effective squares summed, and `finalScore = rawScore * unseenMultiplier + tieBreak`; eligibility remains separate. On the 0009 bridge schema, director is null and rotation has empty `human_order`; swap-only operations return `503 SCHEMA_UPGRADE_REQUIRED`. Normal auth, reads and event publication remain available. Optional metadata/artwork check fields support deployment evolution. Neither catalog nor viewer exposes authorised emails, Google subs or session hashes.
 
@@ -72,7 +78,7 @@ Movie responses preserve nullable metadata and arrays for genres/assets/IDs/scor
 
 Browser bulk maintenance sends up to ten films per score request, preserving MDBList batching, and caps TMDB metadata requests at two films, with a two-second idle gap between requests. The API retains its 1–10 compatibility limits. Ordinary requests retain the 15-second client timeout; bulk maintenance retains 105 seconds. Score maintenance returns selected MovieDetail-compatible data without rebuilding the full catalogue.
 
-Provider result shape: `{provider,status:"success"|"failed"|"skipped",count,message,retryAfter?}`; retryAfter is seconds. Partial provider failure may be a successful HTTP response with failed/skipped items; consumers must inspect status. Score `remaining` is the unselected candidate count from that operation, not proof selected failures are now complete. Metadata `remaining` is recomputed eligible identified films; `unidentified` counts no valid TMDB identity. Browser timeouts: ordinary 15s, score enrichment 65s, metadata and bulk maintenance 105s. Bulk responses contain only processed films; clients sequence a fixed ID queue rather than relying on rankability to prove completion. Populate skips films with all six genuine inputs; when called, all recognised returned MDBList ratings append as actual snapshots, while fallback captures fill absent input types; Refresh ignores old-score completeness for fallback selection. Metadata mode updates available OMDb fields without changing scores. Provider rules belong in [INTEGRATIONS](INTEGRATIONS.md).
+Provider result shape: `{provider,status:"success"|"failed"|"skipped",count,message,retryAfter?}`; retryAfter is seconds. Partial provider failure may be a successful HTTP response with failed/skipped items; consumers must inspect status. Score `remaining` is the unselected candidate count from that operation, not proof selected failures are now complete. Metadata `remaining` is recomputed eligible identified films; `unidentified` counts no valid TMDB identity. Browser timeouts: ordinary 15s, score enrichment 65s, metadata and bulk maintenance 105s. Bulk responses contain only processed films; clients sequence a fixed ID queue rather than relying on rankability to prove completion. Populate skips films with all six genuine inputs or only conclusively checked-unavailable missing inputs; when called, all recognised returned MDBList ratings append as actual snapshots, while fallback captures fill absent input types; Refresh ignores old-score completeness for fallback selection. Metadata mode updates available OMDb fields without changing scores. Provider rules belong in [INTEGRATIONS](INTEGRATIONS.md).
 
 ## Events, rotation and History
 

@@ -170,3 +170,50 @@ it('keeps ten IMDb films in one MDBList provider request without catalogue reads
   expect(catalog).not.toHaveBeenCalled();
  } finally {vi.useRealTimers();}
 });
+
+it('persists conclusive absence, skips Populate, and reconsiders it on Refresh without changing ranking inputs',async()=>{
+ const film=await add('tt0000901');env.TMDB_READ_TOKEN=undefined;
+ const fetch=vi.fn(async(url:string,init:RequestInit)=>url.includes('mdblist') ? Response.json([{imdb_id:'tt0000901',ratings:[]}]) : Response.json({Response:'True',Ratings:[]}));vi.stubGlobal('fetch',fetch);
+ const repo=new Repository(local.db);
+ expect((await repo.scoreMaintenanceStatus()).candidateIds).toContain(film);
+ await data(await call('missing',[film]));
+ expect(await repo.scoreChecks([film])).toHaveLength(6);
+ expect((await repo.scoreChecks([film])).every(c=>c.available===0)).toBe(true);
+ expect((await repo.scoreMaintenanceStatus()).candidateIds).not.toContain(film);
+ expect((await data(await call('missing',[film]))).results).toHaveLength(0);
+ expect(fetch).toHaveBeenCalledTimes(2);
+ await data(await call('refresh',[film]));expect(fetch).toHaveBeenCalledTimes(4);
+ fetch.mockImplementation(async(url:string)=>url.includes('mdblist') ? Response.json([{imdb_id:'tt0000901',ratings:[{source:'imdb',value:8}]}]) : Response.json({Response:'True',Ratings:[]}));
+ const result=await data(await call('refresh',[film]));
+ expect((await repo.scoreChecks([film])).find(c=>c.score_key==='imdb:rating')?.available).toBe(1);
+ expect(result.results[0].movie.ranking?.sources).toHaveLength(1);
+ expect(local.sqlite.prepare('SELECT count(*) n FROM source_scores WHERE movie_id=?').get(film)?.n).toBe(1);
+ const catalog=await repo.catalog();expect(JSON.stringify(catalog)).not.toContain('score_key');
+ const status=await worker.fetch(new Request('http://api/api/v1/movies/maintenance-status',{headers:{'X-BookClub-Dev-Member':'member-2'}}),env);expect(status.status).toBe(403);
+});
+it.each(['outage','network','cooldown','credentials'])('does not persist negative checks after %s',async(kind)=>{
+ const film=await add('tt0000902');env.OMDB_API_KEY=undefined;
+ const fetch=vi.fn(async()=>{if(kind==='network') throw new DOMException('Timed out','TimeoutError');return new Response(null,{status:kind==='cooldown'?429:503});});vi.stubGlobal('fetch',fetch);
+ if(kind==='credentials') env.MDBLIST_API_KEY=undefined;
+ await data(await call('refresh',[film]));expect(await new Repository(local.db).scoreChecks([film])).toEqual([]);
+});
+it('exhausts fallback before a negative check and leaves failed fallback dimensions unchanged',async()=>{
+ const film=await add('tt0000903');
+ const fetch=vi.fn(async(url:string)=>{
+   if(url.includes('mdblist')) return Response.json([{imdb_id:'tt0000903',ratings:[]}]);
+   expect((await new Repository(local.db).scoreChecks([film])).find(c=>c.score_key==='imdb:rating')).toBeUndefined();
+   return new Response(null,{status:503});
+ });vi.stubGlobal('fetch',fetch);
+ await data(await call('missing',[film]));
+ const checks=await new Repository(local.db).scoreChecks([film]);expect(checks.find(c=>c.score_key==='imdb:rating')).toBeUndefined();expect(checks.find(c=>c.score_key==='rottentomatoes:audience')?.available).toBe(0);
+ // A negative RT audience observation must not drive an OMDb request on the next Populate.
+});
+
+it('only unresolved dimensions drive provider fallback and incomplete batch entries are inconclusive',async()=>{
+ const film=await add('tt0000904'),repo=new Repository(local.db);
+ await repo.saveScoreChecks(film,['imdb:rating','rottentomatoes:critic','metacritic:critic','tmdb:rating','rottentomatoes:audience'].map(key=>({key,available:false})));
+ const fetch=vi.fn(async()=>Response.json([{imdb_id:'tt0000904',ratings:[]}]));vi.stubGlobal('fetch',fetch);
+ await data(await call('missing',[film]));expect(fetch).toHaveBeenCalledTimes(1);expect((await repo.scoreChecks([film])).find(c=>c.score_key==='letterboxd:rating')?.available).toBe(0);
+ const other=await add('tt0000905');env.OMDB_API_KEY=undefined;fetch.mockResolvedValue(Response.json([]));
+ await data(await call('missing',[other]));expect(await repo.scoreChecks([other])).toEqual([]);
+});

@@ -45,6 +45,7 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
     return json({ loggedOut: true });
   }
   if (method !== 'GET' && method !== 'OPTIONS') authorizeMutation(env,auth.viewer);
+  if (path === '/api/v1/movies/maintenance-status' && method === 'GET') { requireAdmin(auth.viewer); return json(await repo.scoreMaintenanceStatus()); }
   if (path === '/api/v1/avatars' && method === 'GET') { requireViewer(auth.viewer); return json(await product.availableAvatars()); }
   if (path === '/api/v1/auth/avatar' && method === 'POST') return json(await product.claimAvatar(requireViewer(auth.viewer),avatarSchema.parse(await body(request)).avatar));
   if (path === '/api/v1/rotation' && method === 'GET') return json(await product.rotation());

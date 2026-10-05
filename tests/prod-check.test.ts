@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { checkProduction } from '../scripts/prod-check.mjs';
-it('checks tracked release safety and public variables without remote access',()=>{
-  const migrations=execFileSync('git',['ls-files','--','worker/migrations/*.sql'],{encoding:'utf8'}).trim().split(/\r?\n/).map(path=>path.split('/').at(-1)!).sort();
+it('checks working-tree release safety and public variables without remote access',()=>{
+  const migrations=execFileSync('git',['ls-files','--cached','--others','--exclude-standard','--','worker/migrations/*.sql'],{encoding:'utf8'}).trim().split(/\r?\n/).map(path=>path.split('/').at(-1)!).sort();
   expect(migrations.length).toBeGreaterThanOrEqual(8);
   expect(readdirSync('worker/migrations').filter(name=>name.endsWith('.sql')).sort()).toEqual(migrations);
   expect(migrations.every(name=>/^\d{4}_.+\.sql$/.test(name))).toBe(true);

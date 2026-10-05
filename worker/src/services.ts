@@ -41,11 +41,7 @@ export class MovieService {
     return {results,...await this.repo.metadataCounts()};
   }
   async detail(id: string): Promise<MovieDetail> {
-    const { movies,sessions } = await this.repo.catalog();
-    const movie = movies.find(m => m.id === id);
-    if (!movie) throw new ApiError(404,'NOT_FOUND','Film not found.');
-    return { ...movie, appearances: sessions.flatMap(s => s.movies.flatMap((m,i) => m.id === id
-      ? [{ id: s.id,event_date: s.event_date,date_precision: s.date_precision,kind: s.kind,host_member_id: s.host_member_id,position: i+1 }] : [])) };
+    return (await this.repo.movieDetails([id]))[0];
   }
   async search(query: string): Promise<SearchResponse> {
     let external: SearchResult[] = [];

@@ -20,5 +20,13 @@ it('stops after failures or requested Stop and preserves completed updates',asyn
 it('does not retry an unresolved empty rating response or a later network failure',async()=>{
  vi.useFakeTimers();const batch=vi.fn().mockResolvedValueOnce({results:[{...result('0'),providers:[{provider:'mdblist',status:'success',count:0,message:'No ratings'}]}]}).mockRejectedValueOnce(new Error('Offline'));
  const promise=maintainScores({ids:Array.from({length:11},(_,i)=>String(i)),batch,stopped:()=>false,progress:async()=>{}});await vi.runAllTimersAsync();
- const run=await promise;expect(batch).toHaveBeenCalledTimes(2);expect(run.processed).toBe(10);expect(run.results).toHaveLength(1);expect(run.message).toContain('Partial updates');
+ const run=await promise;expect(batch).toHaveBeenCalledTimes(2);expect(run.processed).toBe(10);expect(run).not.toHaveProperty('results');expect(run.noChange).toBe(1);expect(run.message).toContain('Partial updates');
+});
+
+it('discards film details after applying each batch during a 980-film run',async()=>{
+ vi.useFakeTimers();let applied=0,maxRetained=0;
+ const promise=maintainScores({ids:Array.from({length:980},(_,i)=>String(i)),batch:async ids=>({results:ids.map(id=>result(id))}),stopped:()=>false,
+ progress:async(run,batch)=>{applied+=batch?.length??0;expect(run).not.toHaveProperty('results');}});
+ await vi.runAllTimersAsync();const run=await promise;
+ expect(applied).toBe(980);expect(maxRetained).toBe(0);expect(run).toMatchObject({processed:980,updated:980,remaining:0});expect(run.providers.length).toBeLessThanOrEqual(9);
 });

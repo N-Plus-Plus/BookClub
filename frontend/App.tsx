@@ -7,6 +7,7 @@ import { api, ApiClientError, clearSession, hasSession, setDevMember, setUnautho
 import { Action, Empty, Failure, LoadingView, RankingCard, RouteLink, SessionCard } from './components';
 import { EventScreen } from './EventScreen';
 import { SeenScreen } from './SeenScreen';
+import { patchCatalogMovie, useSeenAnswers } from './seen-answers';
 import { DetailScreen } from './DetailScreen';
 import { PreviewScreen } from './PreviewScreen';
 import { HistoryScreen } from './HistoryScreen';
@@ -41,6 +42,7 @@ export function App() {
   const [health,setHealth] = useState<Health | null>(null);
   const [rotation,setRotation] = useState<Rotation | null>(null);
   const [viewer,setViewer] = useState<Viewer | null>(null);
+  const seenAnswers = useSeenAnswers(viewer?.id ?? '',setCatalog,api.seen);
   const [authBusy,setAuthBusy] = useState(false);
   const generation = useRef(0);
   const [loadError,setLoadError] = useState('');
@@ -119,10 +121,9 @@ export function App() {
       pageRef.current = next; setPage(next); window.scrollTo(0,0); requestAnimationFrame(() => heading.current?.focus()); };
     window.addEventListener('hashchange',update); return () => window.removeEventListener('hashchange',update);
   },[]);
-  const applyMovie = (movie: MovieDetail | Movie) => setCatalog(current => current ? ({...current,
-    movies: current.movies.some(m => m.id === movie.id) ? current.movies.map(m => m.id === movie.id ? movie : m) : [...current.movies,movie],
-    sessions: current.sessions.map(s => ({...s,movies: s.movies.map(m => m.id === movie.id ? movie : m)})),
-  }) : current);
+  const applyMovie = (movie: MovieDetail | Movie) => setCatalog(current => current
+    ? patchCatalogMovie(current,seenAnswers.reconcile(movie,current)) : current);
+
   const inspect = (candidate: FilmCandidate,preview?: TmdbPreview,pending?: Promise<TmdbPreview>) => {
     const target = candidate.kind === 'local' ? `movie/${candidate.movie.id}` : `preview/tmdb/${candidate.movie.externalId}`;
     const context = {source:page,target,candidate,preview,pending};
@@ -143,9 +144,7 @@ export function App() {
       if (inspectionRef.current === context) setInspectionError(error instanceof Error ? error.message : 'Could not add this film. Try again.');
     } finally { confirmInFlight.current = false; setConfirming(false); }
   };
-  const answer = async (movieId: string,memberId: string,seen: boolean | null) => {
-    const movie = await api.seen(movieId,memberId,seen); applyMovie(movie); return movie;
-  };
+
   const classics = catalog ? sortClassics(catalog.movies.filter(m => m.classic)) : [];
   const eligible = classics.filter(m => m.ranking?.eligible && m.ranking.rankable);
   const excluded = classics.filter(m => !m.ranking?.eligible);
@@ -167,6 +166,7 @@ export function App() {
     {health?.demo && <p className="demo-label"><Info size={16} aria-hidden="true" />Local disposable database</p>}
     {DevTools && health?.environment === 'local' && !health.authenticationRequired && catalog && <Suspense fallback={null}><DevTools members={catalog.members} onChanged={load} /></Suspense>}
     {catalog && loadError && <div className="refresh-failure" role="alert"><p>Could not load BookClub data. Showing the last loaded journal.</p><p className="meta">{loadError}</p><Action icon={RefreshCw} variant="secondary" disabled={refreshing} onClick={() => void load()}>Try again</Action></div>}
+    {page !== 'seen' && seenAnswers.failures.length > 0 && <p className="error-message" role="alert">{seenAnswers.failures.length} Seen answers are unsaved. <RouteLink to="seen" icon={Eye}>Review and retry</RouteLink></p>}
     {actionError && <p className="error-message" role="alert">{actionError}</p>}
     {catalog && refreshing && <p className="meta refresh-status" role="status">Refreshing the journal…</p>}
     {loading && !catalog ? <LoadingView /> : !catalog && loadError ? <Failure message={loadError} retry={() => void load()} /> : catalog && <>
@@ -184,7 +184,7 @@ export function App() {
       }} /></div>}
       {page.startsWith('event/') && !catalog.sessions.some(s => s.id === page.slice(6)) && <Empty title="Event not found">The event may have been deleted. Return to History to review available events.</Empty>}
       {page === 'classics' && <ClassicsScreen viewer={viewer} catalog={catalog} onUpdated={load} movies={classics} writesEnabled={writesEnabled} onMovie={applyMovie} />}
-      {(page === 'seen' || (detailContext && inspection.source === 'seen')) && <div hidden={page !== 'seen'}><SeenScreen key={viewer?.id} viewerId={viewer?.id ?? ''} catalog={catalog} answer={answer} writesEnabled={writesEnabled} /></div>}
+      {(page === 'seen' || (detailContext && inspection.source === 'seen')) && <div hidden={page !== 'seen'}><SeenScreen key={viewer?.id} viewerId={viewer?.id ?? ''} catalog={catalog} answer={seenAnswers.answer} pending={seenAnswers.pending} failures={seenAnswers.failures} retry={seenAnswers.retry} writesEnabled={writesEnabled} /></div>}
       {isDetail && !isPreview && <DetailScreen isAdmin={viewer?.role === 'admin'} key={page} id={page.slice(6)} members={catalog.members} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {isPreview && <PreviewScreen key={page} id={page.slice('preview/tmdb/'.length)} preview={inspecting ? inspection.preview : undefined} pending={inspecting ? inspection.pending : undefined} />}
       {!isAdminPage && !isDetail && page !== 'event' && !page.startsWith('event/') && !destinations.some(d => d.path === page) && <Empty title="Page not found"><RouteLink to="home" icon={Home}>Go home</RouteLink></Empty>}

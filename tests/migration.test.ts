@@ -32,3 +32,14 @@ it('migrates existing snapshots, memberships and ungrouped events without losing
     expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
   } finally {db.close();}
 });
+
+it('0013 adds constrained score observations without changing movies and cascades deletion',()=>{
+ const local=disposableD1('0012_movie_director.sql');try {
+ local.sqlite.exec("INSERT INTO movies(id,title) VALUES('check','Check')");const before=local.sqlite.prepare('SELECT * FROM movies').all();
+ local.sqlite.exec(readFileSync('worker/migrations/0013_score_checks.sql','utf8'));
+ expect(local.sqlite.prepare('SELECT * FROM movies').all()).toEqual(before);
+ const insert=local.sqlite.prepare('INSERT INTO movie_score_checks VALUES(?,?,?,?)');insert.run('check','imdb:rating',0,'2026-10-06T00:00:00.000Z');
+ expect(()=>insert.run('check','invalid',0,'2026-10-06T00:00:00.000Z')).toThrow();expect(()=>insert.run('check','tmdb:rating',2,'2026-10-06T00:00:00.000Z')).toThrow();
+ local.sqlite.exec("DELETE FROM movies WHERE id='check'");expect(local.sqlite.prepare('SELECT * FROM movie_score_checks').all()).toEqual([]);
+ }finally{local.sqlite.close();}
+});

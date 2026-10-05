@@ -118,3 +118,10 @@ it('blocks unapproved or unexpectedly related removals; final pairing records pr
  const fetch=vi.fn().mockResolvedValue(Response.json({id:42,title:'Owner-confirmed alternate title',release_date:'2024-01-01',genres:[],vote_average:7.5,vote_count:123}));vi.stubGlobal('fetch',fetch);
  const report=await runRound2(local.db,manifest,{apply:true,token:'synthetic',save:async()=>{}});expect(report.accepted).toHaveLength(1);expect(fetch).toHaveBeenCalledTimes(1);expect(local.sqlite.prepare("SELECT raw_value,vote_count FROM source_scores WHERE movie_id='b'").get()).toEqual({raw_value:7.5,vote_count:123});
 });
+
+it('preserves latest conclusive score checks across a merge and archives prior observations',async()=>{
+ local.sqlite.exec("INSERT INTO movie_score_checks VALUES('a','imdb:rating',0,'2026-01-01T00:00:00.000Z'),('b','imdb:rating',1,'2026-02-01T00:00:00.000Z'),('a','tmdb:rating',0,'2026-01-01T00:00:00.000Z')");
+ const plan=await planMerge(local.db,op);await applyMerge(local.db,plan);
+ expect(local.sqlite.prepare('SELECT score_key,available FROM movie_score_checks ORDER BY score_key').all()).toEqual([{score_key:'imdb:rating',available:1},{score_key:'tmdb:rating',available:0}]);
+ expect(plan.snapshot.movie_score_checks).toHaveLength(3);
+});

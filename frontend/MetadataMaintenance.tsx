@@ -35,9 +35,10 @@ export function MetadataMaintenance({catalog,onUpdated}: {catalog: Catalog; onUp
       <div className="button-set"><Action icon={RefreshCw} disabled={busy || !remaining} onClick={() => void maintain()}>Fill missing metadata</Action>
         {busy && <Action icon={Square} onClick={() => { stop.current = true; }}>Stop after this batch</Action>}</div>
       {busy && <p className="meta" role="status">Filling metadata… completed batches are saved.</p>}
-      {result && <div role="status" className="stack"><p className="meta">{result.processed} processed this run · {result.updated} successfully updated · {result.results.filter(r => r.status !== 'success').length} failures.</p>
+      {result && <div role="status" className="stack"><p className="meta">{result.processed} / {result.total} processed this run · {result.updated} successfully updated · {result.failed} failures.</p>
         {result.message && <p className="meta">{result.message}</p>}
-        {result.results.filter(r => r.status !== 'success').map(r => <p key={r.movieId} className="error-message">{r.title}: {r.message}{r.retryAfter !== undefined ? ` Retry after at least ${r.retryAfter} seconds.` : ''}</p>)}</div>}
+        <progress max={Math.max(1,result.total)} value={result.processed} aria-label="TMDB maintenance progress" />
+        {result.failure && <p className="error-message">{result.failure}</p>}</div>}
       {error && <p className="error-message" role="alert">{error}</p>}
   </section>;
 }

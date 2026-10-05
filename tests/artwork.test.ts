@@ -48,3 +48,10 @@ describe('explicit metadata run',()=>{
     expect(result).toMatchObject({processed:1,updated:1,remaining:2});expect(result.message).toContain('Resume later');
   });
 });
+
+it('discards TMDB batch detail across a large run while retaining aggregate counts',async()=>{
+ vi.useFakeTimers();let remaining=980;
+ const promise=maintainMetadata({initial:{remaining,unidentified:0},stopped:()=>false,batch:async()=>{remaining-=2;return {remaining,unidentified:0,results:[0,1].map(i=>({movieId:String(remaining+i),title:'Film',provider:'tmdb' as const,status:'success' as const,message:'Checked'}))};},
+ progress:async run=>{expect(run).not.toHaveProperty('results');}});
+ await vi.runAllTimersAsync();expect(await promise).toMatchObject({processed:980,updated:980,failed:0,remaining:0});vi.useRealTimers();
+});

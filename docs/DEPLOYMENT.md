@@ -217,6 +217,8 @@ If no safe sequence exists, stop before production mutation and report the relea
 
 The current Worker supports both schema 0009 and 0012. For the 0010–0012 transition, deploy the bridge-compatible current Worker first and verify health, create a fresh verified production export, then apply the unchanged ordered migrations. Redeploy the same release Worker after migration and verify health before dispatching Pages. Director detection is request-scoped; missing director reads as null and missing human_order means unswapped rotation. Turn swaps fail safely until 0011 exists.
 
+Migration 0013 only adds `movie_score_checks` and is compatible with the previously deployed Worker. Once the database is at 0012, a future authorised release applies 0013 after a fresh backup and schema verification, then deploys the new Worker, then publishes Pages. The new score-maintenance routes require 0013; do not publish the new frontend before its Worker. If upgrading from 0009, retain the separate 0010–0012 bridge sequence above before this additive step.
+
 Where practical, migrations should be designed so future releases have a clear compatible sequence.
 
 ## Applying production migrations

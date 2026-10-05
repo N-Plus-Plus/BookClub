@@ -44,6 +44,7 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
 }
 export const api = {
   catalog: () => request<Catalog>('/catalog'), health: () => request<Health>('/health','GET',undefined,false),
+  scoreMaintenanceStatus: () => request<import('../shared/types').ScoreMaintenanceStatus>('/movies/maintenance-status'),
   maintainMovies: (mode: import('../shared/score-maintenance').MaintenanceMode,movie_ids: string[]) => request<ScoreMaintenance>('/movies/maintain','POST',{mode,movie_ids}),
   enrichMetadata: (limit = METADATA_MAINTENANCE_BATCH_SIZE) => request<MetadataEnrichment>('/movies/enrich-metadata','POST',{limit:Math.min(limit,METADATA_MAINTENANCE_BATCH_SIZE)}),
   me: () => request<{viewer: Viewer | null}>('/auth/me'),

@@ -75,7 +75,7 @@ it('bounds browser TMDB maintenance to two films and retains ordinary request ti
   const {api}=await import('../frontend/api');
   await api.enrichMetadata();await api.enrichMetadata(10);await api.enrichMetadata(1);
   expect(fetch.mock.calls.map(([,init])=>JSON.parse(init.body as string).limit)).toEqual([2,2,1]);
-  await api.catalog();await api.me();
-  expect(timeout.mock.calls.map(([ms])=>ms)).toEqual([105000,105000,105000,15000,15000]);
+  await api.catalog();await api.me();await api.seen('film','member',true);
+  expect(timeout.mock.calls.map(([ms])=>ms)).toEqual([105000,105000,105000,15000,15000,15000]);
  } finally {timeout.mockRestore();}
 });
