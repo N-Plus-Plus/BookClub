@@ -32,6 +32,10 @@ Public frontend variables: Actions `VITE_API_BASE_URL` (Worker origin, no `/api/
 
 Worker: `corepack pnpm exec wrangler deploy --config worker/wrangler.jsonc`. Frontend: manually dispatch **Publish frontend to GitHub Pages** (`.github/workflows/pages.yml`) on reviewed main; workflow tests/types/preflights/builds and publishes `dist/` only. It does not deploy Worker or migrate D1. Pages source is GitHub Actions.
 
+Workers Logs are enabled in the production configuration with full sampling (`observability.enabled=true`, `head_sampling_rate=1`); invocation logging is enabled by default. Traces are not enabled. After Worker deployment, inspect **Workers & Pages -> bookclub-api -> Observability** in Cloudflare for invocation logs, console output and uncaught/runtime errors when diagnosing 5xx/resource failures. The request wrapper logs unexpected internal exceptions before returning its generic 500; expected validation, authentication and provider errors are not logged as exceptions. Logs do not establish the cause of earlier failures.
+
+Production Worker configuration changes require the Worker deployment command above. Pushing to `main` alone does not deploy the Worker; GitHub Pages publication is separate and manually dispatched.
+
 ## Deployment preflight
 
 Confirm intended target/changes, config/bindings, no release blocker, documentation accuracy and [TESTING](TESTING.md) scope. Release checks: `corepack pnpm test` (one final local suite), `corepack pnpm typecheck`, `corepack pnpm build`, `corepack pnpm prod:check`, `git diff --check`. Run `corepack pnpm prod:check --frontend` with both public values in process environment; it does not read ignored env files or access Cloudflare. Build separately with configured public env; inspect for localhost/import-preview, private emails, secrets/archive material. CI also runs its own full suite.

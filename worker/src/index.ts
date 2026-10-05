@@ -140,6 +140,7 @@ export function createWorker(verify: GoogleVerifier = verifyGoogle) { return {
     } catch (error) {
       const known = error instanceof ApiError;
       const invalid = error instanceof ZodError;
+      if (!known && !invalid) console.error('Unexpected Worker error',error);
       response = Response.json({ error: {
         code: known ? error.code : invalid ? 'VALIDATION_ERROR' : 'INTERNAL_ERROR',
         message: known ? error.message : invalid ? 'Check the submitted fields.' : 'The API could not complete this request.',
