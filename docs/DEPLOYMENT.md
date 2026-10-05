@@ -215,6 +215,8 @@ Determine whether one of these is explicitly safe:
 
 If no safe sequence exists, stop before production mutation and report the release blocker. A full-deployment request authorises the release, but it does not authorise guessing through an unsafe schema/application transition.
 
+The current Worker supports both schema 0009 and 0012. For the 0010–0012 transition, deploy the bridge-compatible current Worker first and verify health, create a fresh verified production export, then apply the unchanged ordered migrations. Redeploy the same release Worker after migration and verify health before dispatching Pages. Director detection is request-scoped; missing director reads as null and missing human_order means unswapped rotation. Turn swaps fail safely until 0011 exists.
+
 Where practical, migrations should be designed so future releases have a clear compatible sequence.
 
 ## Applying production migrations

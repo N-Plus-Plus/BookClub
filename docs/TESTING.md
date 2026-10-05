@@ -189,7 +189,7 @@ Vitest is configured in `vite.config.ts`, selecting `tests/**/*.test.ts`. No lin
 | API/auth/product | `api.test.ts`, `auth.test.ts`, `product-api.test.ts`, `domain-api.test.ts`, `frontend-api.test.ts` |
 | Providers/metadata | `providers.test.ts`, `ratings.test.ts`, `metadata.test.ts`, `bulk-maintenance.test.ts` (admin/scope/bounds, mixed History/Classics batches, six-signal persistence without persisted imputation, cached/direct TMDB and fresh OMDb fallback, metadata reuse, cooldown/quota suppression), `score-maintenance.test.ts` (fixed queue, sequential batches, Stop/failure/partial progress) |
 | Imports | `importer.test.ts`, `import-resolution.test.ts`, `import-io.test.ts`, `production-import.test.ts` |
-| Schema/environment | `migration.test.ts`, `dev-refresh.test.ts`, `dev-launch.test.ts`, `prod-check.test.ts`, `tmdb-pairings.test.ts`, `tmdb-merges.test.ts` |
+| Schema/environment | `schema-compatibility.test.ts` (0009/final-schema auth, reads, events, metadata writes, safe swaps and migration capability discovery), `migration.test.ts`, `dev-refresh.test.ts`, `dev-launch.test.ts`, `prod-check.test.ts`, `tmdb-pairings.test.ts`, `tmdb-merges.test.ts` |
 
 The local pairing/merge tests use disposable migrated D1 and mocked TMDB. They cover confirmed/corrected identities, survivor selection, ordered History/Builder appearances, Classics/seed evidence, score and Seen preservation, provenance/audit/fingerprints, unique ownership, rollback, raced state, receipt-based resume and cached response reuse. Rehearsing against a copied local emulator can additionally prove D1-specific parameter/authorisation limits; keep copied data/reports ignored and never use real providers for that rehearsal.
 

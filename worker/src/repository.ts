@@ -12,6 +12,12 @@ type WithMovie<T> = T & { movie_id: string };
 
 export class Repository {
   constructor(private db: D1Database) {}
+  // Repository instances are request-scoped; never retain an old schema across requests.
+  private directorCapability?: Promise<boolean>;
+  private hasDirector() {
+    return this.directorCapability ??= this.db.prepare('PRAGMA table_info(movies)').all<{name:string}>()
+      .then(result => result.results.some(column => column.name === 'director'));
+  }
   async searchMovies(query: string, tmdbIds: string[] = []): Promise<SavedSearchResult[]> {
     // Normalise whitespace in SQL before matching; return only identification fields.
     const rows = (await this.db.prepare(`WITH RECURSIVE titles(id,title,year,normal) AS (
@@ -31,10 +37,11 @@ export class Repository {
     return rows.filter(movie => normalizeTitle(movie.title).includes(term) || (movie.tmdbId !== null && identities.has(movie.tmdbId)));
   }
   async catalog(): Promise<Catalog> {
+    const director = await this.hasDirector();
     // D1 batch gives one consistent transactional read for the derived rankings.
     const result = await this.db.batch([
       this.db.prepare('SELECT id,display_name,sort_order,active,avatar FROM members ORDER BY sort_order,id'),
-      this.db.prepare('SELECT id,title,original_title,year,release_date,runtime,overview,director,tmdb_metadata_checked_at,tmdb_artwork_checked_at FROM movies ORDER BY title,id'),
+      this.db.prepare(`SELECT id,title,original_title,year,release_date,runtime,overview,${director ? 'director' : 'NULL AS director'},tmdb_metadata_checked_at,tmdb_artwork_checked_at FROM movies ORDER BY title,id`),
       this.db.prepare('SELECT movie_id,provider,asset_type,reference,width,height,preferred FROM movie_assets ORDER BY preferred DESC,id'),
       this.db.prepare('SELECT movie_id,provider,external_id FROM movie_external_ids'),
       this.db.prepare('SELECT movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via,upstream_updated_at,source_ref,source_ordinal,legacy_preferred FROM source_scores ORDER BY fetched_at,id'),
@@ -64,8 +71,9 @@ export class Repository {
     return { members, movies, sessions, cycles: rows<Cycle>(10) };
   }
   private async metadataRows(priority = true) {
+    const director = await this.hasDirector();
     const rows = (await this.db.prepare(`SELECT ${priority ? 'm.id,m.title,m.original_title,m.release_date,m.runtime,m.overview,' : ''}
-      m.director,m.tmdb_metadata_checked_at,m.tmdb_artwork_checked_at,
+      ${director ? 'm.director' : 'NULL AS director'},m.tmdb_metadata_checked_at,m.tmdb_artwork_checked_at,
       (SELECT external_id FROM movie_external_ids WHERE movie_id=m.id AND provider='tmdb') AS tmdb_id,
       ${priority ? '(SELECT json_group_array(genre) FROM movie_genres WHERE movie_id=m.id)' : "'[]'"} AS genres_json,
       EXISTS(SELECT 1 FROM movie_assets WHERE movie_id=m.id AND provider='tmdb' AND asset_type='poster') AS poster,
@@ -125,9 +133,10 @@ export class Repository {
   async importMovie(m: ProviderMovie): Promise<string> {
     // Persist the entire provider-neutral snapshot atomically; IDs enforce import safety.
     const id = crypto.randomUUID();
+    const director = await this.hasDirector();
     const checkedAt = m.external_ids.some(e => e.provider === 'tmdb') ? m.fetched_at : null;
-    const statements = [this.db.prepare('INSERT INTO movies(id,title,original_title,year,release_date,runtime,overview,director,tmdb_metadata_checked_at,tmdb_artwork_checked_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
-      .bind(id,m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview,m.director ?? null,checkedAt,checkedAt)];
+    const statements = [this.db.prepare(`INSERT INTO movies(id,title,original_title,year,release_date,runtime,overview,${director ? 'director,' : ''}tmdb_metadata_checked_at,tmdb_artwork_checked_at) VALUES(?,?,?,?,?,?,?,${director ? '?,' : ''}?,?)`)
+      .bind(id,m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview,...(director ? [m.director ?? null] : []),checkedAt,checkedAt)];
     statements.push(...m.external_ids.map(e => this.db.prepare('INSERT INTO movie_external_ids(movie_id,provider,external_id) VALUES(?,?,?)').bind(id,e.provider,e.external_id)));
     statements.push(...m.genres.map(g => this.db.prepare('INSERT INTO movie_genres(movie_id,genre) VALUES(?,?)').bind(id,g)));
     statements.push(...m.assets.map(a => this.db.prepare('INSERT INTO movie_assets(id,movie_id,provider,asset_type,reference,width,height,preferred,fetched_at) VALUES(?,?,?,?,?,?,?,?,?)')
@@ -148,10 +157,11 @@ export class Repository {
     await this.db.prepare('INSERT INTO provider_cooldowns(provider,retry_after_until,updated_at) VALUES(?,?,?) ON CONFLICT(provider) DO UPDATE SET retry_after_until=excluded.retry_after_until,updated_at=excluded.updated_at').bind(provider,until,now.toISOString()).run();
   }
   async enrichOmdbMetadata(id: string, imdbId: string, metadata: import('./providers/omdb').OmdbMetadata) {
+    const director = await this.hasDirector();
     const owner = await this.findExternal('imdb',imdbId);
     if (owner !== id) throw new ApiError(409,'IDENTITY_CONFLICT','Stored IMDb identity changed. Refresh before retrying.');
-    const statements = [this.db.prepare(`UPDATE movies SET year=COALESCE(?,year),runtime=COALESCE(?,runtime),director=COALESCE(?,director),updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND EXISTS(SELECT 1 FROM movie_external_ids WHERE movie_id=? AND provider='imdb' AND external_id=?)`)
-      .bind(metadata.year,metadata.runtime,metadata.director,id,id,imdbId)];
+    const statements = [this.db.prepare(`UPDATE movies SET year=COALESCE(?,year),runtime=COALESCE(?,runtime),${director ? 'director=COALESCE(?,director),' : ''}updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND EXISTS(SELECT 1 FROM movie_external_ids WHERE movie_id=? AND provider='imdb' AND external_id=?)`)
+      .bind(metadata.year,metadata.runtime,...(director ? [metadata.director] : []),id,id,imdbId)];
     if (metadata.genres.length) {
       statements.push(this.db.prepare('DELETE FROM movie_genres WHERE movie_id=?').bind(id));
       for (const genre of new Set(metadata.genres)) statements.push(this.db.prepare('INSERT INTO movie_genres(movie_id,genre) VALUES(?,?)').bind(id,genre));
@@ -171,7 +181,7 @@ export class Repository {
       if ((owner && owner !== id) || (knownImdb && knownImdb.external_id !== imdb.external_id))
         throw new ApiError(409,'IDENTITY_CONFLICT','IMDb identity conflicts with a canonical film. Owner reconciliation is required.');
     }
-    const statements = this.metadataStatements(id,m,captureScores);
+    const statements = this.metadataStatements(id,m,captureScores,await this.hasDirector());
     if (attachment) {
       // Fail the whole batch if provenance or identity changed since preflight.
       statements.unshift(this.db.prepare(`INSERT INTO movie_external_ids(movie_id,provider,external_id)
@@ -191,10 +201,10 @@ export class Repository {
   }
   // Internal batch builder: callers must validate identity/ownership before executing.
   // Also used inside the local canonical-merge transaction, from the same details response.
-  metadataStatements(id: string, m: ProviderMovie, captureScores = false): D1PreparedStatement[] {
+  metadataStatements(id: string, m: ProviderMovie, captureScores = false,director = true): D1PreparedStatement[] {
     const imdb = m.external_ids.find(e => e.provider === 'imdb');
-    const statements = [this.db.prepare(`UPDATE movies SET title=?,original_title=?,year=?,release_date=?,runtime=?,overview=?,director=?,tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?`)
-      .bind(m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview,m.director ?? null,m.fetched_at,m.fetched_at,id)];
+    const statements = [this.db.prepare(`UPDATE movies SET title=?,original_title=?,year=?,release_date=?,runtime=?,overview=?,${director ? 'director=?,' : ''}tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?`)
+      .bind(m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview,...(director ? [m.director ?? null] : []),m.fetched_at,m.fetched_at,id)];
     // Recheck ownership transactionally even when an identical ID is already stored.
     if (imdb) statements.push(this.db.prepare('INSERT INTO movie_external_ids(movie_id,provider,external_id) VALUES(?,?,?) ON CONFLICT(movie_id,provider) DO UPDATE SET external_id=CASE WHEN movie_external_ids.external_id=excluded.external_id THEN excluded.external_id ELSE NULL END')
       .bind(id,'imdb',imdb.external_id));

@@ -18,6 +18,7 @@ export class ProductRepository {
   private async batch(statements: D1PreparedStatement[]) {
     try { await this.db.batch(statements); }
     catch (error) {
+      if (/SWAP_REQUIRED/.test(String(error))) throw new ApiError(503,'SCHEMA_UPGRADE_REQUIRED','This host change requires the pending database upgrade. Try again after deployment.');
       if (/active_cycle_slot|sessions.cycle_id, sessions.cycle_slot/.test(String(error))) throw conflict('This turn already has an active History event in the selected cycle. Choose another turn or review History.');
       if (/BUILDER_CONFLICT|TURN_CONFLICT|HISTORY_CONFLICT|completed_turn_once|completed_turn_version|sessions.builder_id|club_rotation.id|FOREIGN KEY constraint failed/.test(String(error)))
         throw conflict('The record or current turn changed. Refresh before retrying.');
@@ -45,10 +46,13 @@ export class ProductRepository {
     return row;
   }
   async rotation(): Promise<Rotation | null> {
-    const row = await this.db.prepare('SELECT * FROM club_rotation WHERE id=1').first<Omit<Rotation,'human_order'> & {human_order:string}>();
-    return row ? {...row,human_order:JSON.parse(row.human_order) as Record<string,string>} : null;
+    const row = await this.db.prepare('SELECT * FROM club_rotation WHERE id=1').first<Omit<Rotation,'human_order'> & {human_order?:string}>();
+    return row ? {...row,human_order:JSON.parse(row.human_order ?? '{}') as Record<string,string>} : null;
   }
   async swapRotation(actor: Viewer, input: {target_member_id: string; version: number}) {
+    const columns = await this.db.prepare('PRAGMA table_info(club_rotation)').all<{name:string}>();
+    if (!columns.results.some(column => column.name === 'human_order'))
+      throw new ApiError(503,'SCHEMA_UPGRADE_REQUIRED','Turn swaps require the pending database upgrade. Try again after deployment.');
     const before = await this.rotation();
     if (!before || before.version !== input.version) throw conflict('Current turn changed. Reload before swapping.');
     const members = (await this.db.prepare('SELECT * FROM members').all<Member>()).results;
