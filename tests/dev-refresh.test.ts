@@ -1,18 +1,90 @@
 import { describe,it,expect } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
-import { copySnapshot, restoreExport, sanitise, sourceIdentity, validateConfig, validateIdentity, verifyForeignKeys } from '../scripts/dev/snapshot.ts';
+import { copySnapshot, maintenanceSchemas, restoreExport, safeSnapshotError, sanitise, sourceIdentity, validateConfig, validateIdentity, verifyForeignKeys } from '../scripts/dev/snapshot.ts';
 import { allowedRefreshRequest } from '../scripts/dev/request-policy.ts';
 import { authenticate } from '../worker/src/auth';
 import type { Env } from '../worker/src/http';
 
 const config = JSON.parse(readFileSync('worker/wrangler.jsonc','utf8'));
-function database() {
+function database(lastMigration = '0012') {
   const db = new DatabaseSync(':memory:');
-  for (const file of readdirSync('worker/migrations').sort()) db.exec(readFileSync(`worker/migrations/${file}`,'utf8'));
+  for (const file of readdirSync('worker/migrations').filter(file => file.slice(0,4) <= lastMigration).sort()) db.exec(readFileSync(`worker/migrations/${file}`,'utf8'));
   return db;
 }
 describe('production to local refresh safety',() => {
+  it('copies the reviewed 0009 schema into 0012, retiring event text and retaining migration defaults',() => {
+    const source = database('0009'), target = database('0012');
+    try {
+      source.exec("INSERT INTO members(id,display_name,sort_order) VALUES('m','Fixture',1); INSERT INTO movies(id,title) VALUES('film','Film title'); INSERT INTO club_rotation(id,nominal_slot,version) VALUES(1,1,7); INSERT INTO sessions(id,event_date,kind,date_precision,host_member_id,title,notes,swap_note) VALUES('event','2026-01-01','hosted','exact','m','Retired title','Retired notes','Retired swap'); INSERT INTO session_movies VALUES('event','film',1)");
+      const changes = {before:{title:'Old',notes:null,swap_note:'Old swap',eventDate:'2025-12-31',movies:[{title:'Film title'}]},after:{title:'New',notes:'New notes',swap_note:null,eventDate:'2026-01-01'},reason:'preserved'};
+      source.prepare("INSERT INTO history_audit(id,session_id,actor_member_id,action,changes_json) VALUES('audit','event','m','edit',?)").run(JSON.stringify(changes));
+      const untouched = '{"after":{"eventDate":"2026-01-01"}}';
+      source.prepare("INSERT INTO history_audit(id,session_id,actor_member_id,action,changes_json) VALUES('untouched','event','m','edit',?)").run(untouched);
+      copySnapshot(source,target);
+      const event = target.prepare('SELECT * FROM sessions').get()!;
+      expect(event.id).toBe('event');
+      for (const column of ['title','notes','swap_note']) expect(event).not.toHaveProperty(column);
+      expect(target.prepare('SELECT * FROM session_movies').all()).toEqual(source.prepare('SELECT * FROM session_movies').all());
+      expect(target.prepare('SELECT title,director FROM movies').get()).toEqual({title:'Film title',director:null});
+      expect(target.prepare('SELECT human_order,version FROM club_rotation').get()).toEqual({human_order:'{}',version:7});
+      expect(JSON.parse(String(target.prepare("SELECT changes_json FROM history_audit WHERE id='audit'").get()!.changes_json))).toEqual({before:{eventDate:'2025-12-31',movies:[{title:'Film title'}]},after:{eventDate:'2026-01-01'},reason:'preserved'});
+      expect(target.prepare("SELECT changes_json FROM history_audit WHERE id='untouched'").get()!.changes_json).toBe(untouched);
+      expect(source.prepare("SELECT changes_json FROM history_audit WHERE id='audit'").get()!.changes_json).toBe(JSON.stringify(changes));
+      verifyForeignKeys(target);
+    } finally {source.close();target.close();}
+  });
+  it('rejects unreviewed source columns even alongside retired columns and rolls back the destination',() => {
+    for (const [table,column] of [['sessions','unexpected'],['movies','notes']]) {
+      const source = database('0009'), target = database('0012');
+      try {
+        source.exec(`ALTER TABLE ${table} ADD COLUMN ${column} TEXT`);
+        target.exec("INSERT INTO movies(id,title,director) VALUES('existing','Keep me','Existing director')");
+        const triggers = target.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all();
+        expect(() => copySnapshot(source,target)).toThrow(`Source columns incompatible: ${table}.`);
+        expect(target.prepare('SELECT id,title,director FROM movies').all()).toEqual([{id:'existing',title:'Keep me',director:'Existing director'}]);
+        expect(target.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all()).toEqual(triggers);
+        expect(target.prepare('PRAGMA foreign_keys').get()!.foreign_keys).toBe(1);
+      } finally {source.close();target.close();}
+    }
+  });
+  it('preserves reviewed production maintenance journals and receipts outside the migration ledger',() => {
+    const source = database('0009'), target = database();
+    try {
+      for (const sql of Object.values(maintenanceSchemas)) source.exec(sql);
+      source.exec("INSERT INTO movies(id,title) VALUES('survivor','Fixture'); INSERT INTO movie_identity_operations(operation_key,manifest_hash,sql_hash) VALUES('operation','manifest-hash','sql-hash'); INSERT INTO movie_identity_merge_receipts(source_movie_id,survivor_movie_id,tmdb_id,operation_hash,snapshot_json) VALUES('removed','survivor','123','operation-hash','{\"movies\":[]}'); INSERT INTO movie_identity_removal_receipts(source_movie_id,operation_hash,snapshot_json) VALUES('deleted','operation-hash','{}')");
+      const result = copySnapshot(source,target);
+      for (const table of Object.keys(maintenanceSchemas)) {
+        expect(target.prepare(`SELECT * FROM ${table}`).all()).toEqual(source.prepare(`SELECT * FROM ${table}`).all());
+        expect(result.localCounts[table]).toBe(1);
+      }
+      verifyForeignKeys(target);
+    } finally {source.close();target.close();}
+  });
+  it('rejects drift in reviewed maintenance tables and rolls back their creation',() => {
+    for (const table of Object.keys(maintenanceSchemas)) {
+      const source = database(), target = database();
+      try {
+        source.exec(maintenanceSchemas[table]);
+        source.exec(`ALTER TABLE ${table} ADD COLUMN unexpected TEXT`);
+        target.exec("INSERT INTO movies(id,title) VALUES('existing','Keep me')");
+        expect(() => copySnapshot(source,target)).toThrow(`Source columns incompatible: ${table}.`);
+        expect(target.prepare("SELECT name FROM sqlite_master WHERE name=?").get(table)).toBeUndefined();
+        expect(target.prepare('SELECT id FROM movies').all()).toEqual([{id:'existing'}]);
+      } finally {source.close();target.close();}
+    }
+  });
+  it('reports restore and copy operations while suppressing private error details',() => {
+    const source = database(), target = database();
+    try {
+      expect(safeSnapshotError(new Error('CHECK constraint failed: private row text'))).toBe('CHECK constraint failed');
+      expect(safeSnapshotError(new Error('private SQL or credentials'))).toBe('details suppressed');
+      expect(() => restoreExport(source,"SELECT nonexistent('private value')")).toThrow(/restoreExport \/ execute exported SQL: ERR_SQLITE_ERROR/);
+      source.exec("INSERT INTO members(id,display_name) VALUES('M','Fixture one'),('m','Fixture two'); INSERT INTO member_auth(member_id,authorized_email) VALUES('M','one@example.invalid'),('m','two@example.invalid')");
+      expect(() => copySnapshot(source,target)).toThrow('copySnapshot / destination table member_auth / insert sanitised rows: UNIQUE constraint failed');
+      expect(target.prepare('SELECT * FROM members').all()).toEqual([]);
+    } finally {source.close();target.close();}
+  });
   it('locks source and destination to exact identities, refusing remote binding',() => {
     validateConfig(config); validateIdentity({uuid:sourceIdentity.database_id,name:sourceIdentity.database_name});
     for (const mutate of [(c:any) => c.d1_databases[0].database_id='wrong',(c:any) => c.d1_databases[0].database_name='other',(c:any) => c.env.local.d1_databases[0].database_id=sourceIdentity.database_id,(c:any) => c.env.local.d1_databases[0].remote=true,(c:any) => c.env.local.vars.APP_ENV='production',(c:any) => c.env.local.vars.LOCAL_WRITE_BYPASS='false']) {

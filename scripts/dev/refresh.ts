@@ -4,7 +4,7 @@ import { readFile, mkdir, mkdtemp, readdir, rename, rm, open } from 'node:fs/pro
 import { resolve, dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { wranglerInvocation } from '../import/production-remote.ts';
-import { copySnapshot, restoreExport, validateIdentity } from './snapshot.ts';
+import { copySnapshot, restoreExport, safeSnapshotError, validateIdentity } from './snapshot.ts';
 
 import {activeState, guardedPath, configuration, portOpen} from './local-context.ts';
 export async function command(args: string[]) {
@@ -59,8 +59,9 @@ export async function refresh(options: {progress?: (message: string) => void; st
     const source = new DatabaseSync(':memory:');
     const target = new DatabaseSync(await sqliteFile(resolve(persistence,'v3/d1')));
     let result;
-    try { restoreExport(source,sql); result = copySnapshot(source,target); target.exec('PRAGMA wal_checkpoint(TRUNCATE)'); }
-    catch {throw new Error('Snapshot restore/sanitisation failed. Check schema compatibility and data integrity; existing local state preserved. Private SQL details suppressed.');}
+    let operation = 'restoreExport';
+    try { restoreExport(source,sql); operation = 'copySnapshot'; result = copySnapshot(source,target); operation = 'destination WAL checkpoint'; target.exec('PRAGMA wal_checkpoint(TRUNCATE)'); }
+    catch (error) {throw new Error(`Snapshot restore/sanitisation failed at ${operation}: ${safeSnapshotError(error)}. Existing local state preserved; private SQL details suppressed.`);}
     finally {source.close(); target.close(); await rm(exportFile,{force:true});}
     // Verify the actual local emulator/API/domain path before replacing active state.
     progress('Verifying local catalog, History, Metrics, Watch Order and Builder…');
