@@ -14,7 +14,7 @@ try {
  assert(base);
  const makeFilm=(id,title)=>({...structuredClone(base),id,title,original_title:null,overview:null,genres:[],assets:[],scores:[],seen:[],external_ids:[{provider:'imdb',external_id:'tt1234567'}],classic:true,appearances:[]});
  let a,b,seenFail,memberFail,scoreFail,loadFail,bulkFail;
- let detailLoads=0,seenGate=null;
+ let detailLoads=0,seenGate=null,heldOperation=null;
  const seenRequests=[],membershipRequests=[],scoreRequests=[],pageErrors=[],checks=[];
  const providers=(message)=>[{provider:'mdblist',status:'success',count:0,message}];
  let candidateResults={};
@@ -23,6 +23,7 @@ try {
  await context.addInitScript(id=>localStorage.setItem('bookclub.dev-member',id),viewer.id);
  await context.route('**/api/v1/**',async route=>{
   const request=route.request(),path=new URL(request.url()).pathname,method=request.method();
+  if(heldOperation && path.includes(heldOperation.path)) await heldOperation.wait;
   const ok=data=>route.fulfill({json:{data}}),fail=message=>route.fulfill({status:503,json:{error:{message}}});
   if(path.endsWith('/health')) return ok(health);
   if(path.endsWith('/catalog')) return ok({members,movies:[a,b],sessions:[],cycles:[]});
@@ -63,13 +64,34 @@ try {
  await context.route('**/*',route=>['localhost','127.0.0.1'].includes(new URL(route.request().url()).hostname)?route.fallback():route.abort());
  const page=await context.newPage();page.on('pageerror',error=>pageErrors.push(error.message));
  const shot=async(width,state)=>{await page.screenshot({path:`.verification/feedback-${width}-${state}.png`,fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${width} ${state}: overflow`);checks.push({width,state});};
- const openMaintenance=()=>page.getByText('Classics membership & score maintenance',{exact:true}).click();
+ const openMaintenance=async()=>{
+  const summary=page.getByText('Classics membership & score maintenance',{exact:true});
+  if(!await summary.evaluate(element=>element.parentElement.open)) await summary.click();
+ };
+ // Hold the intercepted response so every busy label is checked in flight.
+ const checkBusy=async(operation,path,click)=>{
+  await openMaintenance();
+  let release;heldOperation={path,wait:new Promise(resolve=>{release=resolve;})};
+  try {
+   await click();
+   await page.waitForFunction(()=>document.querySelector('#classics-membership-action')?.disabled);
+   assert.equal(await page.locator('#classics-membership-action').innerText(),operation==='membership'?'Updating membership…':a.classic?'Remove from Classics':'Add to Classics');
+   assert.equal(await page.getByRole('button',{name:'Working…',exact:true}).count(),operation==='scores'?1:0);
+   const scoreButton=page.getByRole('button',{name:operation==='scores'?'Working…':'Refresh scores',exact:true});
+   assert(await scoreButton.isDisabled());
+   assert(await page.locator('.member-state .button-set button').evaluateAll(buttons=>buttons.every(button=>button.disabled)));
+   assert(await page.locator('.member-state .button-set button').evaluateAll(buttons=>buttons.every(button=>['Yes','No','Unknown'].includes(button.textContent.trim()))));
+   assert.equal(await page.getByText('Reloading saved film data…',{exact:true}).count(),operation==='reload'?1:0);
+   const savedCheck=page.getByRole('button',{name:'Check saved film data',exact:true});
+   if(await savedCheck.count()) assert(await savedCheck.isDisabled());
+  } finally {heldOperation=null;release();}
+ };
  for(const width of [320,390,720,768,1024,1440]) {
   reset();await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/movie/feedback-a');
   await page.getByRole('heading',{name:a.title,exact:true}).waitFor();
   assert(await page.getByText('No overview available yet.',{exact:true}).isVisible());await shot(width,'loaded');
   const row=page.locator('.member-state').first(),name=members[0].display_name.toUpperCase(),before=detailLoads;
-  await row.getByRole('button',{name:`Set ${name} to Yes`,exact:true}).click();
+  await checkBusy('seen','/seen/',()=>row.getByRole('button',{name:`Set ${name} to Yes`,exact:true}).click());
   await row.getByText(/Could not save Yes/).waitFor();
   assert.equal(await row.getByRole('button',{name:`Set ${name} to Unknown`,exact:true}).getAttribute('aria-pressed'),'true');
   assert(await page.getByRole('heading',{name:a.title,exact:true}).isVisible());
@@ -100,14 +122,14 @@ try {
    assert(await otherFocus.evaluate(element=>element===document.activeElement));seenGate=null;
   }
   await openMaintenance();const maintenance=page.locator('details').filter({has:page.getByText('Classics membership & score maintenance',{exact:true})});
-  await maintenance.getByRole('button',{name:'Remove from Classics',exact:true}).click();await maintenance.getByText(/membership change could not be confirmed/).waitFor();
+  await checkBusy('membership','/classics',()=>maintenance.getByRole('button',{name:'Remove from Classics',exact:true}).click());await maintenance.getByText(/membership change could not be confirmed/).waitFor();
   assert.equal(await page.locator('.refresh-failure').count(),0);assert.equal(await row.getByRole('alert').count(),0);await shot(width,'membership-failure');
   memberFail=false;await maintenance.getByRole('button',{name:'Retry removing from Classics',exact:true}).click();await maintenance.getByText('Removed from Classics.',{exact:true}).waitFor();
   assert.deepEqual(membershipRequests.slice(-2),[{classic:false},{classic:false}]);await shot(width,'membership-retry-success');
-  await maintenance.getByRole('button',{name:'Refresh scores',exact:true}).click();await maintenance.getByText(/Score refresh result could not be confirmed/).waitFor();
+  await checkBusy('scores','/refresh-scores',()=>maintenance.getByRole('button',{name:'Refresh scores',exact:true}).click());await maintenance.getByText(/Score refresh result could not be confirmed/).waitFor();
   assert.equal(await page.locator('.refresh-failure').count(),0);assert(await page.getByRole('heading',{name:a.title,exact:true}).isVisible());
   assert.equal(await maintenance.getByRole('button',{name:/Retry.*scores/}).count(),0);await shot(width,'score-failure');
-  const scoresBefore=scoreRequests.length;loadFail=true;await maintenance.getByRole('button',{name:'Check saved film data',exact:true}).click();await maintenance.getByText('Fixture detail unavailable.',{exact:true}).waitFor();
+  const scoresBefore=scoreRequests.length;loadFail=true;await checkBusy('reload','/movies/feedback-a',()=>maintenance.getByRole('button',{name:'Check saved film data',exact:true}).click());await maintenance.getByText('Fixture detail unavailable.',{exact:true}).waitFor();
   assert(await page.getByRole('heading',{name:a.title,exact:true}).isVisible());loadFail=false;
   await maintenance.getByRole('button',{name:'Retry saved film data reload',exact:true}).click();await maintenance.getByText(/Saved film data reloaded/).waitFor();assert.equal(scoreRequests.length,scoresBefore);
   scoreFail=false;await maintenance.getByRole('button',{name:'Refresh scores',exact:true}).click();await maintenance.getByText(/Fixture score check complete/).waitFor();
