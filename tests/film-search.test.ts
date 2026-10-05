@@ -37,7 +37,7 @@ describe('shared film title matching',() => {
 
 describe('search, preview and Event API',() => {
   let local: ReturnType<typeof disposableD1>, repo: Repository, env: Env;
-  const call = (path: string,method='GET',input?: unknown) => worker.fetch(new Request(`http://api/api/v1${path}`,{method,...(input ? {body:JSON.stringify(input)} : {})}),env);
+  const call = (path: string,method='GET',input?: unknown,member?: string) => worker.fetch(new Request(`http://api/api/v1${path}`,{method,...(member ? {headers:{'X-BookClub-Dev-Member':member}} : {}),...(input ? {body:JSON.stringify(input)} : {})}),env);
   const payload = async <T>(response: Response) => { expect(response.status,await response.clone().text()).toBeLessThan(300); return (await response.json() as {data:T}).data; };
   beforeEach(() => {
     local = disposableD1(); local.sqlite.exec(readFileSync('worker/seed.sql','utf8')); repo = new Repository(local.db);
@@ -98,8 +98,8 @@ describe('search, preview and Event API',() => {
   it('derives Classics and preserves historical host/kind even after deactivation',async () => {
     const created = await payload<Session>(await call('/sessions','POST',{event_date:'2030-01-01',host_member_id:'member-1',movie_ids:['moon']}));
     expect(created).toMatchObject({kind:'classics',host_member_id:null});
-    local.sqlite.exec("UPDATE members SET active=0 WHERE id='member-2'");
-    const corrected = await payload<Session>(await call('/sessions/demo-2','PUT',{event_date:'2026-09-19',kind:'classics',host_member_id:null,cycle_id:'demo-cycle-a',cycle_slot:2,date_precision:'cycle_rough',movie_ids:['moon']}));
+    local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-1'; UPDATE members SET active=0 WHERE id='member-2'");
+    const corrected = await payload<Session>(await call('/sessions/demo-2','PUT',{event_date:'2026-09-19',kind:'classics',host_member_id:null,cycle_id:'demo-cycle-a',cycle_slot:2,date_precision:'cycle_rough',movie_ids:['moon']},'member-1'));
     expect(corrected).toMatchObject({kind:'hosted',host_member_id:'member-2'});
   });
   it('shares the client host derivation and rejects missing rotation',() => {
