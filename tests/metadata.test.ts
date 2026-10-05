@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { disposableD1 } from './d1';
 import { Repository } from '../worker/src/repository';
 import { MovieService, TMDB_METADATA_REFRESH_DAYS, tmdbMetadataIsStale } from '../worker/src/services';
-import { metadataCandidate, metadataGaps, tmdbIdentity } from '../shared/metadata';
+import { metadataCandidate, metadataGaps, metadataQueue, tmdbIdentity } from '../shared/metadata';
 import { hashToken } from '../worker/src/auth';
 import worker from '../worker/src/index';
+import { maintainMetadata } from '../frontend/metadata-maintenance';
 import type { Env } from '../worker/src/http';
 import type { MetadataEnrichment } from '../shared/types';
 let local:ReturnType<typeof disposableD1>,repo:Repository,service:MovieService,env:Env;
@@ -199,3 +200,95 @@ describe('bounded existing-film metadata enrichment',()=>{
 });
 
 it('missing director stays eligible after a recent complete metadata check',async()=>{ local.sqlite.prepare("UPDATE movies SET tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=? WHERE id='arrival'").run(new Date().toISOString(),new Date().toISOString()); expect((await repo.metadataCandidates(10)).map(m=>m.id)).toContain('arrival'); vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(details()))); await service.enrichMetadata(10); expect((await service.detail('arrival')).director).toBe('Fictional Director'); expect((await repo.metadataCandidates(10)).map(m=>m.id)).not.toContain('arrival'); });
+
+describe('selected-ID metadata maintenance',()=>{
+  const selected=(movie_ids:unknown)=>worker.fetch(new Request('http://api/api/v1/movies/enrich-metadata-selected',{method:'POST',headers:{Authorization:`Bearer ${token}`},body:JSON.stringify({movie_ids})}),env);
+  it('reads only selected metadata relationships and never selects or counts the global library',async()=>{
+    const forbidden = ['catalog','metadataCandidates','metadataCounts'] as const;
+    const spies = forbidden.map(key=>vi.spyOn(Repository.prototype,key).mockImplementation(async()=>{throw Error('Global read forbidden');}));
+    const prepare=vi.spyOn(local.db,'prepare');const fetch=vi.fn().mockResolvedValue(Response.json(details()));vi.stubGlobal('fetch',fetch);
+    try {
+      const res=await selected(['arrival']);expect(res.status).toBe(200);
+      const data=(await res.json() as {data:unknown}).data;
+      expect(data).toEqual({results:[expect.objectContaining({movieId:'arrival',status:'success'})]});
+      expect(spies.every(spy=>spy.mock.calls.length===0)).toBe(true);
+      const reads=prepare.mock.calls.map(([sql])=>sql).filter(sql=>/^SELECT/.test(sql));
+      expect(reads.some(sql=>/FROM movies WHERE id IN \(\?\)/.test(sql))).toBe(true);
+      for(const table of ['movie_external_ids','movie_assets','movie_genres']) expect(reads.some(sql=>sql.includes(`FROM ${table} WHERE movie_id IN (?)`))).toBe(true);
+      expect(reads.filter(sql=>/FROM (movies|movie_external_ids|movie_assets|movie_genres)\b/.test(sql)).every(sql=>/WHERE (id|movie_id|provider)=|WHERE (id|movie_id) IN/.test(sql))).toBe(true);
+      expect(fetch).toHaveBeenCalledOnce();
+    } finally {spies.forEach(spy=>spy.mockRestore());prepare.mockRestore();}
+  });
+  it.each([{ids:[]},{ids:['arrival','alien','moon']},{ids:['bad/id']}])('rejects invalid or oversized selection %j',async ({ids})=>{
+    const fetch=vi.fn();vi.stubGlobal('fetch',fetch);expect((await selected(ids)).status).toBe(422);expect(fetch).not.toHaveBeenCalled();
+  });
+  it('rejects missing films and reports invalid stored identities without provider calls',async()=>{
+    const fetch=vi.fn();vi.stubGlobal('fetch',fetch);
+    expect((await selected(['missing'])).status).toBe(422);
+    local.sqlite.exec("UPDATE movie_external_ids SET external_id='invalid' WHERE movie_id='arrival' AND provider='tmdb'");
+    expect(await (await selected(['arrival'])).json()).toMatchObject({data:{results:[{status:'failed',message:expect.stringContaining('identity')}]}});
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('is admin only',async()=>{
+    vi.stubGlobal('fetch',vi.fn());local.sqlite.exec("UPDATE members SET role='member' WHERE id='member-1'");
+    expect((await selected(['arrival'])).status).toBe(403);expect(fetch).not.toHaveBeenCalled();
+    expect((await worker.fetch(new Request('http://api/api/v1/movies/enrich-metadata-selected',{method:'POST',body:'{}'}),env)).status).toBe(401);
+  });
+  it('rechecks freshly completed films and deduplicates IDs',async()=>{
+    local.sqlite.prepare("UPDATE movies SET director='Director',tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=? WHERE id='arrival'").run(new Date().toISOString(),new Date().toISOString());
+    const fetch=vi.fn();vi.stubGlobal('fetch',fetch);
+    expect(await service.enrichMetadataSelected(['arrival','arrival'])).toMatchObject({results:[{movieId:'arrival',status:'skipped'}]});expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each(['unchecked','stale','director','artwork'])('retains %s eligibility',async rule=>{
+    const fresh=new Date().toISOString();
+    local.sqlite.prepare("UPDATE movies SET director='Director',tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=? WHERE id='arrival'").run(fresh,fresh);
+    if(rule==='unchecked') local.sqlite.exec("UPDATE movies SET tmdb_metadata_checked_at=NULL WHERE id='arrival'");
+    if(rule==='stale') local.sqlite.exec("UPDATE movies SET tmdb_metadata_checked_at='2000-01-01' WHERE id='arrival'");
+    if(rule==='director') local.sqlite.exec("UPDATE movies SET director=' ' WHERE id='arrival'");
+    if(rule==='artwork') local.sqlite.exec("UPDATE movies SET tmdb_artwork_checked_at=NULL WHERE id='arrival'; DELETE FROM movie_assets WHERE movie_id='arrival'");
+    const fetch=vi.fn().mockResolvedValue(Response.json(details()));vi.stubGlobal('fetch',fetch);
+    expect(await service.enrichMetadataSelected(['arrival'])).toMatchObject({results:[{status:'success'}]});expect(fetch).toHaveBeenCalledOnce();
+    expect(await service.enrichMetadataSelected(['arrival'])).toMatchObject({results:[{status:'skipped'}]});expect(fetch).toHaveBeenCalledOnce();
+  });
+  it('retains identity conflict and check markers',async()=>{
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(details(329865,'tt9999999'))));
+    const before=local.sqlite.prepare("SELECT tmdb_metadata_checked_at,tmdb_artwork_checked_at FROM movies WHERE id='arrival'").get();
+    expect(await service.enrichMetadataSelected(['arrival'])).toMatchObject({results:[{status:'conflict'}]});
+    expect(local.sqlite.prepare("SELECT tmdb_metadata_checked_at,tmdb_artwork_checked_at FROM movies WHERE id='arrival'").get()).toEqual(before);
+  });
+  it('halts on provider rate limit and persists cooldown without requesting the second film',async()=>{
+    local.sqlite.exec("INSERT INTO movie_external_ids(movie_id,provider,external_id) VALUES('alien','tmdb','348')");
+    const fetch=vi.fn().mockResolvedValue(new Response('',{status:429,headers:{'Retry-After':'60'}}));vi.stubGlobal('fetch',fetch);
+    expect(await service.enrichMetadataSelected(['arrival','alien'])).toMatchObject({results:[{movieId:'arrival',status:'failed',retryAfter:60}]});
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(await service.enrichMetadataSelected(['alien'])).toMatchObject({results:[{status:'failed',retryAfter:expect.any(Number)}]});expect(fetch).toHaveBeenCalledOnce();
+  });
+});
+
+it('a 980-film run builds one catalogue queue then performs 490 selected metadata reads',async()=>{
+  const insert=local.sqlite.prepare('INSERT INTO movies(id,title) VALUES(?,?)'),identity=local.sqlite.prepare("INSERT INTO movie_external_ids(movie_id,provider,external_id) VALUES(?,'tmdb',?)");
+  for(let i=0;i<980;i++){const id=`load-${String(i).padStart(4,'0')}`;insert.run(id,'Fictional load test');identity.run(id,String(10000+i));}
+  const catalog=vi.spyOn(repo,'catalog');const queue=metadataQueue((await repo.catalog()).movies.filter(m=>m.id.startsWith('load-')));
+  catalog.mockRejectedValue(Error('Global catalogue forbidden during batches'));
+  const candidates=vi.spyOn(repo,'metadataCandidates').mockRejectedValue(Error('Global selection forbidden'));
+  const counts=vi.spyOn(repo,'metadataCounts').mockRejectedValue(Error('Global counts forbidden'));
+  const selected=vi.spyOn(repo,'selectedMetadataMovies');const prepare=vi.spyOn(local.db,'prepare');
+  const fetch=vi.fn(async(url:string)=>Response.json(details(Number(url.match(/movie\/(\d+)/)![1]),'')));vi.stubGlobal('fetch',fetch);
+  vi.useFakeTimers();
+  try {
+    const pending=maintainMetadata({ids:queue,unidentified:0,batch:ids=>service.enrichMetadataSelected(ids),stopped:()=>false,progress:async()=>{}});
+    await vi.runAllTimersAsync();expect(await pending).toMatchObject({processed:980,updated:980,remaining:0});
+    expect(catalog).toHaveBeenCalledOnce();expect(candidates).not.toHaveBeenCalled();expect(counts).not.toHaveBeenCalled();
+    expect(selected).toHaveBeenCalledTimes(490);expect(selected.mock.calls.flatMap(([ids])=>ids)).toEqual(queue);
+    expect(selected.mock.calls.every(([ids])=>ids.length===2)).toBe(true);
+    const reads=prepare.mock.calls.map(([sql])=>sql).filter(sql=>/^SELECT/.test(sql));
+    for(const table of ['movies','movie_external_ids','movie_assets','movie_genres']) {
+      const batchReads=reads.filter(sql=>sql.includes(`FROM ${table} WHERE`) && sql.includes(' IN '));
+      expect(batchReads).toHaveLength(490);expect(batchReads.every(sql=>sql.includes('IN (?,?)'))).toBe(true);
+      const sql=batchReads[0];
+      const plan=local.sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all('load-0000','load-0001').map(row=>String(row.detail)).join(' ');
+      expect(plan).toContain('SEARCH');expect(plan).not.toMatch(/SCAN (movies|movie_external_ids|movie_assets|movie_genres)/);
+    }
+    expect(fetch).toHaveBeenCalledTimes(980);
+  } finally {vi.useRealTimers();catalog.mockRestore();candidates.mockRestore();counts.mockRestore();selected.mockRestore();prepare.mockRestore();}
+});

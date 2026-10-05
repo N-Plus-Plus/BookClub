@@ -91,3 +91,23 @@ it('hydrates compact references and falls back only when an older Worker lacks t
   expect(fetch.mock.calls[1][0]).toMatch(/catalog\/compact$/);expect(fetch.mock.calls[2][0]).toMatch(/catalog$/);
   fetch.mockResolvedValueOnce(Response.json({error:{message:'Database unavailable.'}},{status:500}));await expect(api.catalog()).rejects.toMatchObject({status:500});expect(fetch).toHaveBeenCalledTimes(4);
 });
+
+it.each([404,405,501])('falls back to legacy TMDB metadata only for unavailable selected route (%s)',async status=>{
+  vi.stubEnv('DEV',true);
+  const fetch=vi.fn().mockResolvedValueOnce(new Response('Older Worker',{status})).mockResolvedValueOnce(Response.json({data:{results:[],remaining:0,unidentified:4}}));vi.stubGlobal('fetch',fetch);
+  const {api}=await import('../frontend/api'); await api.enrichMetadataSelected(['one','two']);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(fetch.mock.calls[0][0]).toContain('/movies/enrich-metadata-selected');
+  expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({movie_ids:['one','two']});
+  expect(fetch.mock.calls[1][0]).toMatch(/\/movies\/enrich-metadata$/);
+  expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({limit:2});
+});
+it.each([401,403,409,422,429,500,503])('does not fall back after selected metadata error %s',async status=>{
+  vi.stubEnv('DEV',true);const fetch=vi.fn().mockResolvedValue(Response.json({error:{message:'Failed'}},{status}));vi.stubGlobal('fetch',fetch);
+  const {api}=await import('../frontend/api');await expect(api.enrichMetadataSelected(['one'])).rejects.toMatchObject({status});expect(fetch).toHaveBeenCalledOnce();
+});
+it('normal selected metadata requests never invoke the legacy route',async()=>{
+  vi.stubEnv('DEV',true);const fetch=vi.fn(async(_url:string)=>Response.json({data:{results:[]}}));vi.stubGlobal('fetch',fetch);
+  const {api}=await import('../frontend/api');await api.enrichMetadataSelected(['one']);await api.enrichMetadataSelected(['two']);
+  expect(fetch.mock.calls.every(call=>call[0].endsWith('/movies/enrich-metadata-selected'))).toBe(true);
+});

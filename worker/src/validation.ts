@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { METADATA_MAINTENANCE_BATCH_SIZE } from '../../shared/score-maintenance';
 
 export const idSchema = z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/);
 export const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
@@ -25,6 +26,7 @@ export const sessionSchema = z.object({
 });
 export const classicSchema = z.object({classic: z.boolean()}).strict();
 export const maintenanceSchema = z.object({mode: z.enum(['missing','refresh','metadata']), movie_ids: z.array(idSchema).min(1).max(10)}).strict();
+export const selectedMetadataSchema = z.object({movie_ids: z.array(idSchema).min(1).max(METADATA_MAINTENANCE_BATCH_SIZE)}).strict();
 export const enrichmentSchema = z.object({limit: z.number().int().min(1).max(10).default(10)}).strict();
 export const seenSchema = z.object({ seen: z.boolean().nullable() }).strict();
 export const importSchema = z.object({ provider: z.literal('tmdb'), externalId: z.string().regex(/^[1-9]\d{0,9}$/) }).strict();

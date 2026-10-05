@@ -171,6 +171,30 @@ export class Repository {
     return {candidateIds:[...new Set(rows.filter(r => r.available !== 0).map(r => r.id))],eligibleDimensions:rows.filter(r => r.available !== 0).length,
       unavailableDimensions:rows.filter(r => r.available === 0).length,unavailableFilms:new Set(rows.filter(r => r.available === 0).map(r => r.id)).size};
   }
+  /** Metadata-only indexed reads; no scores, roster, History or global eligibility query. */
+  async selectedMetadataMovies(ids: string[]): Promise<MetadataMovie[]> {
+    if (!ids.length) return [];
+    const marks = ids.map(() => '?').join(','), director = await this.hasDirector();
+    const result = await this.db.batch([
+      this.db.prepare(`SELECT id,title,original_title,release_date,runtime,overview,${director ? 'director' : 'NULL AS director'},tmdb_metadata_checked_at,tmdb_artwork_checked_at FROM movies WHERE id IN (${marks})`).bind(...ids),
+      this.db.prepare(`SELECT movie_id,provider,external_id FROM movie_external_ids WHERE movie_id IN (${marks})`).bind(...ids),
+      this.db.prepare(`SELECT movie_id,provider,asset_type,reference,width,height,preferred FROM movie_assets WHERE movie_id IN (${marks}) AND provider='tmdb' AND asset_type IN ('poster','backdrop')`).bind(...ids),
+      this.db.prepare(`SELECT movie_id,genre FROM movie_genres WHERE movie_id IN (${marks}) ORDER BY genre`).bind(...ids),
+    ]);
+    const identities = groupMovies(result[1].results as WithMovie<ExternalId>[]);
+    const assets = groupMovies(result[2].results as WithMovie<Asset>[]);
+    const genres = groupMovies(result[3].results as {movie_id:string;genre:string}[]);
+    const movies = new Map((result[0].results as Omit<MetadataMovie,'assets'|'external_ids'|'genres'>[]).map(movie => [movie.id,{
+      ...movie,external_ids:identities.get(movie.id) ?? [],
+      assets:assets.get(movie.id) ?? [],genres:(genres.get(movie.id) ?? []).map(g => g.genre),
+    }]));
+    return ids.map(id => {
+      const movie = movies.get(id);
+      if (!movie) throw new ApiError(422,'INVALID_MOVIES','A selected film no longer exists. Refresh before retrying.');
+      return movie;
+    });
+  }
+  /** Global selection retained only for the legacy metadata endpoint. */
   async metadataCandidates(limit: number): Promise<MetadataMovie[]> {
     const sql = metadataSql(await this.hasDirector(),true);
     const rows = (await this.db.prepare(`${sql}
@@ -184,6 +208,7 @@ export class Repository {
       assets:(['poster','backdrop'] as const).filter(type => type === 'poster' ? poster : backdrop)
         .map(asset_type => ({provider:'tmdb',asset_type,reference:'',width:null,height:null,preferred:0}))}));
   }
+  /** Global counts retained only for the legacy metadata endpoint. */
   async metadataCounts(): Promise<{remaining: number; unidentified: number}> {
     return (await this.db.prepare(`${metadataSql(await this.hasDirector(),false)}
       SELECT coalesce(sum(identified=1 AND candidate),0) AS remaining,coalesce(sum(identified=0),0) AS unidentified FROM eligible`)

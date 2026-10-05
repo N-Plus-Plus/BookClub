@@ -4,22 +4,22 @@ import type { Catalog } from '../shared/types';
 import { api } from './api';
 import { Action } from './components';
 import { maintainMetadata, type MetadataRun } from './metadata-maintenance';
-import { metadataCandidate, tmdbIdentity } from '../shared/metadata';
+import { metadataCandidate, metadataQueue, tmdbIdentity } from '../shared/metadata';
 
 export function MetadataMaintenance({catalog,onUpdated}: {catalog: Catalog; onUpdated: () => Promise<void>}) {
   const [busy,setBusy] = useState(false), [error,setError] = useState('');
   const [result,setResult] = useState<MetadataRun | null>(null);
   const stop = useRef(false), active = useRef(false);
   useEffect(() => () => { stop.current = true; },[]);
-  const remaining = result?.remaining ?? catalog.movies.filter(metadataCandidate).length;
-  const unidentified = result?.unidentified ?? catalog.movies.filter(m => !tmdbIdentity(m)).length;
+  const remaining = busy && result ? result.remaining : catalog.movies.filter(metadataCandidate).length;
+  const unidentified = busy && result ? result.unidentified : catalog.movies.filter(m => !tmdbIdentity(m)).length;
   const maintain = async () => {
     if (active.current) return;
     active.current = true; stop.current = false;
     setBusy(true); setError(''); setResult(null);
     try {
-      await maintainMetadata({batch: () => api.enrichMetadata(),stopped: () => stop.current,
-        initial: {remaining,unidentified},progress: async run => {
+      await maintainMetadata({ids: metadataQueue(catalog.movies),unidentified:catalog.movies.filter(m => !tmdbIdentity(m)).length,
+        batch: ids => api.enrichMetadataSelected(ids),stopped: () => stop.current,progress: async run => {
           setResult(run);
         }});
     } catch (e) { setError(e instanceof Error ? e.message : 'Metadata enrichment failed. Completed updates are saved; resume later.'); }

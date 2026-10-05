@@ -1,7 +1,7 @@
 import { hydrateCatalog } from '../shared/catalog';
 import { METADATA_MAINTENANCE_BATCH_SIZE } from '../shared/score-maintenance';
 import { validationFieldLabel } from './presentation';
-import type { Catalog, CompactCatalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, MetadataEnrichment, ScoreMaintenance, TmdbPreview } from '../shared/types';
+import type { Catalog, CompactCatalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, MetadataEnrichment, SelectedMetadataEnrichment, ScoreMaintenance, TmdbPreview } from '../shared/types';
 
 const configured = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/,'');
 const base = import.meta.env.DEV ? 'http://localhost:8787' : configured || '';
@@ -33,13 +33,16 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
         ...(import.meta.env.DEV && localStorage.getItem('bookclub.dev-member') ? {'X-BookClub-Dev-Member': localStorage.getItem('bookclub.dev-member')!} : {}),
         ...(authenticated && sentToken ? { Authorization: `Bearer ${sentToken}` } : {}),
       }, ...(data === undefined ? {} : { body: JSON.stringify(data) }),
-      signal: signal ? AbortSignal.any([signal,AbortSignal.timeout(15000)]) : AbortSignal.timeout((path === '/movies/enrich-metadata' || path === '/movies/maintain') ? 105000 : path === '/classics/enrich' ? 65000 : 15000),
+      signal: signal ? AbortSignal.any([signal,AbortSignal.timeout(15000)]) : AbortSignal.timeout((path === '/movies/enrich-metadata' || path === '/movies/enrich-metadata-selected' || path === '/movies/maintain') ? 105000 : path === '/classics/enrich' ? 65000 : 15000),
     });
   } catch { throw new Error('Could not reach BookClub. Check your connection and that the API is running, then retry.'); }
   if (response.status === 401 && authenticated && sentToken === sessionToken) { clearSession(); unauthorized?.(); }
   let payload: { data?: T; error?: { message: string; fields?: {path: string; message: string}[] } };
   try { payload = await response.json(); }
-  catch { throw new Error('The API returned an unexpected response. Check the configured API URL.'); }
+  catch {
+    if (!response.ok) throw new ApiClientError(response.status,'The API returned an unexpected response. Check the configured API URL.');
+    throw new Error('The API returned an unexpected response. Check the configured API URL.');
+  }
   if (!response.ok) throw new ApiClientError(response.status,payload.error?.fields?.map(f => `${validationFieldLabel(f.path)}: ${f.message}`).join(' · ') || payload.error?.message || 'Request failed.',payload.error?.fields);
   return payload.data as T;
 }
@@ -54,6 +57,13 @@ export const api = {
   scoreMaintenanceStatus: () => request<import('../shared/types').ScoreMaintenanceStatus>('/movies/maintenance-status'),
   maintainMovies: (mode: import('../shared/score-maintenance').MaintenanceMode,movie_ids: string[]) => request<ScoreMaintenance>('/movies/maintain','POST',{mode,movie_ids}),
   enrichMetadata: (limit = METADATA_MAINTENANCE_BATCH_SIZE) => request<MetadataEnrichment>('/movies/enrich-metadata','POST',{limit:Math.min(limit,METADATA_MAINTENANCE_BATCH_SIZE)}),
+  enrichMetadataSelected: async (movie_ids: string[]): Promise<SelectedMetadataEnrichment> => {
+    try { return await request<SelectedMetadataEnrichment>('/movies/enrich-metadata-selected','POST',{movie_ids}); }
+    catch (error) {
+      if (!(error instanceof ApiClientError) || ![404,405,501].includes(error.status)) throw error;
+      return api.enrichMetadata(movie_ids.length);
+    }
+  },
   me: () => request<{viewer: Viewer | null}>('/auth/me'),
   googleLogin: (credential: string) => request<AuthLogin>('/auth/google','POST',{credential},false),
   logout: () => request<{loggedOut: boolean}>('/auth/logout','POST'),

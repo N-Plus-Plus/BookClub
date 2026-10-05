@@ -4,7 +4,7 @@
 
 There is no routine member-facing manual freshness control. Conditional load-error Retry/Try again and explicit admin/provider maintenance remain. A failed refresh preserves the last loaded journal; load failures remain separate from action failures, including logout. Connection recovery may bootstrap again. No polling, focus/visibility refresh, service worker or route-entry global reload exists.
 
-Admin maintenance lives on the URL-only authenticated admin route. Score work applies returned Movie patches during a run and performs one final shared-data reconciliation. TMDB metadata maintenance uses bounded requests, response counts, Stop after this batch and one final shared-data read after completion, stop or failure. Local developer snapshot replacement remains separately guarded and explicitly confirmed.
+Admin maintenance lives on the URL-only authenticated admin route. Score work applies returned Movie patches during a run and performs one final shared-data reconciliation. TMDB metadata maintenance uses a fixed candidate queue from the loaded catalogue, selected two-ID requests with local queue progress, Stop after this batch and one final shared-data read after completion, stop or failure. Local developer snapshot replacement remains separately guarded and explicitly confirmed.
 
 ## Loading and mutation reconciliation
 
@@ -18,7 +18,7 @@ Admin maintenance lives on the URL-only authenticated admin route. Score work ap
 | Event save/update, Builder publication, History delete/restore | One shared-data refresh; no preliminary local Session patch or health/auth reread. |
 | Seen, Undo, corrections, Classics membership, per-film maintenance/saved-data recovery | Targeted returned Movie patch, including matching History references. |
 | Score bulk maintenance | Returned Movie patches during the run, one final shared-data reconciliation. |
-| TMDB metadata maintenance | Local response-based progress, one final shared-data refresh. |
+| TMDB metadata maintenance | Local fixed-queue progress, one final shared-data refresh that recalculates eligibility and identity counts. |
 | FilmPicker creation/import | Returned Movie patch and editor selection. |
 | Private Builder save/delete/review | Narrow owner-only Builder state; no public catalogue reload. |
 

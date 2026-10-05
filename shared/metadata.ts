@@ -22,3 +22,8 @@ export function metadataGaps(movie: MetadataMovie): number {
   return (normalizedGenres(movie.genres).length ? 0 : 10) + [movie.director,movie.original_title,movie.release_date,movie.runtime,movie.overview,
     movie.assets.find(a => a.provider === 'tmdb' && a.asset_type === 'poster'),movie.assets.find(a => a.provider === 'tmdb' && a.asset_type === 'backdrop')].filter(v => !v).length;
 }
+
+/** Freeze catalogue eligibility and existing gap/ID priority once per run. */
+export function metadataQueue(movies: MetadataMovie[]) {
+  return movies.filter(metadataCandidate).sort((a,b) => metadataGaps(b)-metadataGaps(a) || a.id.localeCompare(b.id)).map(m => m.id);
+}

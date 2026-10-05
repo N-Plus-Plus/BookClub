@@ -55,6 +55,9 @@ export interface ScoreMaintenanceStatus { candidateIds: string[]; eligibleDimens
 export interface ScoreMaintenance { results: RefreshResult[] }
 export interface RefreshResult { movie: MovieDetail; providers: ProviderResult[] }
 export interface ManualMovieInput { title: string; year?: number; runtime?: number }
+export interface SelectedMetadataEnrichment {
+  results: (Omit<MetadataEnrichment['results'][number],'status'> & {status: 'success' | 'failed' | 'conflict' | 'skipped'})[];
+}
 export interface MetadataEnrichment {
   results: {movieId: string; title: string; provider: 'tmdb'; status: 'success' | 'failed' | 'conflict'; message: string; retryAfter?: number}[];
   remaining: number; unidentified: number;

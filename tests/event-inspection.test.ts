@@ -11,7 +11,7 @@ import { HistoryScreen } from '../frontend/HistoryScreen';
 import { SessionCard } from '../frontend/components';
 
 vi.mock('../frontend/api',() => ({
-  api:{swapRotation:vi.fn(),scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:['f1','f2','f3','f99','saved-7'],eligibleDimensions:30,unavailableDimensions:0,unavailableFilms:0})),maintainMovies:vi.fn(),enrichMetadata:vi.fn(),audit:vi.fn(),deleteSession:vi.fn(),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn()},
+  api:{swapRotation:vi.fn(),scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:['f1','f2','f3','f99','saved-7'],eligibleDimensions:30,unavailableDimensions:0,unavailableFilms:0})),maintainMovies:vi.fn(),enrichMetadataSelected:vi.fn(),audit:vi.fn(),deleteSession:vi.fn(),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn()},
   ApiClientError:class extends Error {},hasSession:() => true,setUnauthorizedHandler:vi.fn(),setDevMember:vi.fn(),clearSession:vi.fn(),storeSession:vi.fn(),
 }));
 const movies: Movie[] = Array.from({length:8},(_,i) => ({id:`saved-${i}`,title:`Film ${i}`,year:1998,original_title:null,release_date:null,runtime:100,overview:'Overview',genres:[],assets:[],external_ids:i === 7 ? [{provider:'tmdb',external_id:'107'}] : [],scores:[],seen:[],classic:false,ranking:null}));
@@ -352,14 +352,15 @@ describe('URL-only Admin screen',() => {
     const movie=movies[7];
     vi.mocked(api.catalog).mockResolvedValue({...catalog,sessions:[{id:'event',movies:[movie],event_date:'2030-01-01',date_precision:'exact',host_member_id:'member-2',kind:'hosted',cycle_id:null,cycle_slot:null,legacy_cycle_label:null}]});
     vi.mocked(api.maintainMovies).mockResolvedValue({results:[{movie:{...movie,appearances:[]},providers:[{provider:'tmdb',status:'success',count:1,message:'Saved'}]}]} as Awaited<ReturnType<typeof api.maintainMovies>>);
-    vi.mocked(api.enrichMetadata).mockResolvedValue({remaining:0,unidentified:7,results:[{movieId:movie.id,title:movie.title,provider:'tmdb',status:'success',message:'Updated.'}]});
+    vi.mocked(api.enrichMetadataSelected).mockResolvedValue({results:[{movieId:movie.id,title:movie.title,provider:'tmdb',status:'success',message:'Updated.'}]});
     await asAdmin(); await navigate('admin');
     const bootstrapCalls=[vi.mocked(api.health).mock.calls.length,vi.mocked(api.me).mock.calls.length],catalogCalls=vi.mocked(api.catalog).mock.calls.length;
     await click(button('Refresh Scores'));
     expect(api.maintainMovies).toHaveBeenCalledWith('refresh',[movie.id]);
     expect(container.querySelector('progress')?.value).toBe(1);
+    vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:catalog.movies.map(m=>m.id===movie.id ? {...m,director:'Director',tmdb_metadata_checked_at:new Date().toISOString(),tmdb_artwork_checked_at:new Date().toISOString()} : m)});
     await click(button('Fill missing metadata'));
-    expect(api.enrichMetadata).toHaveBeenCalledOnce();
+    expect(api.enrichMetadataSelected).toHaveBeenCalledOnce();
     expect(container.textContent).toContain('1 successfully updated');
     expect(container.textContent).toContain('0 identified films remaining');
     expect([vi.mocked(api.health).mock.calls.length,vi.mocked(api.me).mock.calls.length]).toEqual(bootstrapCalls);
@@ -373,17 +374,21 @@ describe('URL-only Admin screen',() => {
     expect(container.querySelector('h1')?.textContent).not.toBe('Admin');
   });
   it('stops TMDB work after the pending batch and preserves partial counts on Admin',async()=>{
-    let release!: (value: Awaited<ReturnType<typeof api.enrichMetadata>>) => void;
-    vi.mocked(api.enrichMetadata).mockImplementationOnce(()=>new Promise(resolve=>{release=resolve;}));
+    let release!: (value: Awaited<ReturnType<typeof api.enrichMetadataSelected>>) => void;
+    const queue=[...catalog.movies,{...movies[7],id:'second',external_ids:[{provider:'tmdb',external_id:'108'}]},{...movies[7],id:'third',external_ids:[{provider:'tmdb',external_id:'109'}]}];
+    vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:queue});
+    vi.mocked(api.enrichMetadataSelected).mockImplementationOnce(()=>new Promise(resolve=>{release=resolve;}));
     await asAdmin(); await navigate('admin');
     await click(button('Fill missing metadata'));
     expect(button('Fill missing metadata').disabled).toBe(true);
     await click(button('Stop after this batch'));
-    await act(async()=>release({remaining:2,unidentified:7,results:[{movieId:movies[7].id,title:movies[7].title,provider:'tmdb',status:'success',message:'Updated.'}]}));
+    const sent=vi.mocked(api.enrichMetadataSelected).mock.calls[0][0];
+    vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:queue.map(m=>sent.includes(m.id) ? {...m,director:'Director',tmdb_metadata_checked_at:new Date().toISOString(),tmdb_artwork_checked_at:new Date().toISOString()} : m)});
+    await act(async()=>release({results:sent.map(movieId=>({movieId,title:'Film',provider:'tmdb',status:'success',message:'Updated.'}))}));
     await flush();
-    expect(api.enrichMetadata).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('2 identified films remaining');
-    expect(container.textContent).toContain('1 successfully updated');
+    expect(api.enrichMetadataSelected).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('1 identified films remaining');
+    expect(container.textContent).toContain('2 successfully updated');
     expect(container.textContent).toContain('Stopped. Completed updates are saved');
     expect(button('Stop after this batch')).toBeUndefined();
   });
@@ -391,7 +396,7 @@ describe('URL-only Admin screen',() => {
     const movie=movies[7];
     vi.mocked(api.catalog).mockResolvedValue({...catalog,sessions:[{id:'event',movies:[movie],event_date:'2030-01-01',date_precision:'exact',host_member_id:'member-2',kind:'hosted',cycle_id:null,cycle_slot:null,legacy_cycle_label:null}]});
     vi.mocked(api.maintainMovies).mockResolvedValue({results:[{movie:{...movie,appearances:[]},providers:[{provider:'tmdb',status:'failed',count:0,message:'Score quota reached.',retryAfter:120}]}]});
-    vi.mocked(api.enrichMetadata).mockResolvedValue({remaining:1,unidentified:7,results:[{movieId:movie.id,title:movie.title,provider:'tmdb',status:'failed',message:'Artwork quota reached.',retryAfter:60}]});
+    vi.mocked(api.enrichMetadataSelected).mockResolvedValue({results:[{movieId:movie.id,title:movie.title,provider:'tmdb',status:'failed',message:'Artwork quota reached.',retryAfter:60}]});
     await asAdmin(); await navigate('admin');
     await click(button('Refresh Scores'));
     expect(container.querySelector('.classics-maintenance')?.textContent).toContain('Score quota reached. Wait 120s before retrying.');
@@ -400,7 +405,7 @@ describe('URL-only Admin screen',() => {
     expect(tmdbSection?.textContent).toContain('1 failures');
     expect(tmdbSection?.textContent).toContain('Artwork quota reached. Retry after at least 60 seconds.');
     expect(tmdbSection?.textContent).toContain('Completed updates are saved');
-    expect(api.enrichMetadata).toHaveBeenCalledOnce();
+    expect(api.enrichMetadataSelected).toHaveBeenCalledOnce();
   });
 });
 
@@ -448,7 +453,7 @@ it('a returned swap does not discard an in-flight broad catalogue refresh or get
  vi.mocked(api.catalog).mockResolvedValue(club);vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'admin'}});
  await act(async()=>root.unmount());root=createRoot(container);window.location.hash='/admin';await act(async()=>root.render(createElement(App)));await flush();vi.clearAllMocks();
  let release!:(catalog:Catalog)=>void;vi.mocked(api.catalog).mockReturnValueOnce(new Promise(resolve=>{release=resolve;}));
- vi.mocked(api.enrichMetadata).mockResolvedValue({remaining:0,unidentified:0,results:[{movieId:'saved-7',title:'Fixture',provider:'tmdb',status:'success',message:'Saved'}]});
+ vi.mocked(api.enrichMetadataSelected).mockResolvedValue({results:[{movieId:'saved-7',title:'Fixture',provider:'tmdb',status:'success',message:'Saved'}]});
  await click(button('Fill missing metadata'));expect(api.catalog).toHaveBeenCalledOnce();
  await navigate('home');vi.mocked(api.swapRotation).mockResolvedValue({id:1,nominal_slot:2,cycle_id:null,version:1,updated_at:'saved',human_order:{'2':'member-3','3':'member-2'}});
  await act(async()=>{const select=container.querySelector('.turn-card')!.querySelector('select')!;select.value='member-3';select.dispatchEvent(new Event('change',{bubbles:true}));});

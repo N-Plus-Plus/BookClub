@@ -1,11 +1,12 @@
 import { Repository } from './repository';
 import { ApiError, type Env } from './http';
 import { TmdbProvider } from './providers/tmdb';
-import type { MovieDetail, SearchResponse, MetadataEnrichment, SearchResult, TmdbPreview } from '../../shared/types';
+import type { MovieDetail, SearchResponse, MetadataEnrichment, SelectedMetadataEnrichment, SearchResult, TmdbPreview } from '../../shared/types';
 import { matchTitles } from '../../shared/search';
 import { ProviderError } from './providers/http';
 
-import { tmdbIdentity } from '../../shared/metadata';
+import { METADATA_MAINTENANCE_BATCH_SIZE } from '../../shared/score-maintenance';
+import { metadataCandidate, type MetadataMovie, tmdbIdentity } from '../../shared/metadata';
 export { TMDB_METADATA_REFRESH_DAYS, tmdbMetadataIsStale } from '../../shared/metadata';
 
 export { metadataGaps } from '../../shared/metadata';
@@ -23,12 +24,24 @@ export class MovieService {
     if (!Number.isInteger(limit) || limit < 1 || limit > 10) throw new ApiError(422,'INVALID_LIMIT','Choose a limit from 1 to 10.');
     if (!this.env.TMDB_READ_TOKEN) throw new ApiError(503,'PROVIDER_NOT_CONFIGURED','TMDB metadata enrichment is not configured.');
     const candidates = await this.repo.metadataCandidates(limit);
-    const results: MetadataEnrichment['results'] = [];
-    const provider = new TmdbProvider(this.env.TMDB_READ_TOKEN);
+    return {results:(await this.enrichMetadataMovies(candidates)).results as MetadataEnrichment['results'],...await this.repo.metadataCounts()};
+  }
+  async enrichMetadataSelected(ids: string[]): Promise<SelectedMetadataEnrichment> {
+    if (!ids.length || ids.length > METADATA_MAINTENANCE_BATCH_SIZE) throw new ApiError(422,'INVALID_LIMIT','Choose one or two films.');
+    if (!this.env.TMDB_READ_TOKEN) throw new ApiError(503,'PROVIDER_NOT_CONFIGURED','TMDB metadata enrichment is not configured.');
+    return this.enrichMetadataMovies(await this.repo.selectedMetadataMovies([...new Set(ids)]),true);
+  }
+  private async enrichMetadataMovies(candidates: MetadataMovie[], selected = false): Promise<SelectedMetadataEnrichment> {
+    const results: SelectedMetadataEnrichment['results'] = [];
+    const provider = new TmdbProvider(this.env.TMDB_READ_TOKEN!);
     for (const movie of candidates) {
       try {
-        const tmdb = tmdbIdentity(movie)!;
-        if (!/^[1-9]\d{0,9}$/.test(tmdb)) throw new ApiError(422,'INVALID_IDENTITY','Stored TMDB identity needs owner review.');
+        const tmdb = tmdbIdentity(movie);
+        if (!tmdb) throw new ApiError(422,'INVALID_IDENTITY','Stored TMDB identity needs owner review.');
+        if (selected && !metadataCandidate(movie)) {
+          results.push({movieId:movie.id,title:movie.title,provider:'tmdb',status:'skipped',message:'Metadata is already checked.'});
+          continue;
+        }
         await this.repo.enrichMetadata(movie.id,tmdb,await this.tmdb(() => provider.details(tmdb)));
         results.push({movieId: movie.id,title: movie.title,provider: 'tmdb',status: 'success',message: 'Stored metadata updated.'});
       } catch (error) {
@@ -38,7 +51,7 @@ export class MovieService {
         if (error instanceof ProviderError && ['rate_limited','credentials','outage','network'].includes(error.kind)) break;
       }
     }
-    return {results,...await this.repo.metadataCounts()};
+    return {results};
   }
   async detail(id: string): Promise<MovieDetail> {
     return (await this.repo.movieDetails([id]))[0];

@@ -549,7 +549,7 @@ Ranked, Needs Data and Already Seen remain distinct, using ListSortDescending, L
 
 ### Admin
 
-Only authenticated admins can view `#/admin`; other viewers receive the ordinary not-found treatment. Keep Admin absent from all discoverable navigation. Use the normal shell and Admin page heading with stacked, distinct Scores and OMDb metadata and TMDB metadata and artwork sections. Preserve live counts, progress, Stop and aggregate provider feedback. Show concise counts of missing scores still eligible to check and checked scores with no source data. Apply returned score batches through onMovie and discard film detail; retain aggregate counters and bounded provider/status summaries, without per-film run logs. TMDB metadata batches retain aggregate counters and one failure summary.
+Only authenticated admins can view `#/admin`; other viewers receive the ordinary not-found treatment. Keep Admin absent from all discoverable navigation. Use the normal shell and Admin page heading with stacked, distinct Scores and OMDb metadata and TMDB metadata and artwork sections. Preserve live counts, progress, Stop and aggregate provider feedback. Show concise counts of missing scores still eligible to check and checked scores with no source data. Apply returned score batches through onMovie and discard film detail; retain aggregate counters and bounded provider/status summaries, without per-film run logs. TMDB metadata batches retain aggregate counters and one failure summary. Freeze the catalogue candidate queue at run start, show local queue progress during the run, then recalculate remaining/identity counts from the one final shared-data refresh.
 
 ### Builder
 
