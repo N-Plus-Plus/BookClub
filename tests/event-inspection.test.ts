@@ -11,7 +11,7 @@ import { HistoryScreen } from '../frontend/HistoryScreen';
 import { SessionCard } from '../frontend/components';
 
 vi.mock('../frontend/api',() => ({
-  api:{audit:vi.fn(),deleteSession:vi.fn(),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn()},
+  api:{maintainMovies:vi.fn(),enrichMetadata:vi.fn(),audit:vi.fn(),deleteSession:vi.fn(),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn()},
   ApiClientError:class extends Error {},hasSession:() => true,setUnauthorizedHandler:vi.fn(),setDevMember:vi.fn(),clearSession:vi.fn(),storeSession:vi.fn(),
 }));
 const movies: Movie[] = Array.from({length:8},(_,i) => ({id:`saved-${i}`,title:`Film ${i}`,year:1998,original_title:null,release_date:null,runtime:100,overview:'Overview',genres:[],assets:[],external_ids:i === 7 ? [{provider:'tmdb',external_id:'107'}] : [],scores:[],seen:[],classic:false,ranking:null}));
@@ -309,4 +309,92 @@ it('History hides other-host edits and member admin actions without fetching aud
  expect(cards[0].querySelector('[aria-label="Edit event"]')).toBeTruthy();expect(cards[1].querySelector('[aria-label="Edit event"]')).toBeNull();expect(cards[2].querySelector('[aria-label="Edit event"]')).toBeNull();expect(container.querySelector('[aria-label="Audit event"],[aria-label="Delete event"]')).toBeNull();
  expect(cards[0].querySelector('.history-event-actions')?.lastElementChild?.className).toBe('history-event-identity');expect(cards[0].querySelector('.session-meta')).toBeNull();expect(cards[0].querySelectorAll('.history-film-director')).toHaveLength(1);expect(cards[0].querySelector('.history-film-director')?.textContent).toBe('A Director');
  await render('admin',false);expect(container.querySelectorAll('[aria-label="Edit event"]')).toHaveLength(3);expect(container.querySelectorAll('[aria-label="Delete event"]')).toHaveLength(3);expect(container.querySelector('[aria-label="Audit event"]')).toBeNull();expect(api.audit).not.toHaveBeenCalled();
+});
+
+
+describe('URL-only Admin screen',() => {
+  const asAdmin = async () => {
+    vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'admin'}});
+    await act(async()=>root.unmount()); root=createRoot(container);
+    await act(async()=>root.render(createElement(App))); await flush();
+  };
+  it('uses ordinary not-found treatment for a member',async()=>{
+    await navigate('admin');
+    expect(container.querySelector('h1')?.textContent).toBe('Page not found');
+    expect(button('Fill missing metadata')).toBeUndefined();
+    expect(button('Populate Missing Scores')).toBeUndefined();
+    expect(container.textContent).not.toContain('Scores and OMDb metadata');
+  });
+  it('renders both maintenance families only on Admin and keeps them out of navigation and member screens',async()=>{
+    await asAdmin(); await navigate('admin');
+    expect(container.querySelector('h1')?.textContent).toBe('Admin');
+    expect(container.querySelectorAll('main section.card h2')).toHaveLength(2);
+    for(const label of ['Populate Missing Scores','Refresh Scores','Enrich/Refresh Metadata','Fill missing metadata']) expect(button(label)).toBeTruthy();
+    expect(container.textContent).toContain('Scores and OMDb metadata');
+    expect(container.textContent).toContain('TMDB metadata and artwork');
+    await click(container.querySelector<HTMLButtonElement>('.account-menu-trigger')!);
+    expect(container.querySelector('.account-menu-dropdown')?.textContent).toBe('Logout');
+    expect(container.querySelector('a[href="#/admin"]')).toBeNull();
+    for(const nav of container.querySelectorAll('nav')) expect(nav.textContent).not.toContain('Admin');
+    await navigate('classics');
+    for(const tab of ['Ranked (0)','Needs Data (0)','Already Seen (0)']) {
+      await click(button(tab)); expect(button('Populate Missing Scores')).toBeUndefined();
+      expect(container.querySelector('.classics-maintenance')).toBeNull();
+    }
+    await navigate('metrics'); expect(button('Fill missing metadata')).toBeUndefined();
+    await navigate('home'); expect(container.textContent).toContain('Admin · swap current turn');
+    await navigate('movie/saved-7'); expect(container.textContent).toContain('Admin · score maintenance');
+    expect(button('Refresh scores')).toBeTruthy();
+  });
+  it('runs both moved maintenance actions and retains their live feedback',async()=>{
+    const movie=movies[7];
+    vi.mocked(api.catalog).mockResolvedValue({...catalog,sessions:[{id:'event',movies:[movie],event_date:'2030-01-01',date_precision:'exact',host_member_id:'member-2',kind:'hosted',cycle_id:null,cycle_slot:null,legacy_cycle_label:null}]});
+    vi.mocked(api.maintainMovies).mockResolvedValue({results:[{movie:{...movie,appearances:[]},providers:[{provider:'tmdb',status:'success',count:1,message:'Saved'}]}]} as Awaited<ReturnType<typeof api.maintainMovies>>);
+    vi.mocked(api.enrichMetadata).mockResolvedValue({remaining:0,unidentified:7,results:[{movieId:movie.id,title:movie.title,provider:'tmdb',status:'success',message:'Updated.'}]});
+    await asAdmin(); await navigate('admin');
+    await click(button('Refresh Scores'));
+    expect(api.maintainMovies).toHaveBeenCalledWith('refresh',[movie.id]);
+    expect(container.querySelector('progress')?.value).toBe(1);
+    await click(button('Fill missing metadata'));
+    expect(api.enrichMetadata).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('1 successfully updated');
+    expect(container.textContent).toContain('0 identified films remaining');
+  });
+  it('does not render admin controls without an authenticated viewer',async()=>{
+    vi.mocked(api.me).mockResolvedValue({viewer:null});
+    await act(async()=>root.unmount()); root=createRoot(container);
+    window.location.hash='/admin'; await act(async()=>root.render(createElement(App))); await flush();
+    expect(button('Populate Missing Scores')).toBeUndefined(); expect(button('Fill missing metadata')).toBeUndefined();
+    expect(container.querySelector('h1')?.textContent).not.toBe('Admin');
+  });
+  it('stops TMDB work after the pending batch and preserves partial counts on Admin',async()=>{
+    let release!: (value: Awaited<ReturnType<typeof api.enrichMetadata>>) => void;
+    vi.mocked(api.enrichMetadata).mockImplementationOnce(()=>new Promise(resolve=>{release=resolve;}));
+    await asAdmin(); await navigate('admin');
+    await click(button('Fill missing metadata'));
+    expect(button('Fill missing metadata').disabled).toBe(true);
+    await click(button('Stop after this batch'));
+    await act(async()=>release({remaining:2,unidentified:7,results:[{movieId:movies[7].id,title:movies[7].title,provider:'tmdb',status:'success',message:'Updated.'}]}));
+    await flush();
+    expect(api.enrichMetadata).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('2 identified films remaining');
+    expect(container.textContent).toContain('1 successfully updated');
+    expect(container.textContent).toContain('Stopped. Completed updates are saved');
+    expect(button('Stop after this batch')).toBeUndefined();
+  });
+  it('keeps provider failures and cooldown feedback beside both Admin maintenance sections',async()=>{
+    const movie=movies[7];
+    vi.mocked(api.catalog).mockResolvedValue({...catalog,sessions:[{id:'event',movies:[movie],event_date:'2030-01-01',date_precision:'exact',host_member_id:'member-2',kind:'hosted',cycle_id:null,cycle_slot:null,legacy_cycle_label:null}]});
+    vi.mocked(api.maintainMovies).mockResolvedValue({results:[{movie:{...movie,appearances:[]},providers:[{provider:'tmdb',status:'failed',count:0,message:'Score quota reached.',retryAfter:120}]}]});
+    vi.mocked(api.enrichMetadata).mockResolvedValue({remaining:1,unidentified:7,results:[{movieId:movie.id,title:movie.title,provider:'tmdb',status:'failed',message:'Artwork quota reached.',retryAfter:60}]});
+    await asAdmin(); await navigate('admin');
+    await click(button('Refresh Scores'));
+    expect(container.querySelector('.classics-maintenance')?.textContent).toContain('Score quota reached. Wait 120s before retrying.');
+    await click(button('Fill missing metadata'));
+    const tmdbSection=container.querySelector('[aria-labelledby="tmdb-maintenance-heading"]');
+    expect(tmdbSection?.textContent).toContain('1 failures');
+    expect(tmdbSection?.textContent).toContain('Artwork quota reached. Retry after at least 60 seconds.');
+    expect(tmdbSection?.textContent).toContain('Completed updates are saved');
+    expect(api.enrichMetadata).toHaveBeenCalledOnce();
+  });
 });

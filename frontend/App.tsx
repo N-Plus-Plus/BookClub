@@ -16,6 +16,7 @@ import { AccountMenu } from './AccountMenu';
 import { BuilderScreen } from './BuilderScreen';
 import { RotationCard } from './RotationCard';
 import { needsAvatar } from '../shared/identity';
+import { AdminScreen } from './AdminScreen';
 import { MetricsScreen } from './MetricsScreen';
 import { Navigation, destinations } from './Navigation';
 
@@ -154,7 +155,8 @@ export function App() {
   const detailContext = inspection && page === inspection.target;
   const inspecting = detailContext && inspection.source !== 'seen';
   const eventRoute = page === 'event' || page.startsWith('event/') ? page : inspecting ? inspection.source : null;
-  const title = (page === 'event' || page.startsWith('event/')) ? 'Event' : isDetail ? 'Film detail' : destinations.find(d => d.path === page)?.label ?? 'Page not found';
+  const isAdminPage = page === 'admin' && viewer?.role === 'admin';
+  const title = (page === 'event' || page.startsWith('event/')) ? 'Event' : isDetail ? 'Film detail' : isAdminPage ? 'Admin' : destinations.find(d => d.path === page)?.label ?? 'Page not found';
   const writesEnabled = Boolean(health && (!health.authenticationRequired || viewer));
   if ((localLogin || health?.authenticationRequired) && health && !viewer && !loading) return <SignInScreen configured={health.googleAuthConfigured} error={actionError || loadError} busy={authBusy} onCredential={signIn} onLocalLogin={localLogin ? signInAsTroy : undefined} onRetry={() => void load()} />;
   if (needsAvatar(viewer) && viewer) return <AvatarScreen viewer={viewer} externalError={actionError || loadError} onClaimed={claimed => { setViewer(claimed); void load(); }} onLogout={() => void logout()} />;
@@ -173,6 +175,7 @@ export function App() {
       <div className="dashboard-grid"><section className="stack"><div className="section-title"><h2>Last turn</h2><RouteLink to="history" icon={History} variant="tertiary">History</RouteLink></div>{catalog.sessions[0] ? <SessionCard variant="home" session={catalog.sessions[0]} members={catalog.members} /> : <Empty title="Your first night is waiting">Create an event to begin your shared history.</Empty>}</section>
       <section className="stack"><div className="section-title"><h2>Next Classics</h2><RouteLink to="classics" icon={ChevronRight} variant="tertiary">View all</RouteLink></div>{eligible.slice(0,2).map((m,i) => <RankingCard variant="home" key={m.id} movie={m} rank={i+1} />)}{!eligible.length && <Empty title="No eligible Classics">Open Classics to inspect the candidate pool.</Empty>}</section></div></div>}
       {page === 'history' && <HistoryScreen viewer={viewer} catalog={catalog} onChanged={() => void load()} />}
+      {isAdminPage && <AdminScreen catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onUpdated={load} />}
       {page === 'metrics' && <MetricsScreen catalog={catalog} viewer={viewer} onUpdated={load} />}
       {page === 'builder' && <BuilderScreen key={viewer?.id} catalog={catalog} viewer={viewer} rotation={rotation} onMovie={applyMovie} onPublished={() => { void load(); setNotice('Published to History.'); window.location.hash = '/history'; }} />}
       {eventRoute && (eventRoute === 'event' || catalog.sessions.some(s => s.id === eventRoute.slice(6))) && <div hidden={Boolean(inspecting)} key={eventRoute}><EventScreen onInspect={inspect} confirmedMovie={confirmedMovie} onConfirmedConsumed={consumeConfirmedMovie} prefillMovieIds={eventRoute === 'event' ? eventPrefill : null} onPrefillConsumed={consumeEventPrefill} initial={eventRoute === 'event' ? undefined : catalog.sessions.find(s => s.id === eventRoute.slice(6))} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={session => {
@@ -184,7 +187,7 @@ export function App() {
       {(page === 'seen' || (detailContext && inspection.source === 'seen')) && <div hidden={page !== 'seen'}><SeenScreen key={viewer?.id} viewerId={viewer?.id ?? ''} catalog={catalog} answer={answer} writesEnabled={writesEnabled} /></div>}
       {isDetail && !isPreview && <DetailScreen isAdmin={viewer?.role === 'admin'} key={page} id={page.slice(6)} members={catalog.members} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {isPreview && <PreviewScreen key={page} id={page.slice('preview/tmdb/'.length)} preview={inspecting ? inspection.preview : undefined} pending={inspecting ? inspection.pending : undefined} />}
-      {!isDetail && page !== 'event' && !page.startsWith('event/') && !destinations.some(d => d.path === page) && <Empty title="Page not found"><RouteLink to="home" icon={Home}>Go home</RouteLink></Empty>}
+      {!isAdminPage && !isDetail && page !== 'event' && !page.startsWith('event/') && !destinations.some(d => d.path === page) && <Empty title="Page not found"><RouteLink to="home" icon={Home}>Go home</RouteLink></Empty>}
     </>}
     <footer className="data-sources"><details><summary><Info size={18} aria-hidden="true" />Data sources & attribution</summary><div className="stack"><p>Ratings are stored snapshots, not live values. MDBList and OMDb retrieve third-party ratings; BookClub has no direct IMDb, Rotten Tomatoes or Letterboxd API relationship.</p><p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p><a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer"><img className="tmdb-logo" src={`${import.meta.env.BASE_URL}tmdb-logo.svg`} alt="The Movie Database" /></a><p><a href="https://mdblist.com/" target="_blank" rel="noreferrer">MDBList</a> · <a href="https://www.omdbapi.com/" target="_blank" rel="noreferrer">OMDb</a></p></div></details></footer>
     </main></div></div>;

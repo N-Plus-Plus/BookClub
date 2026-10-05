@@ -70,6 +70,46 @@ export class Repository {
         .filter(j => j.session_id === s.id).map(j => movieMap.get(j.movie_id)!).filter(Boolean) }));
     return { members, movies, sessions, cycles: rows<Cycle>(10) };
   }
+  /** Selected-film maintenance snapshot; never loads unrelated film relationships or cycles. */
+  async maintenanceDetails(ids: string[], validateScope = false): Promise<import('../../shared/types').MovieDetail[]> {
+    if (!ids.length) return [];
+    const director = await this.hasDirector();
+    const placeholders = ids.map(() => '?').join(',');
+    const selected = (sql: string) => this.db.prepare(sql).bind(...ids);
+    const result = await this.db.batch([
+      this.db.prepare('SELECT id,display_name,sort_order,active,avatar FROM members ORDER BY sort_order,id'),
+      selected(`SELECT id,title,original_title,year,release_date,runtime,overview,${director ? 'director' : 'NULL AS director'},tmdb_metadata_checked_at,tmdb_artwork_checked_at FROM movies WHERE id IN (${placeholders})`),
+      selected(`SELECT movie_id,provider,asset_type,reference,width,height,preferred FROM movie_assets WHERE movie_id IN (${placeholders}) ORDER BY preferred DESC,id`),
+      selected(`SELECT movie_id,provider,external_id FROM movie_external_ids WHERE movie_id IN (${placeholders})`),
+      selected(`SELECT movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via,upstream_updated_at,source_ref,source_ordinal,legacy_preferred FROM source_scores WHERE movie_id IN (${placeholders}) ORDER BY fetched_at,id`),
+      selected(`SELECT movie_id,member_id,seen,updated_at FROM seen_states WHERE movie_id IN (${placeholders})`),
+      selected(`SELECT movie_id,rank_seed,added_at,source FROM classics WHERE movie_id IN (${placeholders})`),
+      selected(`SELECT movie_id,genre FROM movie_genres WHERE movie_id IN (${placeholders}) ORDER BY genre`),
+      selected(`SELECT sm.movie_id,s.id,s.event_date,s.date_precision,s.kind,s.host_member_id,sm.position FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE s.deleted_at IS NULL AND sm.movie_id IN (${placeholders}) ORDER BY s.event_date DESC,s.created_at DESC,s.id,sm.position`),
+    ]);
+    const rows = <T>(i: number) => result[i].results as T[];
+    const members = rows<Member>(0);
+    const movies = rows<MovieRow>(1).map(m => {
+      const scores = rows<WithMovie<Score>>(4).filter(s => s.movie_id === m.id);
+      const seen = rows<WithMovie<SeenAnswer>>(5).filter(s => s.movie_id === m.id);
+      const membership = rows<{movie_id:string; rank_seed:number; added_at:string; source:string|null}>(6).find(c => c.movie_id === m.id);
+      const appearances = rows<WithMovie<import('../../shared/types').MovieDetail['appearances'][number]>>(8)
+        .filter(a => a.movie_id === m.id).map(({movie_id: _movieId,...appearance}) => appearance);
+      return {...m,scores,seen,classic:Boolean(membership),classics_membership:membership ?? null,
+        ranking:membership ? rankMovie(scores,seen,members,membership.rank_seed) : null,
+        genres:rows<{movie_id:string;genre:string}>(7).filter(g => g.movie_id === m.id).map(g => g.genre),
+        assets:rows<WithMovie<Asset>>(2).filter(a => a.movie_id === m.id),
+        external_ids:rows<WithMovie<ExternalId>>(3).filter(e => e.movie_id === m.id),appearances};
+    });
+    const byId = new Map(movies.map(m => [m.id,m]));
+    return ids.map(id => {
+      const movie = byId.get(id);
+      if (validateScope && (!movie || (!movie.classic && !movie.appearances.length)))
+        throw new ApiError(422,'INVALID_SCOPE','Maintenance only covers Classics and History films.');
+      if (!movie) throw new ApiError(404,'NOT_FOUND','Film not found.');
+      return movie;
+    });
+  }
   private async metadataRows(priority = true) {
     const director = await this.hasDirector();
     const rows = (await this.db.prepare(`SELECT ${priority ? 'm.id,m.title,m.original_title,m.release_date,m.runtime,m.overview,' : ''}

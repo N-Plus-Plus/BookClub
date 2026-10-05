@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { isValidElement, type ReactNode } from 'react';
-import { MetricsScreen } from '../frontend/MetricsScreen';
+import { MetadataMaintenance } from '../frontend/MetadataMaintenance';
 import { Action } from '../frontend/components';
 import { api } from '../frontend/api';
 import { maintainMetadata } from '../frontend/metadata-maintenance';
-import type { Catalog, MetadataEnrichment, Viewer } from '../shared/types';
+import type { Catalog, MetadataEnrichment } from '../shared/types';
 
 // Exercise the actual screen handlers with deterministic hook state and no browser.
 const hooks = vi.hoisted(() => ({values: [] as unknown[], cursor: 0, cleanup: undefined as (() => void) | undefined}));
@@ -31,7 +31,6 @@ const catalog: Catalog = {members:[],sessions:[],cycles:[],movies:[{
   id:'fixture',title:'Fixture',original_title:null,year:null,release_date:null,runtime:null,overview:null,
   genres:[],assets:[],external_ids:[{provider:'tmdb',external_id:'1'}],scores:[],seen:[],classic:false,ranking:null,
 }]};
-const viewer: Viewer = {id:'admin',display_name:'Admin',avatar:0,role:'admin',sort_order:1};
 const response = (remaining: number, count = 10): MetadataEnrichment => ({remaining,unidentified:0,
   results:Array.from({length:count},(_,i) => ({movieId:`${remaining}:${i}`,title:'Fixture',provider:'tmdb',status:'success',message:'Updated.'}))});
 function actions(node: ReactNode): {children: string; disabled?: boolean; onClick: () => void}[] {
@@ -40,18 +39,17 @@ function actions(node: ReactNode): {children: string; disabled?: boolean; onClic
   if (node.type === Action) return [node.props as {children: string; onClick: () => void}];
   return actions(node.props.children);
 }
-function screen(onUpdated: () => Promise<void>, role: Viewer['role'] = 'admin') {
+function screen(onUpdated: () => Promise<void>) {
   hooks.cursor = 0;
-  return actions(MetricsScreen({catalog,viewer:{...viewer,role},onUpdated}));
+  return actions(MetadataMaintenance({catalog,onUpdated}));
 }
-beforeEach(() => { hooks.values=[]; hooks.cursor=0; hooks.cleanup=undefined; vi.clearAllMocks(); });
+beforeEach(() => { hooks.values=[]; hooks.cursor=0; hooks.cleanup=undefined; vi.resetAllMocks(); });
 
 describe('Fill missing metadata action', () => {
-  it('exposes one fill action for admins and none for members', () => {
+  it('exposes one fill action', () => {
     const controls=screen(async()=>{});
     expect(controls.map(a=>a.children)).toEqual(['Fill missing metadata']);
     expect(controls[0].disabled).toBe(false);
-    expect(screen(async()=>{},'member')).toEqual([]);
   });
   it('continues with local progress and refreshes once at the end despite a stale catalogue', async () => {
     const request=vi.mocked(api.enrichMetadata);
@@ -68,7 +66,7 @@ describe('Fill missing metadata action', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
     // This unchanged catalogue has only one candidate; responses are authoritative.
     expect(catalog.movies).toHaveLength(1);
-    expect(hooks.values[3]).toMatchObject({processed:30,updated:30,remaining:0});
+    expect(hooks.values[2]).toMatchObject({processed:30,updated:30,remaining:0});
   });
   it('Stop during an in-flight batch saves/refreshes it and prevents another request', async () => {
     const pending=deferred<MetadataEnrichment>();
@@ -79,10 +77,10 @@ describe('Fill missing metadata action', () => {
     expect(controls.find(a=>a.children==='Fill missing metadata')?.disabled).toBe(true);
     controls.find(a=>a.children==='Stop after this batch')!.onClick();
     pending.resolve(response(20));
-    await vi.waitFor(()=>expect(hooks.values[1]).toBe(false));
+    await vi.waitFor(()=>expect(hooks.values[0]).toBe(false),{timeout:5000});
     expect(api.enrichMetadata).toHaveBeenCalledTimes(1);
     expect(refresh).toHaveBeenCalledTimes(1);
-    expect(hooks.values[3]).toMatchObject({updated:10,remaining:20,message:expect.stringContaining('Stopped.')});
+    expect(hooks.values[2]).toMatchObject({updated:10,remaining:20,message:expect.stringContaining('Stopped.')});
   });
   it.each(['network','provider','no progress'])('refreshes once after %s failure and retains resumable progress', async kind => {
     const request=vi.mocked(api.enrichMetadata);
@@ -92,29 +90,29 @@ describe('Fill missing metadata action', () => {
     else request.mockResolvedValueOnce(response(20,0));
     const refresh=vi.fn(async()=>{});
     screen(refresh)[0].onClick();
-    await vi.waitFor(()=>expect(hooks.values[1]).toBe(false));
+    await vi.waitFor(()=>expect(hooks.values[0]).toBe(false),{timeout:5000});
     expect(request).toHaveBeenCalledTimes(2); expect(refresh).toHaveBeenCalledTimes(1);
-    expect(hooks.values[3]).toMatchObject({remaining:20,updated:10,message:expect.any(String)});
+    expect(hooks.values[2]).toMatchObject({remaining:20,updated:10,message:expect.any(String)});
   });
   it('shows authoritative counts during a batch without refreshing', async () => {
     const pending=deferred<MetadataEnrichment>();
     vi.mocked(api.enrichMetadata).mockResolvedValueOnce(response(892)).mockReturnValueOnce(pending.promise);
     const refresh=vi.fn(async()=>{});
     screen(refresh)[0].onClick();
-    await vi.waitFor(()=>expect(api.enrichMetadata).toHaveBeenCalledTimes(2));
+    await vi.waitFor(()=>expect(api.enrichMetadata).toHaveBeenCalledTimes(2),{timeout:5000});
     hooks.cursor=0;
-    const tree=MetricsScreen({catalog,viewer,onUpdated:refresh});
+    const tree=MetadataMaintenance({catalog,onUpdated:refresh});
     expect(JSON.stringify(tree)).toContain('892'); expect(refresh).not.toHaveBeenCalled();
     screen(refresh).find(a=>a.children==='Stop after this batch')!.onClick();
     pending.resolve(response(882));
-    await vi.waitFor(()=>expect(hooks.values[1]).toBe(false));
+    await vi.waitFor(()=>expect(hooks.values[0]).toBe(false),{timeout:5000});
     expect(refresh).toHaveBeenCalledTimes(1);
   });
   it('unmount during a batch prevents subsequent requests', async () => {
     const pending=deferred<MetadataEnrichment>();
     vi.mocked(api.enrichMetadata).mockReturnValue(pending.promise);
     screen(async()=>{})[0].onClick(); hooks.cleanup!(); pending.resolve(response(20));
-    await vi.waitFor(()=>expect(hooks.values[1]).toBe(false));
+    await vi.waitFor(()=>expect(hooks.values[0]).toBe(false),{timeout:5000});
     expect(api.enrichMetadata).toHaveBeenCalledTimes(1);
   });
   it('stops immediately on an empty first batch with work remaining', async () => {

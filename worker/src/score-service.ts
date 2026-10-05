@@ -6,7 +6,7 @@ import { MdbListProvider, mdbId } from './providers/mdblist';
 import { TmdbProvider } from './providers/tmdb';
 import { OmdbProvider } from './providers/omdb';
 import { ProviderError } from './providers/http';
-import { maintenanceMovies, missingScores, type MaintenanceMode } from '../../shared/score-maintenance';
+import { missingScores, type MaintenanceMode } from '../../shared/score-maintenance';
 import { rankMovie } from '../../shared/ranking';
 const failure = (provider: string, error: unknown): ProviderResult => ({provider,status: 'failed',count: 0,
   message: error instanceof ApiError ? error.message : `${provider} refresh failed. Try later.`,
@@ -76,12 +76,7 @@ export class ScoreService {
   }
   async maintain(mode: MaintenanceMode, ids: string[]) {
     if (!ids.length || ids.length > 10) throw new ApiError(422,'INVALID_LIMIT','Choose 1–10 films.');
-    const catalog = await this.repo.catalog(), scope = maintenanceMovies(catalog);
-    const selected = [...new Set(ids)].map(id => {
-      const movie = scope.find(m => m.id === id);
-      if (!movie) throw new ApiError(422,'INVALID_SCOPE','Maintenance only covers Classics and History films.');
-      return movie;
-    });
+    const selected = await this.repo.maintenanceDetails([...new Set(ids)],true);
     const failures = new Map<string,ProviderError>(), batch = new Map<string,{scores?: Score[]; error?: unknown}>();
     const candidates = selected.filter(m => mode !== 'missing' || missingScores(m));
     if (mode !== 'metadata' && this.env.MDBLIST_API_KEY) for (const provider of ['imdb','tmdb']) {
@@ -110,9 +105,8 @@ export class ScoreService {
       } catch (error) { if (this.providerWide(error)) failures.set('omdb',error); result = failure('omdb',error); }
       results.push({id:movie.id,providers:[result]});
     }
-    const current = await this.repo.catalog();
-    return {results:results.map(r => ({providers:r.providers,movie:{...current.movies.find(m => m.id === r.id)!,
-      appearances:current.sessions.flatMap(s => s.movies.flatMap((m,i) => m.id === r.id ? [{id:s.id,event_date:s.event_date,date_precision:s.date_precision,kind:s.kind,host_member_id:s.host_member_id,position:i+1}] : []))}}))};
+    const current = await this.repo.maintenanceDetails(results.map(r => r.id));
+    return {results:results.map((r,i) => ({providers:r.providers,movie:current[i]}))};
   }
   async enrich(limit: number) {
     if (!Number.isInteger(limit) || limit < 1 || limit > 10) throw new ApiError(422,'INVALID_LIMIT','Choose 1–10 films.');

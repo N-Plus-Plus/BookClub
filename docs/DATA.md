@@ -16,7 +16,7 @@ Describe the as-is state. Remove stale descriptions rather than preserving histo
 
 ## Data overview and stores
 
-D1 is canonical. Provider observations are persisted snapshots; ranking and Metrics are regenerated from them and active History. Browser component state is disposable. Event drafts/search remain in their mounted components during transient Film Detail inspection; App carries only candidate/preview coordination and a one-movie confirmation handoff. Preview/director cache is per FilmPicker mount, never stored in D1 or browser storage. Image binaries are served by the CDN rather than stored in D1.
+D1 is canonical. Provider observations are persisted snapshots; ranking and Metrics are regenerated from them and active History. Score maintenance reads only selected films, their score/Seen/membership/metadata relationships, active History appearances and the ranking roster; scope validation and updated detail responses do not load the full catalogue. Completed film writes remain durable across later failed requests. Browser component state is disposable. Event drafts/search remain in their mounted components during transient Film Detail inspection; App carries only candidate/preview coordination and a one-movie confirmation handoff. Preview/director cache is per FilmPicker mount, never stored in D1 or browser storage. Image binaries are served by the CDN rather than stored in D1.
 
 | Store | Technology / location | Ownership and environment |
 | --- | --- | --- |

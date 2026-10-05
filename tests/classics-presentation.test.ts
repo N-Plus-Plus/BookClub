@@ -2,6 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { AdminScreen } from '../frontend/AdminScreen';
 import { ClassicsScreen } from '../frontend/ClassicsScreen';
 import { DetailScreen } from '../frontend/DetailScreen';
 import { api } from '../frontend/api';
@@ -17,7 +18,7 @@ const film=(i:number,group='ranked'):Movie=>{
 };
 let root:Root,container:HTMLDivElement;
 beforeEach(()=>{vi.clearAllMocks();Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});container=document.createElement('div');document.body.appendChild(container);root=createRoot(container);});
-afterEach(async()=>{await act(async()=>root.unmount());container.remove();});
+afterEach(async()=>{await act(async()=>root.unmount());container.remove();vi.useRealTimers();});
 const click=async(label:string)=>act(async()=>{[...container.querySelectorAll('button')].find(b=>b.textContent===label)!.click();});
 it('paginates each Classics view, retains global ranks, resets tabs and clamps shrinking lists',async()=>{
  const movies=[...Array.from({length:42},(_,i)=>film(i+1)),...Array.from({length:11},(_,i)=>film(i+100,'missing')),...Array.from({length:11},(_,i)=>film(i+200,'seen'))];
@@ -46,7 +47,7 @@ it('suppresses Seen for films outside Classics without History appearances',asyn
  expect(container.querySelector('.detail-seen-summary')).toBeNull();expect(container.textContent).not.toContain('Seen It?');expect(api.seen).not.toHaveBeenCalled();
 });
 
-it('shows one bottom maintenance disclosure on all tabs for admins only and includes History in bulk work',async()=>{
+it('omits maintenance on all Classics tabs and includes History in Admin bulk work',async()=>{
  const movies=[film(1),film(2,'missing'),film(3,'seen')].map((m,i)=>({...m,external_ids:[{provider:'imdb',external_id:`tt${String(i+1).padStart(7,'0')}`}]}));
  const history={...film(99),classic:false,external_ids:[{provider:'imdb',external_id:'tt0000099'}]};
  const catalog={movies:[...movies,history],members,cycles:[],sessions:[{id:'history',event_date:'2026-01-01',host_member_id:'m1',legacy_cycle_label:null,cycle_id:null,kind:'hosted' as const,date_precision:'exact' as const,cycle_slot:null,movies:[history,movies[0]]}]};
@@ -54,12 +55,14 @@ it('shows one bottom maintenance disclosure on all tabs for admins only and incl
  const render=async(role:'member'|'admin'='admin')=>act(async()=>root.render(createElement(ClassicsScreen,{movies,catalog,viewer:{...viewer,role},writesEnabled:true,onMovie})));
  await render();
  for (const tab of ['Ranked (1)','Needs Data (1)','Already Seen (1)']) {
-  await click(tab);expect(container.querySelectorAll('.utility-disclosure')).toHaveLength(1);
-  expect(container.querySelector('.ranking-list details')).toBeNull();expect(container.lastElementChild?.lastElementChild?.classList.contains('classics-maintenance')).toBe(true);
+  await click(tab);expect(container.querySelectorAll('.classics-maintenance')).toHaveLength(0);
+  expect(container.querySelector('.ranking-list details')).toBeNull();expect(container.textContent).not.toContain('Populate Missing Scores');
  }
- const disclosure=container.querySelector('details')!;disclosure.open=true;
+ await act(async()=>root.render(createElement(AdminScreen,{catalog,writesEnabled:true,onMovie,onUpdated:async()=>{}})));
  vi.mocked(api.maintainMovies).mockImplementation(async(_mode,ids)=>({results:ids.map(id=>({movie:{...catalog.movies.find(m=>m.id===id)!,appearances:[]},providers:[{provider:'mdblist',status:'success',count:3,message:'Saved'}]}))}));
- await click('Refresh Scores');expect(api.maintainMovies).toHaveBeenCalledWith('refresh',['f1','f2','f3','f99']);expect(onMovie).toHaveBeenCalled();expect(container.textContent).toContain('4 / 4 films processed');
- await click('Populate Missing Scores');expect(api.maintainMovies).toHaveBeenLastCalledWith('missing',['f1','f2','f3','f99']);
+ vi.useFakeTimers();
+ await click('Refresh Scores');await act(async()=>{ await vi.runAllTimersAsync(); });expect(vi.mocked(api.maintainMovies).mock.calls.filter(([mode])=>mode==='refresh').flatMap(([,ids])=>ids)).toEqual(['f1','f2','f3','f99']);expect(onMovie).toHaveBeenCalled();expect(container.textContent).toContain('4 / 4 films processed');
+ await click('Populate Missing Scores');await act(async()=>{ await vi.runAllTimersAsync(); });expect(vi.mocked(api.maintainMovies).mock.calls.filter(([mode])=>mode==='missing').flatMap(([,ids])=>ids)).toEqual(['f1','f2','f3','f99']);
+ vi.useRealTimers();
  await render('member');expect(container.querySelector('.classics-maintenance')).toBeNull();
 });

@@ -1,3 +1,4 @@
+import { MAINTENANCE_IDLE_MS } from '../shared/score-maintenance';
 import type { MetadataEnrichment } from '../shared/types';
 
 export interface MetadataRun extends MetadataEnrichment { processed: number; updated: number; message: string }
@@ -25,7 +26,7 @@ export async function maintainMetadata(options: {
     await options.progress(run);
     if (run.message || options.stopped()) break;
     // Yield between requests so Stop and navigation can take effect.
-    await new Promise(resolve => setTimeout(resolve,0));
+    await new Promise(resolve => setTimeout(resolve,MAINTENANCE_IDLE_MS));
   }
   if (options.stopped() && run.remaining) {
     run = {...run,message:'Stopped. Completed updates are saved; resume later to continue remaining films.'};

@@ -66,3 +66,16 @@ it('uses a human historical turn label in Builder validation errors while retain
   const {api} = await import('../frontend/api');
   await expect(api.publishBuilder('set',{revision:0,event_date:'2026-01-01',cycle_id:null,cycle_slot:1,complete_turn:false})).rejects.toMatchObject({fields,message:'Historical turn: Choose a cycle for this historical turn.'});
 });
+
+it('bounds browser TMDB maintenance to two films and retains ordinary request timeouts',async()=>{
+ vi.stubEnv('DEV',true);
+ const timeout=vi.spyOn(AbortSignal,'timeout');
+ const fetch=vi.fn(async(_url:string,_init:RequestInit)=>Response.json({data:{}}));vi.stubGlobal('fetch',fetch);
+ try {
+  const {api}=await import('../frontend/api');
+  await api.enrichMetadata();await api.enrichMetadata(10);await api.enrichMetadata(1);
+  expect(fetch.mock.calls.map(([,init])=>JSON.parse(init.body as string).limit)).toEqual([2,2,1]);
+  await api.catalog();await api.me();
+  expect(timeout.mock.calls.map(([ms])=>ms)).toEqual([105000,105000,105000,15000,15000]);
+ } finally {timeout.mockRestore();}
+});

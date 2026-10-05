@@ -1,5 +1,5 @@
 import type { RefreshResult, ScoreMaintenance } from '../shared/types';
-import { MAINTENANCE_BATCH_SIZE } from '../shared/score-maintenance';
+import { MAINTENANCE_BATCH_SIZE, MAINTENANCE_IDLE_MS } from '../shared/score-maintenance';
 export interface MaintenanceRun { results: RefreshResult[]; processed: number; total: number; remaining: number; message: string }
 /** A fixed ID queue visits unresolved or unrankable films once, never repeatedly. */
 export async function maintainScores(options: {
@@ -23,7 +23,7 @@ export async function maintainScores(options: {
       run = {...run,message:`${error instanceof Error ? error.message : 'Maintenance request failed.'} Partial updates may be saved; refresh BookClub before trying again.`};
       await options.progress(run); return run;
     }
-    if (offset+selected.length < ids.length) await new Promise(resolve => setTimeout(resolve,1000));
+    if (!options.stopped() && offset+selected.length < ids.length) await new Promise(resolve => setTimeout(resolve,MAINTENANCE_IDLE_MS));
   }
   run = {...run,message:options.stopped() && run.remaining ? 'Stopped. Completed updates are saved.' : 'Finished. Available information is saved; unavailable provider data remains missing.'};
   await options.progress(run); return run;

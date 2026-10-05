@@ -1,3 +1,4 @@
+import { METADATA_MAINTENANCE_BATCH_SIZE } from '../shared/score-maintenance';
 import { validationFieldLabel } from './presentation';
 import type { Catalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, MetadataEnrichment, ScoreMaintenance, TmdbPreview } from '../shared/types';
 
@@ -44,7 +45,7 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
 export const api = {
   catalog: () => request<Catalog>('/catalog'), health: () => request<Health>('/health','GET',undefined,false),
   maintainMovies: (mode: import('../shared/score-maintenance').MaintenanceMode,movie_ids: string[]) => request<ScoreMaintenance>('/movies/maintain','POST',{mode,movie_ids}),
-  enrichMetadata: (limit = 10) => request<MetadataEnrichment>('/movies/enrich-metadata','POST',{limit}),
+  enrichMetadata: (limit = METADATA_MAINTENANCE_BATCH_SIZE) => request<MetadataEnrichment>('/movies/enrich-metadata','POST',{limit:Math.min(limit,METADATA_MAINTENANCE_BATCH_SIZE)}),
   me: () => request<{viewer: Viewer | null}>('/auth/me'),
   googleLogin: (credential: string) => request<AuthLogin>('/auth/google','POST',{credential},false),
   logout: () => request<{loggedOut: boolean}>('/auth/logout','POST'),

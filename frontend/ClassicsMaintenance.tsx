@@ -30,9 +30,9 @@ export function ClassicsMaintenance({catalog,writesEnabled,onMovie,onUpdated}: {
       active.current = false; setMode(null);
     }
   };
-  return <details className="utility-disclosure classics-maintenance"><summary>Admin · bulk maintenance</summary><div className="stack">
+  return <section className="card stack classics-maintenance" aria-labelledby="score-maintenance-heading"><h2 id="score-maintenance-heading">Scores and OMDb metadata</h2>
     <p className="meta">Covers all {movies.length} distinct films in Classics and History. Scores use IMDb, RT audience, RT critic, Letterboxd, Metacritic and TMDB. Refreshing scores can change Ranked order.</p>
-    <p className="meta">Populate fills missing score inputs. Refresh checks every identified film. Requests run sequentially in batches of up to 10, with no automatic retries and a stop on provider failures or cooldowns.</p>
+    <p className="meta">Populate fills missing score inputs. Refresh checks every identified film. Requests run sequentially in bounded batches, with no automatic retries and a stop on provider failures or cooldowns.</p>
     <p className="meta">Metadata separately refreshes release year, runtime, director and IMDb genres through OMDb. Available metadata is also saved when a score fallback already uses OMDb, without another call. Unavailable values preserve stored metadata.</p>
     <p className="meta">{movies.filter(m => !maintenanceIdentity(m,'refresh')).length} films need a score identity · {movies.filter(m => !maintenanceIdentity(m,'metadata')).length} films need an IMDb identity for metadata.</p>
     <div className="button-set">{(Object.keys(labels) as MaintenanceMode[]).map(operation => <Action key={operation} icon={RefreshCw} disabled={Boolean(mode) || !writesEnabled || !movies.some(m => maintenanceIdentity(m,operation) && (operation !== 'missing' || missingScores(m)))} onClick={() => void start(operation)}>{labels[operation]}</Action>)}
@@ -42,5 +42,5 @@ export function ClassicsMaintenance({catalog,writesEnabled,onMovie,onUpdated}: {
       {run.message && <p className="meta">{run.message}</p>}
       {run.results.filter(r => r.providers.some(p => p.status === 'failed' || p.retryAfter !== undefined || p.status === 'success' && p.count === 0) || !r.providers.some(p => p.status === 'success')).map(r => <div key={r.movie.id}><strong>{r.movie.title}</strong><ProviderFeedback providers={r.providers.filter(p => p.status !== 'success' || p.count === 0)} /></div>)}
     </div>}{error && <p className="error-message" role="alert">{error}</p>}
-  </div></details>;
+  </section>;
 }

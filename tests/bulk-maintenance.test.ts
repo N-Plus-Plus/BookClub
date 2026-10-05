@@ -14,7 +14,7 @@ beforeEach(() => {
   local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-1'");
   env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:4173',MDBLIST_API_KEY:'fictional',OMDB_API_KEY:'fictional'};
 });
-afterEach(() => { local.sqlite.close(); vi.unstubAllGlobals(); });
+afterEach(() => { local.sqlite.close(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 const add = async (id: string, provider='imdb') => {
  const repo=new Repository(local.db); const film=await repo.manualMovie({title:id}); await repo.setClassic(film,true);
  local.sqlite.prepare('INSERT INTO movie_external_ids VALUES(?,?,?)').run(film,provider,provider==='imdb'?id:'123'); return film;
@@ -120,4 +120,53 @@ it('persists TMDB cooldowns and suppresses duplicate direct requests within and 
  expect(result.results[0].providers.find(p=>p.provider==='tmdb')).toMatchObject({status:'failed',retryAfter:120});
  expect(result.results[1].providers.find(p=>p.provider==='tmdb')).toMatchObject({status:'skipped'});
  await data(await call('refresh',[a]));expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it('uses only selected-film reads and returns the ordinary detail contract, including repeated appearances',async()=>{
+ const repo=new Repository(local.db);
+ local.sqlite.exec("INSERT INTO session_movies(session_id,movie_id,position) SELECT session_id,movie_id,(SELECT MAX(position)+1 FROM session_movies j WHERE j.session_id=session_movies.session_id) FROM session_movies WHERE movie_id='arrival' LIMIT 1");
+ const catalog=await repo.catalog();
+ const movie=catalog.movies.find(m=>m.id==='arrival')!;
+ const expected={...movie,appearances:catalog.sessions.flatMap(s=>s.movies.flatMap((m,i)=>m.id==='arrival'?[{id:s.id,event_date:s.event_date,date_precision:s.date_precision,kind:s.kind,host_member_id:s.host_member_id,position:i+1}]:[]))};
+ const spy=vi.spyOn(Repository.prototype,'catalog').mockRejectedValue(new Error('Full catalogue forbidden'));
+ env.MDBLIST_API_KEY=undefined;env.OMDB_API_KEY=undefined;
+ const result=await data(await call('refresh',['arrival']));
+ expected.external_ids.sort((a,b)=>a.provider.localeCompare(b.provider));
+ result.results[0].movie.external_ids.sort((a,b)=>a.provider.localeCompare(b.provider));
+ expect(result.results[0].movie).toEqual(expected);expect(spy).not.toHaveBeenCalled();
+ const orphan=await repo.manualMovie({title:'Deleted History only'});
+ local.sqlite.prepare("INSERT INTO sessions(id,event_date,kind,date_precision,deleted_at) VALUES('deleted','2020-01-01','hosted','exact','2020-02-01')").run();
+ local.sqlite.prepare("INSERT INTO session_movies(session_id,movie_id,position) VALUES('deleted',?,1)").run(orphan);
+ expect((await call('refresh',[orphan])).status).toBe(422);
+});
+it('serves ordinary auth and catalogue reads while a maintenance provider response is pending',async()=>{
+ const film=await add('tt0000020');
+ let release!: (response:Response)=>void, entered!: ()=>void;
+ const started=new Promise<void>(resolve=>{entered=resolve;});
+ vi.stubGlobal('fetch',vi.fn(()=>{entered();return new Promise<Response>(resolve=>{release=resolve;});}));
+ const pending=call('refresh',[film]);await started;
+ try {
+  for (const path of ['/auth/me','/catalog']) {
+   const response=await worker.fetch(new Request('http://api/api/v1'+path,{headers:{'X-BookClub-Dev-Member':'member-1'}}),env);
+   expect(response.status).toBe(200);
+  }
+ } finally {release(Response.json([{imdb_id:'tt0000020',ratings}]));await pending;}
+});
+
+it('keeps ten IMDb films in one MDBList provider request without catalogue reads',async()=>{
+ vi.useFakeTimers();
+ try {
+  const films=[];
+  for(let i=30;i<40;i++) films.push(await add(`tt00000${i}`));
+  const fetch=vi.fn(async(_url:string,init:RequestInit)=>Response.json(JSON.parse(init.body as string).ids.map((imdb_id:string)=>({imdb_id,ratings}))));
+  vi.stubGlobal('fetch',fetch);
+  const catalog=vi.spyOn(Repository.prototype,'catalog').mockRejectedValue(new Error('Full catalogue forbidden'));
+  const pending=call('refresh',films);
+  await vi.runAllTimersAsync();
+  const result=await data(await pending);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(fetch.mock.calls[0][1].body as string).ids).toHaveLength(10);
+  expect(result.results.map(r=>r.movie.id)).toEqual(films);
+  expect(catalog).not.toHaveBeenCalled();
+ } finally {vi.useRealTimers();}
 });

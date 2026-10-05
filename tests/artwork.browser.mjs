@@ -34,7 +34,7 @@ await context.route('**/*',async route=>{
 });
 try {
   await page.goto('http://localhost:4173/#/history');await page.locator('.poster-empty').first().waitFor();assert.equal(calls,0);
-  await page.goto('http://localhost:4173/#/metrics');await page.getByText('Admin · metadata maintenance',{exact:true}).click();
+  await page.goto('http://localhost:4173/#/admin');
   await page.getByRole('button',{name:'Fill missing metadata',exact:true}).click();
   await page.getByText(/successfully updated/).waitFor();assert.equal(calls,1);
   await page.screenshot({path:'.verification/artwork-maintenance-progress.png',fullPage:true});
@@ -46,7 +46,7 @@ try {
         await page.getByRole('button',{name:'New set',exact:true}).click();
         await page.getByLabel('Search saved films & TMDB').fill('fixture');await page.getByRole('button',{name:'Search',exact:true}).click();
       }
-      if(screen==='metrics') await page.getByText('Admin · metadata maintenance',{exact:true}).click();
+      if(screen==='metrics') await page.getByRole('heading',{name:'By Genre',exact:true}).waitFor();
       else {
         await page.locator('img.poster').first().waitFor();await page.locator('img.poster').first().scrollIntoViewIfNeeded();
         await page.waitForFunction(()=>[...document.querySelectorAll('img.poster')].some(e=>e.complete && e.naturalWidth>0));

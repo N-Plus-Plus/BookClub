@@ -2,6 +2,8 @@ import type { Catalog, Movie } from './types';
 import { rankMovie } from './ranking';
 export type MaintenanceMode = 'missing' | 'refresh' | 'metadata';
 export const MAINTENANCE_BATCH_SIZE = 10;
+export const METADATA_MAINTENANCE_BATCH_SIZE = 2;
+export const MAINTENANCE_IDLE_MS = 2000;
 export function maintenanceMovies(catalog: Catalog): Movie[] {
   const history = new Set(catalog.sessions.filter(s => !s.deleted_at).flatMap(s => s.movies.map(m => m.id)));
   return catalog.movies.filter(m => m.classic || history.has(m.id));
