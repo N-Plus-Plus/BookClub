@@ -1,0 +1,208 @@
+<!--
+AGENT MAINTENANCE INSTRUCTION
+
+Build this document around the tests and verification strategy that actually exist.
+
+Update it whenever:
+1. implementation work adds, removes, renames, or materially changes tests, fixtures, commands, coverage responsibilities, or verification policy; or
+2. other work reveals that the documented testing reality is stale.
+
+Keep the suite useful and proportionate. Do not encourage repeated full-suite runs merely because they are available.
+-->
+
+# TESTING.md
+
+## Testing principle
+
+Tests should protect meaningful behaviour, contracts, invariants, and regressions.
+
+Verification effort must be proportionate to the change.
+
+Prefer the smallest test scope that can give useful confidence.
+
+## When to add or update a test
+
+Add or update tests when work introduces or changes:
+
+- meaningful user-visible behaviour;
+- a domain rule or invariant;
+- a bug whose recurrence would matter;
+- a durable data or interface contract;
+- a failure/recovery path;
+- integration/provider selection or fallback;
+- authentication or authorisation behaviour;
+- a shared helper whose behaviour is relied on broadly.
+
+A bug fix should normally gain a regression test when a practical automated test can reproduce the failure.
+
+Do not add tests merely to:
+
+- mirror implementation line-by-line;
+- prove trivial getters/setters or framework behaviour;
+- duplicate equivalent coverage without a distinct risk;
+- inflate test counts.
+
+## Test scope by change size
+
+### Small / local change
+
+Prefer one targeted test file, case, or directly related group.
+
+Do not run the full suite unless the targeted result indicates wider impact.
+
+### Intermediate change
+
+Run the directly affected group or groups.
+
+Examples:
+
+- one subsystem;
+- API tests plus its persistence tests;
+- component tests plus the related integration test.
+
+Use broader coverage only where the dependency surface warrants it.
+
+### Major / cross-cutting change
+
+Use targeted or grouped tests while implementing, then run the full suite once when the change is otherwise ready.
+
+Examples:
+
+- shared infrastructure;
+- schema changes;
+- large refactors;
+- authentication changes;
+- dependency/toolchain changes;
+- release-critical work.
+
+## Test-run budget
+
+Avoid test-loop churn.
+
+Normal limits per pass:
+
+- **Small change:** normally 1 targeted run, with at most 1 rerun after a fix.
+- **Intermediate change:** normally up to 3 meaningful test invocations.
+- **Major change:** targeted/grouped checks during work, then 1 full-suite run at the end; normally no more than 4 meaningful test invocations total.
+
+A single invocation may run multiple related test files.
+
+Exceed these limits only when failures genuinely require diagnosis or the user explicitly asks for exhaustive verification.
+
+Do not repeatedly rerun the full suite after unrelated small edits.
+
+## Full-suite rule
+
+Run the complete suite when:
+
+- the user explicitly asks;
+- a major or cross-cutting change is ready for final verification;
+- shared infrastructure changed;
+- targeted failures suggest wider breakage;
+- deployment/release confidence requires it.
+
+Do not make a full-suite run the default closing ritual for a narrow pass.
+
+## Failed tests
+
+Classify a failed test before acting.
+
+### Genuine regression
+
+If the implementation appears wrong, fix the implementation within task scope and rerun the affected test.
+
+If the regression blocks application function or blocks an approved roadmap task and cannot be resolved in the current pass, it may justify a Priority 0 roadmap blocker.
+
+### Stale or obsolete test case
+
+If evidence indicates that the implementation now reflects the intended behaviour and the test itself is stale:
+
+1. do not silently treat the suite as passing;
+2. report the stale test to the user;
+3. add it to the dedicated **Priority 0.5 - Stale/failing tests** section in [ROADMAP](../ROADMAP.md);
+4. include enough diagnosis that a future agent can understand:
+   - test name/file;
+   - observed failure;
+   - why the test appears stale rather than the implementation being wrong;
+   - likely correction;
+   - any uncertainty.
+
+Priority 0.5 is reserved for non-blocking stale or failing tests that the user can address together later.
+
+Do not use Priority 0.5 for application regressions, production blockers, or feature work.
+
+If the current task explicitly includes updating stale tests, update them instead of deferring them.
+
+## Test environments
+
+Automated tests should use:
+
+- disposable local data;
+- fixtures;
+- mocks;
+- sandbox providers;
+- copied/sanitised snapshots;
+
+as appropriate.
+
+Do not connect tests to production databases, real user accounts, or destructive live provider operations without explicit user authorisation.
+
+## Test data and fixtures
+
+Once fixtures exist, document:
+
+- owning location;
+- what they represent;
+- whether they are generated or hand-maintained;
+- reset/cleanup behaviour;
+- any data sanitisation rule.
+
+`tests/d1.ts` applies real migrations to an in-memory Node SQLite D1 adapter; `tests/import-fixture.ts` builds fictional workbook inputs. Tests use hand-maintained generic members/films, mocks and temporary directories, with cleanup owned by the test. Import/provider/REST tests never use the private archive, production accounts or live providers. Use Node 24 for the complete suite; see [ARCHITECTURE](ARCHITECTURE.md).
+
+Local demo data lives in `worker/seed.sql`; `seed_runs` makes startup idempotent. `db:reset` deletes local work and is not a routine test prerequisite. Production snapshot copies are private even after auth sanitisation; screenshots/results belong in ignored `.verification/`, never public fixtures. See [DATA](DATA.md).
+
+## Canonical commands
+
+| Purpose | Command |
+| --- | --- |
+| Targeted tests | `corepack pnpm exec vitest run tests/ranking.test.ts` |
+| Intermediate/grouped tests | `corepack pnpm exec vitest run tests/auth.test.ts tests/product-api.test.ts` (select actual impact group) |
+| Full suite | `corepack pnpm test` |
+| Type checking | `corepack pnpm typecheck` (root plus Worker TS projects) |
+| Linting | Not configured; do not invent a command |
+| Build / compile verification | `corepack pnpm build`; static config `corepack pnpm prod:check`; add `--frontend` for process public build vars |
+| Smoke testing | `node scripts/smoke.mjs` (local write smoke); `corepack pnpm exec tsx scripts/dev/smoke.ts` (disposable local CRUD) |
+
+Keep these commands aligned with the actual manifests/tooling.
+
+## Current test structure
+
+Vitest is configured in `vite.config.ts`, selecting `tests/**/*.test.ts`. No lint/formatter or standalone Vitest config exists.
+
+| Coverage | Files under `tests/` |
+| --- | --- |
+| Domain | `ranking.test.ts`, `metrics.test.ts`, `event-validation.test.ts`, `maintenance-feedback.test.ts`, `artwork.test.ts` |
+| API/auth/product | `api.test.ts`, `auth.test.ts`, `product-api.test.ts`, `domain-api.test.ts`, `frontend-api.test.ts` |
+| Providers/metadata | `providers.test.ts`, `ratings.test.ts`, `metadata.test.ts` |
+| Imports | `importer.test.ts`, `import-resolution.test.ts`, `import-io.test.ts`, `production-import.test.ts` |
+| Schema/environment | `migration.test.ts`, `dev-refresh.test.ts`, `dev-launch.test.ts`, `prod-check.test.ts`, `tmdb-pairings.test.ts`, `tmdb-merges.test.ts` |
+
+The local pairing/merge tests use disposable migrated D1 and mocked TMDB. They cover confirmed/corrected identities, survivor selection, ordered History/Builder appearances, Classics/seed evidence, score and Seen preservation, provenance/audit/fingerprints, unique ownership, rollback, raced state, receipt-based resume and cached response reuse. Rehearsing against a copied local emulator can additionally prove D1-specific parameter/authorisation limits; keep copied data/reports ignored and never use real providers for that rehearsal.
+
+## Optional local rendered and persistence checks
+
+Read [STYLE](../STYLE.md) fully before interface changes; source review alone is not layout verification. Review populated mobile, desktop and relevant intermediate widths, long/missing content and loading/error/recovery states. Do not broaden a documentation-only pass into application tests by default; check files, links, facts and `git diff --check` instead.
+
+With normal local servers running, `node tests/ui-alignment.browser.mjs` reads the populated local snapshot and intercepts mutations using browser-only fixtures. It checks navigation/targets/forms/disclosures/responsive composition. It expects first two positional members, first as admin. `BOOKCLUB_UI_BEHAVIOUR_ONLY=1` skips the width screenshot sweep. `node tests/operation-feedback.browser.mjs` exercises operation-specific Film detail/Classics failure recovery with local reads and intercepted mutations.
+
+Both use optional locally installed Playwright: `BOOKCLUB_PLAYWRIGHT_MODULE` (default ignored `.verification/node_modules/playwright/index.mjs`) and `BOOKCLUB_BROWSER_PATH` (Windows default Edge). This is not a package dependency or automatic Vitest step. Screenshots/reports stay private and ignored.
+
+Artwork: `corepack pnpm exec tsx tests/artwork-snapshot.ts`, then `node tests/artwork.browser.mjs` with Vite running. The helper reads an existing local SQLite snapshot, copies it into memory and mocks at most ten selected TMDB details responses. Its source SQLite filename is currently fixed to the ordinary local emulator layout; verify availability before running. Browser intercepts APIs/images, checks 390/900/1440px contexts and missing/failed fallback, including no page-load enrichment. No real provider or production call is made.
+
+`node scripts/smoke.mjs` creates labelled local movie/event data; use disposable local state. `corepack pnpm exec tsx scripts/dev/smoke.ts` checks catalog/derived screens, local member/admin and Builder/Seen CRUD, deleting its Builder and restoring Seen afterwards. Read scripts before use; cleanup does not make the execution path read-only. Do not connect any smoke to production without explicit authority.
+
+Historical UI audits are [reference evidence](UI_AUDIT_POST_ALIGNMENT.md), not assertions that their findings persist in current source. Reverify before adopting an old diagnosis.
+
+## Reporting and maintenance
+
+Report exact commands/results, full-suite run or omission, blocked/skipped checks and manual checks still required. No passing claim for an unavailable environment. Keep this policy aligned with actual tests and fixtures. A skipped test is not a Priority 0.5 finding; that section requires an observed failure and evidence-based diagnosis. Documentation adoption itself does not require a Vitest run.

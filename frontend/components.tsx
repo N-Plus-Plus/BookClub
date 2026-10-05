@@ -1,5 +1,6 @@
 import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Eye, Film, RefreshCw, type LucideIcon } from 'lucide-react';
+import { posterReference } from '../shared/artwork';
 import { ClubIdentity } from './ClubIdentity';
 import type { Member, Movie, Session } from '../shared/types';
 
@@ -23,8 +24,9 @@ export function Failure({message,retry}: {message: string; retry: () => void}) {
 }
 export function Poster({movie,large = false}: {movie: Pick<Movie,'title'|'assets'>; large?: boolean}) {
   const asset = movie.assets.find(a => a.asset_type === 'poster');
-  const [failed,setFailed] = useState(false);
-  return asset && !failed ? <img className={`poster ${large ? 'poster-large' : ''}`} src={asset.reference} alt={`${movie.title} poster`} loading="lazy" onError={() => setFailed(true)} />
+  const reference = asset ? posterReference(asset.reference,large) : undefined;
+  const [failedReference,setFailedReference] = useState<string>();
+  return reference && failedReference !== reference ? <img className={`poster ${large ? 'poster-large' : ''}`} src={reference} alt={`${movie.title} poster`} loading="lazy" onError={() => setFailedReference(reference)} />
     : <div className={`poster poster-empty ${large ? 'poster-large' : ''}`} role="img" aria-label={`No poster available for ${movie.title}`}><Film size={large ? 48 : 25} aria-hidden="true" /><span>No poster</span></div>;
 }
 export function MovieLink({movie}: {movie: Movie}) {

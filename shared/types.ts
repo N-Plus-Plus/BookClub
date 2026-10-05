@@ -15,6 +15,7 @@ export interface Movie {
   id: string; title: string; original_title: string | null; year: number | null;
   release_date: string | null; runtime: number | null; overview: string | null;
   tmdb_metadata_checked_at?: string | null;
+  tmdb_artwork_checked_at?: string | null;
   genres: string[]; assets: Asset[]; external_ids: ExternalId[]; scores: Score[];
   seen: SeenAnswer[]; classic: boolean; ranking: Ranking | null;
   classics_membership?: { rank_seed: number; added_at: string; source: string | null } | null;
@@ -42,6 +43,6 @@ export interface ProviderResult { provider: string; status: 'success' | 'failed'
 export interface RefreshResult { movie: MovieDetail; providers: ProviderResult[] }
 export interface ManualMovieInput { title: string; year?: number; runtime?: number }
 export interface MetadataEnrichment {
-  results: {movieId: string; title: string; provider: 'tmdb'; status: 'success' | 'failed' | 'conflict'; message: string}[];
+  results: {movieId: string; title: string; provider: 'tmdb'; status: 'success' | 'failed' | 'conflict'; message: string; retryAfter?: number}[];
   remaining: number; unidentified: number;
 }

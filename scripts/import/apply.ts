@@ -65,6 +65,7 @@ export async function preflight(db:D1Database,plan:ResolvedPlan,scope:'preview'|
   if(!movieColumns.some(c=>c.name==='tmdb_metadata_checked_at')) throw new ImportError('Schema compatibility failure: run migration 0007 TMDB metadata completion before apply.');
   const cooldownColumns=(await db.prepare('PRAGMA table_info(provider_cooldowns)').all<{name:string}>()).results;
   if(!['provider','retry_after_until','updated_at'].every(n=>cooldownColumns.some(c=>c.name===n)))throw new ImportError('Schema compatibility failure: run migration 0008 provider cooldowns before apply.');
+  if(!movieColumns.some(c=>c.name==='tmdb_artwork_checked_at')) throw new ImportError('Schema compatibility failure: run migration 0009 TMDB artwork completion before apply.');
   if(scope==='preview'&&(await db.prepare('SELECT COUNT(*) n FROM club_rotation').first<{n:number}>())?.n)throw new ImportError('Preview contains production rotation; apply refused.');
   const columns=(await db.prepare('PRAGMA table_info(source_scores)').all<{name:string}>()).results;
   if(!columns.some(c=>c.name==='source_ordinal')||!columns.some(c=>c.name==='legacy_preferred')) throw new ImportError('Schema compatibility failure: score provenance columns missing.');

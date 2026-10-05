@@ -21,10 +21,45 @@ beforeEach(async()=>{
 afterEach(()=>{local.sqlite.close();vi.unstubAllGlobals();});
 const call=(input:unknown={limit:10})=>worker.fetch(new Request('http://api/api/v1/movies/enrich-metadata',{method:'POST',headers:{Authorization:`Bearer ${token}`},body:JSON.stringify(input)}),env);
 describe('bounded existing-film metadata enrichment',()=>{
+  it('checks genuinely unpopulated artwork immediately despite recent metadata, then excludes a known no-artwork response',async()=>{
+    local.sqlite.exec("DELETE FROM movie_assets WHERE movie_id='arrival'");
+    local.sqlite.prepare("UPDATE movies SET tmdb_metadata_checked_at=? WHERE id='arrival'").run(new Date().toISOString());
+    const fetch=vi.fn().mockResolvedValue(Response.json({...details(),poster_path:null,backdrop_path:null}));vi.stubGlobal('fetch',fetch);
+    expect(await service.enrichMetadata(10)).toMatchObject({results:[{movieId:'arrival',status:'success'}],remaining:0});
+    const movie=(await repo.catalog()).movies.find(m=>m.id==='arrival')!;
+    expect(movie.assets).toEqual([]);expect(movie.tmdb_artwork_checked_at).toBeTruthy();
+    expect(await service.enrichMetadata(10)).toMatchObject({results:[],remaining:0});expect(fetch).toHaveBeenCalledTimes(1);
+    local.sqlite.exec("UPDATE movies SET tmdb_metadata_checked_at='2000-01-01' WHERE id='arrival'");
+    expect((await service.enrichMetadata(1)).results).toHaveLength(1);
+  });
+  it('persists new-film artwork immediately and marks absent artwork checked on live imports',async()=>{
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(details(42,''))));
+    const movie=await service.import('tmdb','42');
+    expect(movie.assets.map(a=>a.asset_type).sort()).toEqual(['backdrop','poster']);expect(movie.tmdb_artwork_checked_at).toBeTruthy();
+    expect(await service.import('tmdb','42')).toEqual(movie);expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it('halts on cooldown without later provider calls and resumes only remaining films',async()=>{
+    local.sqlite.exec("INSERT INTO movies(id,title) VALUES('z-next','Next'); INSERT INTO movie_external_ids VALUES('z-next','tmdb','42'); INSERT INTO movie_genres VALUES('z-next','Drama')");
+    const fetch=vi.fn().mockResolvedValueOnce(Response.json(details())).mockResolvedValueOnce(new Response(null,{status:429,headers:{'Retry-After':'60'}}));vi.stubGlobal('fetch',fetch);
+    expect(await service.enrichMetadata(10)).toMatchObject({results:[{status:'success'},{status:'failed',retryAfter:60}],remaining:1});
+    expect(await service.enrichMetadata(10)).toMatchObject({results:[{movieId:'z-next',status:'failed'}],remaining:1});expect(fetch).toHaveBeenCalledTimes(2);
+    local.sqlite.exec("DELETE FROM provider_cooldowns");fetch.mockResolvedValue(Response.json(details(42,'')));
+    expect(await service.enrichMetadata(10)).toMatchObject({results:[{movieId:'z-next',status:'success'}],remaining:0});expect(fetch).toHaveBeenCalledTimes(3);
+  });
+  it('stops before the next film on provider network, credentials or outage failures',async()=>{
+    local.sqlite.exec("INSERT INTO movies(id,title) VALUES('z-next','Next'); INSERT INTO movie_external_ids VALUES('z-next','tmdb','42')");
+    for (const response of [null,401,503,429]) {
+      const fetch=vi.fn().mockImplementation(async()=>{if(response===null)throw Error('private internals');return new Response(null,{status:response});});vi.stubGlobal('fetch',fetch);
+      const result=await service.enrichMetadata(10);
+      expect(result.results).toHaveLength(1);expect(result.results[0].status).toBe('failed');expect(result.remaining).toBe(2);expect(fetch).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(result)).not.toContain('private internals');
+    }
+  });
   it('marks live TMDB imports checked, retains historical null markers, and identifies the conservative staleness boundary',async()=>{
     const fetched_at='2026-01-01T00:00:00.000Z';
     const id=await repo.importMovie({title:'Live TMDB',original_title:null,year:null,release_date:null,runtime:null,overview:null,genres:[],assets:[],scores:[],fetched_at,external_ids:[{provider:'tmdb',external_id:'999999'}]});
     expect((await repo.catalog()).movies.find(m=>m.id===id)?.tmdb_metadata_checked_at).toBe(fetched_at);
+    expect((await repo.catalog()).movies.find(m=>m.id===id)?.tmdb_artwork_checked_at).toBe(fetched_at);
     expect((await repo.catalog()).movies.find(m=>m.id==='arrival')?.tmdb_metadata_checked_at).toBeNull();
     const now=Date.parse('2026-10-01T00:00:00Z'), day=24*60*60*1000;
     expect(tmdbMetadataIsStale(new Date(now-(TMDB_METADATA_REFRESH_DAYS-1)*day).toISOString(),now)).toBe(false);
@@ -114,7 +149,7 @@ describe('bounded existing-film metadata enrichment',()=>{
   });
   it('limits provider calls, prioritises missing genres and preserves successes after individual failures',async()=>{
     for(let i=1;i<=12;i++) local.sqlite.exec(`INSERT INTO movies(id,title) VALUES('missing-${String(i).padStart(2,'0')}','Fictional ${i}'); INSERT INTO movie_external_ids VALUES('missing-${String(i).padStart(2,'0')}','tmdb','${i}')`);
-    const fetch=vi.fn().mockImplementation(async(url:string)=>{const id=Number(url.match(/movie\/(\d+)/)?.[1]);if(id===1) throw Error('synthetic token must never escape');return Response.json(details(id,''));});vi.stubGlobal('fetch',fetch);
+    const fetch=vi.fn().mockImplementation(async(url:string)=>{const id=Number(url.match(/movie\/(\d+)/)?.[1]);if(id===1) return new Response(null,{status:404});return Response.json(details(id,''));});vi.stubGlobal('fetch',fetch);
     const result=await service.enrichMetadata(10);expect(fetch).toHaveBeenCalledTimes(10);expect(result.results.filter(r=>r.status==='success')).toHaveLength(9);expect(result.results.filter(r=>r.status==='failed')).toHaveLength(1);expect(result.remaining).toBe(4);expect(result.unidentified).toBe(6);expect(JSON.stringify(result)).not.toContain('synthetic token');
     expect(result.results[0].movieId).toBe('missing-01');
   });
@@ -128,6 +163,7 @@ describe('bounded existing-film metadata enrichment',()=>{
     const fetch=vi.fn();vi.stubGlobal('fetch',fetch);
     local.sqlite.exec("UPDATE members SET role='member' WHERE id='member-1'");expect((await call()).status).toBe(403);
     const catalog=await worker.fetch(new Request('http://api/api/v1/catalog',{headers:{Authorization:`Bearer ${token}`}}),env);expect(catalog.status).toBe(200);
+    expect((await worker.fetch(new Request('http://api/api/v1/movies/arrival',{headers:{Authorization:`Bearer ${token}`}}),env)).status).toBe(200);
     const {calculateMetrics}=await import('../shared/metrics');calculateMetrics((await catalog.json() as {data:Awaited<ReturnType<Repository['catalog']>>}).data);expect(fetch).not.toHaveBeenCalled();
     expect((await worker.fetch(new Request('http://api/api/v1/movies/enrich-metadata',{method:'POST',body:'{"limit":1}'}),env)).status).toBe(401);
     env.APP_ENV='local';env.LOCAL_WRITE_BYPASS='true';expect((await call()).status).toBe(401);

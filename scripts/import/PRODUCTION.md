@@ -1,10 +1,12 @@
-# Guarded production cutover
+# Guarded archive production operations
 
 Production historical cutover uses the trusted local operator process and authenticated Cloudflare D1 REST queries. Execution requires explicit owner authorisation; ordinary development and `import:apply:local` remain local. Application Worker deployment and Pages publication remain separate release operations.
 
-Historical import and four-member/auth bootstrap are complete and verified, with open cycle 55 / Classics slot 5 / version 0. The application Worker and Pages are deployed; README.md owns release verification and successful owner real-login and pending multi-user checks. Do not repeat bootstrap after real user actions.
+This specialised guide owns the archive CLI gates and partial-write recovery. [DATA](../../docs/DATA.md) owns current persistence/snapshot safety; [DEPLOYMENT](../../docs/DEPLOYMENT.md) owns application releases and smoke. Update operational facts here when code changes or drift is discovered.
 
-Migrations 0001–0008 are complete. The exact archive was rehearsed again after the 0005 parser correction. Retain the original pristine pre-migration export and proof; do not overwrite them. Applied migrations must not change.
+Historical import and four-member/auth bootstrap are complete according to retained project records. Cycle 55 / Classics slot 5 / version 0 is the initial archive bootstrap baseline, not a statement of current live rotation. The application Worker and Pages are deployed; do not repeat bootstrap after real user actions. Sections below describe the retained initial-archive tooling and its strict pre-launch assertions, not routine live maintenance.
+
+Previous deployment records report migrations 0001–0008 complete; source now includes 0009. Verify the remote ledger separately before any authorised operation. The CLI binds all current migration contents to an exact fresh rehearsal receipt, so an older receipt cannot authorise changed migrations. Retain the original pristine pre-migration export and proof; do not overwrite them. Applied migrations must not change.
 
 ## Rehearse the exact archive first
 
@@ -64,7 +66,7 @@ Remote migration parsing differs from local SQLite parsing. Migration 0005 uses 
 
 After separate owner authorisation, run `--action backup` with all gates. This uses the supported [Wrangler D1 export](https://developers.cloudflare.com/d1/wrangler-commands/#d1-export) mechanism, with the tracked production configuration and explicit `--remote`. It exports schema and data to a new timestamped ignored SQL file before any migration/bootstrap/import. It records database name/ID, UTC timestamp, exact plan hash, export SHA-256, byte count and path in a private proof JSON file. Existing backup paths are never overwritten. A successful command, nonempty export and matching content hash are required; keep an independent safe copy. This is export-integrity verification, not a claimed restore rehearsal.
 
-Run `--action migrate` with all gates plus `--backup-proof <PRIVATE_PROOF_JSON>`. The tooling rechecks the export's actual bytes/hash. An older populated application schema is refused for separate review; the initial workflow never silently migrates existing live payloads. An already current database receives the immutable production preflight before a migration command. Wrangler applies existing versioned migrations; success is checked against `d1_migrations`, including 0008 and the cooldown table. A failure stops the workflow; do not reset or manually edit import fingerprints.
+Run `--action migrate` with all gates plus `--backup-proof <PRIVATE_PROOF_JSON>`. The tooling rechecks the export's actual bytes/hash. An older populated application schema is refused for separate review; the initial workflow never silently migrates existing live payloads. An already current database receives the immutable production preflight before a migration command. Wrangler applies existing versioned migrations; success is checked against `d1_migrations`, including all current source migrations and required product/metadata/artwork/cooldown schema. A failure stops the workflow; do not reset or manually edit import fingerprints.
 
 Run `--action preflight` after migrations. This is read-only and checks schema, product invariants, score provenance, planned/existing rows, external ownership, seeds, immutable fingerprints, extra event joins, member/auth conflicts, open-slot availability and FKs. A complete roster may be projected for this read-only preflight before actual provisioning. No projected row is persisted. All conflicts must be reviewed before import.
 

@@ -17,7 +17,7 @@ If an existing pattern is known to be weak but the task does not authorise chang
 
 Do not perform opportunistic UI cleanup outside the requested area. Change only what the task requires, plus the minimum neighbouring adjustments needed to keep the result coherent.
 
-AGENTS.md governs engineering, architecture, persistence, testing and safety. README.md governs product and operational contracts. STYLE.md governs user experience, visual design, composition, interaction, responsive behaviour and presentation.
+AGENTS.md governs agent routing and standing engineering/safety rules. README.md is the human overview; the specialised documents under docs/ own architecture, data, contracts, integrations, testing and deployment. STYLE.md governs user experience, visual design, composition, interaction, responsive behaviour and presentation.
 
 ## 2. Design intent
 
@@ -631,3 +631,7 @@ Before completion ask:
 - Did the task accidentally expand into unrelated cleanup?
 
 If the screen technically works but still feels assembled rather than designed, the task is not finished.
+
+## 33. Document maintenance and relationships
+
+Update this authority in the same pass when an explicit lasting UX decision changes, or when other work reveals drift. Preserve BookClub-specific decisions; do not replace them with a generic starter. Remove stale rules rather than append competing ones. Product/data behaviour belongs in [DATA](docs/DATA.md) and [CONTRACTS](docs/CONTRACTS.md); rendered verification policy belongs in [TESTING](docs/TESTING.md). The dated [UI audits](docs/UI_AUDIT_POST_ALIGNMENT.md) are reference evidence, not current design authority or permission to implement their recommendations.

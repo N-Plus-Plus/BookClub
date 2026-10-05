@@ -5,10 +5,8 @@ import type { Movie, MovieDetail, SearchResponse, MetadataEnrichment } from '../
 import { normalizedGenres } from '../../shared/genres';
 import { ProviderError } from './providers/http';
 
-export const TMDB_METADATA_REFRESH_DAYS = 150;
-export function tmdbMetadataIsStale(checkedAt: string | null | undefined, now = Date.now()) {
-  return !checkedAt || Date.parse(checkedAt) <= now - TMDB_METADATA_REFRESH_DAYS * 24 * 60 * 60 * 1000;
-}
+import { metadataCandidate, tmdbIdentity } from '../../shared/metadata';
+export { TMDB_METADATA_REFRESH_DAYS, tmdbMetadataIsStale } from '../../shared/metadata';
 
 export function metadataGaps(movie: Movie): number {
   return (normalizedGenres(movie.genres).length ? 0 : 10) + [movie.original_title,movie.release_date,movie.runtime,movie.overview,
@@ -28,8 +26,8 @@ export class MovieService {
     if (!Number.isInteger(limit) || limit < 1 || limit > 10) throw new ApiError(422,'INVALID_LIMIT','Choose a limit from 1 to 10.');
     if (!this.env.TMDB_READ_TOKEN) throw new ApiError(503,'PROVIDER_NOT_CONFIGURED','TMDB metadata enrichment is not configured.');
     const catalog = await this.repo.catalog();
-    const identity = (m: Movie) => m.external_ids.find(e => e.provider === 'tmdb')?.external_id;
-    const candidates = catalog.movies.filter(m => identity(m) && tmdbMetadataIsStale(m.tmdb_metadata_checked_at)).sort((a,b) => metadataGaps(b)-metadataGaps(a) || a.id.localeCompare(b.id)).slice(0,limit);
+    const identity = tmdbIdentity;
+    const candidates = catalog.movies.filter(m => metadataCandidate(m)).sort((a,b) => metadataGaps(b)-metadataGaps(a) || a.id.localeCompare(b.id)).slice(0,limit);
     const results: MetadataEnrichment['results'] = [];
     const provider = new TmdbProvider(this.env.TMDB_READ_TOKEN);
     for (const movie of candidates) {
@@ -40,12 +38,13 @@ export class MovieService {
         results.push({movieId: movie.id,title: movie.title,provider: 'tmdb',status: 'success',message: 'Stored metadata updated.'});
       } catch (error) {
         results.push({movieId: movie.id,title: movie.title,provider: 'tmdb',status: error instanceof ApiError && error.status === 409 ? 'conflict' : 'failed',
-          message: error instanceof ApiError ? error.message : 'Metadata could not be updated. Retry or ask the administrator to review this film.'});
-        if (error instanceof ProviderError && ['rate_limited','credentials','outage'].includes(error.kind)) break;
+          message: error instanceof ApiError ? error.message : 'Metadata could not be updated. Retry or ask the administrator to review this film.',
+          ...(error instanceof ProviderError && error.retryAfter !== undefined ? {retryAfter: error.retryAfter} : {})});
+        if (error instanceof ProviderError && ['rate_limited','credentials','outage','network'].includes(error.kind)) break;
       }
     }
     const updated = await this.repo.catalog();
-    return {results,remaining: updated.movies.filter(m => identity(m) && tmdbMetadataIsStale(m.tmdb_metadata_checked_at)).length,unidentified: updated.movies.filter(m => !identity(m)).length};
+    return {results,remaining: updated.movies.filter(m => metadataCandidate(m)).length,unidentified: updated.movies.filter(m => !identity(m)).length};
   }
   async detail(id: string): Promise<MovieDetail> {
     const { movies,sessions } = await this.repo.catalog();

@@ -157,6 +157,13 @@ describe('mocked bounded resumable TMDB identity resolution',()=>{
  });
 });
   describe('local import apply',()=>{
+ it('requires artwork migration 0009 before archive writes',async()=>{
+  const local=disposableD1('0008_provider_cooldowns.sql');try {
+   local.sqlite.exec(readFileSync('worker/import-preview-members.sql','utf8'));
+   await expect(applyLocal(local.db,validateResolved(resolved(),config),true)).rejects.toThrow('0009');
+   expect(local.sqlite.prepare('SELECT count(*) n FROM movies').get()?.n).toBe(0);
+  }finally{local.sqlite.close();}
+ });
  it('requires cooldown migration 0008 before archive writes',async()=>{
   const local=disposableD1('0007_tmdb_metadata_checked.sql');try {
    local.sqlite.exec(readFileSync('worker/import-preview-members.sql','utf8'));

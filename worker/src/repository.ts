@@ -4,7 +4,7 @@ import type { ProviderMovie } from './providers/types';
 import { ApiError } from './http';
 import { ProductRepository } from './product-repository';
 
-type MovieRow = Pick<Movie, 'id' | 'title' | 'original_title' | 'year' | 'release_date' | 'runtime' | 'overview' | 'tmdb_metadata_checked_at'>;
+type MovieRow = Pick<Movie, 'id' | 'title' | 'original_title' | 'year' | 'release_date' | 'runtime' | 'overview' | 'tmdb_metadata_checked_at' | 'tmdb_artwork_checked_at'>;
 type SessionRow = Omit<Session,'movies'>;
 type WithMovie<T> = T & { movie_id: string };
 
@@ -14,7 +14,7 @@ export class Repository {
     // D1 batch gives one consistent transactional read for the derived rankings.
     const result = await this.db.batch([
       this.db.prepare('SELECT id,display_name,sort_order,active,avatar FROM members ORDER BY sort_order,id'),
-      this.db.prepare('SELECT id,title,original_title,year,release_date,runtime,overview,tmdb_metadata_checked_at FROM movies ORDER BY title,id'),
+      this.db.prepare('SELECT id,title,original_title,year,release_date,runtime,overview,tmdb_metadata_checked_at,tmdb_artwork_checked_at FROM movies ORDER BY title,id'),
       this.db.prepare('SELECT movie_id,provider,asset_type,reference,width,height,preferred FROM movie_assets ORDER BY preferred DESC,id'),
       this.db.prepare('SELECT movie_id,provider,external_id FROM movie_external_ids'),
       this.db.prepare('SELECT movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via,upstream_updated_at,source_ref,source_ordinal,legacy_preferred FROM source_scores ORDER BY fetched_at,id'),
@@ -80,8 +80,8 @@ export class Repository {
     // Persist the entire provider-neutral snapshot atomically; IDs enforce import safety.
     const id = crypto.randomUUID();
     const checkedAt = m.external_ids.some(e => e.provider === 'tmdb') ? m.fetched_at : null;
-    const statements = [this.db.prepare('INSERT INTO movies(id,title,original_title,year,release_date,runtime,overview,tmdb_metadata_checked_at) VALUES(?,?,?,?,?,?,?,?)')
-      .bind(id,m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview,checkedAt)];
+    const statements = [this.db.prepare('INSERT INTO movies(id,title,original_title,year,release_date,runtime,overview,tmdb_metadata_checked_at,tmdb_artwork_checked_at) VALUES(?,?,?,?,?,?,?,?,?)')
+      .bind(id,m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview,checkedAt,checkedAt)];
     statements.push(...m.external_ids.map(e => this.db.prepare('INSERT INTO movie_external_ids(movie_id,provider,external_id) VALUES(?,?,?)').bind(id,e.provider,e.external_id)));
     statements.push(...m.genres.map(g => this.db.prepare('INSERT INTO movie_genres(movie_id,genre) VALUES(?,?)').bind(id,g)));
     statements.push(...m.assets.map(a => this.db.prepare('INSERT INTO movie_assets(id,movie_id,provider,asset_type,reference,width,height,preferred,fetched_at) VALUES(?,?,?,?,?,?,?,?,?)')
@@ -101,12 +101,12 @@ export class Repository {
     const now = new Date(), until = new Date(now.getTime()+Math.max(0,seconds)*1000).toISOString();
     await this.db.prepare('INSERT INTO provider_cooldowns(provider,retry_after_until,updated_at) VALUES(?,?,?) ON CONFLICT(provider) DO UPDATE SET retry_after_until=excluded.retry_after_until,updated_at=excluded.updated_at').bind(provider,until,now.toISOString()).run();
   }
-  async enrichMetadata(id: string, tmdbId: string, m: ProviderMovie) {
+  async enrichMetadata(id: string, tmdbId: string, m: ProviderMovie, attachment?: {import_source: string; source_refs: string[]}) {
     await this.assertMovie(id);
     if (!m.external_ids.some(e => e.provider === 'tmdb' && e.external_id === tmdbId))
       throw new ApiError(409,'IDENTITY_CONFLICT','TMDB returned a different identity. Owner reconciliation is required.');
     const ids = (await this.db.prepare('SELECT provider,external_id FROM movie_external_ids WHERE movie_id=?').bind(id).all<ExternalId>()).results;
-    if (!ids.some(e => e.provider === 'tmdb' && e.external_id === tmdbId)) throw new ApiError(409,'IDENTITY_CONFLICT','Stored TMDB identity changed. Refresh before retrying.');
+    if (attachment ? ids.some(e => e.provider === 'tmdb') : !ids.some(e => e.provider === 'tmdb' && e.external_id === tmdbId)) throw new ApiError(409,'IDENTITY_CONFLICT','Stored TMDB identity changed. Refresh before retrying.');
     const imdb = m.external_ids.find(e => e.provider === 'imdb');
     const knownImdb = ids.find(e => e.provider === 'imdb');
     if (imdb) {
@@ -114,9 +114,30 @@ export class Repository {
       if ((owner && owner !== id) || (knownImdb && knownImdb.external_id !== imdb.external_id))
         throw new ApiError(409,'IDENTITY_CONFLICT','IMDb identity conflicts with a canonical film. Owner reconciliation is required.');
     }
-    // Metadata only: never replace the movie, joins, import refs, Seen or score history.
-    const statements = [this.db.prepare(`UPDATE movies SET title=?,original_title=?,year=?,release_date=?,runtime=?,overview=?,tmdb_metadata_checked_at=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?`)
-      .bind(m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview,m.fetched_at,id)];
+    const statements = this.metadataStatements(id,m);
+    if (attachment) {
+      // Fail the whole batch if provenance or identity changed since preflight.
+      statements.unshift(this.db.prepare(`INSERT INTO movie_external_ids(movie_id,provider,external_id)
+        VALUES(?,'tmdb',CASE WHEN
+          EXISTS(SELECT 1 FROM movies WHERE id=? AND import_source=? AND import_key=?)
+          AND NOT EXISTS(SELECT 1 FROM movie_external_ids WHERE movie_id=?)
+          AND (SELECT count(*) FROM movie_import_refs WHERE movie_id=?)=?
+          AND NOT EXISTS(SELECT 1 FROM movie_import_refs WHERE movie_id=? AND (import_source<>? OR source_ref NOT IN (${attachment.source_refs.map(() => '?').join(',')})))
+          THEN ? ELSE NULL END)`)
+        .bind(id,id,attachment.import_source,id,id,id,attachment.source_refs.length,id,attachment.import_source,...attachment.source_refs,tmdbId));
+    }
+    try { await this.db.batch(statements); }
+    catch (error) {
+      if (/movie_external_ids/.test(String(error))) throw new ApiError(409,'IDENTITY_CONFLICT','External identity conflicts with a canonical film. Owner reconciliation is required.');
+      throw error;
+    }
+  }
+  // Internal batch builder: callers must validate identity/ownership before executing.
+  // Also used inside the local canonical-merge transaction, from the same details response.
+  metadataStatements(id: string, m: ProviderMovie): D1PreparedStatement[] {
+    const imdb = m.external_ids.find(e => e.provider === 'imdb');
+    const statements = [this.db.prepare(`UPDATE movies SET title=?,original_title=?,year=?,release_date=?,runtime=?,overview=?,tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?`)
+      .bind(m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview,m.fetched_at,m.fetched_at,id)];
     // Recheck ownership transactionally even when an identical ID is already stored.
     if (imdb) statements.push(this.db.prepare('INSERT INTO movie_external_ids(movie_id,provider,external_id) VALUES(?,?,?) ON CONFLICT(movie_id,provider) DO UPDATE SET external_id=CASE WHEN movie_external_ids.external_id=excluded.external_id THEN excluded.external_id ELSE NULL END')
       .bind(id,'imdb',imdb.external_id));
@@ -128,10 +149,6 @@ export class Repository {
           ON CONFLICT(movie_id,provider,asset_type,reference) DO UPDATE SET preferred=1,width=excluded.width,height=excluded.height,fetched_at=excluded.fetched_at`)
           .bind(crypto.randomUUID(),id,'tmdb',asset.asset_type,asset.reference,asset.width,asset.height,1,m.fetched_at));
     }
-    try { await this.db.batch(statements); }
-    catch (error) {
-      if (/movie_external_ids/.test(String(error))) throw new ApiError(409,'IDENTITY_CONFLICT','External identity conflicts with a canonical film. Owner reconciliation is required.');
-      throw error;
-    }
+    return statements;
   }
 }

@@ -1,0 +1,113 @@
+<!--
+AGENT MAINTENANCE INSTRUCTION
+
+Build this document from verified repository behaviour and explicit user decisions.
+
+Maintain it as the current source of truth for data that the application stores, reads, derives, caches, imports, exports, or receives from external systems.
+
+Update it whenever:
+1. implementation work changes any data shape, storage location, ownership rule, lifecycle, migration, or source; or
+2. other work reveals that this document has drifted from the actual implementation.
+
+Describe the as-is state. Remove stale descriptions rather than preserving history. Do not invent schemas or future persistence requirements before they exist.
+-->
+
+# DATA.md
+
+## Data overview and stores
+
+D1 is canonical. Provider observations are persisted snapshots; ranking and Metrics are regenerated from them and active History. Browser component state is disposable. Image binaries are served by the CDN rather than stored in D1.
+
+| Store | Technology / location | Ownership and environment |
+| --- | --- | --- |
+| Production | Cloudflare D1 `bookclub-prod`, `DB` in `worker/wrangler.jsonc` | Canonical private club data; read/write only within authorised scope |
+| Ordinary development | Local Wrangler D1, `worker/.wrangler/state/v3/d1` | Independent generic fixtures or a private sanitised production copy; never synced upstream |
+| Import preview | Local Miniflare D1, `worker/.wrangler/import-preview` | Isolated rehearsal with generic Host 1–4 and no auth rows |
+| Browser storage | `bookclub.session`, development-only `bookclub.dev-member` | Raw app bearer token / local selector; not canonical product data |
+| Private operator artefacts | Ignored `.verification/`, `scripts/import/*.local.json`, private XLSX | Source evidence, resolver caches, plans, proofs and exports; never publish |
+
+## Schema and entities
+
+Ownership: `worker/migrations/`; reads/writes: `worker/src/repository.ts`, `product-repository.ts`, `auth-repository.ts`. SQL constraints/triggers participate in correctness; do not replace them with browser validation alone.
+
+| Entity family | Identity / relationships | Lifecycle and invariants |
+| --- | --- | --- |
+| `members` | Stable member ID, provisioned display position; four human positions | Active state; privately provisioned member/admin role; nullable unique integer avatar 0–19. Development fixtures generic. Reserved `a.png` is CLSC, never a fifth account. |
+| `member_auth`, `auth_sessions` | One allow-listed normalised email/member; unique nullable Google sub; SHA-256 token hash -> member | First verified login binds sub atomically; established bindings never silently change. Sessions expire at 90 days; logout revokes one, operator can revoke all/deactivate. Auth sessions are distinct from film-event `sessions`. |
+| `movies` | Canonical local ID, optional unique import source/key | Title/original title, canonical year separate from release date, runtime/overview, metadata/artwork check timestamps. Internal IDs never become provider IDs. |
+| `movie_external_ids` | Movie -> provider/ID | Unique provider/ID ownership and one ID/provider/movie; contradictory identities require review, never steal/merge automatically. |
+| `movie_genres`, `movie_assets` | Movie -> genres or provider/reference assets | Poster/backdrop reference, dimensions, capture and preferred flags; one preferred asset/movie/type. Old snapshots retained; no image bytes. |
+| `source_scores` | Movie -> provider/metric observations | Raw value/scale, optional normalised value/votes, fetched time, `retrieved_via`, optional upstream time/import keys. `source_ref`, ordinal and legacy preference preserve tied-capture evidence. Append snapshots; do not invent upstream dates. |
+| `cycles` | ID, unique positive ordinal, optional import keys | Compatibility column `rough_date` is the nominal slot-1 anchor; literal legacy labels remain useful. |
+| `sessions`, `session_movies` | Event ID, optional cycle/slot, actual host, ordered movie joins | Any positive lineup length/position; repeats allowed. Independent date/precision and kind; soft deletion preserves joins. One active event/non-null cycle/slot. Publication stores immutable `planned_at` from Builder creation and publisher/Builder provenance. |
+| `club_rotation` | Singleton ID 1, nullable cycle, nominal slot 1–5, version | Slot 1 waits without a cycle; slots 2–5 require one. Explicit creation/publication completion advances transactionally; time/deferral does nothing. |
+| `builder_sets`, `builder_movies` | Owner/member, revision, ordered canonical movie IDs | Empty drafts allowed; no film-count ceiling. Only owner may access, including against admins. Publication atomically creates History and removes draft. |
+| `history_audit` | Actor/time/action, optional event and structured JSON changes | Append-only create/edit/delete/restore/rotation evidence. Imported legacy events have no invented audit history. |
+| `classics`, `classics_seed_allocations`, `rank_seed_counter` | Independent pool membership/movie and stable seed | SQL-allocated seed survives removal/readdition; imported duplicate candidates use minimum original worksheet row. Never store captured rank as permanent order. |
+| `seen_states` | Movie/member -> explicit 1/0, timestamp | No row means Unknown; null API answer deletes row. Active members determine qualification. |
+| `movie_import_refs`, `seen_import_observations`, `import_applied_entities` | Canonical movie/source refs, original row answers, immutable fingerprints | Retain all original refs/evidence; fingerprints prevent conflicting reapply and govern continuation. |
+| `provider_cooldowns`, `seed_runs` | Provider key / seed name | Persist Retry-After cooldown; `demo-v1` prevents startup overwriting work or restoring removed answers. |
+
+## Identifiers, relationships and ordering
+
+Human positions are `club-member-1` through `club-member-4` in Sean/Troy/Matt/Jess order (sort_order 1–4); names/auth provisioned privately. Provider IDs are aliases. Event order within cycles is nominal slot order, not asserted chronology. Film order follows positive viewing position, including repeated films.
+
+Slot 1 establishes an exact cycle anchor; later exact event dates never retime it. Imported Tracker Ruff Date is exact only for slot 1; later slots use `cycle_rough` reference because their actual dates are unknown. Explicit slot-1 anchor correction updates only legacy reference dates, including on later restoration, with audit; it does not retime later exact dates or rotation. See [CONTRACTS](CONTRACTS.md#events-rotation-and-history).
+
+Hosted slot 1–4 resolves nominal member by sort_order; a different actual host requires nonblank swap explanation, including backfills and edits. Classics slot 5 is hostless. Soft deletion frees occupied slots; restoration checks conflicts and requires admin. Correcting/deleting a completed-turn event flags review in audit without silently rewinding rotation.
+
+Native Worker D1 batches atomically combine headers/joins, publication, audits, Builder deletion, rotation and qualifying Seen changes. Builder revision and rotation version guard concurrent updates; History replacement remains last-write-wins. Current-turn Classics completion marks lineup Seen for all active members; backfilled Classics, edits, restores and hosted events do not.
+
+## External data, derived data and refresh
+
+Provider details belong in [INTEGRATIONS](INTEGRATIONS.md); payload/format boundaries in [CONTRACTS](CONTRACTS.md). Google auth records retain verified binding, not Google ID tokens. TMDB metadata/artwork and MDBList/OMDb ratings remain stored until explicit refresh; ordinary page loads use these snapshots.
+
+`tmdb_metadata_checked_at` null means never successfully checked; explicit maintenance selects unchecked/stale at 150 days. Independent `tmdb_artwork_checked_at` allows missing-artwork backfill even after a recent metadata check. Successful details mark both checks, including absent artwork; historical imports stay unchecked. Failed/conflicted updates leave markers unchanged. Provider-owned enrichment preserves internal IDs, History/Seen/seeds/import provenance and source-score history. It writes TMDB title/year; a private import canonical_year decision is source evidence, not a persistent override for later maintenance.
+
+`shared/ranking.ts` normalises IMDb, RT audience and RT critic to 0–100, sums squares, multiplies by `1.025^explicitNoCount`, and adds `rank_seed*0.00001`. Unknown is distinct from No. All active members Seen (or an empty active roster) disqualifies; missing required scores means Needs Data with no calculated score. Other ratings do not influence Watch Order. Service precedence and tied-capture selection are documented in [INTEGRATIONS](INTEGRATIONS.md#rating-providers).
+
+`shared/metrics.ts` derives active History film appearances, never Builder. Repeats count; unique films deduplicate canonical IDs. Human filters use actual host; CLSC uses kind. Average IMDb is appearance-weighted from effective stored ratings, with missing-score coverage. Top/bottom five allow repeats and deterministic ties by event date/title/session/movie/position. Each appearance counts once per recognised TMDB genre, with all selected appearances as denominator; percentages can exceed 100%. Unknown genres are Uncategorised; Science Fiction displays Sci-Fi. These derivations are safe to regenerate, not durable exports.
+
+## Imports, exports and schema evolution
+
+### Local TMDB identity pairing maintenance
+
+`corepack pnpm exec tsx scripts/dev/pair-tmdb-cli.ts --manifest <private-json>` preflights the ordinary local D1 without provider calls or application-data writes. Add `--apply` to validate and attach eligible high-confidence pairings sequentially using the normal TMDB detail provider and local provider credentials (`TMDB_READ_TOKEN` process environment or `worker/.dev.vars.local`). It has no remote/database target option. Stop the local API first; maintenance shares the snapshot-refresh lock and rejects redirected local state. The manifest's `manual_review` and policy text are never executed.
+
+Version 1 manifests require `matched_count` and `pairings` with unique `movie_id`/`tmdb_id`, supplied `title`, exact `source_refs`, `matched_title`, `matched_year` and `confidence: high`. Existing import source/key and all source references must agree. Missing movies, owned TMDB IDs, differing identities and existing non-TMDB identities require reconciliation. Successfully completed identical TMDB attachments are skipped on resume. Unchecked pre-existing attachments require manual review.
+
+Each eligible entry uses one TMDB detail response for identity verification, normal canonical metadata, genres, poster/backdrop references and both check timestamps. Titles compare supplied/matched wording with returned title/original title, ignoring punctuation, accents, leading The, a subtitle after a colon/dash on an otherwise exact main title, and small spelling differences; year differences greater than one require manual review. Unrecognised aliases are conservatively rejected for review. Returned IMDb conflicts also block. Identity insertion, provenance recheck and normal enrichment commit in one D1 batch; a failed group leaves no partial attachment. IDs, import/history/Seen/score evidence remain unchanged. Rate limits persist the normal provider cooldown; credentials, outage and network failures halt further requests. Identical reruns skip completed groups and retry remaining entries.
+
+Version 2 additionally supports explicit `merge_into_existing` and owner-confirmed `merge_groups`; [CONTRACTS](CONTRACTS.md#ordinary-local-tmdb-pairing-manifest) owns their payloads. Owner-confirmed pairings validate a usable TMDB film and matching returned ID without title/year presentation heuristics. Corrected rejections compare corrected expected titles and, only with `strict_year:true`, corrected years. Conflicting external IDs always block. Existing-owner merges require compatible stored film evidence; ownership alone does not prove that a proposed duplicate represents the same film. Groups use the existing target owner as survivor, otherwise the member with most relationship rows plus non-null scalar fields, with lexical movie ID breaking ties.
+
+Merge preflight inspects actual CREATE TABLE SQL (D1 prohibits `foreign_key_list`) and fails closed for unfamiliar movie relationships. Atomic batches recheck all participating movies/FK rows, redirect History and Builder appearances without changing positions, move source refs/scores/Seen observations, preserve artwork observations and external ownership, then remove redundant canonical movies. Overlapping unique score/asset observations, differing external IDs, conflicting effective Seen answers and conflicting Classics source/reference values block the individual merge. Agreeing Seen answers use the latest recorded timestamp. Genres form a union unless new TMDB details supply current genres; missing survivor scalar metadata fills from a deterministically chosen source. Existing survivor metadata wins when populated. Original scalar/genre/asset/check states remain in merge receipts even where provider enrichment supplies current values.
+
+The apply command creates **local-only** `local_movie_merge_receipts`, outside the deployment migration ledger. Each removed ID records survivor FK, target TMDB ID, operation hash and complete pre-merge movie/relationship rows as JSON. This preserves original import keys, title variants, metadata, individual Classics memberships and all original rank allocations. Effective Classics membership is retained if any member had it, with earliest membership time and minimum stored rank seed. Immutable import fingerprints and History audit JSON remain unchanged; their historical IDs resolve through the receipts. Future merges redirect receipt survivors before removal. Explicit local reset clears receipts with movies; snapshot replacement also replaces this local evidence. Do not treat receipts as production schema or promote them through deployment.
+
+Version 2 defaults to ignored `.verification/tmdb-pairings-round2/verification-report.json` (`preflight-report.json` without `--apply`). Its paired `baseline-state.json` retains the starting verification rows and exact parsed manifest. Successful detail responses are checkpointed before mutation and reused after transaction failure; same-output-directory reruns resume accepted operations and recognise merged records only through matching durable receipts plus surviving provenance. Do not edit these private checkpoints or run other writers during maintenance. A different manifest requires a different `--out`. Reports include merge source/survivor IDs, preserved counts/states/provenance, removed rows, provider calls/cooldowns and starting/ending canonical/unidentified counts. Verification accounts separately for unidentified duplicate collapse and newly attached identities, and checks all baseline identities, ordered History/Builder appearances, scores, Seen observations/state, memberships/allocations, source refs, fingerprints and audit preservation.
+
+Ignored `.verification/tmdb-pairings/preflight-report.json` and `apply-report.json` record proposed, accepted, already-applied, rejected, conflicts, provider failures, call count and remaining unidentified films, with atomic report checkpoints after each attempt. `--out` may choose another directory inside `.verification`. Reports contain private film/provenance evidence and are never published. Post-run checks cover local SQLite integrity, foreign keys, unique TMDB ownership, preservation of all baseline identities, exact unidentified-count reduction and metadata/artwork exposure through normal catalogue/detail service reads. Provider omissions still count as successful checks, with absent artwork recorded explicitly by its check timestamp.
+
+Supported archive workflow is [scripts/import/README](../scripts/import/README.md); exact workbook semantics remain in [LEGACY_SPREADSHEET_MODEL](LEGACY_SPREADSHEET_MODEL.md). Strict raw v1/resolved v2 plans preserve source refs, original Seen evidence, score observations and immutable fingerprints. Applied identity conflict requires review, never destructive reset. Original private source/year decisions remain evidence. No historical archive is required for ordinary development.
+
+The production importer is a separate operator CLI; [PRODUCTION](../scripts/import/PRODUCTION.md) owns its target/hash/capture/export-proof gates and partial-write recovery. Its initial bootstrap is complete according to existing project records; do not replay it after real logins/actions. REST batches have at most 100 statements and no assumed atomic rollback. Inspect read-only preflight after failure; identical continuation requires zero conflicts. The local importer has no remote path.
+
+Wrangler applies ordered SQL migrations and records `d1_migrations`. Current source contains 0001–0009 (0007 metadata, 0008 cooldowns, 0009 artwork check). Add migrations; applied migrations are immutable. Preserve 0005 LF and trigger `WHEN` parser guards. Previous records report production through 0008; remote ledger verification is a separate authorised operation. New-column Worker releases require the matching migration first, with verified backup and separate production data authority. No general schema rollback is established.
+
+## Backup, recovery and local snapshots
+
+`corepack pnpm db:refresh-from-prod` is an explicit one-way current-production read/export and local replacement, not archive replay or production mutation. It needs Node 24+, pnpm execution context and Cloudflare operator login or process-only credentials with D1 read/export rights. CLI requires stopped local API; the confirmed development panel supervises stop/restart. No arbitrary DB target or remote write option is accepted.
+
+The code verifies the exact configured production name/UUID, exports SQL to ignored temporary storage, restores it offline and stages current local migrations. Source tables must match; unknown source columns fail closed. Older source rows can populate a newer nullable target column using its default. Sanitisation preserves product rows (including roles, avatars, private Builder, deleted events and audit), empties `auth_sessions`/`provider_cooldowns`, replaces authorised emails with unique `@bookclub.invalid` values and clears Google sub/binding/login timestamps. The demo seed marker prevents fresh demo history entering the snapshot.
+
+Before replacement, per-table counts, SQLite integrity/FKs and actual local-emulator catalog, History, Metrics, Watch Order and per-owner Builder reads must pass. Guards confine filesystem operations to local state; API must be stopped for swap. Prior local D1 is retained at `worker/.wrangler/state/v3/d1-before-refresh-<timestamp>`. Rename failure restores it; supervised Worker-start failure attempts previous-state restore/restart. Retained state is private disposable local data, not a production backup. Local edits never sync upstream.
+
+Raw export is removed on completion/handled failure; a crash may leave ignored private temporary files or `worker/.wrangler/dev-refresh.lock`. Stop processes before inspecting/removing stale files/locks; check resolved paths. CLI reports capture time/counts/rotation. `/__dev/refresh` is a local tooling surface described in [CONTRACTS](CONTRACTS.md#development-refresh-boundary).
+
+The production archive tooling can create timestamped SQL exports with SHA-256/count/target/capture proof before guarded mutation; preserve the original pristine export and independent copy. Export integrity is not a tested restore. No scheduled production backup or general automatic production rollback is implemented. Soft-deleted History has audited admin restoration; this is distinct from whole-database restore.
+
+## Data safety and unknowns
+
+Snapshots still contain private product data after auth sanitisation: do not share/commit them, logs, screenshots or private archive artefacts. Never read/print credential-bearing `OWNER_INFO.md` for setup. Ordinary local commands use `--local --env local`; preview uses its isolated config/state. `db:reset` is explicitly destructive local-only; never use it on production. Never seed generic identities to production.
+
+Live schema/rotation and backup availability cannot be certified from source. Verify them only within the authorised operational task; do not reset production to satisfy historical null-sub/avatar/no-session bootstrap assertions.
