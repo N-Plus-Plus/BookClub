@@ -15,18 +15,24 @@ export function fixture() {
   o.addRow(['Title']);o.addRow(['Candidate A']);o.addRow(['Candidate A']);h.addRow(['Title']);h.addRow(['Film A']);h.addRow(['Old alias']);
   return w;
 }
+function completeSeenFixture() {
+  const w=fixture();
+  // Parsing/date/formula cases need both scored candidates eligible for Watch Order.
+  w.getWorksheet('Should Watch')!.getCell('H2').value='No';
+  return w;
+}
 const config={memberIds: ['m1','m2','m3','m4']};
 describe('safe spreadsheet plan',() => {
   it('requires regenerated exact slot-1 dates without changing Watch Order or identities',() => {
-    const {plan}=analyseWorkbook(fixture(),config);
+    const {plan}=analyseWorkbook(completeSeenFixture(),config);
     expect(rawPlanSchema.safeParse(plan).success).toBe(true);
     const oldPlan={...plan,events:plan.events.map(e=>({...e,date_precision:'cycle_rough'}))};
     expect(rawPlanSchema.safeParse(oldPlan).success).toBe(false);
     expect(plan.rawWatchOrder.exactMatch).toBe(true);
-    expect(analyseWorkbook(fixture(),config).plan.events.map(e=>e.id)).toEqual(plan.events.map(e=>e.id));
+    expect(analyseWorkbook(completeSeenFixture(),config).plan.events.map(e=>e.id)).toEqual(plan.events.map(e=>e.id));
   });
   it('parses cycles, merged followers, slots and ordered appearances',() => {
-    const {plan,summary}=analyseWorkbook(fixture(),config);
+    const {plan,summary}=analyseWorkbook(completeSeenFixture(),config);
     expect(plan.cycles).toHaveLength(2);expect(plan.events).toHaveLength(9);expect(summary.counts.hostedAppearances).toBe(11);
     expect(plan.events.find(e=>e.cycle_slot===3)!.films.map(f=>f.position)).toEqual([1,2,3]);
     expect(plan.events.find(e=>e.kind==='classics')).toMatchObject({host_member_id: null,date_precision: 'cycle_rough'});
@@ -38,6 +44,8 @@ describe('safe spreadsheet plan',() => {
   });
   it('preserves titles, score provenance, seeds, Unknown and conflicting duplicates',() => {
     const {plan,summary}=analyseWorkbook(fixture(),config);expect(plan.classics.map(c=>c.rank_seed)).toEqual([2,3,4]);
+    expect(summary.watchOrder).toMatchObject({exactMatch:false,expected:['Candidate A','Candidate A'],computed:['Candidate A'],differences:[{rank:2,expected:'Candidate A',computed:null}]});
+    expect(summary.diagnostics.some(d=>d.code==='WATCH_ORDER_MISMATCH')).toBe(true);
     expect(plan.classics[0].seen.map(s=>s.seen)).toEqual([1,0,0]);expect(plan.classics[0].scores).toHaveLength(5);
     expect(plan.classics[0].scores[0]).toMatchObject({retrieved_via: 'legacy-spreadsheet',raw_scale: 100,fetched_at: null});
     expect(plan.classics[2].scores).toEqual([]);expect(plan.classics[2].seen).toEqual([]);
@@ -46,7 +54,7 @@ describe('safe spreadsheet plan',() => {
     expect(summary.reconciliation.some(r=>r.status==='duplicate/conflict' && r.reason.includes('conflicting'))).toBe(true);
   });
   it('supports headerless rank/title Watch Order and cached formulas without evaluation',() => {
-    const w=fixture(); w.removeWorksheet(w.getWorksheet('Watch Order')!.id); const o=w.addWorksheet('Watch Order');
+    const w=completeSeenFixture(); w.removeWorksheet(w.getWorksheet('Watch Order')!.id); const o=w.addWorksheet('Watch Order');
     o.addRow(['#1',{formula: 'untrusted()',result: 'Candidate A'}]);o.addRow(['#2','Candidate A']);
     expect(analyseWorkbook(w,config).summary.watchOrder.exactMatch).toBe(true);
   });
