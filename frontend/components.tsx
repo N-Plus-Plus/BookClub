@@ -1,6 +1,7 @@
 import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Eye, Film, RefreshCw, type LucideIcon } from 'lucide-react';
 import { posterReference } from '../shared/artwork';
+import { formatScore100 } from './presentation';
 import { ClubIdentity } from './ClubIdentity';
 import type { Member, Movie, Session } from '../shared/types';
 
@@ -42,15 +43,15 @@ export function eventDateLabel(event: Pick<Session,'event_date'|'date_precision'
   if (event.date_precision === 'unknown') return 'Date unknown';
   return `${event.date_precision === 'cycle_rough' ? 'Cycle reference (event date unknown): ' : ''}${dateLabel(event.event_date)}`;
 }
-export function SessionCard({session,members}: {session: Session; members: Member[]}) {
-  return <article className="card session-card"><div className="eyebrow">{eventDateLabel(session)} · {session.movies.length} film{session.movies.length === 1 ? '' : 's'}</div>
-    <h3>{(session.kind === 'classics' ? 'Classics Collection' : 'Book Club night')}</h3><div className="session-meta">
+export function SessionCard({session,members,actions,dateHeading,variant}: {session: Session; members: Member[]; actions?: ReactNode; dateHeading?: string; variant?: 'history'}) {
+  const host = members.find(m => m.id === session.host_member_id);
+  return <article className="card session-card">{actions}<div className="eyebrow">{dateHeading ?? <>{eventDateLabel(session)} · {session.movies.length} film{session.movies.length === 1 ? '' : 's'}</>}</div>
+    <h3>{variant === 'history' ? (session.kind === 'classics' ? 'Classics week' : host ? `${host.display_name}'s week` : 'Former member’s week') : (session.kind === 'classics' ? 'Classics Collection' : 'Book Club night')}</h3><div className="session-meta">
       {session.kind === 'classics' && <ClubIdentity identity={{kind: 'classics'}} />}
       {session.host_member_id && (members.find(m => m.id === session.host_member_id) ? <ClubIdentity identity={{kind: 'member',member: members.find(m => m.id === session.host_member_id)!}} /> : <span>Hosted by a former member</span>)}
       {session.legacy_cycle_label && <span className="badge">{session.legacy_cycle_label}</span>}</div>
-    <ol className="film-list">{session.movies.map((movie,i) => <li key={`${movie.id}-${i}`}><span className="position">{i+1}</span><MovieRow movie={movie} /></li>)}</ol>
+    <ol className="film-list">{session.movies.map((movie,i) => <li key={`${movie.id}-${i}`}>{variant === 'history' ? <MovieLink movie={movie} className="movie-row"><span className="position">#{i+1}</span><Poster movie={movie} /><div className="movie-copy"><span className="movie-title">{movie.title}</span><p className="meta">{movie.year ?? 'Year unknown'}{movie.runtime ? ` · ${movie.runtime} min` : ''}</p></div></MovieLink> : <><span className="position">{i+1}</span><MovieRow movie={movie} /></>}</li>)}</ol>
     {session.planned_at && <p className="meta">Planned {new Date(session.planned_at).toLocaleString('en-AU')}</p>}
-    {session.cycle_slot && <p className="meta">Nominal slot {session.cycle_slot}</p>}
   </article>;
 }
 export function RankingScore({movie,compact = false}: {movie: Movie; compact?: boolean}) {
@@ -59,11 +60,11 @@ export function RankingScore({movie,compact = false}: {movie: Movie; compact?: b
     <span className="badge" data-intent={r.eligible ? 'constructive' : 'destructive'}>{!r.eligible ? 'Disqualified' : r.rankable ? 'Ranked' : 'Needs Data'}</span>
     <strong className="score numeric">{r.finalScore?.toFixed(2) ?? '—'}<small>residual score</small></strong></div>
     <p className="meta">{r.seenCount} Seen · {r.unseenCount} No · {r.unknownCount} Unknown</p>
-    {!compact && <p className="meta">{r.sources.map(s => `${s.provider === 'imdb' ? 'IMDb' : s.metric === 'audience' ? 'RT audience' : 'RT critic'} ${s.value.toFixed(1)}`).join(' · ')}</p>}
+    {!compact && <p className="meta">{r.sources.map(s => `${s.provider === 'imdb' ? 'IMDb' : s.metric === 'audience' ? 'RT audience' : 'RT critic'} ${formatScore100(s.value)}`).join(' · ')}</p>}
     {r.missingRequiredScores.length > 0 && <p className="meta">Missing: {r.missingRequiredScores.join(', ')}</p>}
     <details><summary><Eye size={17} aria-hidden="true" />Score breakdown</summary><div className="breakdown">
       <p>Sum of squares <strong>{r.rawScore?.toFixed(2) ?? 'Incomplete'}</strong></p><p>Unseen multiplier <strong>{r.unseenMultiplier.toFixed(6)}</strong></p>
-      {r.sources.map(s => <p key={`${s.provider}:${s.metric}`}>{s.provider} ({s.metric})<strong>{s.value.toFixed(1)} / 100</strong></p>)}
+      {r.sources.map(s => <p key={`${s.provider}:${s.metric}`}>{s.provider} ({s.metric})<strong>{formatScore100(s.value)} / 100</strong></p>)}
       {r.warnings.map(w => <small key={w}>{w}</small>)}{!r.eligible && <p>Excluded from watch order: all active members Seen, or no active roster.</p>}
     </div></details></div>;
 }

@@ -6,9 +6,11 @@ import type { BuilderSet, Catalog, Movie, SearchResponse, TmdbPreview } from '..
 import { api } from '../frontend/api';
 import { App } from '../frontend/App';
 import { BuilderSetPicker } from '../frontend/BuilderSetPicker';
+import { HistoryScreen } from '../frontend/HistoryScreen';
+import { SessionCard } from '../frontend/components';
 
 vi.mock('../frontend/api',() => ({
-  api:{health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn()},
+  api:{audit:vi.fn(),deleteSession:vi.fn(),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn()},
   ApiClientError:class extends Error {},hasSession:() => true,setUnauthorizedHandler:vi.fn(),setDevMember:vi.fn(),clearSession:vi.fn(),storeSession:vi.fn(),
 }));
 const movies: Movie[] = Array.from({length:8},(_,i) => ({id:`saved-${i}`,title:`Film ${i}`,year:1998,original_title:null,release_date:null,runtime:100,overview:'Overview',genres:[],assets:[],external_ids:i === 7 ? [{provider:'tmdb',external_id:'107'}] : [],scores:[],seen:[],classic:false,ranking:null}));
@@ -53,6 +55,8 @@ afterEach(async () => { await act(async () => root.unmount()); container.remove(
 
 describe('preserved Event film inspection',() => {
   it('Nope and browser Back preserve the exact editor, query, page, manual fields and selected order',async () => {
+    expect(container.textContent).not.toContain('Review event');
+    expect(container.textContent).not.toContain('films in viewing order');
     const editor = container.querySelector('.event-workflow');
     await input(container.querySelector('input[name="event_date"]')!,'2030-04-05');
     const complete = container.querySelector<HTMLInputElement>('input[type="checkbox"]')!; await click(complete);
@@ -202,4 +206,80 @@ it('Detail groups explicit answers in member order and omits unanswered members'
   await act(async()=>root.render(createElement(App))); await flush();
   const groups=[...container.querySelectorAll('.detail-seen-column')].map(column=>[...column.querySelectorAll('.club-identity')].map(member=>member.textContent));
   expect(groups).toEqual([['PERSON 1','PERSON 4'],['PERSON 3']]);
+});
+
+
+describe('History cycle archive',() => {
+  const archive = (): Catalog => {
+    const cycles = Array.from({length:11},(_,i) => ({id:`cycle-${11-i}`,ordinal:11-i,rough_date:'2026-08-30',title:null,import_source:null,import_key:null,created_at:'',updated_at:''}));
+    const sessions: Catalog['sessions'] = cycles.flatMap((cycle,i) => [1,2].map(slot => ({id:`event-${i}-${slot}`,event_date:slot === 1 ? '2026-08-30' : '2026-09-01',host_member_id:i === 10 ? null : 'member-2',legacy_cycle_label:null,movies:movies.slice(0,3),cycle_id:cycle.id,kind:i === 10 ? 'classics' as const : 'hosted' as const,date_precision:slot === 1 ? 'cycle_rough' as const : 'exact' as const,cycle_slot:slot})));
+    sessions.push({...sessions[0],id:'ungrouped',cycle_id:null});
+    return {...catalog,cycles,sessions};
+  };
+  const mountHistory = async (data = archive(), onChanged = vi.fn()) => {
+    await act(async () => { root.render(createElement(HistoryScreen,{catalog:data,onChanged})); }); return onChanged;
+  };
+  const select = async (index: number,value: string) => {
+    await act(async () => { const element = container.querySelectorAll('select')[index]; element.value = value; element.dispatchEvent(new Event('change',{bubbles:true})); });
+  };
+  it('pages five cycles in existing order with matching controls, jumps after mounting and resets on host filtering',async () => {
+    await mountHistory();
+    expect([...container.querySelectorAll('section[id^="cycle-"]')].map(node => node.id)).toEqual(['cycle-cycle-11','cycle-cycle-10','cycle-cycle-9','cycle-cycle-8','cycle-cycle-7']);
+    expect(container.querySelectorAll('.session-card')).toHaveLength(10);
+    expect(container.querySelectorAll('.history-pagination')).toHaveLength(2);
+    expect([...container.querySelectorAll('.history-pagination')].map(node => node.textContent)).toEqual(['PreviousPage 1 of 3Next','PreviousPage 1 of 3Next']);
+    expect(button('Previous').disabled).toBe(true);
+    expect(container.textContent).not.toContain('Ungrouped events');
+    expect(container.querySelector('a[href="#/event"]')).toBeNull();
+    await click(button('Next')); expect(container.textContent).toContain('Page 2 of 3');
+    let scrolledId = '';
+    HTMLElement.prototype.scrollIntoView = vi.fn(function (this: HTMLElement) { scrolledId = this.id; });
+    await select(0,'cycle-1');
+    expect(container.textContent).toContain('Page 3 of 3'); expect(scrolledId).toBe('cycle-cycle-1');
+    expect(button('Next').disabled).toBe(true); expect(container.textContent).toContain('Ungrouped events');
+    await select(1,'member-2');
+    expect(container.textContent).toContain('Page 1 of 2'); expect(button('Previous').disabled).toBe(true);
+    expect(container.querySelector('option[value="cycle-1"]')).toBeNull();
+    await select(1,'classics'); expect(container.textContent).toContain('Page 1 of 1');
+    expect(button('Previous').disabled).toBe(true); expect(button('Next').disabled).toBe(true);
+  });
+  it('keeps icon actions inside their card, audit evidence below that card, cached audit and delete behaviour',async () => {
+    vi.mocked(api.audit).mockResolvedValue([]); vi.mocked(api.deleteSession).mockResolvedValue({ok:true} as Awaited<ReturnType<typeof api.deleteSession>>);
+    const onChanged = await mountHistory();
+    const event = container.querySelector<HTMLElement>('.history-event')!;
+    const actions = event.querySelectorAll<HTMLElement>('.session-card .history-event-actions > *');
+    expect([...actions].map(node => node.getAttribute('aria-label'))).toEqual(['Edit event','Audit event','Delete event']);
+    expect([...actions].every(node => node.title && !node.textContent)).toBe(true);
+    expect(actions[0].getAttribute('href')).toBe('#/event/event-0-1');
+    expect(actions[2].getAttribute('data-variant')).toBe('danger');
+    await click(actions[1]); expect(api.audit).toHaveBeenCalledWith('event-0-1');
+    expect(event.querySelector('.audit-inline')?.previousElementSibling?.classList.contains('session-card')).toBe(true);
+    expect(container.querySelectorAll('.audit-inline')).toHaveLength(1);
+    await click(actions[1]); await click(actions[1]); expect(api.audit).toHaveBeenCalledTimes(1);
+    vi.spyOn(window,'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    await click(actions[2]); expect(api.deleteSession).not.toHaveBeenCalled();
+    await click(actions[2]); expect(api.deleteSession).toHaveBeenCalledWith('event-0-1'); expect(onChanged).toHaveBeenCalledOnce();
+    vi.restoreAllMocks();
+  });
+  it('uses concise History dates and ordered Film Detail links while retaining Home headings',async () => {
+    const data = archive(); await mountHistory(data);
+    const cards = container.querySelectorAll('.session-card');
+    expect(cards[0].querySelector('.eyebrow')?.textContent).toBe('Cycle beginning 30 August 2026');
+    expect(cards[1].querySelector('.eyebrow')?.textContent).toBe('1 September 2026');
+    expect(cards[0].querySelector('h3')?.textContent).toBe("Member 2's week");
+    expect(cards[0].querySelector('.film-list a .position')?.textContent).toBe('#1');
+    const context = container.querySelector('.history-cycle-context')!;
+    expect(context.textContent).toBe('Cycle starting: 30 August 2026SeanTroyMattJessClassics');
+    expect(context.querySelectorAll('svg.lucide-arrow-right')).toHaveLength(4);
+    expect([...cards[0].querySelectorAll('.position')].map(node => node.textContent)).toEqual(['#1','#2','#3']);
+    expect([...cards[0].querySelectorAll('.film-list a')].map(node => node.getAttribute('href'))).toEqual(movies.slice(0,3).map(movie => `#/movie/${movie.id}`));
+    await act(async () => { root.render(createElement(SessionCard,{session:data.sessions[0],members:data.members})); });
+    expect(container.querySelector('h3')?.textContent).toBe('Book Club night');
+    expect(container.querySelector('.position')?.textContent).toBe('1');
+    expect(container.querySelector('.eyebrow')?.textContent).toBe('Cycle reference (event date unknown): 30 August 2026 · 3 films');
+    await mountHistory({...data,sessions:[{...data.sessions[0],kind:'classics',host_member_id:null}]});
+    expect(container.querySelector('.session-card h3')?.textContent).toBe('Classics week');
+    await mountHistory({...data,cycles:[],sessions:[{...data.sessions[0],cycle_id:null}]});
+    expect(container.textContent).toContain('Ungrouped events'); expect(container.querySelector('.history-pagination')).toBeNull();
+  });
 });

@@ -18,7 +18,7 @@ export class ProductRepository {
   private async batch(statements: D1PreparedStatement[]) {
     try { await this.db.batch(statements); }
     catch (error) {
-      if (/active_cycle_slot|sessions.cycle_id, sessions.cycle_slot/.test(String(error))) throw conflict('This cycle slot already has an active History event. Choose a free slot or review History.');
+      if (/active_cycle_slot|sessions.cycle_id, sessions.cycle_slot/.test(String(error))) throw conflict('This turn already has an active History event in the selected cycle. Choose another turn or review History.');
       if (/BUILDER_CONFLICT|TURN_CONFLICT|HISTORY_CONFLICT|completed_turn_once|completed_turn_version|sessions.builder_id|club_rotation.id|FOREIGN KEY constraint failed/.test(String(error)))
         throw conflict('The record or current turn changed. Refresh before retrying.');
       throw error;
@@ -119,31 +119,31 @@ export class ProductRepository {
     if (input.complete_turn) {
       turn = await this.rotation();
       if (!turn || input.turn_version !== turn.version) throw conflict('Current turn is unavailable or changed. Refresh before publishing.');
-      if (slot !== turn.nominal_slot || cycleId !== turn.cycle_id) throw conflict('Completion must refer to the current nominal turn and cycle.');
+      if (slot !== turn.nominal_slot || cycleId !== turn.cycle_id) throw conflict('Complete the current turn in its current cycle.');
       if (precision !== 'exact') throw new ApiError(422,'INVALID_COMPLETION','Current events require their actual event date.');
       if (turn.nominal_slot === 1) {
-        if (input.new_cycle) throw new ApiError(422,'INVALID_CYCLE','Current slot 1 creates its own cycle.');
+        if (input.new_cycle) throw new ApiError(422,'INVALID_CYCLE','This turn starts a new cycle automatically. Remove the separate new-cycle selection.');
         input = {...input,new_cycle: {rough_date: input.event_date}};
       }
     }
-    if (slot === 5 ? kind !== 'classics' : slot !== null && kind !== 'hosted') throw new ApiError(422,'INVALID_SLOT','Slot 5 is Classics; slots 1–4 are hosted.');
+    if (slot === 5 ? kind !== 'classics' : slot !== null && kind !== 'hosted') throw new ApiError(422,'INVALID_SLOT','Classics week requires a Classics event; a member’s turn requires a hosted event.');
     if (kind === 'classics' && input.host_member_id) throw new ApiError(422,'INVALID_HOST','Classics is hostless.');
     if (!before && kind === 'hosted' && slot !== null && slot <= 4) {
       const nominal = await this.db.prepare('SELECT id FROM members WHERE sort_order=?').bind(slot).first<{id: string}>();
-      if (!input.host_member_id || !nominal) throw new ApiError(422,'INVALID_HOST','Choose an active host with a provisioned nominal roster.');
+      if (!input.host_member_id || !nominal) throw new ApiError(422,'INVALID_HOST','This turn’s member is unavailable. Ask an administrator to check the roster.');
     }
     if (cycleId && slot !== null && await this.db.prepare('SELECT id FROM sessions WHERE cycle_id=? AND cycle_slot=? AND deleted_at IS NULL AND id<>?').bind(cycleId,slot,existingId ?? '').first())
-      throw conflict('This cycle slot already has an active History event. Choose a free slot or review History.');
+      throw conflict('This turn already has an active History event in the selected cycle. Choose another turn or review History.');
     if (input.new_cycle) {
-      if (slot !== 1 || kind !== 'hosted' || precision !== 'exact' || input.new_cycle.rough_date !== input.event_date) throw new ApiError(422,'INVALID_ANCHOR','A new cycle begins with exact nominal slot 1; its anchor is that event date.');
+      if (slot !== 1 || kind !== 'hosted' || precision !== 'exact' || input.new_cycle.rough_date !== input.event_date) throw new ApiError(422,'INVALID_ANCHOR','A new cycle begins with Sean’s turn and its exact event date as the cycle anchor.');
       cycleId = crypto.randomUUID();
       statements.push(this.db.prepare('INSERT INTO cycles(id,ordinal,rough_date,title) SELECT ?,COALESCE(?,COALESCE(MAX(ordinal),0)+1),?,? FROM cycles').bind(cycleId,input.new_cycle.ordinal ?? null,input.event_date,input.new_cycle.title || null));
     } else if (cycleId) {
       const cycle = await this.db.prepare('SELECT rough_date FROM cycles WHERE id=?').bind(cycleId).first<{rough_date: string}>();
       if (!cycle) throw new ApiError(422,'INVALID_CYCLE','Choose an existing cycle.');
       if (slot === 1 && precision === 'exact' && cycle.rough_date !== input.event_date) {
-        if (!existingId || before?.cycle_slot !== 1 || before?.cycle_id !== cycleId || !input.correct_anchor) throw new ApiError(422,'INVALID_ANCHOR','Nominal slot 1 establishes the cycle anchor. Confirm an anchor correction when editing its event date, or choose the matching cycle.');
-        if (await this.db.prepare('SELECT id FROM sessions WHERE cycle_id=? AND cycle_slot=1 AND id<>? AND deleted_at IS NULL').bind(cycleId,existingId).first()) throw conflict('This cycle has multiple slot-1 records. Reconcile those records before correcting its anchor.');
+        if (!existingId || before?.cycle_slot !== 1 || before?.cycle_id !== cycleId || !input.correct_anchor) throw new ApiError(422,'INVALID_ANCHOR','Sean’s turn establishes the cycle anchor. Confirm an anchor correction when editing its event date, or choose the matching cycle.');
+        if (await this.db.prepare('SELECT id FROM sessions WHERE cycle_id=? AND cycle_slot=1 AND id<>? AND deleted_at IS NULL').bind(cycleId,existingId).first()) throw conflict('This cycle has multiple records for Sean’s turn. Ask an administrator to resolve them before correcting its anchor.');
         statements.push(this.db.prepare("UPDATE cycles SET rough_date=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").bind(input.event_date,cycleId));
         const references = (await this.db.prepare("SELECT id,event_date FROM sessions WHERE cycle_id=? AND date_precision='cycle_rough' AND deleted_at IS NULL AND id<>?").bind(cycleId,existingId).all<{id: string; event_date: string}>()).results;
         for (const reference of references) statements.push(

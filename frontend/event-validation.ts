@@ -1,7 +1,7 @@
 const fieldLabels: Record<string,string> = {
   event_date: 'Event date', kind: 'Event context',
   date_precision: 'Date precision', movie_ids: 'Film lineup',
-  cycle_id: 'Cycle', cycle_slot: 'Nominal slot',
+  cycle_id: 'Cycle', cycle_slot: 'Historical turn',
   correct_anchor: 'Cycle anchor correction',
 };
 

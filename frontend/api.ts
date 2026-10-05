@@ -1,3 +1,4 @@
+import { validationFieldLabel } from './presentation';
 import type { Catalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, MetadataEnrichment, TmdbPreview } from '../shared/types';
 
 const configured = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/,'');
@@ -37,7 +38,7 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
   let payload: { data?: T; error?: { message: string; fields?: {path: string; message: string}[] } };
   try { payload = await response.json(); }
   catch { throw new Error('The API returned an unexpected response. Check the configured API URL.'); }
-  if (!response.ok) throw new ApiClientError(response.status,payload.error?.fields?.map(f => `${f.path}: ${f.message}`).join(' · ') || payload.error?.message || 'Request failed.',payload.error?.fields);
+  if (!response.ok) throw new ApiClientError(response.status,payload.error?.fields?.map(f => `${validationFieldLabel(f.path)}: ${f.message}`).join(' · ') || payload.error?.message || 'Request failed.',payload.error?.fields);
   return payload.data as T;
 }
 export const api = {

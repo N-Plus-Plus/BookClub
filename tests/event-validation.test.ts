@@ -14,11 +14,11 @@ describe('Event validation routing', () => {
   it('keeps recognised retained fields visible when editing has no control', () => {
     const result = routeEventValidation([
       {path:'cycle_id',message:'Choose an existing cycle.'},
-      {path:'cycle_slot',message:'Slot 5 is for Classics.'},
+      {path:'cycle_slot',message:'Classics week requires a Classics event.'},
     ],new Set(['event_date']));
     expect(result.fields).toEqual({});
     expect(result.formMessage).toContain('Cycle: Choose an existing cycle.');
-    expect(result.formMessage).toContain('Nominal slot: Slot 5 is for Classics.');
+    expect(result.formMessage).toContain('Historical turn: Classics week requires a Classics event.');
     expect(result.formMessage).toContain('Review the event details and try again');
     expect(result.formMessage).not.toMatch(/cycle_id|cycle_slot/);
   });
@@ -33,11 +33,11 @@ describe('Event validation routing', () => {
   it('shows inline and fallback messages together for mixed rejection paths', () => {
     const result = routeEventValidation([
       {path:'event_date',message:'Choose a valid date.'},
-      {path:'cycle_slot',message:'Slot 5 is for Classics.'},
+      {path:'cycle_slot',message:'Classics week requires a Classics event.'},
       {path:'unmapped',message:'Invalid input'},
     ],new Set(['event_date']));
     expect(result.fields).toEqual({event_date:'Choose a valid date.'});
-    expect(result.formMessage).toContain('Slot 5 is for Classics.');
+    expect(result.formMessage).toContain('Classics week requires a Classics event.');
     expect(result.formMessage).toContain('Some event details could not be validated.');
   });
 

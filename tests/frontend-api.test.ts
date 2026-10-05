@@ -57,3 +57,12 @@ it('retains API field paths for local form validation',async () => {
   const {api} = await import('../frontend/api');
   await expect(api.catalog()).rejects.toMatchObject({status:422,fields});
 });
+
+
+it('uses a human historical turn label in Builder validation errors while retaining field paths',async () => {
+  vi.stubEnv('DEV',true);
+  const fields = [{path:'cycle_slot',message:'Choose a cycle for this historical turn.'}];
+  vi.stubGlobal('fetch',vi.fn(async () => Response.json({error:{message:'Invalid event.',fields}},{status:422})));
+  const {api} = await import('../frontend/api');
+  await expect(api.publishBuilder('set',{revision:0,event_date:'2026-01-01',cycle_id:null,cycle_slot:1,complete_turn:false})).rejects.toMatchObject({fields,message:'Historical turn: Choose a cycle for this historical turn.'});
+});

@@ -21,7 +21,7 @@ export const sessionSchema = z.object({
 }).strict().superRefine((s,ctx) => {
   if (s.cycle_id && s.new_cycle) ctx.addIssue({code: 'custom',path: ['cycle_id'],message: 'Choose an existing or new cycle, not both.'});
   if (s.date_precision === 'cycle_rough' && !s.cycle_id && !s.new_cycle) ctx.addIssue({code: 'custom',path: ['cycle_id'],message: 'An approximate cycle date requires a cycle.'});
-  if (s.cycle_slot != null && !s.cycle_id && !s.new_cycle && !s.complete_turn) ctx.addIssue({code: 'custom',path: ['cycle_slot'],message: 'A source slot requires a cycle.'});
+  if (s.cycle_slot != null && !s.cycle_id && !s.new_cycle && !s.complete_turn) ctx.addIssue({code: 'custom',path: ['cycle_slot'],message: 'Choose a cycle for this historical turn.'});
 });
 export const classicSchema = z.object({classic: z.boolean()}).strict();
 export const enrichmentSchema = z.object({limit: z.number().int().min(1).max(10).default(10)}).strict();

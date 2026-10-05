@@ -412,6 +412,8 @@ Repeated rows should have:
 
 Do not wrap every row in a heavy card unless the row represents a genuinely independent object.
 
+Internal slot terminology never appears in member-facing UI. Use named historical turns where ordering helps; current turns use the effective member after swaps. Normalised `/100` source scores retain at most one decimal and suppress trailing `.0`, preserving meaningful fractions. Native IMDb `/10` and derived score precision remain unchanged.
+
 ## 23. Metrics and charts
 
 Metric-heavy screens should normally consider charts as a desirable presentation tool.
@@ -527,7 +529,7 @@ Prioritise scanning and understanding past nights.
 
 Host, date precision, film order and cycle context should remain clear.
 
-History remains one continuous archive, with lightweight cycle jump and actual-host filtering. Keep Edit, Audit and restrained destructive Delete visible. Audit toggles inline and reuses loaded evidence.
+History paginates the existing cycle order at five cycles per page, with identical Previous / Next and page indicators above and below the cycles. Actual-host filtering resets to page one; cycle jump opens the containing page before scrolling. Ungrouped events follow the last page and do not count as a cycle. Keep accessible icon-only Edit, Audit and restrained destructive Delete at the top-right of each event card. Audit toggles beneath its card and reuses loaded evidence. History films use one stacked full Film Detail link per film in viewing order: a larger primary-text # marker, poster, then title above subordinate year/runtime. History film titles match the event heading size without changing titles elsewhere. Hosted headings use the stored actual host’s “<Name>'s week”; Classics uses “Classics week”. Cycle context reads “Cycle starting: <date>” followed by normal turn names separated by aligned Lucide ArrowRight icons, wrapping on narrow screens. History headings omit film counts and label approximate dates “Cycle beginning <date>”; Home retains its existing presentation.
 
 ### Metrics
 
@@ -559,7 +561,7 @@ Yes and No should remain equally reachable and should not visually bias the answ
 
 ### Event create/edit
 
-Use details → ordered films → review → completion as the essential Event reading order. The first card contains only Actual event date and “Complete the current turn”, checked by default for new events. Editing reflects stored completion without advancing rotation. Host is not selectable: new Events derive hosted identity from the effective active member assigned to the current cycle position 1–4; slot 5 is hostless Classics. Unchecking completion does not change identity. Corrections preserve stored historical host and kind; historical date controls remain disclosed. Event titles, notes, swap explanations and turn-helper prose are absent. Field errors preserve input and focus the first invalid control.
+Use details → ordered films → completion as the essential Event reading order. Save follows the workflow without a review summary. The first card contains only Actual event date and “Complete the current turn”, checked by default for new events. Editing reflects stored completion without advancing rotation. Host is not selectable: new Events derive hosted identity from the effective active member assigned to the current cycle position 1–4; slot 5 is hostless Classics. Unchecking completion does not change identity. Corrections preserve stored historical host and kind; historical date controls remain disclosed. Event titles, notes, swap explanations and turn-helper prose are absent. Field errors preserve input and focus the first invalid control.
 
 Find a film shows at most six candidates per page with Previous / Next and Page N of M. Whole-title matches after whitespace/case normalisation and removal of at most one leading A or The suppress weaker contiguous-substring results; year text is not a title match. Each linked result shows a left poster and title, year and director, with Unknown/no-poster fallbacks. Inspection keeps the Event editor and its search mounted, preserving all draft fields, lineup order, query, results, pagination and manual input. Builder prefill seeds once in exact saved order; incomplete or unavailable sets cannot be used.
 

@@ -337,3 +337,16 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .detail-seen-column + .detail-seen-column { border-left: 1px solid var(--asphalt); }
 .detail-seen-members { display: flex; flex-wrap: wrap; gap: var(--space-16); margin-top: var(--space-16); }
 .detail-seen-members .club-identity { flex-direction: column; text-align: center; }
+
+/* History-specific card composition leaves Home session cards unchanged. */
+.history-event { min-width: 0; }
+.history-event .session-card { display: flow-root; }
+.history-event-actions { float: right; display: flex; gap: var(--space-8); margin: 0 0 var(--space-12) var(--space-12); }
+.history-event .film-list { clear: both; grid-template-columns: minmax(0,1fr); }
+.history-event .film-list li { min-width: 0; }
+.history-event .movie-title { font-size: 1.12rem; overflow-wrap: anywhere; }
+.history-event .position { font-size: 1.12rem; font-weight: 600; color: var(--text-primary); min-width: 2ch; }
+.history-cycle-context { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-20); }
+.history-cycle-order { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+.history-cycle-turn { display: inline-flex; align-items: center; gap: var(--space-8); }
+.history-pagination { align-items: center; justify-content: space-between; }

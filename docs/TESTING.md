@@ -181,8 +181,9 @@ Vitest is configured in `vite.config.ts`, selecting `tests/**/*.test.ts`. No lin
 
 | Coverage | Files under `tests/` |
 | --- | --- |
+| Presentation | `presentation.test.ts` (human historical/current turns, audit evidence, `/100` formatting and retained native/derived precision) |
 | Domain | `ranking.test.ts`, `metrics.test.ts`, `event-validation.test.ts`, `maintenance-feedback.test.ts`, `artwork.test.ts`, `metadata-maintenance.test.ts` |
-| Event search/inspection | `film-search.test.ts` (matching, narrow SQL, preview no-write, credits, host), `event-inspection.test.ts` (mocked React DOM mount preservation, pagination/cache, confirmation/retry, Builder order/unavailable sets, personal Seen queue/Home count/Undo, Detail grouping and Seen-origin Back) |
+| Event search/inspection | `film-search.test.ts` (matching, narrow SQL, preview no-write, credits, host), `event-inspection.test.ts` (mocked React DOM mount preservation, pagination/cache, confirmation/retry, Builder order/unavailable sets, personal Seen queue/Home count/Undo, Detail grouping and Seen-origin Back, History cycle pagination/jump/filtering, card actions/audit/delete and History-only date headings) |
 | Current-cycle rotation and Home | `rotation.test.ts` (durable swaps, positional reset, eligibility, races, Event hosts), `rotation-ui.test.ts` (mocked React DOM identity/actions/disclosure/feedback); related rotation API coverage in `product-api.test.ts` |
 | API/auth/product | `api.test.ts`, `auth.test.ts`, `product-api.test.ts`, `domain-api.test.ts`, `frontend-api.test.ts` |
 | Providers/metadata | `providers.test.ts`, `ratings.test.ts`, `metadata.test.ts` |
