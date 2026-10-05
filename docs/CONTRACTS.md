@@ -74,18 +74,18 @@ POST `/sessions` and PUT `/sessions/:id` accept:
 
 ```ts
 {
-  event_date: string, movie_ids: string[], title?: string,
-  host_member_id?: string | null, notes?: string, legacy_cycle_label?: string,
+  event_date: string, movie_ids: string[],
+  host_member_id?: string | null, legacy_cycle_label?: string,
   cycle_id?: string | null, new_cycle?: {rough_date:string,title?:string,ordinal?:number},
   kind?: 'hosted'|'classics', date_precision?: 'exact'|'cycle_rough'|'unknown',
-  cycle_slot?: number | null, swap_note?: string,
+  cycle_slot?: number | null,
   complete_turn?: boolean, turn_version?: number, correct_anchor?: boolean
 }
 ```
 
-Nonempty ordered lineup, no three-film ceiling. Title/label max 300, notes max 10000, swap max 2000. Existing/new cycle are exclusive; slot 5 is Classics, 1–4 hosted. Classics has no host; hosted requires one. `cycle_rough` requires cycle context. Slot-1 new cycle requires exact matching anchor; later exact dates are independent. Changing an exact slot-1 date requires explicit `correct_anchor:true`; only unknown legacy reference dates follow. Edits never complete a turn. Creation returns event/201, replacement event/200.
+Nonempty ordered lineup, no three-film ceiling. Cycle title/legacy label max 300. Event title, notes and swap explanations are not accepted or stored. The UI derives internal kind from turn/slot context and retains it on edits; new-event completion defaults checked. Existing/new cycle are exclusive; slot 5 is Classics, 1–4 hosted. Classics has no host; hosted requires one. `cycle_rough` requires cycle context. Slot-1 new cycle requires exact matching anchor; later exact dates are independent. Changing an exact slot-1 date requires explicit `correct_anchor:true`; only unknown legacy reference dates follow. Edits never complete a turn. Creation returns event/201, replacement event/200.
 
-Nominal versus actual hosted-member mismatch requires nonblank swap_note, also enforced by insert/update triggers. Occupied active cycle/slot returns 409 with related work rolled back. Current completion requires correct turn/version and advances only explicitly. Slots follow fixed human positions then hostless Classics; completing Classics returns to slot 1 awaiting new cycle. Current Classics completion atomically marks films Seen for all active members; backfills/edits/restores do not.
+Actual hosts may differ from the nominal member without an explanation; the fixed rotation remains unchanged. Occupied active cycle/slot returns 409 with related work rolled back. Current completion requires correct turn/version and advances only explicitly. Slots follow fixed human positions then hostless Classics; completing Classics returns to slot 1 awaiting new cycle. Current Classics completion atomically marks films Seen for all active members; backfills/edits/restores do not.
 
 GET `/rotation` -> singleton or null before private initialisation. Admin PUT `/rotation` accepts `{cycle_id:string|null,nominal_slot:1–5,version:number|null,reason}`; reason nonblank <=2000, version detects stale correction. Returns Rotation. Admin status does not grant Builder access.
 
@@ -95,7 +95,7 @@ GET `/sessions/:id/audit` -> `HistoryAudit[]`, including deleted events, with ac
 
 GET `/builders` and `/builders/:id` return only viewer-owned sets. POST/PUT accept `{title?,notes?,movie_ids,revision?}`; empty drafts supported, PUT requires current revision. DELETE accepts `{revision}` -> `{deleted:true}` and permanently removes only private draft. Other-owner IDs return 404 even for admins. Revision is a nonnegative integer.
 
-POST `/builders/:id/publish` accepts `{revision,event_date,cycle_id:string|null,cycle_slot:1–5,complete_turn:boolean,turn_version?,swap_note?,new_cycle?}` -> event/201. Owner is actual hosted publisher; Classics remains hostless. Nonempty lineup required. Publication atomically copies immutable Builder creation time to planned_at, preserves film order/title/notes, creates event/audit, removes draft and optionally completes guarded rotation/Seen changes. Saved sets never enter catalog before publication.
+POST `/builders/:id/publish` accepts `{revision,event_date,cycle_id:string|null,cycle_slot:1–5,complete_turn:boolean,turn_version?,new_cycle?}` -> event/201. Owner is actual hosted publisher; Classics remains hostless. Nonempty lineup required. Publication atomically copies immutable Builder creation time to planned_at, preserves film order, creates event/audit, removes draft and optionally completes guarded rotation/Seen changes. Private Builder titles/notes are not copied to History. Saved sets never enter catalog before publication.
 
 ## Import, export and artefact contracts
 

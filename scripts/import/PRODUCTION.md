@@ -6,7 +6,7 @@ This specialised guide owns the archive CLI gates and partial-write recovery. [D
 
 Historical import and four-member/auth bootstrap are complete according to retained project records. Cycle 55 / Classics slot 5 / version 0 is the initial archive bootstrap baseline, not a statement of current live rotation. The application Worker and Pages are deployed; do not repeat bootstrap after real user actions. Sections below describe the retained initial-archive tooling and its strict pre-launch assertions, not routine live maintenance.
 
-Previous deployment records report migrations 0001–0008 complete; source now includes 0009. Verify the remote ledger separately before any authorised operation. The CLI binds all current migration contents to an exact fresh rehearsal receipt, so an older receipt cannot authorise changed migrations. Retain the original pristine pre-migration export and proof; do not overwrite them. Applied migrations must not change.
+Previous deployment records report migrations 0001–0008 complete; source now includes 0009–0010. Verify the remote ledger separately before any authorised operation. The CLI binds all current migration contents to an exact fresh rehearsal receipt, so an older receipt cannot authorise changed migrations. Retain the original pristine pre-migration export and proof; do not overwrite them. Applied migrations must not change.
 
 ## Rehearse the exact archive first
 

@@ -51,27 +51,17 @@ describe('active slots and universal swap integrity',()=>{
     expect((await session({cycle_id:'demo-cycle-a',cycle_slot:5,kind:'classics',host_member_id:null,complete_turn:true,turn_version:0})).status).toBe(409);
     expect(await turn()).toEqual(before);expect(await data<BuilderSet>(await call(`/builders/${b.id}`))).toEqual(b);expect(local.sqlite.prepare('SELECT * FROM seen_states').all()).toEqual(seen);
   });
-  it('requires swap notes on direct current completion, backfills, Builder backfills and History edits',async()=>{
-    const before=await turn();
-    const backfill={cycle_id:'demo-cycle-a',cycle_slot:3};
-    expect((await session({...backfill,swap_note:' \t\n '})).status).toBe(422);
-    const b=await builder();const publish={revision:0,event_date:'2000-01-01',...backfill,complete_turn:false};
-    expect((await call(`/builders/${b.id}/publish`,'POST',publish)).status).toBe(422);
-    const s=await data<Session>(await call(`/builders/${b.id}/publish`,'POST',{...publish,swap_note:'Position 1 covers this historical slot'}));
-    expect(await turn()).toEqual(before);
-    const edit={event_date:s.event_date,kind:'hosted',host_member_id:'member-2',...backfill,movie_ids:['moon']};
-    expect((await call(`/sessions/${s.id}`,'PUT',edit)).status).toBe(422);expect((await call(`/sessions/${s.id}`,'PUT',{...edit,swap_note:'Position 2 was actual host'})).status).toBe(200);
-    expect((await call('/sessions/demo-2','PUT',{...edit,cycle_slot:2,host_member_id:'member-2'})).status).toBe(200);
+  it('permits host swaps on backfills, publication, edits and current completion without explanations',async()=>{
+    const before=await turn(),backfill={cycle_id:'demo-cycle-a',cycle_slot:3};
+    const b=await builder();
+    const s=await data<Session>(await call(`/builders/${b.id}/publish`,'POST',{revision:0,event_date:'2000-01-01',...backfill,complete_turn:false}));
+    expect(s.host_member_id).toBe('member-1');expect(await turn()).toEqual(before);
+    expect((await call(`/sessions/${s.id}`,'PUT',{event_date:s.event_date,kind:'hosted',host_member_id:'member-2',...backfill,movie_ids:['moon']})).status).toBe(200);
     await call('/sessions/demo-2','DELETE');await call('/rotation','PUT',{cycle_id:'demo-cycle-a',nominal_slot:2,version:0,reason:'Synthetic review'},2);
-    expect((await session({cycle_id:'demo-cycle-a',cycle_slot:2,complete_turn:true,turn_version:1})).status).toBe(422);
-    expect((await session({cycle_id:'demo-cycle-a',cycle_slot:2,complete_turn:true,turn_version:1,swap_note:'Position 1 covers slot 2'})).status).toBe(201);
+    expect((await session({cycle_id:'demo-cycle-a',cycle_slot:2,complete_turn:true,turn_version:1})).status).toBe(201);
   });
   it('DB index and triggers cannot be bypassed by direct SQL, including updates and transaction races',async()=>{
     expect(()=>local.sqlite.exec("INSERT INTO sessions(id,event_date,host_member_id,cycle_id,cycle_slot) VALUES('duplicate','2000-01-01','member-2','demo-cycle-a',2)")).toThrow('UNIQUE');
-    expect(()=>local.sqlite.exec("INSERT INTO sessions(id,event_date,host_member_id,cycle_id,cycle_slot,swap_note) VALUES('bad','2000-01-01','member-1','demo-cycle-a',3,'   ')")).toThrow('SWAP_REQUIRED');
-    expect(()=>local.sqlite.exec("UPDATE sessions SET host_member_id='member-1',swap_note=char(9)||char(10) WHERE id='demo-2'")).toThrow('SWAP_REQUIRED');
-    expect(()=>local.sqlite.exec("UPDATE sessions SET host_member_id='member-1',swap_note=char(160)||char(8195) WHERE id='demo-2'")).toThrow('SWAP_REQUIRED');
-    expect(()=>local.sqlite.exec("UPDATE sessions SET host_member_id=NULL,swap_note=NULL WHERE id='demo-2'")).toThrow('SWAP_REQUIRED');
     // Bypass repository preflight by interleaving a write immediately before batch.
     const batch=local.db.batch.bind(local.db);let raced=false;
     local.db.batch=(async (statements:D1PreparedStatement[])=>{if(!raced){raced=true;local.sqlite.exec("INSERT INTO sessions(id,event_date,host_member_id,cycle_id,cycle_slot) VALUES('raced','2000-01-01','member-3','demo-cycle-a',3)");}return batch(statements);}) as D1Database['batch'];
@@ -124,8 +114,8 @@ describe('private Builders and publication',()=>{
   it('publishes atomically with original planning time, order, publisher, independent date and no backfill advancement',async()=>{
     await call('/sessions/demo-2','DELETE');
     const b=await builder(1,['moon','arrival','alien','bicycle']);const before=await turn();
-    const published=await data<Session>(await call(`/builders/${b.id}/publish`,'POST',{revision:b.revision,event_date:'2099-01-02',cycle_id:'demo-cycle-a',cycle_slot:2,complete_turn:false,swap_note:'Position 1 hosted this historical swap'}));
-    expect(published).toMatchObject({event_date:'2099-01-02',date_precision:'exact',planned_at:b.created_at,published_by:'member-1',host_member_id:'member-1',cycle_slot:2,title:b.title,notes:b.notes});expect(published.movies.map(m=>m.id)).toEqual(b.movie_ids);
+    const published=await data<Session>(await call(`/builders/${b.id}/publish`,'POST',{revision:b.revision,event_date:'2099-01-02',cycle_id:'demo-cycle-a',cycle_slot:2,complete_turn:false}));
+    expect(published).toMatchObject({event_date:'2099-01-02',date_precision:'exact',planned_at:b.created_at,published_by:'member-1',host_member_id:'member-1',cycle_slot:2});expect(published.movies.map(m=>m.id)).toEqual(b.movie_ids);expect(published).not.toHaveProperty('title');expect(published).not.toHaveProperty('notes');expect(published).not.toHaveProperty('swap_note');
     expect((await call(`/builders/${b.id}`)).status).toBe(404);expect(await turn()).toEqual(before);
     expect((await call(`/builders/${b.id}/publish`,'POST',{revision:0,event_date:'2000-01-01',cycle_id:'demo-cycle-a',cycle_slot:2,complete_turn:false})).status).toBe(404);
     await call(`/sessions/${published.id}`,'PUT',{event_date:'2001-01-01',kind:'hosted',host_member_id:'member-4',movie_ids:['alien']});
@@ -181,7 +171,7 @@ describe('explicit rotation, Classics and History',()=>{
     let cycleId:string|null=null;
     for(let slot=1;slot<=5;slot++) {
       const state=await turn();expect(state.nominal_slot).toBe(slot);
-      const s=await data<Session>(await session({event_date:`2030-05-0${slot}`,cycle_id:state.cycle_id,cycle_slot:slot,complete_turn:true,turn_version:state.version,kind:slot===5?'classics':'hosted',host_member_id:slot===5?null:slot===1?'member-2':`member-${slot}`,swap_note:slot===1?'Position 2 covers nominal slot 1; return swap to follow':undefined},slot===1?2:slot===5?1:slot));
+      const s=await data<Session>(await session({event_date:`2030-05-0${slot}`,cycle_id:state.cycle_id,cycle_slot:slot,complete_turn:true,turn_version:state.version,kind:slot===5?'classics':'hosted',host_member_id:slot===5?null:slot===1?'member-2':`member-${slot}`},slot===1?2:slot===5?1:slot));
       if(slot===1) cycleId=s.cycle_id;expect(s.cycle_id).toBe(cycleId);expect(s.date_precision).toBe('exact');expect(s.event_date).toBe(`2030-05-0${slot}`);
       const catalog=await data<Catalog>(await call('/catalog'));expect(catalog.cycles.find(c=>c.id===cycleId)?.rough_date).toBe('2030-05-01');
     }
@@ -189,12 +179,11 @@ describe('explicit rotation, Classics and History',()=>{
     const state=await turn();const next=await data<Session>(await session({event_date:'2040-04-04',cycle_id:null,cycle_slot:1,complete_turn:true,turn_version:state.version}));expect(next.cycle_id).not.toBe(cycleId);
     expect((await data<Catalog>(await call('/catalog'))).cycles.find(c=>c.id===next.cycle_id)?.rough_date).toBe('2040-04-04');
   });
-  it('requires an explicit swap explanation for off-turn completion without requiring admin',async()=>{
+  it('permits off-turn completion without requiring admin',async()=>{
     await call('/sessions/demo-2','DELETE');
     await call('/rotation','PUT',{cycle_id:'demo-cycle-a',nominal_slot:2,version:0,reason:'Reviewed turn'},2);
     const b=await builder();const input={revision:0,event_date:'2000-01-01',cycle_id:'demo-cycle-a',cycle_slot:2,complete_turn:true,turn_version:1};
-    expect((await call(`/builders/${b.id}/publish`,'POST',input)).status).toBe(422);
-    const s=await data<Session>(await call(`/builders/${b.id}/publish`,'POST',{...input,swap_note:'Position 1 takes this slot; position 2 will cover their next turn'}));expect(s).toMatchObject({host_member_id:'member-1',cycle_slot:2,swap_note:expect.any(String)});expect((await turn()).nominal_slot).toBe(3);
+    const s=await data<Session>(await call(`/builders/${b.id}/publish`,'POST',{...input}));expect(s).toMatchObject({host_member_id:'member-1',cycle_slot:2});expect((await turn()).nominal_slot).toBe(3);
   });
   it('concurrent completion advances once and preserves the losing Builder',async()=>{
     await call('/sessions/demo-classics','DELETE');
@@ -230,7 +219,7 @@ describe('explicit rotation, Classics and History',()=>{
     expect(local.sqlite.prepare('SELECT rough_date FROM cycles').get()?.rough_date).toBe('2026-09-19');
   });
   it('audits edits/deletes, hides deleted events/appearances, preserves rotation and restricts restore',async()=>{
-    const s=await data<Session>(await session());const before=await turn();await call(`/sessions/${s.id}`,'PUT',{event_date:'2000-01-01',kind:'hosted',host_member_id:'member-3',movie_ids:['arrival','moon'],title:'Corrected'},4);
+    const s=await data<Session>(await session());const before=await turn();await call(`/sessions/${s.id}`,'PUT',{event_date:'2000-01-01',kind:'hosted',host_member_id:'member-3',movie_ids:['arrival','moon']},4);
     expect((await call(`/sessions/${s.id}`,'DELETE',undefined,4)).status).toBe(200);expect((await call(`/sessions/${s.id}`)).status).toBe(404);expect((await data<Catalog>(await call('/catalog'))).sessions.some(x=>x.id===s.id)).toBe(false);
     const detail=await data<{appearances:{id:string}[]}>(await call('/movies/moon'));expect(detail.appearances.some(a=>a.id===s.id)).toBe(false);expect(await turn()).toEqual(before);
     expect((await call(`/sessions/${s.id}/restore`,'POST')).status).toBe(403);expect((await call(`/sessions/${s.id}/restore`,'POST',undefined,2)).status).toBe(200);expect((await call(`/sessions/${s.id}`)).status).toBe(200);

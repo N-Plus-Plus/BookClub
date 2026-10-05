@@ -59,13 +59,15 @@ export async function preflight(db:D1Database,plan:ResolvedPlan,scope:'preview'|
   const needed=[...tables,'import_applied_entities','members','classics_seed_allocations','builder_sets','builder_movies','club_rotation','history_audit'];
   const schema=(await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{name:string}>()).results;
   if(needed.some(n=>!schema.some(t=>t.name===n))) throw new ImportError('Schema compatibility failure: run all current import-preview migrations through 0008 before apply.');
-  const invariants=(await db.prepare("SELECT name FROM sqlite_master WHERE name IN ('active_cycle_slot','session_swap_insert','session_swap_update')").all<{name:string}>()).results;
-  if(invariants.length!==3) throw new ImportError('Schema compatibility failure: run migration 0006 History integrity before apply.');
+  const invariants=(await db.prepare("SELECT name FROM sqlite_master WHERE name IN ('active_cycle_slot')").all<{name:string}>()).results;
+  if(invariants.length!==1) throw new ImportError('Schema compatibility failure: run migration 0006 History integrity before apply.');
   const movieColumns=(await db.prepare('PRAGMA table_info(movies)').all<{name:string}>()).results;
   if(!movieColumns.some(c=>c.name==='tmdb_metadata_checked_at')) throw new ImportError('Schema compatibility failure: run migration 0007 TMDB metadata completion before apply.');
   const cooldownColumns=(await db.prepare('PRAGMA table_info(provider_cooldowns)').all<{name:string}>()).results;
   if(!['provider','retry_after_until','updated_at'].every(n=>cooldownColumns.some(c=>c.name===n)))throw new ImportError('Schema compatibility failure: run migration 0008 provider cooldowns before apply.');
   if(!movieColumns.some(c=>c.name==='tmdb_artwork_checked_at')) throw new ImportError('Schema compatibility failure: run migration 0009 TMDB artwork completion before apply.');
+  const sessionColumns=(await db.prepare('PRAGMA table_info(sessions)').all<{name:string}>()).results;
+  if(sessionColumns.some(c=>['title','notes','swap_note'].includes(c.name))) throw new ImportError('Schema compatibility failure: run migration 0010 event text removal before apply.');
   if(scope==='preview'&&(await db.prepare('SELECT COUNT(*) n FROM club_rotation').first<{n:number}>())?.n)throw new ImportError('Preview contains production rotation; apply refused.');
   const columns=(await db.prepare('PRAGMA table_info(source_scores)').all<{name:string}>()).results;
   if(!columns.some(c=>c.name==='source_ordinal')||!columns.some(c=>c.name==='legacy_preferred')) throw new ImportError('Schema compatibility failure: score provenance columns missing.');

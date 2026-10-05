@@ -44,15 +44,13 @@ export function eventDateLabel(event: Pick<Session,'event_date'|'date_precision'
 }
 export function SessionCard({session,members}: {session: Session; members: Member[]}) {
   return <article className="card session-card"><div className="eyebrow">{eventDateLabel(session)} · {session.movies.length} film{session.movies.length === 1 ? '' : 's'}</div>
-    <h3>{session.title || (session.kind === 'classics' ? 'Classics Collection' : 'Book Club night')}</h3><div className="session-meta">
+    <h3>{(session.kind === 'classics' ? 'Classics Collection' : 'Book Club night')}</h3><div className="session-meta">
       {session.kind === 'classics' && <ClubIdentity identity={{kind: 'classics'}} />}
       {session.host_member_id && (members.find(m => m.id === session.host_member_id) ? <ClubIdentity identity={{kind: 'member',member: members.find(m => m.id === session.host_member_id)!}} /> : <span>Hosted by a former member</span>)}
       {session.legacy_cycle_label && <span className="badge">{session.legacy_cycle_label}</span>}</div>
     <ol className="film-list">{session.movies.map((movie,i) => <li key={`${movie.id}-${i}`}><span className="position">{i+1}</span><MovieRow movie={movie} /></li>)}</ol>
-    {session.notes && <p className="meta">{session.notes}</p>}
     {session.planned_at && <p className="meta">Planned {new Date(session.planned_at).toLocaleString('en-AU')}</p>}
     {session.cycle_slot && <p className="meta">Nominal slot {session.cycle_slot}</p>}
-    {session.swap_note && <p className="meta">Swap: {session.swap_note}</p>}
   </article>;
 }
 export function RankingScore({movie,compact = false}: {movie: Movie; compact?: boolean}) {

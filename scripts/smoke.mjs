@@ -12,11 +12,11 @@ assert.equal(health.environment,'local'); assert.equal(health.authenticationRequ
 const catalog = await call('/catalog'); assert.equal(catalog.members.filter(m => m.active).length,4);
 assert.ok(catalog.sessions.length >= 3);
 const lookup = await call('/movies/search?q=Arrival'); assert.ok(lookup.local.some(m => m.id === 'arrival'));
-const movie = await call('/movies','POST',{title: 'API smoke fixture',year: 2026,runtime: 90});
+const movie = await call('/movies','POST',{year: 2026,runtime: 90});
 const ids = [movie.id,'moon','arrival','spirited'];
-const event = await call('/sessions','POST',{event_date: '2026-10-04',title: 'API smoke fixture',movie_ids: ids,legacy_cycle_label: 'opaque smoke label'});
+const event = await call('/sessions','POST',{event_date: '2026-10-04',movie_ids: ids,legacy_cycle_label: 'opaque smoke label'});
 assert.deepEqual(event.movies.map(m => m.id),ids);
-const reversed = await call(`/sessions/${event.id}`,'PUT',{event_date: '2026-10-04',title: 'API smoke fixture updated',movie_ids: [...ids].reverse(),legacy_cycle_label: 'opaque smoke label'});
+const reversed = await call(`/sessions/${event.id}`,'PUT',{event_date: '2026-10-04',movie_ids: [...ids].reverse(),legacy_cycle_label: 'opaque smoke label'});
 assert.deepEqual(reversed.movies.map(m => m.id),[...ids].reverse());
 assert.equal(reversed.legacy_cycle_label,'opaque smoke label');
 const original = await call('/movies/bicycle');

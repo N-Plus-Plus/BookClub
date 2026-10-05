@@ -19,7 +19,7 @@ await context.route('**/api/v1/**',async r=>{
  if(path.endsWith('/catalog')&&failRefresh) return r.fulfill({status:503,json:{error:{message:'Browser fixture refresh unavailable'}}});
  if(path.endsWith('/rotation')&&personal) return r.fulfill({json:{data:{cycle_id:null,nominal_slot:member.sort_order,version:0}}});
  if(path.endsWith('/builders')||path.endsWith('/builders/alignment-fixture')) return r.fulfill({json:{data:r.request().method()==='GET'&&path.endsWith('/builders')?[fixture]:fixture}});
- if(path.endsWith('/audit')) {audits++;return r.fulfill({json:{data:[{id:'fixture-audit',action:'update',actor_member_id:member.id,occurred_at:'2026-10-05T00:00:00Z',changes_json:JSON.stringify({before:{event_date:'2026-10-04'},after:{event_date:'2026-10-05',title:'Browser-only event',movie_ids:fixture.movie_ids},rotation_unchanged:true})}]}});}
+ if(path.endsWith('/audit')) {audits++;return r.fulfill({json:{data:[{id:'fixture-audit',action:'update',actor_member_id:member.id,occurred_at:'2026-10-05T00:00:00Z',changes_json:JSON.stringify({before:{event_date:'2026-10-04'},after:{event_date:'2026-10-05',movie_ids:fixture.movie_ids},rotation_unchanged:true})}]}});}
  if(path.endsWith('/movies/search')) return r.fulfill({json:{data:{local:data.movies.slice(0,8),external:[],lookup:{message:'Browser-only search fixture'}}}});
  if((path.endsWith('/sessions')||path.includes('/sessions/'))&&failEvent&&r.request().method()!=='GET') return r.fulfill({status:422,json:{error:{message:'Invalid event',fields:eventIssues}}});
  if(r.request().method()!=='GET') return r.abort(); return r.continue();
@@ -105,9 +105,6 @@ await page.getByLabel('Actual event date',{exact:true}).fill('2026-10-05');await
 // R03: reject the populated editor without touching D1; preserve every entered value.
 const editing=data.sessions.find(s=>s.kind==='hosted'&&s.cycle_slot!==1&&s.movies.length);
 assert(editing);await page.goto(`http://localhost:4173/#/event/${editing.id}`);
-await page.getByText('Optional title & notes',{exact:true}).click();
-await page.getByLabel('Title or theme (optional)').fill('Browser-only retained title');
-await page.getByLabel('Notes (optional)').fill('Browser-only retained notes');
 const retained=await page.locator('.event-workflow').evaluate(root=>[...root.querySelectorAll('input,textarea,select')].map(e=>({name:e.name,value:e.value,checked:e.checked})));
 async function rejectEditor(issues) {
  eventIssues=issues;const rejection=page.waitForResponse(r=>r.url().includes('/sessions/')&&r.status()===422);await page.getByRole('button',{name:'Save corrections'}).click();await rejection;
@@ -115,8 +112,7 @@ async function rejectEditor(issues) {
  assert.deepEqual(await page.locator('.event-workflow').evaluate(root=>[...root.querySelectorAll('input,textarea,select')].map(e=>({name:e.name,value:e.value,checked:e.checked}))),retained);
  assert.equal(await page.locator('.lineup-list li').count(),editing.movies.length);
 }
-await rejectEditor([{path:'notes',message:'Fixture notes invalid'},{path:'event_date',message:'Fixture date invalid'}]);
-await page.getByText('Fixture notes invalid',{exact:true}).waitFor();
+await rejectEditor([{path:'event_date',message:'Fixture date invalid'}]);
 await page.waitForFunction(()=>document.activeElement?.getAttribute('name')==='event_date');
 assert.equal(await page.locator('[name="event_date"]').getAttribute('aria-describedby'),'error-event_date');
 await rejectEditor([{path:'cycle_slot',message:'Slot 5 is for Classics.'},{path:'cycle_id',message:'Choose an existing cycle.'}]);
@@ -127,14 +123,9 @@ assert(!/cycle_slot|cycle_id/.test(await page.locator('.event-workflow [role="al
 await rejectEditor([{path:'future_internal_field.value',message:'future_internal_field invalid'}]);
 await page.getByText(/Some event details could not be validated/).waitFor();
 assert(!(await page.locator('.event-workflow [role="alert"]').innerText()).includes('future_internal_field'));
-await rejectEditor([{path:'kind',message:'Fixture kind invalid'}]);await page.waitForFunction(()=>document.activeElement?.getAttribute('name')==='kind');
-assert(await page.locator('[name="kind"]').evaluate(e=>e.closest('label').nextElementSibling.id==='error-kind'));
+await rejectEditor([{path:'kind',message:'Fixture kind invalid'}]);await page.getByText(/Event context: Fixture kind invalid/).waitFor();
 await rejectEditor([{path:'date_precision',message:'Fixture precision invalid'}]);await page.waitForFunction(()=>document.activeElement?.getAttribute('name')==='date_precision');
 assert(await page.locator('[name="date_precision"]').evaluate(e=>e.closest('details').open&&e.closest('label').nextElementSibling.id==='error-date_precision'));
-await page.getByText('Optional title & notes',{exact:true}).click();
-await rejectEditor([{path:'notes',message:'Fixture disclosed notes invalid'},{path:'title',message:'Fixture disclosed title invalid'}]);
-await page.waitForFunction(()=>document.activeElement?.getAttribute('name')==='title');
-assert(await page.locator('[name="title"]').isVisible());
 await page.screenshot({path:'.verification/residual-edit-validation.png',fullPage:true});failEvent=false;
 await page.goto('http://localhost:4173/#/home');failRefresh=true;await page.getByRole('button',{name:'Refresh BookClub data',exact:true}).click();await page.getByText('Could not refresh. Showing the last loaded journal.').waitFor();assert(await page.getByText('Eligible Classics',{exact:true}).isVisible());failRefresh=false;
 personal=true;await page.reload();await page.getByRole('heading',{name:'This is your turn'}).waitFor();await page.screenshot({path:'.verification/pass2-personal.png'});

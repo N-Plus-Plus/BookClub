@@ -17,7 +17,6 @@ export class ProductRepository {
   private async batch(statements: D1PreparedStatement[]) {
     try { await this.db.batch(statements); }
     catch (error) {
-      if (/SWAP_REQUIRED/.test(String(error))) throw new ApiError(422,'SWAP_REQUIRED','Explain the swap when the actual host differs from the nominal slot.');
       if (/active_cycle_slot|sessions.cycle_id, sessions.cycle_slot/.test(String(error))) throw conflict('This cycle slot already has an active History event. Choose a free slot or review History.');
       if (/BUILDER_CONFLICT|TURN_CONFLICT|HISTORY_CONFLICT|completed_turn_once|completed_turn_version|sessions.builder_id|club_rotation.id|FOREIGN KEY constraint failed/.test(String(error)))
         throw conflict('The record or current turn changed. Refresh before retrying.');
@@ -117,7 +116,6 @@ export class ProductRepository {
     if (kind === 'hosted' && slot !== null && slot <= 4) {
       const nominal = await this.db.prepare('SELECT id FROM members WHERE sort_order=?').bind(slot).first<{id: string}>();
       if (!input.host_member_id || !nominal) throw new ApiError(422,'INVALID_HOST','Choose an active host with a provisioned nominal roster.');
-      if (input.host_member_id !== nominal.id && !input.swap_note?.trim()) throw new ApiError(422,'SWAP_REQUIRED','Explain the swap when the actual host differs from the nominal slot.');
     }
     if (cycleId && slot !== null && await this.db.prepare('SELECT id FROM sessions WHERE cycle_id=? AND cycle_slot=? AND deleted_at IS NULL AND id<>?').bind(cycleId,slot,existingId ?? '').first())
       throw conflict('This cycle slot already has an active History event. Choose a free slot or review History.');
@@ -140,11 +138,11 @@ export class ProductRepository {
       if (precision === 'cycle_rough' && cycle.rough_date !== input.event_date) throw new ApiError(422,'INVALID_DATE_PRECISION','Use the cycle anchor as the reference date when the actual date is unknown.');
     }
     const id = existingId ?? crypto.randomUUID();
-    const fields = [input.event_date,input.title || null,input.host_member_id || null,input.legacy_cycle_label || null,input.notes || null,cycleId,kind,precision,slot,input.swap_note || null];
+    const fields = [input.event_date,input.host_member_id || null,input.legacy_cycle_label || null,cycleId,kind,precision,slot];
     if (existingId) {
-      statements.push(this.db.prepare(`UPDATE sessions SET event_date=?,title=?,host_member_id=?,legacy_cycle_label=?,notes=?,cycle_id=?,kind=?,date_precision=?,cycle_slot=?,swap_note=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?`).bind(...fields,id),
+      statements.push(this.db.prepare(`UPDATE sessions SET event_date=?,host_member_id=?,legacy_cycle_label=?,cycle_id=?,kind=?,date_precision=?,cycle_slot=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?`).bind(...fields,id),
         this.db.prepare('DELETE FROM session_movies WHERE session_id=?').bind(id));
-    } else statements.push(this.db.prepare('INSERT INTO sessions(id,event_date,title,host_member_id,legacy_cycle_label,notes,cycle_id,kind,date_precision,cycle_slot,swap_note,planned_at,published_by,builder_id,builder_revision,completed_turn_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    } else statements.push(this.db.prepare('INSERT INTO sessions(id,event_date,host_member_id,legacy_cycle_label,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,builder_id,builder_revision,completed_turn_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
       .bind(id,...fields,builder?.created_at ?? null,actor?.id ?? null,builder?.id ?? null,builder?.revision ?? null,turn?.version ?? null));
     statements.push(...input.movie_ids.map((movie,i) => this.db.prepare('INSERT INTO session_movies(session_id,movie_id,position) VALUES(?,?,?)').bind(id,movie,i+1)));
     if (turn && slot === 5) for (const movie of new Set(input.movie_ids)) statements.push(this.db.prepare(`INSERT INTO seen_states(movie_id,member_id,seen) SELECT ?,id,1 FROM members WHERE active=1
@@ -157,7 +155,7 @@ export class ProductRepository {
     const builder = await this.builder(actor.id,id);
     if (builder.revision !== revision) throw conflict('Builder changed. Refresh before publishing.');
     if (!builder.movie_ids.length) throw new ApiError(422,'EMPTY_BUILDER','Add at least one film.');
-    return this.saveSession({...input,title: builder.title ?? undefined,notes: builder.notes ?? undefined,movie_ids: builder.movie_ids,host_member_id: input.kind === 'classics' ? null : actor.id},actor,undefined,builder);
+    return this.saveSession({...input,movie_ids: builder.movie_ids,host_member_id: input.kind === 'classics' ? null : actor.id},actor,undefined,builder);
   }
   async deleteSession(actor: Viewer | null, id: string) {
     const before = await this.db.prepare('SELECT * FROM sessions WHERE id=? AND deleted_at IS NULL').bind(id).first();

@@ -22,7 +22,7 @@ export class Repository {
       this.db.prepare('SELECT movie_id,member_id,seen,updated_at FROM seen_states'),
       this.db.prepare('SELECT movie_id,rank_seed,added_at,source FROM classics'),
       this.db.prepare('SELECT movie_id,genre FROM movie_genres ORDER BY genre'),
-      this.db.prepare('SELECT id,event_date,title,host_member_id,legacy_cycle_label,notes,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,swap_note,completed_turn_version FROM sessions WHERE deleted_at IS NULL ORDER BY event_date DESC,created_at DESC,id'),
+      this.db.prepare('SELECT id,event_date,host_member_id,legacy_cycle_label,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,completed_turn_version FROM sessions WHERE deleted_at IS NULL ORDER BY event_date DESC,created_at DESC,id'),
       this.db.prepare('SELECT session_id,movie_id,position FROM session_movies ORDER BY position'),
       this.db.prepare('SELECT * FROM cycles ORDER BY ordinal DESC,id'),
     ]);

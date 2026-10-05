@@ -393,6 +393,8 @@ Toast notifications are an acceptable normal lightweight feedback mechanism, but
 
 Errors should stay as local as practical to the failed task. A failed refresh preserves useful loaded data and shows a local retry state; initial loading must not invent stale data.
 
+Routine manual freshness controls are not part of the member UI. Confirmed same-client changes update automatically through returned-data patches or existing automatic reads. Broad changes from another device/session may remain stale until full document reload; Detail and Builder retain their existing narrow mount reads. Do not add polling or route-entry catalogue refresh merely to guarantee freshness. Conditional error recovery and explicit admin/provider or local developer maintenance are exceptions.
+
 ## 22. Tables, rows and repeated data
 
 Flexible row and card layouts are normally preferred over rigid tables, even for comparison-heavy information, when they produce a better responsive result.
@@ -557,7 +559,7 @@ Yes and No should remain equally reachable and should not visually bias the answ
 
 ### Event create/edit
 
-Use details → ordered films → review → completion as the essential Event reading order. Disclose optional and historical controls; field errors preserve input and focus the first invalid control.
+Use details → ordered films → review → completion as the essential Event reading order. The first card contains only Actual event date and “Complete the current turn”, checked by default for new events. Editing reflects stored completion without advancing rotation. Keep host and historical controls below this card; kind is internal, derived from turn/slot or preserved historical context. Event titles, notes, swap explanations and turn-helper prose are absent. Field errors preserve input and focus the first invalid control.
 
 Backfill, current-turn completion and correction semantics must remain truthful.
 

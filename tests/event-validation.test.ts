@@ -15,7 +15,7 @@ describe('Event validation routing', () => {
     const result = routeEventValidation([
       {path:'cycle_id',message:'Choose an existing cycle.'},
       {path:'cycle_slot',message:'Slot 5 is for Classics.'},
-    ],new Set(['event_date','kind']));
+    ],new Set(['event_date']));
     expect(result.fields).toEqual({});
     expect(result.formMessage).toContain('Cycle: Choose an existing cycle.');
     expect(result.formMessage).toContain('Nominal slot: Slot 5 is for Classics.');
@@ -32,11 +32,11 @@ describe('Event validation routing', () => {
 
   it('shows inline and fallback messages together for mixed rejection paths', () => {
     const result = routeEventValidation([
-      {path:'title',message:'Shorten the title.'},
+      {path:'event_date',message:'Choose a valid date.'},
       {path:'cycle_slot',message:'Slot 5 is for Classics.'},
       {path:'unmapped',message:'Invalid input'},
-    ],new Set(['title','kind']));
-    expect(result.fields).toEqual({title:'Shorten the title.'});
+    ],new Set(['event_date']));
+    expect(result.fields).toEqual({event_date:'Choose a valid date.'});
     expect(result.formMessage).toContain('Slot 5 is for Classics.');
     expect(result.formMessage).toContain('Some event details could not be validated.');
   });

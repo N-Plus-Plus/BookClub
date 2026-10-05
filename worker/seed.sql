@@ -44,12 +44,12 @@ INSERT OR IGNORE INTO seen_states(movie_id,member_id,seen)
 SELECT 'paris',id,1 FROM members WHERE sort_order<3 AND NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
 INSERT OR IGNORE INTO seen_states(movie_id,member_id,seen)
 SELECT 'stalker',id,1 FROM members WHERE sort_order<4 AND NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
-INSERT OR IGNORE INTO sessions(id,event_date,title,host_member_id,legacy_cycle_label,notes,import_source,import_key)
-SELECT 'demo-1','2026-09-26','First contact','member-1','Demo cycle A','Illustrative development event','demo','session-1' WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
-INSERT OR IGNORE INTO sessions(id,event_date,title,host_member_id,legacy_cycle_label,import_source,import_key)
-SELECT 'demo-2','2026-09-19','Far from home','member-2','Demo cycle A','demo','session-2' WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
-INSERT OR IGNORE INTO sessions(id,event_date,title,host_member_id,legacy_cycle_label,import_source,import_key)
-SELECT 'demo-3','2026-09-12','A long Saturday','member-3','Demo cycle B','demo','session-3' WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
+INSERT OR IGNORE INTO sessions(id,event_date,host_member_id,legacy_cycle_label,import_source,import_key)
+SELECT 'demo-1','2026-09-26','member-1','Demo cycle A','demo','session-1' WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
+INSERT OR IGNORE INTO sessions(id,event_date,host_member_id,legacy_cycle_label,import_source,import_key)
+SELECT 'demo-2','2026-09-19','member-2','Demo cycle A','demo','session-2' WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
+INSERT OR IGNORE INTO sessions(id,event_date,host_member_id,legacy_cycle_label,import_source,import_key)
+SELECT 'demo-3','2026-09-12','member-3','Demo cycle B','demo','session-3' WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
 INSERT OR IGNORE INTO session_movies(session_id,movie_id,position) SELECT 'demo-1','arrival',1 WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
 INSERT OR IGNORE INTO session_movies(session_id,movie_id,position) SELECT 'demo-2','moon',1 WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
 INSERT OR IGNORE INTO session_movies(session_id,movie_id,position) SELECT 'demo-2','spirited',2 WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
@@ -60,7 +60,7 @@ INSERT OR IGNORE INTO session_movies(session_id,movie_id,position) SELECT 'demo-
 -- New-domain fixtures are fresh-seed-only; never alter an existing seeded catalog.
 INSERT OR IGNORE INTO cycles(id,ordinal,rough_date,title) SELECT 'demo-cycle-a',1,'2026-09-19','Demo cycle A' WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
 UPDATE sessions SET cycle_id='demo-cycle-a',date_precision=CASE id WHEN 'demo-1' THEN 'exact' ELSE 'cycle_rough' END,event_date='2026-09-19',cycle_slot=CASE id WHEN 'demo-1' THEN 1 ELSE 2 END WHERE id IN ('demo-1','demo-2') AND NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
-INSERT OR IGNORE INTO sessions(id,event_date,title,cycle_id,kind,date_precision,cycle_slot) SELECT 'demo-classics','2026-09-19','Classics Collection','demo-cycle-a','classics','cycle_rough',5 WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
+INSERT OR IGNORE INTO sessions(id,event_date,cycle_id,kind,date_precision,cycle_slot) SELECT 'demo-classics','2026-09-19','demo-cycle-a','classics','cycle_rough',5 WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
 INSERT OR IGNORE INTO session_movies(session_id,movie_id,position) SELECT 'demo-classics','alien',1 WHERE NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');
 INSERT OR IGNORE INTO source_scores(id,movie_id,provider,metric,raw_value,raw_scale,normalized_value,fetched_at,retrieved_via)
 SELECT id||'-rt-audience',id,'rottentomatoes','audience',90,100,90,'2026-09-01T00:00:00Z','development-demo' FROM movies WHERE id IN ('spirited','alien','bicycle','paris') AND NOT EXISTS(SELECT 1 FROM seed_runs WHERE name='demo-v1');

@@ -5,7 +5,7 @@ import type { Catalog, Movie, Session } from '../shared/types';
 const film = (id: string,imdb: number | null,genres: string[] = []): Movie => ({id,title:id,year:2000,original_title:null,release_date:null,runtime:null,overview:null,genres,assets:[],external_ids:[],seen:[],classic:false,ranking:null,
   scores:imdb===null?[]:[{provider:'imdb',metric:'rating',raw_value:imdb,raw_scale:10,normalized_value:null,vote_count:null,fetched_at:'2000-01-01',retrieved_via:'mdblist'}]});
 const a=film('a',9,['Drama','Science Fiction','sci-fi']),b=film('b',6,['Drama']),c=film('c',null);
-const event = (id: string,movies: Movie[],host: string | null,slot: number,kind: Session['kind']='hosted'): Session => ({id,movies,host_member_id:host,cycle_slot:slot,kind,event_date:'2000-01-01',title:null,legacy_cycle_label:null,notes:null,cycle_id:'cycle',date_precision:'exact'});
+const event = (id: string,movies: Movie[],host: string | null,slot: number,kind: Session['kind']='hosted'): Session => ({id,movies,host_member_id:host,cycle_slot:slot,kind,event_date:'2000-01-01',legacy_cycle_label:null,cycle_id:'cycle',date_precision:'exact'});
 const catalog: Catalog = {members:[],movies:[a,b,c],cycles:[],sessions:[event('s1',[a,b],'m2',1),event('s2',[a,c],null,5,'classics'),{...event('deleted',[b],'m1',1),deleted_at:'2000-01-02'}]};
 describe('appearance Metrics',()=>{
   it('ALL includes hosted and Classics; repeated films count, unique IDs deduplicate, deleted and Builder stay absent',()=>{

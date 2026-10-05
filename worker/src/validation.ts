@@ -11,10 +11,10 @@ export const movieSchema = z.object({
 }).strict();
 export const cycleSchema = z.object({ rough_date: dateSchema, title: z.string().trim().max(300).optional(), ordinal: z.number().int().positive().optional() }).strict();
 export const sessionSchema = z.object({
-  complete_turn: z.boolean().optional(), turn_version: z.number().int().nonnegative().optional(), swap_note: z.string().trim().max(2000).optional(), correct_anchor: z.boolean().optional(),
-  event_date: dateSchema, title: z.string().trim().max(300).optional(),
+  complete_turn: z.boolean().optional(), turn_version: z.number().int().nonnegative().optional(), correct_anchor: z.boolean().optional(),
+  event_date: dateSchema,
   host_member_id: idSchema.nullable().optional(), legacy_cycle_label: z.string().trim().max(300).optional(),
-  notes: z.string().trim().max(10000).optional(), movie_ids: z.array(idSchema).min(1),
+  movie_ids: z.array(idSchema).min(1),
   cycle_id: idSchema.nullable().optional(), new_cycle: cycleSchema.optional(),
   kind: z.enum(['hosted','classics']).optional(), date_precision: z.enum(['exact','cycle_rough','unknown']).optional(),
   cycle_slot: z.number().int().min(1).max(5).nullable().optional(),
@@ -34,4 +34,4 @@ export const avatarSchema = z.object({avatar: z.number().int().min(0).max(19)}).
 export const builderSchema = z.object({title: z.string().trim().max(300).optional(),notes: z.string().trim().max(10000).optional(),movie_ids: z.array(idSchema),revision: z.number().int().nonnegative().optional()}).strict();
 export const revisionSchema = z.object({revision: z.number().int().nonnegative()}).strict();
 export const rotationSchema = z.object({cycle_id: idSchema.nullable(),nominal_slot: z.number().int().min(1).max(5),version: z.number().int().nonnegative().nullable(),reason: z.string().trim().min(1).max(2000)}).strict();
-export const publishSchema = z.object({revision: z.number().int().nonnegative(),event_date: dateSchema,cycle_id: idSchema.nullable(),cycle_slot: z.number().int().min(1).max(5),complete_turn: z.boolean(),turn_version: z.number().int().nonnegative().optional(),swap_note: z.string().trim().max(2000).optional(),new_cycle: cycleSchema.optional()}).strict();
+export const publishSchema = z.object({revision: z.number().int().nonnegative(),event_date: dateSchema,cycle_id: idSchema.nullable(),cycle_slot: z.number().int().min(1).max(5),complete_turn: z.boolean(),turn_version: z.number().int().nonnegative().optional(),new_cycle: cycleSchema.optional()}).strict();

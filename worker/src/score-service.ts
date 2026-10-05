@@ -68,7 +68,7 @@ export class ScoreService {
     for (const m of selected) results.push({id:m.id,providers:await this.capture(m,batch.get(m.id),failures)});
     const current = await this.repo.catalog();
     return {results: results.map(r => ({providers: r.providers,movie: {...current.movies.find(m => m.id === r.id)!,
-      appearances: current.sessions.flatMap(s => s.movies.flatMap((m,i) => m.id === r.id ? [{id: s.id,event_date: s.event_date,date_precision: s.date_precision,kind: s.kind,title: s.title,position: i+1}] : []))}})),
+      appearances: current.sessions.flatMap(s => s.movies.flatMap((m,i) => m.id === r.id ? [{id: s.id,event_date: s.event_date,date_precision: s.date_precision,kind: s.kind,position: i+1}] : []))}})),
       remaining: Math.max(0,candidates.length-selected.length),unidentified: movies.filter(m => m.classic && !m.ranking?.rankable && !mdbId(m.external_ids)).length};
   }
 }
