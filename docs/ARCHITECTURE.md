@@ -23,10 +23,10 @@ Only include API sections when APIs actually exist.
 | Requirement | Current state |
 | --- | --- |
 | Platform | Browser plus a Node development machine; no OS-specific app host or VPN requirement. Optional browser scripts need locally available Playwright and a compatible browser. |
-| Runtime | Manifest: Node >=22.12; Node 24 recommended, used in CI and required by the snapshot-refresh guard. SQLite-backed tests use `node:sqlite` (available from Node 22.13 without the experimental flag); prefer Node 24 for the complete toolchain. |
+| Runtime | Manifest: Node >=22.12; Node 24 recommended, required by the snapshot-refresh guard. SQLite-backed tests use `node:sqlite` (available from Node 22.13 without the experimental flag); prefer Node 24 for the complete toolchain. |
 | Toolchain | Corepack, pnpm 10.32.1, Git for checkout; install from `pnpm-lock.yaml`. |
 | Local services | Vite 4173, Wrangler local Worker/D1 8787, Node supervisor 8790; started by `corepack pnpm dev`. |
-| Cloud accounts | None for local demos. Hosted operation requires GitHub Pages/Actions, Cloudflare Workers/D1, and a Google Web Application client with privately allow-listed accounts. Operator refresh requires Cloudflare D1 read/export authentication. |
+| Cloud accounts | None for local demos. Hosted operation requires GitHub source access, Cloudflare Workers Static Assets/Workers/D1, and a Google Web Application client with privately allow-listed accounts. Operator refresh requires Cloudflare D1 read/export authentication. |
 | Configuration | Local bypass/configuration is tracked. Hosted builds require public `VITE_API_BASE_URL` and `VITE_GOOGLE_CLIENT_ID`; Worker requires `DB`, origin/env vars and matching `GOOGLE_CLIENT_ID`. Provider secrets are optional; see [INTEGRATIONS](INTEGRATIONS.md). |
 | Network | Dependency installation and hosted use need internet; no Tailscale, network share or self-hosted server is part of BookClub. Optional API lookups and artwork CDN need internet. |
 | Bootstrap | Local `dev` applies migrations and seeds generic fixtures once. Production requires privately provisioned members/auth and explicit rotation, never the development seed. |
@@ -43,14 +43,14 @@ Only include API sections when APIs actually exist.
 | --- | --- | --- | --- |
 | Ordinary development | Vite http://localhost:4173/#/home; Worker http://localhost:8787/api/v1 | Local `bookclub-local`, under `worker/.wrangler/state/v3/d1` | Local double-flag bypass; optional local member selector |
 | Import preview | Same ports, separate `worker/wrangler.import-preview.jsonc` | `worker/.wrangler/import-preview`, dummy preview identity | Generic positional members; no normal refresh supervisor |
-| Static build preview | localhost:4173/BookClub/ | Whatever API origin was configured at build | Real API auth applies; a configured production API is a live boundary |
-| Production | https://n-plus-plus.github.io/BookClub/ plus https://bookclub-api.troy-nissen.workers.dev/api/v1 | Cloudflare D1 `bookclub-prod`, Worker binding `DB` | Privately provisioned Google identity followed by opaque bearer session |
+| Static build preview | localhost:4173/ | Whatever API origin was configured at build | Real API auth applies; a configured production API is a live boundary |
+| Production | https://bookclub.nissen.nexus (canonical after publication) plus https://bookclub-api.troy-nissen.workers.dev/api/v1 | Cloudflare D1 `bookclub-prod`, Worker binding `DB` | Privately provisioned Google identity followed by opaque bearer session |
 
 Vite binds IPv4 loopback with strict port 4173. Use the localhost origin for CORS; do not run development and static preview concurrently. DevDashboard invokes the same app-owned `corepack pnpm dev`; it adds no required runtime. The neighbouring ToDonut project's 5173 is not a BookClub service.
 
 ## Application shape
 
-React serves a static, hash-routed frontend. `index.html` and `frontend/main.tsx` start it; `frontend/App.tsx` gates authentication/avatar onboarding and owns navigation/catalog state, the optimistic serial Seen save queue, transient Event inspection context and a one-movie confirmation handoff. EventScreen owns its draft; FilmPicker owns query/results/page and per-mount preview cache. During inspection the same Event pane stays mounted and is hidden, with a stable source-route identity. Saved candidates use stored Detail; unsaved candidates share its identity header through FilmIdentity and use read-only PreviewScreen. No draft storage or route-entry refresh is involved. Vite uses `/` for development and `/BookClub/` for builds/previews. GitHub Pages serves only generated `dist/`: no SSR, server rewrites, backend, filesystem or Node runtime is required there.
+React serves a static, hash-routed frontend. `index.html` and `frontend/main.tsx` start it; `frontend/App.tsx` gates authentication/avatar onboarding and owns navigation/catalog state, the optimistic serial Seen save queue, transient Event inspection context and a one-movie confirmation handoff. EventScreen owns its draft; FilmPicker owns query/results/page and per-mount preview cache. During inspection the same Event pane stays mounted and is hidden, with a stable source-route identity. Saved candidates use stored Detail; unsaved candidates share its identity header through FilmIdentity and use read-only PreviewScreen. No draft storage or route-entry refresh is involved. Vite uses `/` for development, builds and previews. The dedicated `bookclub-frontend` Worker serves only generated `dist/` with SPA fallback and Custom Domain `bookclub.nissen.nexus`; workers.dev and preview URLs are disabled. Hash routing needs no server routing or SSR. It has no script, D1, API or provider bindings. The API remains a separate Worker. Pushing main deploys neither Worker nor D1.
 
 `#/admin` is an authenticated admin-only, URL-only route, excluded from navigation. `AdminScreen` composes `ClassicsMaintenance` (bulk scores/OMDb metadata) and `MetadataMaintenance` (TMDB metadata/artwork); record-scoped controls stay with their records. TMDB maintenance freezes shared catalogue eligibility once and sends pairs of selected IDs to an additive metadata-only Worker route; global SQL selection/counts remain only on its compatibility route. One shared-data refresh reconciles completion, Stop and failure.
 
@@ -72,14 +72,14 @@ Normal development prepares local D1, then runs Vite and a Node supervisor that 
 | Providers | `worker/src/services.ts`, `score-service.ts`, `providers/` | Narrow local search, read-only TMDB preview, explicit metadata import/maintenance and score capture |
 | Snapshot tooling | `scripts/dev/` | Fixed production read/export source, sanitised staging, verification and local-only replacement; explicit local TMDB pairing maintenance |
 | Archive tooling | `scripts/import/` | Development-only ExcelJS/tsx parser, resolver, local apply and separate guarded operator production CLI |
-| Build/release | `vite.config.ts`, `worker/wrangler.jsonc`, `.github/workflows/pages.yml` | Static frontend build, independent Worker deploy, manual Pages publication |
+| Build/release | `vite.config.ts`, `worker/wrangler.jsonc`, `wrangler.frontend.jsonc` | Static frontend build, separate explicit API and frontend deploys; frontend publication last |
 
 ## External technical dependencies and services
 
 | Dependency | Use | Failure impact / detail |
 | --- | --- | --- |
-| GitHub Pages/Actions | Static application delivery and manually dispatched frontend build | Frontend unavailable or release blocked; [DEPLOYMENT](DEPLOYMENT.md) |
-| Cloudflare Workers/D1 | Private API and canonical persistence | Private app reads/writes unavailable; [DATA](DATA.md), [INTEGRATIONS](INTEGRATIONS.md) |
+| GitHub | Canonical source repository; no automatic publication | Source collaboration unavailable; [DEPLOYMENT](DEPLOYMENT.md) |
+| Cloudflare Workers Static Assets/Workers/D1 | Static frontend, separate private API and canonical persistence | Private app reads/writes unavailable; [DATA](DATA.md), [INTEGRATIONS](INTEGRATIONS.md) |
 | Google GIS/JWKs | Required production sign-in and verified identity | New sign-in unavailable; existing valid app sessions use D1; [INTEGRATIONS](INTEGRATIONS.md#google-identity-services) |
 | TMDB API and image CDN | Optional explicit film lookup/metadata; images from stored references | Local/manual catalog remains usable, artwork falls back; [INTEGRATIONS](INTEGRATIONS.md#tmdb) |
 | MDBList / OMDb | Optional explicit rating snapshots | Existing snapshots remain; missing inputs remain Needs Data; [INTEGRATIONS](INTEGRATIONS.md#rating-providers) |

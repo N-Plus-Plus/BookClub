@@ -175,7 +175,7 @@ Keep this short and current.
 - **Stack/runtime:** React/Vite/TypeScript; Cloudflare Worker; Node >=22.12 (24 recommended and required for snapshot refresh).
 - **Package manager:** pnpm 10.32.1; `pnpm-lock.yaml`.
 - **Persistence:** Cloudflare D1 `DB`; independent local D1 and isolated import preview.
-- **Deployment target:** GitHub Pages `/BookClub/` and independently deployed `bookclub-api` Worker.
+- **Deployment target:** Cloudflare Static Assets `bookclub-frontend` at `bookclub.nissen.nexus` and independently deployed `bookclub-api` Worker.
 - **GitHub repository:** https://github.com/N-Plus-Plus/BookClub (main).
 
 ## 11. Key paths and commands
@@ -190,7 +190,7 @@ Maintain only high-value navigation hints. Inspect `package.json` before running
 - **Persistence:** `worker/src/*repository.ts`, `worker/migrations/`.
 - **Local snapshot:** `scripts/dev/`, development-only `frontend/DevTools.tsx`.
 - **Tests:** `tests/`; Vitest configured in `vite.config.ts`.
-- **Build/deployment:** `dist/` generated; `worker/wrangler.jsonc`; `.github/workflows/pages.yml`.
+- **Build/deployment:** `dist/` generated; `worker/wrangler.jsonc`; `wrangler.frontend.jsonc`.
 
 ### Canonical commands
 

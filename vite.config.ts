@@ -9,7 +9,7 @@ export default defineConfig(({ command, isPreview, mode }) => {
   // Development must never follow a production API URL from a root env file.
   define: command === 'serve' && !isPreview
     ? { 'import.meta.env.VITE_API_BASE_URL': JSON.stringify('http://localhost:8787') } : undefined,
-  base: command === 'build' || isPreview ? '/BookClub/' : '/',
+  base: '/',
   server: { host: '127.0.0.1', port: 4173, strictPort: true, proxy: mode === 'import-preview' ? undefined : { '/__dev': {target: 'http://127.0.0.1:8790', changeOrigin: false} } },
   build: { outDir: 'dist' },
   test: { include: ['tests/**/*.test.ts'] },

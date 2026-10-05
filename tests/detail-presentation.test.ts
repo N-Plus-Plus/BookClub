@@ -80,7 +80,7 @@ it('keeps collapsed breakdown, imputed average and actual ranking results under 
   const groups=disclosure.querySelectorAll('section');
   expect([...groups[0].querySelectorAll('p')].map(node=>node.textContent)).toEqual(['IMDb (rating)81/100','Letterboxd (rating)99/100','Metacritic (critic)93/100','Rotten Tomatoes (audience)92/100','Rotten Tomatoes (critic)99/100','TMDB (missing)93/100']);
   expect([...groups[1].querySelectorAll('p')].map(node=>node.textContent)).toEqual(['Unseen multiplier1.05x']);
-  expect([...groups[2].querySelectorAll('p')].map(node=>node.textContent)).toEqual(['Sum of squares of scores52,438','SoSoS × Modifiers (residual score)-55,223']);
+  expect([...groups[2].querySelectorAll('p')].map(node=>node.textContent)).toEqual(['Sum of Squares of Scores (SoSoS)52,438','SoSoS × Modifiers (residual score)-55,223']);
   expect(disclosure.textContent).not.toMatch(/Unknown|tie.break|average used/);
 });
 

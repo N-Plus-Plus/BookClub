@@ -112,9 +112,11 @@ describe('BookClub authentication',() => {
     env.LOCAL_WRITE_BYPASS = 'false'; expect((await call('/catalog')).status).toBe(401);
   });
   it('permits Authorization preflight only for exact allowed origins',async () => {
-    for (const origin of ['https://n-plus-plus.github.io','https://untrusted.example']) {
+    env.ALLOWED_ORIGINS = 'https://n-plus-plus.github.io,https://bookclub.nissen.nexus';
+    for (const origin of ['https://n-plus-plus.github.io','https://bookclub.nissen.nexus','https://untrusted.example','https://other.nissen.nexus','http://localhost:4173']) {
       const response = await worker.fetch(new Request('http://api/api/v1/catalog',{method: 'OPTIONS',headers: {Origin: origin,'Access-Control-Request-Headers': 'Authorization, Content-Type'}}),env);
-      const permitted = origin === env.ALLOWED_ORIGINS;
+      const permitted = env.ALLOWED_ORIGINS.split(',').includes(origin);
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe(permitted ? origin : null);
       expect(response.status).toBe(permitted ? 204 : 403);
       expect(response.headers.get('Access-Control-Allow-Headers')).toBe(permitted ? 'Content-Type, Authorization' : null);
       expect(response.headers.has('Access-Control-Allow-Credentials')).toBe(false);

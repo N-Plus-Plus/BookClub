@@ -97,7 +97,7 @@ Post-apply queries verify actual imported cycle/event/appearance counts against 
 
 The browser uses http://localhost:4173/ and the isolated preview Worker on 8787. `dev:import-preview:ui` selects the development-only Vite import-preview mode, which fixes the API origin to localhost even if root env configuration points to production. Inspect History, Cycles, Classics, Seen It? and film detail with no Google sign-in. Startup never loads demo history. Provider credentials are optional and used only for explicit operations; no private file is copied. Stop normal development servers first to avoid port conflicts. Mobile/browser visual inspection remains an owner check.
 
-Guarded production-cutover preparation and its separately authorised future execution are documented in [PRODUCTION.md](PRODUCTION.md). The separate production CLI never adds remote support to the local importer. Preparation performs no production D1 access, backup, migration, deployment or Pages publication.
+Guarded production-cutover preparation and its separately authorised future execution are documented in [PRODUCTION.md](PRODUCTION.md). The separate production CLI never adds remote support to the local importer. Preparation performs no production D1 access, backup, migration, deployment or frontend publication.
 
 ## Verification
 

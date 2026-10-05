@@ -20,7 +20,7 @@ Do not duplicate architecture, integration, or data detail. Link to those docume
 | --- | --- |
 | Local | http://localhost:4173/#/home; Worker localhost:8787/api/v1; independent local D1 |
 | Import preview | Same ports; isolated preview config/state, never the production target |
-| Public | https://n-plus-plus.github.io/BookClub/; https://bookclub-api.troy-nissen.workers.dev/api/v1; production D1 `bookclub-prod` via `DB` |
+| Public | https://bookclub.nissen.nexus (canonical after publication); https://bookclub-api.troy-nissen.workers.dev/api/v1; production D1 `bookclub-prod` via `DB` |
 
 Requirements/topology: [ARCHITECTURE](ARCHITECTURE.md). Local data/snapshot safety: [DATA](DATA.md). Node 24 recommended; pinned pnpm 10.32.1.
 
@@ -34,7 +34,7 @@ then:
 
 Normal local startup applies local migrations/one-time seed and starts the frontend and local Worker. Ordinary local DB commands remain `--local --env local`; normal startup never reads or writes production.
 
-Stop development before `corepack pnpm preview` because preview uses the same frontend port and the production `/BookClub/` base.
+Stop development before `corepack pnpm preview` because preview uses the same frontend port and the root `/` base.
 
 ## Operator credentials
 
@@ -50,23 +50,19 @@ Before a production release, verify Cloudflare access with a read-only command s
 
 `corepack pnpm exec wrangler d1 info bookclub-prod --config worker/wrangler.jsonc --json`
 
-GitHub Pages CLI publication requires an authenticated GitHub CLI session:
-
-`gh auth status`
-
 ## Production surfaces
 
 A complete BookClub production release has three distinct runtime surfaces:
 
 1. Production D1 schema
-2. Cloudflare Worker/API
-3. GitHub Pages frontend
+2. `bookclub-api` Worker/API
+3. `bookclub-frontend` Worker Static Assets / Custom Domain
 
 Pushing `main` alone updates none of these runtime surfaces.
 
-Publishing Pages does not deploy the Worker or migrate D1.
+Publishing the frontend Worker does not deploy the API Worker or migrate D1.
 
-Deploying the Worker does not migrate D1 or publish Pages.
+Deploying the API Worker does not migrate D1 or publish the frontend Worker.
 
 Applying D1 migrations does not deploy application code.
 
@@ -88,11 +84,11 @@ that authorises the agent, after a clean preflight, to perform the complete rele
 
 1. Commit the intended release changes.
 2. Push the release commit to `main`.
-3. Create a fresh verified production D1 backup.
+3. Create a fresh verified production D1 backup when schema mutation is required.
 4. Inspect the production migration ledger and pending tracked migrations.
 5. Bring production D1 to the schema required by the release using the safe compatibility order described below.
-6. Deploy the current production Cloudflare Worker.
-7. Dispatch a new GitHub Pages workflow for the release commit and monitor it to completion.
+6. Deploy and verify the production `bookclub-api` Worker.
+7. LAST: explicitly deploy `bookclub-frontend` from the verified release build.
 8. Perform the production smoke checks below.
 
 A full deployment request authorises applying reviewed, tracked D1 migrations required by the release to the exact configured `bookclub-prod` database.
@@ -103,8 +99,9 @@ It does not authorise unrelated production data mutation, arbitrary SQL, imports
 
 More specific requests remain scoped:
 
-- `publish Pages` means Pages only.
-- `deploy the Worker` means Worker only.
+- `deploy API` / `deploy bookclub-api` means API Worker only.
+- `deploy frontend` / `publish frontend` means `bookclub-frontend` only.
+- An unspecified `deploy Worker` request must identify which Worker before publication.
 - `apply production migrations` means D1 schema only.
 - `push to main` means source control only.
 
@@ -118,7 +115,7 @@ Before any full production release:
 2. Inspect `git status`, current branch, intended changes, and remote `main`.
 3. Preserve unrelated work. Do not silently include unrelated files in the release commit.
 4. Confirm `worker/wrangler.jsonc` still identifies the exact production Worker/D1 target.
-5. Confirm Cloudflare and GitHub authentication.
+5. Confirm operator Cloudflare and source-control authentication; inspect both Wrangler configurations.
 6. Run the final local release checks:
 
    `corepack pnpm test`
@@ -138,7 +135,7 @@ Before any full production release:
 8. Build with the intended public frontend variables and check that output contains no localhost/import-preview configuration, private material, secrets, or archive data.
 9. Resolve release-blocking failures before continuing.
 
-GitHub Pages CI runs its own tests, typecheck, frontend preflight and build again before publication.
+All checks run in the operator environment before publication; no push-triggered release automation is supported.
 
 ## Commit and push
 
@@ -215,11 +212,11 @@ Determine whether one of these is explicitly safe:
 
 If no safe sequence exists, stop before production mutation and report the release blocker. A full-deployment request authorises the release, but it does not authorise guessing through an unsafe schema/application transition.
 
-The current Worker supports both schema 0009 and 0012. For the 0010–0012 transition, deploy the bridge-compatible current Worker first and verify health, create a fresh verified production export, then apply the unchanged ordered migrations. Redeploy the same release Worker after migration and verify health before dispatching Pages. Director detection is request-scoped; missing director reads as null and missing human_order means unswapped rotation. Turn swaps fail safely until 0011 exists.
+The current Worker supports both schema 0009 and 0012. For the 0010–0012 transition, deploy the bridge-compatible current Worker first and verify health, create a fresh verified production export, then apply the unchanged ordered migrations. Redeploy the same release Worker after migration and verify health before deploying the frontend Worker. Director detection is request-scoped; missing director reads as null and missing human_order means unswapped rotation. Turn swaps fail safely until 0011 exists.
 
-Migration 0013 only adds `movie_score_checks` and is compatible with the previously deployed Worker. Once the database is at 0012, a future authorised release applies 0013 after a fresh backup and schema verification, then deploys the new Worker, then publishes Pages. The new score-maintenance routes require 0013; do not publish the new frontend before its Worker. If upgrading from 0009, retain the separate 0010–0012 bridge sequence above before this additive step.
+Migration 0013 only adds `movie_score_checks` and is compatible with the previously deployed Worker. Once the database is at 0012, a future authorised release applies 0013 after a fresh backup and schema verification, then deploys the new Worker, then deploys the frontend Worker. The new score-maintenance routes require 0013; do not publish the new frontend before its Worker. If upgrading from 0009, retain the separate 0010–0012 bridge sequence above before this additive step.
 
-Migration `0014_session_movie_lookup.sql` only adds a reverse History covering index; old and new Workers safely ignore its absence/presence for correctness. For a future authorised release, retain the 0010–0013 schema gates above, back up and apply additive 0014, deploy the Worker with `/catalog/compact`, then publish Pages. Old Pages retain `/catalog`; new Pages fall back to it when an older Worker returns 404/405/501 for the compact route. No score rows are rewritten or deleted.
+Migration `0014_session_movie_lookup.sql` only adds a reverse History covering index; old and new Workers safely ignore its absence/presence for correctness. For a future authorised release, retain the 0010–0013 schema gates above, back up and apply additive 0014, deploy the Worker with `/catalog/compact`, then publish the frontend Worker. Older frontends retain `/catalog`; new frontends fall back to it when an older Worker returns 404/405/501 for the compact route. No score rows are rewritten or deleted.
 
 Where practical, migrations should be designed so future releases have a clear compatible sequence.
 
@@ -239,13 +236,13 @@ Confirm the intended release has no unexpected pending migrations.
 
 If migration output is ambiguous or reports failure, stop. Do not automatically retry a potentially partially-completed production mutation. Inspect the resulting immutable state and follow [DATA](DATA.md).
 
-## Deploying the production Worker
+## Deploying the production API Worker
 
 The top-level `worker/wrangler.jsonc` is the production configuration:
 
 - `APP_ENV=production`
 - local bypass disabled
-- exact Pages origin
+- exactly both temporary cutover origins: `https://n-plus-plus.github.io` and `https://bookclub.nissen.nexus`
 - production D1 binding `DB`
 
 Deploy the current Worker with:
@@ -266,11 +263,11 @@ When diagnosing Worker failures, inspect:
 
 The request wrapper logs unexpected internal exceptions before returning its generic 500. Expected validation, authentication and provider failures are not logged as internal exceptions.
 
-## Worker runtime configuration
+## API Worker runtime configuration
 
 Public/runtime configuration must remain separate from source control.
 
-Public frontend Actions variables:
+Public frontend process variables at build time:
 
 - `VITE_API_BASE_URL` - Worker origin, without `/api/v1`
 - `VITE_GOOGLE_CLIENT_ID`
@@ -287,61 +284,43 @@ Use supported Cloudflare secret mechanisms such as interactive `wrangler secret 
 
 [INTEGRATIONS](INTEGRATIONS.md) owns provider/configuration detail.
 
-## Publishing GitHub Pages
+## Publishing the static frontend (final release step)
 
-Pages source is GitHub Actions.
+`wrangler.frontend.jsonc` defines the assets-only `bookclub-frontend` Worker, `./dist`, SPA fallback and exact Custom Domain `bookclub.nissen.nexus`. It disables workers.dev and preview URLs and has no runtime script or bindings. Build and deploy are separate operations.
 
-The workflow is:
+In PowerShell, set the public build inputs (the client ID must be the existing Web Application client matching Worker `GOOGLE_CLIENT_ID`):
 
-`.github/workflows/pages.yml`
+```powershell
+$env:VITE_API_BASE_URL = 'https://bookclub-api.troy-nissen.workers.dev'
+$env:VITE_GOOGLE_CLIENT_ID = '<existing-web-application-client-id>.apps.googleusercontent.com'
+corepack pnpm prod:check --frontend
+corepack pnpm build
+```
 
-named:
+Inspect `dist/index.html` for root `/assets/` references, and inspect generated output for private material or local configuration. Validate packaging without publication:
 
-**Publish frontend to GitHub Pages**
+```text
+corepack pnpm exec wrangler deploy --dry-run --config wrangler.frontend.jsonc
+corepack pnpm exec wrangler deploy --dry-run --config worker/wrangler.jsonc
+```
 
-It uses `workflow_dispatch`. Pushing `main` alone does not publish Pages.
+After the release source is committed/pushed and any required D1 migration and API deployment/verification are complete, LAST publish the already-verified build:
 
-A new Pages deployment can be started either:
+`corepack pnpm exec wrangler deploy --config wrangler.frontend.jsonc`
 
-1. through GitHub Actions using **Run workflow** with `main` selected; or
-2. from an authenticated GitHub CLI / Codex session.
+Equivalent package command: `corepack pnpm deploy:frontend`. This command does not build. Do not publish stale `dist/`; rebuild/recheck if source or build variables changed after preflight. Record the release commit, build inputs and frontend deployment output.
 
-For CLI publication:
+### Human cutover prerequisites and rollback
 
-1. Verify authentication:
+The operator must own the active Cloudflare `nissen.nexus` zone in the target account. Inspect the hostname for conflicting DNS records or existing Worker ownership before first deployment; an existing CNAME prevents Custom Domain creation. Resolve conflicts deliberately, outside repository preparation. Do not create a placeholder DNS record: Wrangler Custom Domain deployment creates the domain association, managed DNS record and certificate automatically. Wait for the domain and certificate to become active and verify HTTPS before smoke testing. See [Cloudflare Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).
 
-   `gh auth status`
+Use an operator token with Workers product-level Admin for first-time Worker creation; subsequent deployment needs Workers Editor at product scope (Custom Domains currently do not support per-Worker roles). Also grant Zone > Workers Routes > Write and Zone Read scoped to `nissen.nexus` for domain management/discovery. Legacy Workers Scripts Edit and Workers Routes Edit tokens remain supported; verify the creation permission before first publication. Scope to the intended account/zone; D1 release operations require their own D1 permissions. See [Workers permissions](https://developers.cloudflare.com/workers/authorization/workers/). No Cloudflare credentials belong in GitHub Actions, source or the frontend build. Do not enable Cloudflare Workers Builds or another push-triggered deployment integration.
 
-2. Confirm the intended release commit has already been pushed to `main`.
+Before publication, add `https://bookclub.nissen.nexus` to the existing Google Web Application client's Authorised JavaScript origins and retain `https://n-plus-plus.github.io`. No redirect URI is required by the current GIS credential callback implementation; keep both frontend/Worker client IDs unchanged. Google and Cloudflare dashboard state are human prerequisites, not certified by static preflight.
 
-3. Trigger a new workflow dispatch:
+After publication `https://bookclub.nissen.nexus` is canonical. The existing GitHub Pages deployment may remain online temporarily as rollback; its publisher is retired and the repo no longer maintains that deployment. API CORS and Google origins temporarily support both hosts. Sessions in browser localStorage are origin-specific, so users must sign in on the new host. Later unpublishing Pages and removing its CORS/Google origin are deliberate cleanup, outside this cutover preparation.
 
-   `gh workflow run pages.yml --ref main`
-
-4. Identify the newly-created run if necessary:
-
-   `gh run list --workflow pages.yml --limit 5`
-
-5. Match the run to the intended release commit/dispatch time.
-
-6. Monitor it to completion:
-
-   `gh run watch <run-id>`
-
-Do not use `gh run rerun` or GitHub's **Re-run** action as the normal publication path. Re-running an old workflow can publish an older commit.
-
-If a Pages workflow fails because the release source itself is defective, fix the source, commit and push the fix, then create a new workflow dispatch for the new `main`.
-
-The Pages workflow performs its own:
-
-- test suite;
-- typecheck;
-- production frontend preflight;
-- build;
-- Pages artifact upload;
-- publication.
-
-It does not deploy the Worker or migrate D1.
+Reverting source or pushing main does not roll back deployed assets. Frontend recovery requires an explicit compatible known-good build/deployment or deliberate use of the already-published Pages site. Confirm API/schema compatibility before selecting either. Preserve the database recovery gates below.
 
 ## Full deployment sequence
 
@@ -353,17 +332,17 @@ Unless the compatibility gate requires a specifically different safe schema/Work
 4. Push `main`.
 5. Confirm remote `main` matches the release commit.
 6. Verify Cloudflare production identity.
-7. Create and verify a fresh production D1 export.
+7. Create and verify a fresh production D1 export if schema mutation is required.
 8. Inspect pending production migrations.
 9. Inspect migration/old-Worker/new-Worker compatibility.
 10. Apply required production migrations in the safe release order.
 11. Verify the migration ledger.
-12. Deploy the current Cloudflare Worker.
+12. Deploy the current `bookclub-api` Worker.
 13. Verify production Worker health.
-14. Dispatch a new GitHub Pages workflow from current `main`.
-15. Monitor the Pages workflow to successful completion.
+14. LAST: explicitly deploy the verified `dist/` using `wrangler.frontend.jsonc`.
+15. Verify the frontend Custom Domain and certificate are active.
 16. Perform the production smoke checks below.
-17. Report the released commit, migration result, Worker result, Pages run/result, smoke result, and any remaining issue.
+17. Report the released commit, migration result, Worker result, frontend deployment result, smoke result, and any remaining issue.
 
 No second confirmation is required after a clean preflight when the user explicitly requested a full deployment.
 
@@ -385,9 +364,9 @@ Check production health and confirm:
 
 These checks must not create a new club session/event or otherwise mutate club history.
 
-### Pages
+### Static frontend
 
-Check the public Pages application:
+Check `https://bookclub.nissen.nexus/`:
 
 - shell loads;
 - JS and CSS load;
@@ -431,7 +410,7 @@ Examples:
 - failed/ambiguous migration: stop and inspect schema state;
 - failed Worker deployment: establish whether the old or new Worker is currently live before proceeding;
 - unhealthy Worker after migration: do not publish a frontend that depends on the unhealthy API;
-- failed Pages workflow: do not re-run an older workflow run as a shortcut.
+- failed frontend publication: inspect which assets are live and deploy only a verified compatible build.
 
 Report the exact completed and incomplete release surfaces.
 
@@ -445,7 +424,7 @@ Preserve:
 - migration evidence;
 - release commit SHA;
 - Worker deployment output;
-- Pages workflow/run identity.
+- frontend deployment output and build identity.
 
 A failed or ambiguous production data/schema operation stops for read-only inspection under [DATA](DATA.md).
 

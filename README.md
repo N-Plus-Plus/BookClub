@@ -4,7 +4,7 @@ A mobile-first private film journal for a four-person weekly club. Repository: [
 
 ## Status and purpose
 
-The application is deployed at [BookClub](https://n-plus-plus.github.io/BookClub/), with a separate Cloudflare Worker API. Historical club data has been imported; local demo fixtures are fictional. This repository contains the current application and independent local development environment. Local schema and hosted schema must be checked separately before release.
+The canonical frontend after publication is [BookClub](https://bookclub.nissen.nexus), served by the static-only `bookclub-frontend` Cloudflare Worker, with a separate API Worker. Historical club data has been imported; local demo fixtures are fictional. This repository contains the current application and independent local development environment. Local schema and hosted schema must be checked separately before release.
 
 Home shows the explicit current turn. History records ordered films, actual hosts, cycles and date precision, with editing, audit and recoverable deletion. Builder saves private sets visible only to their owner and publishes them into shared History. Classics calculates Watch Order from six stored rating dimensions (IMDb, RT audience, RT critic, Letterboxd, Metacritic and TMDB) and Seen answers. Available ratings are normalised to /100; missing dimensions use their arithmetic mean during ranking only. At least one real rating is required. Six effective squared scores are summed, then the explicit-No novelty multiplier and deterministic tie-break are applied. Seen It? collects Yes/No/Unknown answers. All Time Metrics compares active History appearances, hosts, genres and IMDb coverage.
 
@@ -26,7 +26,7 @@ Open **http://localhost:4173/#/home**. The API is **http://localhost:8787/api/v1
 | Development | `corepack pnpm dev` |
 | UI / API separately | `corepack pnpm dev:ui` / `corepack pnpm dev:api` (prepare with `db:setup` first) |
 | Build | `corepack pnpm build` |
-| Production build preview | `corepack pnpm preview` at localhost:4173/BookClub/ (stop development first) |
+| Production build preview | `corepack pnpm preview` at localhost:4173/ (stop development first) |
 | Targeted tests | `corepack pnpm exec vitest run tests/ranking.test.ts` |
 | Full tests / types | `corepack pnpm test` / `corepack pnpm typecheck` |
 | Static production preflight | `corepack pnpm prod:check` |
@@ -46,7 +46,7 @@ For explicit local TMDB identity pairing maintenance, stop the local API and run
 
 ## Deployment
 
-GitHub Pages hosts the static `/BookClub/` build. The API is [bookclub-api](https://bookclub-api.troy-nissen.workers.dev), deployed independently. Releases follow [DEPLOYMENT](docs/DEPLOYMENT.md); completing development work does not authorise publication.
+Cloudflare Workers Static Assets hosts the root `/` build at `bookclub.nissen.nexus` using `wrangler.frontend.jsonc`. GitHub remains the canonical source; pushing main deploys nothing. The existing GitHub Pages site may remain temporarily as rollback, but repository publication to Pages is retired. The API is [bookclub-api](https://bookclub-api.troy-nissen.workers.dev), deployed independently. Releases follow [DEPLOYMENT](docs/DEPLOYMENT.md); completing development work does not authorise publication.
 
 ## Current limits
 

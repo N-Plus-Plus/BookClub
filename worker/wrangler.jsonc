@@ -4,7 +4,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
   "observability": { "enabled": true, "head_sampling_rate": 1 },
-  "vars": { "APP_ENV": "production", "LOCAL_WRITE_BYPASS": "false", "ALLOWED_ORIGINS": "https://n-plus-plus.github.io" },
+  "vars": { "APP_ENV": "production", "LOCAL_WRITE_BYPASS": "false", "ALLOWED_ORIGINS": "https://n-plus-plus.github.io,https://bookclub.nissen.nexus" },
   "d1_databases": [{ "binding": "DB", "database_name": "bookclub-prod", "database_id": "df848632-a192-4c64-9bfb-25c59d3aa631", "migrations_dir": "migrations" }],
   "env": {
     "local": {

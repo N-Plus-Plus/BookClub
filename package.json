@@ -12,6 +12,7 @@
     "dev:ui": "vite",
     "dev:api": "tsx scripts/dev/server.ts",
     "build": "vite build",
+    "deploy:frontend": "wrangler deploy --config wrangler.frontend.jsonc",
     "prod:check": "node scripts/prod-check.mjs",
     "preview": "vite preview --port 4173",
     "test": "vitest run",

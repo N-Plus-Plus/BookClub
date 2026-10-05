@@ -20,10 +20,11 @@ it('owns local development mode, root base and IPv4 port 4173 even under a produ
   expect(preview.define).toEqual(local.define);
   expect(JSON.parse(readFileSync('worker/wrangler.import-preview.jsonc','utf8')).env.import_preview.vars.ALLOWED_ORIGINS).toBe('http://localhost:4173');
 });
-it('preserves the production Pages base and public build configuration',() => {
+it('preserves the production root base and public build configuration',() => {
   vi.stubEnv('NODE_ENV','production');
   const production = (config as UserConfigFnObject)({command:'build',mode:'production',isPreview:false});
-  expect(production.base).toBe('/BookClub/');
+  expect(production.base).toBe('/');
+  expect((config as UserConfigFnObject)({command:'serve',mode:'production',isPreview:true}).base).toBe('/');
   expect(production.define).toBeUndefined();
   expect(process.env.NODE_ENV).toBe('production');
 });
