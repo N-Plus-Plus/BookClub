@@ -19,32 +19,32 @@ describe('explicit metadata run',()=>{
     let active=0,max=0,remaining=3;
     const request=vi.fn(async()=>{active++;max=Math.max(max,active);await Promise.resolve();active--;return batch(--remaining);});
     const progress=vi.fn(async(run:MetadataRun)=>{expect(request).toHaveBeenCalledTimes(run.processed);await Promise.resolve();});
-    const result=await maintainMetadata({initial,batch:request,progress,all:true,stopped:()=>false});
+    const result=await maintainMetadata({initial,batch:request,progress,stopped:()=>false});
     expect(max).toBe(1);expect(result).toMatchObject({processed:3,updated:3,remaining:0,unidentified:391});expect(request).toHaveBeenCalledTimes(3);
   });
   it('stops on provider cooldown/failure, retaining partial completion',async()=>{
     const request=vi.fn().mockResolvedValueOnce(batch(2)).mockResolvedValueOnce(batch(2,'failed'));
-    const result=await maintainMetadata({initial,batch:request,progress:async()=>{},all:true,stopped:()=>false});
+    const result=await maintainMetadata({initial,batch:request,progress:async()=>{},stopped:()=>false});
     expect(request).toHaveBeenCalledTimes(2);expect(result).toMatchObject({processed:2,updated:1,remaining:2});expect(result.message).toContain('resume later');
   });
   it('stops between batches and a later run requests remaining work',async()=>{
     let stopped=false;const request=vi.fn().mockResolvedValueOnce(batch(2)).mockResolvedValueOnce(batch(1)).mockResolvedValueOnce(batch(0));
-    const first=await maintainMetadata({initial,batch:request,progress:async()=>{stopped=true;},all:true,stopped:()=>stopped});
+    const first=await maintainMetadata({initial,batch:request,progress:async()=>{stopped=true;},stopped:()=>stopped});
     expect(request).toHaveBeenCalledTimes(1);expect(first.updated).toBe(1);
     stopped=false;
-    const second=await maintainMetadata({initial:first,batch:request,progress:async()=>{},all:true,stopped:()=>stopped});
+    const second=await maintainMetadata({initial:first,batch:request,progress:async()=>{},stopped:()=>stopped});
     expect(second).toMatchObject({updated:2,processed:2,remaining:0});expect(request).toHaveBeenCalledTimes(3);
   });
   it('halts safely with no progress or an empty batch',async()=>{
     for(const response of [batch(3),{results:[],remaining:3,unidentified:391}]) {
-      const request=vi.fn().mockResolvedValue(response);
-      const result=await maintainMetadata({initial,batch:request,progress:async()=>{},all:true,stopped:()=>false});
-      expect(request).toHaveBeenCalledTimes(1);expect(result.message).toContain('no progress');
+      const request=vi.fn().mockResolvedValueOnce(batch(2)).mockResolvedValue({...response,remaining:2});
+      const result=await maintainMetadata({initial,batch:request,progress:async()=>{},stopped:()=>false});
+      expect(request).toHaveBeenCalledTimes(2);expect(result.message).toContain('no progress');
     }
   });
   it('preserves completed batches when a later request fails',async()=>{
     const request=vi.fn().mockResolvedValueOnce(batch(2)).mockRejectedValueOnce(Error('Unavailable'));
-    const result=await maintainMetadata({initial,batch:request,progress:async()=>{},all:true,stopped:()=>false});
+    const result=await maintainMetadata({initial,batch:request,progress:async()=>{},stopped:()=>false});
     expect(result).toMatchObject({processed:1,updated:1,remaining:2});expect(result.message).toContain('Resume later');
   });
 });

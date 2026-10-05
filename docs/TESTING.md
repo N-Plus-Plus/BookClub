@@ -181,7 +181,7 @@ Vitest is configured in `vite.config.ts`, selecting `tests/**/*.test.ts`. No lin
 
 | Coverage | Files under `tests/` |
 | --- | --- |
-| Domain | `ranking.test.ts`, `metrics.test.ts`, `event-validation.test.ts`, `maintenance-feedback.test.ts`, `artwork.test.ts` |
+| Domain | `ranking.test.ts`, `metrics.test.ts`, `event-validation.test.ts`, `maintenance-feedback.test.ts`, `artwork.test.ts`, `metadata-maintenance.test.ts` |
 | API/auth/product | `api.test.ts`, `auth.test.ts`, `product-api.test.ts`, `domain-api.test.ts`, `frontend-api.test.ts` |
 | Providers/metadata | `providers.test.ts`, `ratings.test.ts`, `metadata.test.ts` |
 | Imports | `importer.test.ts`, `import-resolution.test.ts`, `import-io.test.ts`, `production-import.test.ts` |

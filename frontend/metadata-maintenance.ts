@@ -3,12 +3,13 @@ import type { MetadataEnrichment } from '../shared/types';
 export interface MetadataRun extends MetadataEnrichment { processed: number; updated: number; message: string }
 /** Await every bounded request and progress refresh before considering another. */
 export async function maintainMetadata(options: {
-  batch: () => Promise<MetadataEnrichment>; all: boolean; stopped: () => boolean;
+  batch: () => Promise<MetadataEnrichment>; stopped: () => boolean;
   progress: (run: MetadataRun) => Promise<void>; initial: Pick<MetadataEnrichment,'remaining'|'unidentified'>;
 }): Promise<MetadataRun> {
   let run: MetadataRun = {...options.initial,results:[],processed:0,updated:0,message:''};
+  // The initial catalogue can be stale; only compare authoritative batch responses.
+  let previousRemaining: number | undefined;
   while (!options.stopped()) {
-    const before = run.remaining;
     let batch: MetadataEnrichment;
     try { batch = await options.batch(); }
     catch (error) {
@@ -19,8 +20,8 @@ export async function maintainMetadata(options: {
       updated:run.updated+batch.results.filter(r => r.status === 'success').length,message:''};
     if (batch.results.some(r => r.status !== 'success')) run.message = 'Stopped after a failed update. Completed updates are saved; review the failure and resume later.';
     else if (!batch.remaining) run.message = 'All available metadata is checked. Films without a valid TMDB identity need identification first.';
-    else if (!batch.results.length || batch.remaining >= before) run.message = 'Stopped because this batch made no progress. Review remaining films before resuming.';
-    else if (!options.all) run.message = 'Batch complete. Completed updates are saved.';
+    else if (!batch.results.length || (previousRemaining !== undefined && batch.remaining >= previousRemaining)) run.message = 'Stopped because this batch made no progress. Review remaining films before resuming.';
+    previousRemaining = batch.remaining;
     await options.progress(run);
     if (run.message || options.stopped()) break;
     // Yield between requests so Stop and navigation can take effect.

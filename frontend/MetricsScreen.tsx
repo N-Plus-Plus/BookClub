@@ -19,12 +19,12 @@ export function MetricsScreen({catalog,viewer,onUpdated}: {catalog: Catalog; vie
   const unidentified = catalog.movies.filter(m => !tmdbIdentity(m)).length;
   const contributions = [...catalog.members.map(m => ({label:m.display_name.toUpperCase(),value:calculateMetrics(catalog,{kind:'member',memberId:m.id})})),{label:'CLSC',value:calculateMetrics(catalog,{kind:'classics'})}];
   const metrics = calculateMetrics(catalog,filter);
-  const maintain = async (all = false) => {
+  const maintain = async () => {
     if (active.current) return;
     active.current = true; stop.current = false;
     setBusy(true); setError(''); setResult(null);
     try {
-      await maintainMetadata({batch: () => api.enrichMetadata(),all,stopped: () => stop.current,
+      await maintainMetadata({batch: () => api.enrichMetadata(),stopped: () => stop.current,
         initial: {remaining,unidentified},progress: async run => {
           setResult(run);
           await onUpdated();
@@ -47,7 +47,6 @@ export function MetricsScreen({catalog,viewer,onUpdated}: {catalog: Catalog; vie
       <p className="meta">Fetch missing artwork and unchecked or stale metadata from stored TMDB identities. Each batch checks up to 10 films. History and ratings are preserved.</p>
       <p className="meta">{remaining} identified films remaining · {unidentified} films without a valid TMDB identity.</p>
       <div className="button-set"><Action icon={RefreshCw} disabled={busy || !remaining} onClick={() => void maintain()}>Fill missing metadata</Action>
-        <Action icon={RefreshCw} disabled={busy || !remaining} onClick={() => void maintain(true)}>Fill all available metadata</Action>
         {busy && <Action icon={Square} onClick={() => { stop.current = true; }}>Stop after this batch</Action>}</div>
       {busy && <p className="meta" role="status">Filling metadata… completed batches are saved.</p>}
       {result && <div role="status" className="stack"><p className="meta">{result.processed} processed this run · {result.updated} successfully updated · {result.results.filter(r => r.status !== 'success').length} failures.</p>
