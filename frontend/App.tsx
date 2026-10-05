@@ -202,7 +202,7 @@ export function App() {
       {page.startsWith('event/') && !catalog.sessions.some(s => s.id === page.slice(6)) && <Empty title="Event not found">The event may have been deleted. Return to History to review available events.</Empty>}
       {page === 'classics' && <ClassicsScreen viewer={viewer} catalog={catalog} onUpdated={refreshData} movies={classics} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {(page === 'seen' || (detailContext && inspection.source === 'seen')) && <div hidden={page !== 'seen'}><SeenScreen key={viewer?.id} viewerId={viewer?.id ?? ''} catalog={catalog} answer={seenAnswers.answer} pending={seenAnswers.pending} failures={seenAnswers.failures} retry={seenAnswers.retry} writesEnabled={writesEnabled} /></div>}
-      {isDetail && !isPreview && <DetailScreen isAdmin={viewer?.role === 'admin'} key={page} id={page.slice(6)} members={catalog.members} writesEnabled={writesEnabled} onMovie={applyMovie} />}
+      {isDetail && !isPreview && <DetailScreen key={page} id={page.slice(6)} members={catalog.members} />}
       {isPreview && <PreviewScreen key={page} id={page.slice('preview/tmdb/'.length)} preview={inspecting ? inspection.preview : undefined} pending={inspecting ? inspection.pending : undefined} />}
       {!isAdminPage && !isDetail && page !== 'event' && !page.startsWith('event/') && !destinations.some(d => d.path === page) && <Empty title="Page not found"><RouteLink to="home" icon={Home}>Go home</RouteLink></Empty>}
     </>}

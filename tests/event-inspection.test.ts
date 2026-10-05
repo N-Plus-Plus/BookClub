@@ -345,8 +345,8 @@ describe('URL-only Admin screen',() => {
     }
     await navigate('metrics'); expect(button('Fill missing metadata')).toBeUndefined();
     await navigate('home'); expect(container.textContent).toContain('Admin · swap current turn');
-    await navigate('movie/saved-7'); expect(container.textContent).toContain('Admin · score maintenance');
-    expect(button('Refresh scores')).toBeTruthy();
+    await navigate('movie/saved-7'); expect(container.textContent).not.toContain('Admin · score maintenance');
+    expect(button('Refresh scores')).toBeUndefined();
   });
   it('runs both moved maintenance actions and retains their live feedback',async()=>{
     const movie=movies[7];

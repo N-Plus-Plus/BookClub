@@ -25,11 +25,32 @@ export function latestScores(scores: Score[]): Score[] {
   for (const s of sorted) { const key = `${s.provider}:${s.metric}`; if (!effective.has(key)) effective.set(key,s); }
   return [...effective.values()].sort((a,b) => `${a.provider}:${a.metric}`.localeCompare(`${b.provider}:${b.metric}`,'en'));
 }
+export const liveScoreServices = ['mdblist','omdb','tmdb'] as const;
+export const legacyScoreLiveCutoff = 3;
+export function isLiveScore(s: Score): boolean {
+  return liveScoreServices.includes((s.retrieved_via ?? (s.provider === 'tmdb' ? 'tmdb' : 'unspecified')) as typeof liveScoreServices[number]);
+}
+/** Actual usable provider observations, independently of ranking bootstrap eligibility. */
+export function liveScoreDimensions(scores: Score[]): string[] {
+  return [...new Set(scores.filter(s => isLiveScore(s) && scoreValue(s) !== null)
+    .map(s => `${s.provider}:${s.metric}`).filter(key => requiredScores.includes(key as typeof requiredScores[number])))];
+}
+export function missingLiveScoreDimensions(scores: Score[]): string[] {
+  const available = liveScoreDimensions(scores);
+  return requiredScores.filter(key => !available.includes(key));
+}
+/** Legacy observations bootstrap ranking only until three distinct live dimensions exist. */
+export function effectiveRankingScores(scores: Score[]): Score[] {
+  const live = liveScoreDimensions(scores), retired = live.length >= legacyScoreLiveCutoff;
+  return latestScores(scores.filter(s => retired ? isLiveScore(s) : s.retrieved_via !== 'legacy-spreadsheet'
+    || !live.includes(`${s.provider}:${s.metric}`)))
+    .filter(s => requiredScores.includes(`${s.provider}:${s.metric}` as typeof requiredScores[number]));
+}
 export function rankMovie(scores: Score[], answers: SeenAnswer[], members: Member[], seed = 0): Ranking {
   const active = members.filter(m => m.active === 1), states = active.map(m => answers.find(a => a.member_id === m.id)?.seen);
   const seenCount = states.filter(s => s === 1).length, unseenCount = states.filter(s => s === 0).length;
   const unknownCount = states.filter(s => s !== 0 && s !== 1).length;
-  const sources = latestScores(scores).filter(s => requiredScores.includes(`${s.provider}:${s.metric}` as typeof requiredScores[number]))
+  const sources = effectiveRankingScores(scores)
     .map(s => ({provider: s.provider,metric: s.metric,value: scoreValue(s)!,retrieved_via: s.retrieved_via ?? 'unspecified'}));
   const missingRequiredScores = requiredScores.filter(key => !sources.some(s => `${s.provider}:${s.metric}` === key));
   const availableScoreAverage = sources.length ? sources.reduce((sum,s) => sum+s.value,0)/sources.length : null;

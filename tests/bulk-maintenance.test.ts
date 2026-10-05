@@ -217,3 +217,19 @@ it('only unresolved dimensions drive provider fallback and incomplete batch entr
  const other=await add('tt0000905');env.OMDB_API_KEY=undefined;fetch.mockResolvedValue(Response.json([]));
  await data(await call('missing',[other]));expect(await repo.scoreChecks([other])).toEqual([]);
 });
+it('legacy-only ratings remain unresolved and the third live capture immediately retires all legacy',async()=>{
+ const film=await add('tt0000910'),repo=new Repository(local.db);
+ const {requiredScores}=await import('../shared/ranking');
+ await repo.appendScores(film,requiredScores.map(key=>{const [provider,metric]=key.split(':');return {provider,metric,raw_value:70,raw_scale:100,normalized_value:null,vote_count:null,fetched_at:'2026-01-01',retrieved_via:'legacy-spreadsheet'};}));
+ expect((await repo.scoreMaintenanceStatus()).candidateIds).toContain(film);
+ await repo.appendScores(film,ratings.slice(0,2).map(r=>({provider:r.source==='imdb'?'imdb':'rottentomatoes',metric:r.source==='imdb'?'rating':'critic',raw_value:r.value,raw_scale:r.source==='imdb'?10:100,normalized_value:null,vote_count:null,fetched_at:'2026-01-01',retrieved_via:'mdblist'})));
+ const fetch=vi.fn(async(url:string)=>url.includes('mdblist')?Response.json([{imdb_id:'tt0000910',ratings:[{source:'letterboxd',value:4}]}]):Response.json({Response:'True',Ratings:[]}));vi.stubGlobal('fetch',fetch);
+ const result=await data(await call('missing',[film]));
+ expect(result.results[0].movie.ranking!.sources).toHaveLength(3);
+ expect(result.results[0].movie.ranking!.sources.every(s=>s.retrieved_via!=='legacy-spreadsheet')).toBe(true);
+ expect(result.results[0].movie.ranking!.imputedScores).toHaveLength(3);
+ expect(result.results[0].movie.scores.filter(s=>s.retrieved_via==='legacy-spreadsheet')).toHaveLength(6);
+ expect((await repo.scoreChecks([film])).find(c=>c.score_key==='metacritic:critic')?.available).toBe(0);
+ expect((await data(await call('missing',[film]))).results).toHaveLength(0);
+ await data(await call('refresh',[film]));expect(fetch).toHaveBeenCalledTimes(4);
+});

@@ -7,7 +7,7 @@ import { TmdbProvider } from './providers/tmdb';
 import { OmdbProvider } from './providers/omdb';
 import { ProviderError } from './providers/http';
 import { type MaintenanceMode } from '../../shared/score-maintenance';
-import { rankMovie, requiredScores } from '../../shared/ranking';
+import { missingLiveScoreDimensions, requiredScores } from '../../shared/ranking';
 const failure = (provider: string, error: unknown): ProviderResult => ({provider,status: 'failed',count: 0,
   message: error instanceof ApiError ? error.message : `${provider} refresh failed. Try later.`,
   ...(error instanceof ProviderError && error.retryAfter !== undefined ? {retryAfter: error.retryAfter} : {})});
@@ -36,7 +36,7 @@ export class ScoreService {
       await this.repo.setProviderCooldown(provider,Math.min(seconds,86400));
     };
   }
-  private needs(movie: Movie, snapshots: Score[]) { return rankMovie([...movie.scores,...snapshots],movie.seen,[],movie.classics_membership?.rank_seed ?? 0).missingRequiredScores; }
+  private needs(movie: Movie, snapshots: Score[]) { return missingLiveScoreDimensions([...movie.scores,...snapshots]); }
   private async capture(movie: Movie, batch?: {scores?: Score[]; error?: unknown}, failures?: Map<string,ProviderError>, refresh = false, missingOnly = false, eligible?: string[]): Promise<ProviderResult[]> {
     const providers: ProviderResult[] = [], snapshots: Score[] = [];
     const id = mdbId(movie.external_ids), imdb = movie.external_ids.find(e => e.provider === 'imdb' && /^tt\d{7,10}$/.test(e.external_id));

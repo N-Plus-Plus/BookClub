@@ -1,5 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import '@fontsource/lexend-deca/300.css';
 import '@fontsource/lexend-deca/400.css';
 import '@fontsource/lexend-deca/500.css';
 import '@fontsource/lexend-deca/600.css';

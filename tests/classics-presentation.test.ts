@@ -38,13 +38,13 @@ it('paginates each Classics view, retains global ranks, resets tabs and clamps s
 it.each([true,false])('infers all active members from History, regardless of Classics membership (%s), without writes',async(classic)=>{
  const movie:MovieDetail={...film(1),classic,appearances:[{id:'event',event_date:'2026-01-01',date_precision:'exact',kind:'hosted',host_member_id:'m3',position:1}]};
  const original=JSON.stringify(movie.seen);vi.mocked(api.detail).mockResolvedValue(movie);
- await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members,writesEnabled:true,isAdmin:false,onMovie:vi.fn()})));
+ await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members})));
  const columns=container.querySelectorAll('.detail-seen-column');expect(columns[0].querySelectorAll('.club-identity')).toHaveLength(0);expect([...columns[1].querySelectorAll('.club-identity')].map(e=>e.textContent)).toEqual(['MEMBER 1','MEMBER 2','MEMBER 3','MEMBER 4']);
  expect(JSON.stringify(movie.seen)).toBe(original);expect(api.seen).not.toHaveBeenCalled();
 });
 it('suppresses Seen for films outside Classics without History appearances',async()=>{
  const movie={...film(1),classic:false,appearances:[]};vi.mocked(api.detail).mockResolvedValue(movie);
- await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members,writesEnabled:true,isAdmin:false,onMovie:vi.fn()})));
+ await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members})));
  expect(container.querySelector('.detail-seen-summary')).toBeNull();expect(container.textContent).not.toContain('Seen It?');expect(api.seen).not.toHaveBeenCalled();
 });
 

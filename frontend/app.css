@@ -338,8 +338,11 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
   .metrics-rankings { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 
-.detail-seen-summary { display: flex; }
-.detail-seen-column { flex: 1 1 auto; padding: var(--space-12); }
+.detail-seen-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+.detail-seen-column { min-width: 0; padding-inline: var(--space-12); }
+.detail-seen-column:first-child { padding-left: 0; }
+.detail-seen-column-yes { text-align: right; padding-right: 0; }
+.detail-seen-column-yes .detail-seen-members { justify-content: flex-end; }
 .detail-seen-column + .detail-seen-column { border-left: 1px solid var(--asphalt); }
 .detail-seen-members { display: flex; flex-wrap: wrap; gap: var(--space-16); margin-top: var(--space-16); }
 .detail-seen-members .club-identity { flex-direction: column; text-align: center; }
@@ -392,6 +395,14 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .classics-count-seen { background: var(--mandarin); }
 .classics-pagination { align-items: center; justify-content: space-between; }
 .detail-grid-without-seen { grid-template-columns: minmax(0,1fr); }
+.detail-identity { display: grid; grid-template-columns: auto minmax(0,1fr); }
+.detail-identity .detail-overview { grid-column: 1 / -1; font-family: var(--font-prose); font-weight: 300; font-size: var(--text-body); line-height: 1.6; }
+.detail-classics-status { grid-column: 1 / -1; width: fit-content; max-width: 100%; }
+.detail-classics-score { min-width: 0; }
+.detail-rating-summary { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-12); font-size: var(--text-body); }
+.detail-rating-summary li { min-width: 0; }
+.detail-score-breakdown .breakdown p strong { margin-left: auto; }
+.detail-score-breakdown > .stack { padding-bottom: 1rem; }
 
 .answer-actions .seen-yes { --button-colour: var(--aqua); --button-colour-dark: var(--aqua-dark); }
 .answer-actions .seen-no { --button-colour: var(--ruby); --button-colour-dark: var(--ruby-dark); }

@@ -7,7 +7,7 @@ import { ApiError } from './http';
 import { ProductRepository } from './product-repository';
 
 import { assembleMovies, groupMovies } from './catalog-assembly';
-import { effectiveScoreSql, usableScoreSql } from './score-sql';
+import { effectiveScoreSql, usableScoreSql, liveScoreSql } from './score-sql';
 import { metadataSql, metadataPrioritySql, validTmdbSql, validImdbSql } from './metadata-sql';
 
 type SessionRow = Omit<Session,'movies'>;
@@ -165,8 +165,7 @@ export class Repository {
     SELECT scope.id,keys.score_key,coalesce(c.available,1) AS available FROM scope CROSS JOIN keys
     LEFT JOIN movie_score_checks c ON c.movie_id=scope.id AND c.score_key=keys.score_key
     WHERE NOT EXISTS(SELECT 1 FROM source_scores ss WHERE ss.movie_id=scope.id AND ss.provider||':'||ss.metric=keys.score_key
-      AND CASE WHEN ss.raw_scale IS NOT NULL THEN ss.raw_scale>0 AND ss.raw_value>=0 AND ss.raw_value<=ss.raw_scale
-      ELSE ss.normalized_value>=0 AND ss.normalized_value<=100 END)
+      AND (${usableScoreSql()}) AND (${liveScoreSql()}))
     ORDER BY scope.id,keys.score_key`).all<{id:string;score_key:string;available:number}>()).results;
     return {candidateIds:[...new Set(rows.filter(r => r.available !== 0).map(r => r.id))],eligibleDimensions:rows.filter(r => r.available !== 0).length,
       unavailableDimensions:rows.filter(r => r.available === 0).length,unavailableFilms:new Set(rows.filter(r => r.available === 0).map(r => r.id)).size};

@@ -14,11 +14,19 @@ Describe the as-is state. Remove stale descriptions rather than preserving histo
 
 # DATA.md
 
+## Ranking score bootstrap lifecycle
+
+`effectiveRankingScores()` in `shared/ranking.ts` selects ranking inputs; `latestScores()` retains its general provenance selection for Metrics and import evidence. Legacy spreadsheet observations supplement live values only while a movie has zero, one or two distinct usable live required dimensions. At three or more, all `legacy-spreadsheet` ranking inputs are excluded, including dimensions without a live replacement. Missing inputs use the surviving available-score average. The cutoff is derived on every read from snapshots; no lifecycle field, migration or cleanup job exists. Historical spreadsheet observations remain append-only.
+
+Live coverage counts distinct required provider/metric keys with valid finite in-range stored values retrieved through MDBList, OMDb or TMDB (including the existing implicit TMDB retrieval convention). Duplicate snapshots, other dimensions, `development-demo`, negative checks and positive checks without usable snapshots do not count. Live observations beat overlapping legacy inputs below the cutoff. Existing service/date/import tie precedence remains unchanged.
+
+Compact catalogue SQL applies the same usable-value, live coverage and legacy cutoff before service reduction. Exact final ties remain with shared TypeScript selection; selected-film detail retains full history.
+
 ## Score maintenance observations
 
 Migration `0013_score_checks.sql` adds `movie_score_checks`, keyed by movie and one of the six canonical required score dimensions, with cascading movie deletion, boolean `available` and UTC ISO `checked_at`. It stores the latest conclusive maintenance observation: 1 means a usable value was found; 0 means all identity-applicable lookup paths completed successfully without a value. Missing credentials, failed/incomplete responses, network/timeouts, cooldowns and execution errors leave affected observations unchanged. No historical ratings or imputed values are written to this table.
 
-Populate queues only absent genuine dimensions without a negative observation. Refresh ignores negatives and replaces conclusive observations from fresh captures. A negative observation does not remove an old usable snapshot or participate in ranking; `source_scores` remains the sole rating input. TMDB metadata/artwork retains its existing checked-at system.
+Populate queues only absent usable live/API dimensions without a negative observation. Refresh ignores negatives and replaces conclusive observations from fresh captures. A negative observation does not remove an old usable snapshot or participate in ranking; `source_scores` remains the sole rating input. TMDB metadata/artwork retains its existing checked-at system.
 
 ## Reverse History index
 

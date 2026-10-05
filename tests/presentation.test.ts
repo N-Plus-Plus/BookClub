@@ -81,19 +81,6 @@ it('uses /100 formatting in ranking without changing derived precision or native
   expect(metrics).toContain('8.7');expect(metrics).toContain('8.70 / 10');expect(metrics).not.toMatch(/nominal|slot/i);
 });
 
-it('keeps raw Detail observations and explicit scales while formatting normalised /100 values',async()=>{
-  Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
-  vi.mocked(api.detail).mockResolvedValue({...movie,appearances:[]});
-  const container=document.createElement('div');const root=createRoot(container);
-  try {
-    await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members,writesEnabled:false,isAdmin:false,onMovie:vi.fn()})));
-    const result=container.textContent!;
-    expect(result).toContain('8.7 / 10 · normalised 87');
-    expect(result).toContain('87.5 / 100 · normalised 87.5');
-    expect(result).toContain('87.26 / 100 · normalised 87.3');
-    expect(result).not.toContain('normalised 87.0');
-  } finally {await act(async()=>root.unmount());}
-});
 
 it.each([
   [{...session,date_precision:'cycle_rough' as const},"Matt's turn",'Cycle started 1 January 2026'],
@@ -118,7 +105,7 @@ it('uses cycle started and stored host identity in Film Detail appearances',asyn
  ]});
  const container=document.createElement('div');const root=createRoot(container);
  try {
-  await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members,writesEnabled:false,isAdmin:false,onMovie:vi.fn()})));
+  await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members})));
   expect(container.textContent).toContain("Cycle started 1 January 2026 · Matt's week · film 1");
   expect(container.textContent).toContain("Cycle started 28 November 2026 · Jess' week · film 1");
   expect(container.textContent).toContain('2 January 2026 · Classics week · film 2');

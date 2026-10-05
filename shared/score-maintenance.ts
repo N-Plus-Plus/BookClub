@@ -1,5 +1,5 @@
 import type { Catalog, Movie } from './types';
-import { rankMovie } from './ranking';
+import { missingLiveScoreDimensions } from './ranking';
 export type MaintenanceMode = 'missing' | 'refresh' | 'metadata';
 export const MAINTENANCE_BATCH_SIZE = 10;
 export const METADATA_MAINTENANCE_BATCH_SIZE = 2;
@@ -9,7 +9,7 @@ export function maintenanceMovies(catalog: Catalog): Movie[] {
   return catalog.movies.filter(m => m.classic || history.has(m.id));
 }
 export function missingScores(movie: Movie) {
-  return rankMovie(movie.scores,[],[],0).missingRequiredScores.length > 0;
+  return missingLiveScoreDimensions(movie.scores).length > 0;
 }
 export function maintenanceIdentity(movie: Movie, mode: MaintenanceMode) {
   return movie.external_ids.some(e => e.provider === 'imdb' && /^tt\d{7,10}$/.test(e.external_id)
