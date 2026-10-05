@@ -21,7 +21,8 @@ async function main() {
   const {values}=parseArgs({options:{manifest:{type:'string'},apply:{type:'boolean'},out:{type:'string'}},strict:true});
   if(!values.manifest)throw new Error('Usage: corepack pnpm exec tsx scripts/dev/pair-tmdb-cli.ts --manifest <file> [--apply] [--out .verification/tmdb-pairings]');
   const input=await readJson(values.manifest,'Pairing manifest');
-  const round2=!!input&&typeof input==='object'&&(input as {version?:unknown}).version===2;
+  const round2=!!input&&typeof input==='object'&&(input as {version?:unknown}).version===2||!!input&&typeof input==='object'&&(input as {version?:unknown}).version===3;
+  const finalRound=!!input&&typeof input==='object'&&(input as {version?:unknown}).version===3;
   const manifest=round2?parseRound2(input):parseManifest(input);
   await configuration();await access(activeState);
   if(await portOpen())throw new Error('Stop the local API before TMDB pairing maintenance.');
@@ -29,9 +30,9 @@ async function main() {
   const lock=await open(lockPath,'wx');
   let mf: {getD1Database:(name:string)=>Promise<D1Database>;dispose:()=>Promise<void>}|undefined;
   try {
-    const out=await outputDirectory(values.out??(round2?'.verification/tmdb-pairings-round2':'.verification/tmdb-pairings'));
+    const out=await outputDirectory(values.out??(finalRound?'.verification/tmdb-pairings-round3-final-v2':round2?'.verification/tmdb-pairings-round2':'.verification/tmdb-pairings'));
     const filename=values.apply?(round2?'verification-report.json':'apply-report.json'):'preflight-report.json';
-    await protectInputs(out,[values.manifest],['apply-report.json','preflight-report.json','verification-report.json','baseline-state.json']);
+    await protectInputs(out,[values.manifest],['apply-report.json','preflight-report.json','verification-report.json','baseline-state.json','provider-cache.json']);
     let token=process.env.TMDB_READ_TOKEN;
     if(values.apply&&!token){
       // Read only the normal local provider configuration; never log its contents.
@@ -55,9 +56,9 @@ async function main() {
       let baseline:Baseline|undefined,previous:Round2Report|undefined;
       if(values.apply){
         try{const saved=JSON.parse(await readFile(resolve(out,'baseline-state.json'),'utf8'));if(saved.manifest!==JSON.stringify(manifest))throw Error('Baseline belongs to another manifest.');baseline=saved.baseline;}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;baseline=await captureBaseline(db);await checkpoint(out,'baseline-state.json',{manifest:JSON.stringify(manifest),baseline});}
-        try{previous=JSON.parse(await readFile(resolve(out,filename),'utf8'));}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
+        try{previous=JSON.parse(await readFile(resolve(out,filename),'utf8'));if(finalRound){const cache=JSON.parse(await readFile(resolve(out,'provider-cache.json'),'utf8'));if(cache.manifest_hash!==previous!.manifest_hash)throw Error('Provider cache mismatch.');previous!.responses=cache.responses;}}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
       }
-      const report=await runRound2(db,manifest as ReturnType<typeof parseRound2>,{apply:!!values.apply,token,baseline,previous,integrity,save:r=>checkpoint(out,filename,r),progress:message=>console.log(message)});
+      const report=await runRound2(db,manifest as ReturnType<typeof parseRound2>,{apply:!!values.apply,token,baseline,previous,integrity,save:async r=>{if(finalRound){await checkpoint(out,'provider-cache.json',{manifest_hash:r.manifest_hash,responses:r.responses});await checkpoint(out,filename,{...r,responses:undefined});}else await checkpoint(out,filename,r);},progress:message=>console.log(message)});
       console.log(JSON.stringify({accepted:report.accepted.length,already_applied:report.already_applied.length,rejected:report.rejected.length,conflicts:report.conflicts.length,merges_completed:report.merges_completed.length,merge_groups_completed:report.merge_groups_completed.length,merge_conflicts:report.merge_conflicts.length,removed:report.canonical_rows_removed.length,canonical:report.ending_canonical,unidentified:report.ending_unidentified,provider_calls:report.provider_calls,cooldown_events:report.cooldown_events,report:resolve(out,filename),verification:report.verification}));
     }else{
       const report=await runPairings(db,manifest as ReturnType<typeof parseManifest>,{apply:!!values.apply,token,integrity,save:r=>checkpoint(out,filename,r),progress:n=>{if(n%25===0)console.log(`Processed ${n} pairings.`);}});

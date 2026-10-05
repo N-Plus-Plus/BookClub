@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { disposableD1 } from './d1';
-import { ensureMergeReceipts, planMerge, applyMerge, type Merge } from '../scripts/dev/tmdb-merge';
+import { ensureMergeReceipts, planMerge, applyMerge, planRemoval, applyRemoval, type Merge } from '../scripts/dev/tmdb-merge';
 import { parseRound2, runRound2, round2Compatibility, captureBaseline } from '../scripts/dev/pair-tmdb-round2';
 import { Repository } from '../worker/src/repository';
 import type { ProviderMovie } from '../worker/src/providers/types';
@@ -100,4 +100,21 @@ it('provider cooldown stops subsequent calls and preflight writes neither receip
  await runRound2(local.db,manifest,{apply:false,save:async()=>{}});expect(fetch).not.toHaveBeenCalled();expect(local.sqlite.prepare("SELECT name FROM sqlite_master WHERE name='local_movie_merge_receipts'").get()).toBeUndefined();
  const first=await runRound2(local.db,manifest,{apply:true,token:'synthetic',save:async()=>{}});expect(first.cooldown_events).toBe(1);expect(fetch).toHaveBeenCalledTimes(1);
  await runRound2(local.db,manifest,{apply:true,token:'synthetic',save:async()=>{}});expect(fetch).toHaveBeenCalledTimes(1);
+});
+it('authorised removal preserves receipt evidence, removes its appearance only, and rolls back a failed deletion',async()=>{
+ addDurable();local.sqlite.exec("UPDATE movies SET title='The Untamed' WHERE id='b';DELETE FROM builder_movies;DELETE FROM classics WHERE movie_id='b';DELETE FROM classics_seed_allocations WHERE movie_id='b'");
+ const op={...b,title:'The Untamed',appearance_count:1,classic:false,confirmation:'owner_confirmed' as const,action:'remove_from_active_catalogue' as const};
+ const plan=await planRemoval(local.db,op),before=await captureBaseline(local.db);
+ local.sqlite.exec("CREATE TRIGGER fail_remove BEFORE DELETE ON movies BEGIN SELECT RAISE(ABORT,'test failure');END");
+ await expect(applyRemoval(local.db,plan)).rejects.toThrow();expect(await captureBaseline(local.db)).toEqual(before);
+ local.sqlite.exec('DROP TRIGGER fail_remove');await applyRemoval(local.db,plan);
+ expect(local.sqlite.prepare('SELECT movie_id,position FROM session_movies').all()).toEqual([{movie_id:'a',position:2}]);expect(local.sqlite.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+ const receipt=local.sqlite.prepare('SELECT snapshot_json FROM local_movie_removal_receipts').get()!;expect(JSON.parse(String(receipt.snapshot_json)).source_scores).toHaveLength(1);expect((await planRemoval(local.db,op)).already).toBe(true);
+});
+it('blocks unapproved or unexpectedly related removals; final pairing records provider scores from its sole detail response',async()=>{
+ const op={...a,title:'Time',appearance_count:0,classic:false,confirmation:'owner_confirmed' as const,action:'remove_from_active_catalogue' as const};
+ await expect(planRemoval(local.db,{...op,title:'Other'})).rejects.toThrow('authorised');local.sqlite.exec("UPDATE movies SET title='Time' WHERE id='a';INSERT INTO builder_sets(id,owner_member_id) VALUES('draft','member');INSERT INTO builder_movies VALUES('draft','a',1)");await expect(planRemoval(local.db,op)).rejects.toThrow('Builder');
+ const manifest=parseRound2({version:3,pairings:[{...b,action:'pair_or_merge_existing_owner',tmdb_kind:'movie',tmdb_id:'42',confirmation:'owner_confirmed',strict_year:false}],merge_groups:[],removals:[]});
+ const fetch=vi.fn().mockResolvedValue(Response.json({id:42,title:'Owner-confirmed alternate title',release_date:'2024-01-01',genres:[],vote_average:7.5,vote_count:123}));vi.stubGlobal('fetch',fetch);
+ const report=await runRound2(local.db,manifest,{apply:true,token:'synthetic',save:async()=>{}});expect(report.accepted).toHaveLength(1);expect(fetch).toHaveBeenCalledTimes(1);expect(local.sqlite.prepare("SELECT raw_value,vote_count FROM source_scores WHERE movie_id='b'").get()).toEqual({raw_value:7.5,vote_count:123});
 });

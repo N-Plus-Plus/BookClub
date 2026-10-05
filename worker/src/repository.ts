@@ -101,7 +101,7 @@ export class Repository {
     const now = new Date(), until = new Date(now.getTime()+Math.max(0,seconds)*1000).toISOString();
     await this.db.prepare('INSERT INTO provider_cooldowns(provider,retry_after_until,updated_at) VALUES(?,?,?) ON CONFLICT(provider) DO UPDATE SET retry_after_until=excluded.retry_after_until,updated_at=excluded.updated_at').bind(provider,until,now.toISOString()).run();
   }
-  async enrichMetadata(id: string, tmdbId: string, m: ProviderMovie, attachment?: {import_source: string; source_refs: string[]}) {
+  async enrichMetadata(id: string, tmdbId: string, m: ProviderMovie, attachment?: {import_source: string; source_refs: string[]}, captureScores = false) {
     await this.assertMovie(id);
     if (!m.external_ids.some(e => e.provider === 'tmdb' && e.external_id === tmdbId))
       throw new ApiError(409,'IDENTITY_CONFLICT','TMDB returned a different identity. Owner reconciliation is required.');
@@ -114,7 +114,7 @@ export class Repository {
       if ((owner && owner !== id) || (knownImdb && knownImdb.external_id !== imdb.external_id))
         throw new ApiError(409,'IDENTITY_CONFLICT','IMDb identity conflicts with a canonical film. Owner reconciliation is required.');
     }
-    const statements = this.metadataStatements(id,m);
+    const statements = this.metadataStatements(id,m,captureScores);
     if (attachment) {
       // Fail the whole batch if provenance or identity changed since preflight.
       statements.unshift(this.db.prepare(`INSERT INTO movie_external_ids(movie_id,provider,external_id)
@@ -134,7 +134,7 @@ export class Repository {
   }
   // Internal batch builder: callers must validate identity/ownership before executing.
   // Also used inside the local canonical-merge transaction, from the same details response.
-  metadataStatements(id: string, m: ProviderMovie): D1PreparedStatement[] {
+  metadataStatements(id: string, m: ProviderMovie, captureScores = false): D1PreparedStatement[] {
     const imdb = m.external_ids.find(e => e.provider === 'imdb');
     const statements = [this.db.prepare(`UPDATE movies SET title=?,original_title=?,year=?,release_date=?,runtime=?,overview=?,tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?`)
       .bind(m.title,m.original_title,m.year,m.release_date,m.runtime,m.overview,m.fetched_at,m.fetched_at,id)];
@@ -149,6 +149,8 @@ export class Repository {
           ON CONFLICT(movie_id,provider,asset_type,reference) DO UPDATE SET preferred=1,width=excluded.width,height=excluded.height,fetched_at=excluded.fetched_at`)
           .bind(crypto.randomUUID(),id,'tmdb',asset.asset_type,asset.reference,asset.width,asset.height,1,m.fetched_at));
     }
+    if(captureScores)statements.push(...m.scores.map(s=>this.db.prepare('INSERT OR IGNORE INTO source_scores(id,movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via,upstream_updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+      .bind(crypto.randomUUID(),id,s.provider,s.metric,s.raw_value,s.raw_scale,s.normalized_value,s.vote_count,s.fetched_at,s.retrieved_via??'tmdb',s.upstream_updated_at??null)));
     return statements;
   }
 }

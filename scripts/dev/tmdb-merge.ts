@@ -4,7 +4,7 @@ import { near } from './pair-tmdb.ts';
 import type { ProviderMovie } from '../../worker/src/providers/types.ts';
 
 export type Member = {movie_id:string;title:string;source_refs:string[]};
-export type Merge = {tmdb_id:string;members:Member[];kind:'existing'|'group'};
+export type Merge = {tmdb_id:string;members:Member[];kind:'existing'|'group';owner_confirmed?:true};
 type Value = string|number|null;
 export type Row = Record<string,Value>;
 export const relatedTables=['movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies'] as const;
@@ -35,14 +35,14 @@ export async function discoverRelationships(db:D1Database) {
 export async function rowsFor(db:D1Database,table:string,ids:string[]) {
   return (await db.prepare(`SELECT * FROM ${quote(table)} WHERE ${table==='movies'?'id':'movie_id'} IN (${ids.map(()=>'?').join(',')}) ORDER BY rowid`).bind(...ids).all<Row>()).results;
 }
-export async function planMerge(db:D1Database,op:Merge) {
+export async function planMerge(db:D1Database,op:Merge,state?:Record<string,Row[]>) {
   await discoverRelationships(db);
   const repo=new Repository(db),owner=await repo.findExternal('tmdb',op.tmdb_id),operationHash=hash(op);
   if(op.kind==='existing'&&!owner)throw Error('Target TMDB ID has no current owner.');
   if(op.kind==='group'&&owner&&!op.members.some(m=>m.movie_id===owner))throw Error('TMDB ID belongs to a movie outside the confirmed group.');
   const hasReceipts=await receiptsExist(db);
   const receipts=hasReceipts?(await db.prepare(`SELECT * FROM ${receiptTable} WHERE operation_hash=?`).bind(operationHash).all<Row>()).results:[];
-  const live=await rowsFor(db,'movies',op.members.map(m=>m.movie_id));
+  const live=state?state.movies.filter(r=>op.members.some(m=>m.movie_id===r.id)):await rowsFor(db,'movies',op.members.map(m=>m.movie_id));
   const missing=op.members.filter(m=>!live.some(r=>r.id===m.movie_id));
   if(missing.length){
     if(!owner||missing.some(m=>!receipts.some(r=>r.source_movie_id===m.movie_id&&r.survivor_movie_id===owner&&r.tmdb_id===op.tmdb_id)))throw Error('Missing member has no matching durable merge receipt.');
@@ -62,8 +62,8 @@ export async function planMerge(db:D1Database,op:Merge) {
     return {already:true as const,survivor:owner,operationHash,op,snapshot,removed:receipts.map(r=>String(r.source_movie_id))};
   }
   const ids=[...new Set([...op.members.map(m=>m.movie_id),...(owner?[owner]:[])])];
-  const snapshot:Record<string,Row[]>={movies:await rowsFor(db,'movies',ids)};
-  for(const table of relatedTables)snapshot[table]=await rowsFor(db,table,ids);
+  const snapshot:Record<string,Row[]>={movies:state?state.movies.filter(r=>ids.includes(String(r.id))):await rowsFor(db,'movies',ids)};
+  for(const table of relatedTables)snapshot[table]=state?state[table].filter(r=>ids.includes(String(r.movie_id))):await rowsFor(db,table,ids);
   for(const member of op.members){
     const movie=snapshot.movies.find(r=>r.id===member.movie_id)!;
     const refs=snapshot.movie_import_refs.filter(r=>r.movie_id===member.movie_id);
@@ -72,7 +72,7 @@ export async function planMerge(db:D1Database,op:Merge) {
   const byProvider=new Map<string,string>();
   for(const e of snapshot.movie_external_ids){const known=byProvider.get(String(e.provider));if(known&&known!==e.external_id)throw Error('Members have contradictory external identities.');byProvider.set(String(e.provider),String(e.external_id));}
   if(byProvider.has('tmdb')&&byProvider.get('tmdb')!==op.tmdb_id)throw Error('Member has contradictory TMDB identity.');
-  if(op.kind==='existing'){
+  if(op.kind==='existing'&&!op.owner_confirmed){
     const target=snapshot.movies.find(r=>r.id===owner)!;
     for(const m of op.members){const source=snapshot.movies.find(r=>r.id===m.movie_id)!;
       const titles=[source.title,source.original_title].filter((t):t is string=>typeof t==='string');
@@ -93,9 +93,47 @@ export async function planMerge(db:D1Database,op:Merge) {
   if(new Set(classics.map(r=>r.source).filter(v=>v!==null)).size>1||new Set(classics.map(r=>r.legacy_reference).filter(v=>v!==null)).size>1)throw Error('Conflicting Classics source/reference values.');
   return {already:false as const,survivor,removed,ids,snapshot,operationHash,op};
 }
+
+export const removalTable='local_movie_removal_receipts';
+export type Removal=Member&{appearance_count:number;classic:boolean;confirmation:'owner_confirmed';action:'remove_from_active_catalogue'};
+export async function planRemoval(db:D1Database,op:Removal,state?:Record<string,Row[]>) {
+  if(!['Small Axe: Lovers Rock','Small Axe: Mangrove','Time','Dekalog','The Untamed'].includes(op.title))throw Error('Removal is outside the authorised final-cleanup list.');
+  await discoverRelationships(db);
+  const operationHash=createHash('sha256').update(JSON.stringify(op)).digest('hex');
+  const snapshot:Record<string,Row[]>={movies:state?state.movies.filter(r=>r.id===op.movie_id):await rowsFor(db,'movies',[op.movie_id])};
+  if(!snapshot.movies.length){
+    const exists=await db.prepare("SELECT name FROM sqlite_master WHERE name=?").bind(removalTable).first();
+    const receipt=exists?await db.prepare(`SELECT operation_hash FROM ${removalTable} WHERE source_movie_id=?`).bind(op.movie_id).first<{operation_hash:string}>():null;
+    if(receipt?.operation_hash===operationHash)return {already:true as const,op,operationHash,snapshot};
+    throw Error('Missing removal movie has no matching receipt.');
+  }
+  for(const table of relatedTables)snapshot[table]=state?state[table].filter(r=>r.movie_id===op.movie_id):await rowsFor(db,table,[op.movie_id]);
+  const movie=snapshot.movies[0],refs=snapshot.movie_import_refs;
+  if(!movie.import_source||movie.import_key!==op.movie_id||refs.some(r=>r.import_source!==movie.import_source)||JSON.stringify(refs.map(r=>r.source_ref).sort())!==JSON.stringify([...op.source_refs].sort()))throw Error('Removal provenance/source_refs mismatch.');
+  if(movie.title!==op.title||snapshot.session_movies.length!==op.appearance_count||Boolean(snapshot.classics.length)!==op.classic)throw Error('Removal title/appearance/membership state changed.');
+  if(snapshot.builder_movies.length||snapshot.movie_external_ids.length)throw Error('Unexpected Builder/external identity prevents removal.');
+  if(await receiptsExist(db)&&await db.prepare(`SELECT source_movie_id FROM ${receiptTable} WHERE survivor_movie_id=?`).bind(op.movie_id).first())throw Error('Removal would invalidate an earlier merge receipt.');
+  return {already:false as const,op,operationHash,snapshot};
+}
+export async function applyRemoval(db:D1Database,plan:Awaited<ReturnType<typeof planRemoval>>) {
+  if(plan.already)return;
+  await db.prepare(`CREATE TABLE IF NOT EXISTS ${removalTable}(source_movie_id TEXT PRIMARY KEY,operation_hash TEXT NOT NULL,snapshot_json TEXT NOT NULL CHECK(json_valid(snapshot_json)),removed_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')))` ).run();
+  const id=plan.op.movie_id;
+  const statements=[db.prepare(`INSERT INTO ${removalTable}(source_movie_id,operation_hash,snapshot_json) VALUES(?,?,?)`).bind(id,plan.operationHash,JSON.stringify(plan.snapshot))];
+  for(const [table,rows] of Object.entries(plan.snapshot)){
+    const key=table==='movies'?'id':'movie_id';
+    statements.push(db.prepare(`UPDATE ${removalTable} SET snapshot_json=CASE WHEN (SELECT count(*) FROM ${quote(table)} WHERE ${key}=?)=? THEN snapshot_json ELSE NULL END WHERE source_movie_id=?`).bind(id,rows.length,id));
+    for(const row of rows)statements.push(db.prepare(`UPDATE ${removalTable} SET snapshot_json=CASE WHEN EXISTS(SELECT 1 FROM ${quote(table)} WHERE ${Object.keys(row).map(c=>`${quote(c)} IS ?`).join(' AND ')}) THEN snapshot_json ELSE NULL END WHERE source_movie_id=?`).bind(...Object.values(row),id));
+  }
+  // Explicitly remove known dependents in FK order; immutable import fingerprints
+  // and audit JSON stay unchanged and remain resolvable through the archived receipt.
+  for(const table of ['seen_import_observations','session_movies','builder_movies','classics','classics_seed_allocations','source_scores','seen_states','movie_assets','movie_genres','movie_external_ids','movie_import_refs'])statements.push(db.prepare(`DELETE FROM ${table} WHERE movie_id=?`).bind(id));
+  statements.push(db.prepare('DELETE FROM movies WHERE id=?').bind(id));
+  await db.batch(statements);
+}
 export type MergePlan=Awaited<ReturnType<typeof planMerge>>;
 
-export async function applyMerge(db:D1Database,plan:MergePlan,metadata?:ProviderMovie) {
+export async function applyMerge(db:D1Database,plan:MergePlan,metadata?:ProviderMovie,captureScores=false) {
   if(plan.already)return;
   const {survivor,removed,ids,snapshot,operationHash,op}=plan;
   const repo=new Repository(db);
@@ -134,7 +172,7 @@ export async function applyMerge(db:D1Database,plan:MergePlan,metadata?:Provider
   // Repoint unique external aliases before deletion; conflicts abort the transaction.
   for(const external of snapshot.movie_external_ids.filter(r=>r.movie_id!==survivor))statements.push(db.prepare('UPDATE movie_external_ids SET movie_id=? WHERE movie_id=? AND provider=?').bind(survivor,external.movie_id,external.provider));
   if(!snapshot.movie_external_ids.some(r=>r.provider==='tmdb'))statements.push(db.prepare("INSERT INTO movie_external_ids VALUES(?,'tmdb',?)").bind(survivor,op.tmdb_id));
-  if(metadata)statements.push(...repo.metadataStatements(survivor,metadata));
+  if(metadata)statements.push(...repo.metadataStatements(survivor,metadata,captureScores));
   // Old immutable audit/fingerprint IDs remain resolvable through these durable receipts.
   statements.push(db.prepare(`UPDATE ${receiptTable} SET survivor_movie_id=? WHERE survivor_movie_id IN (${removedWhere})`).bind(survivor,...removed));
   for(const table of ['movie_genres','seen_states'])statements.push(db.prepare(`DELETE FROM ${table} WHERE movie_id IN (${removedWhere})`).bind(...removed));
