@@ -10,7 +10,7 @@ import type { Env } from '../worker/src/http';
 import type { MetadataEnrichment } from '../shared/types';
 let local:ReturnType<typeof disposableD1>,repo:Repository,service:MovieService,env:Env;
 const token='a'.repeat(64);
-const details=(id=329865,imdb='tt2543164')=>({id,title:'Fictional refreshed film',original_title:'Original film',release_date:'2001-01-02',runtime:99,overview:'Fictional overview',genres:[{name:'Drama'},{name:'Science Fiction'}],poster_path:'/fictional.jpg',backdrop_path:'/fictional-backdrop.jpg',external_ids:{imdb_id:imdb},vote_average:8,vote_count:1});
+const details=(id=329865,imdb='tt2543164')=>({id,title:'Fictional refreshed film',original_title:'Original film',release_date:'2001-01-02',runtime:99,overview:'Fictional overview',genres:[{name:'Drama'},{name:'Science Fiction'}],poster_path:'/fictional.jpg',backdrop_path:'/fictional-backdrop.jpg',credits:{crew:[{job:'Director',name:'Fictional Director'}]},external_ids:{imdb_id:imdb},vote_average:8,vote_count:1});
 beforeEach(async()=>{
   local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));repo=new Repository(local.db);
   env={DB:local.db,APP_ENV:'production',LOCAL_WRITE_BYPASS:'false',ALLOWED_ORIGINS:'http://localhost:5173',TMDB_READ_TOKEN:'synthetic-token'};service=new MovieService(repo,env);
@@ -55,7 +55,7 @@ describe('bounded existing-film metadata enrichment',()=>{
     const fetch=vi.fn().mockResolvedValue(Response.json({...details(),poster_path:null,backdrop_path:null}));vi.stubGlobal('fetch',fetch);
     expect(await service.enrichMetadata(10)).toMatchObject({results:[{movieId:'arrival',status:'success'}],remaining:0});
     const movie=(await repo.catalog()).movies.find(m=>m.id==='arrival')!;
-    expect(movie.assets).toEqual([]);expect(movie.tmdb_artwork_checked_at).toBeTruthy();
+    expect(movie.director).toBe('Fictional Director'); expect(movie.assets).toEqual([]);expect(movie.tmdb_artwork_checked_at).toBeTruthy();
     expect(await service.enrichMetadata(10)).toMatchObject({results:[],remaining:0});expect(fetch).toHaveBeenCalledTimes(1);
     local.sqlite.exec("UPDATE movies SET tmdb_metadata_checked_at='2000-01-01' WHERE id='arrival'");
     expect((await service.enrichMetadata(1)).results).toHaveLength(1);
@@ -63,7 +63,7 @@ describe('bounded existing-film metadata enrichment',()=>{
   it('persists new-film artwork immediately and marks absent artwork checked on live imports',async()=>{
     vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(details(42,''))));
     const movie=await service.import('tmdb','42');
-    expect(movie.assets.map(a=>a.asset_type).sort()).toEqual(['backdrop','poster']);expect(movie.tmdb_artwork_checked_at).toBeTruthy();
+    expect(movie.director).toBe('Fictional Director'); expect(movie.assets.map(a=>a.asset_type).sort()).toEqual(['backdrop','poster']);expect(movie.tmdb_artwork_checked_at).toBeTruthy();
     expect(await service.import('tmdb','42')).toEqual(movie);expect(fetch).toHaveBeenCalledTimes(1);
   });
   it('halts on cooldown without later provider calls and resumes only remaining films',async()=>{
@@ -197,3 +197,5 @@ describe('bounded existing-film metadata enrichment',()=>{
     env.APP_ENV='local';env.LOCAL_WRITE_BYPASS='true';expect((await call()).status).toBe(401);
   });
 });
+
+it('missing director stays eligible after a recent complete metadata check',async()=>{ local.sqlite.prepare("UPDATE movies SET tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=? WHERE id='arrival'").run(new Date().toISOString(),new Date().toISOString()); expect((await repo.metadataCandidates(10)).map(m=>m.id)).toContain('arrival'); vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(details()))); await service.enrichMetadata(10); expect((await service.detail('arrival')).director).toBe('Fictional Director'); expect((await repo.metadataCandidates(10)).map(m=>m.id)).not.toContain('arrival'); });

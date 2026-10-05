@@ -13,7 +13,7 @@ describe('score normalisation',() => {
 describe('historical ranking',() => {
   it('uses exact sum of squares with row epsilon',() => { const r = rankMovie(scores(),answers(1),members,42); expect(r.rawScore).toBe(23525); expect(r.tieBreak).toBe(0.00042); expect(r.finalScore).toBe(23525*1.025**3+0.00042); });
   it.each([0,1,2,3,4])('uses %s explicit No multipliers',n => { const r=rankMovie(scores(),answers(0,n),members); expect(r.unseenMultiplier).toBe(1.025**n); expect(r.unseenCount).toBe(n); expect(r.unknownCount).toBe(4-n); });
-  it('Unknown is neither Yes nor No',() => { const r=rankMovie(scores(),answers(0,0),members); expect(r.finalScore).toBe(23525); expect(r.eligible).toBe(true); });
+  it('Unknown is neither Yes nor No',() => { const r=rankMovie(scores(),answers(0,0),members); expect(r.finalScore).toBe(23525); expect(r.eligible).toBe(true); expect(r.rankable).toBe(false); });
   it('all active members Seen disqualifies with negative residual',() => { expect(rankMovie(scores(),answers(4),members,2)).toMatchObject({eligible: false,finalScore: -(23525+0.00002)}); expect(rankMovie(scores(),answers(3,0),members.slice(0,3)).eligible).toBe(false); expect(rankMovie(scores(),[],[]).eligible).toBe(false); });
   it.each([0,1,2])('missing required signal %s is not rankable',i => { const s=scores();s.splice(i,1);expect(rankMovie(s,[],members)).toMatchObject({rankable: false,finalScore: null}); });
   it.each(['metacritic','letterboxd','tmdb'])('%s never changes rank',p => expect(rankMovie([...scores(),score(p,'rating',100)],[],members)).toEqual(rankMovie(scores(),[],members)));
@@ -25,5 +25,8 @@ describe('historical ranking',() => {
   });
   it('sorts equal source scores by stable seed and preserves input',() => { const films=[movie('a',2),movie('b',4)];expect(sortClassics(films).map(m => m.id)).toEqual(['b','a']);expect(films[0].id).toBe('a'); });
   it('ranked entries precede missing and disqualified',() => {const needs=movie('needs');needs.ranking=rankMovie([],[],members); expect(sortClassics([movie('dq',10,answers(4)),needs,movie('ok')]).map(m => m.id)).toEqual(['ok','needs','dq']);});
-  it('queues only Unknown answers',() => expect(missingAnswers([movie('film',0,answers(1,1))],members).map(q=>q.member.id)).toEqual(['m2','m3']));
+  it('queues only Unknown answers',() => expect(missingAnswers([movie('film',0,answers(1,1))],members,'m2').map(q=>q.member.id)).toEqual(['m2']));
 });
+
+it('requires all four explicit answers before ranking',()=>{ expect(rankMovie(scores(),answers(1,2),members).rankable).toBe(false); expect(rankMovie(scores(),answers(1,3),members).rankable).toBe(true); expect(rankMovie(scores(),answers(4),members).eligible).toBe(false); });
+it('each viewer has an independent Classics queue',()=>{const films=[movie('film',0,answers(1,1)),{...movie('outside'),classic:false}]; expect(members.map(m=>missingAnswers(films,members,m.id).length)).toEqual([0,0,1,1]);});

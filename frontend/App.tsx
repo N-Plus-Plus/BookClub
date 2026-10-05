@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { ChartNoAxesColumn, CalendarPlus, ListPlus, Check, ChevronRight, Clapperboard, Eye, History, Home, Info, Library, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, ChartNoAxesColumn, CalendarPlus, ListPlus, Check, ChevronRight, Clapperboard, Eye, History, Home, Info, Library, RefreshCw, X } from 'lucide-react';
 import type { Catalog, FilmCandidate, Movie, MovieDetail, TmdbPreview, Viewer, Rotation } from '../shared/types';
 import { missingAnswers, sortClassics } from '../shared/ranking';
 import { SignInScreen } from './SignInScreen';
@@ -25,6 +25,7 @@ type Inspection = {source: string; target: string; candidate: FilmCandidate; pre
 const route = () => window.location.hash.slice(2) || 'home';
 export function App() {
   const [page,setPage] = useState(route);
+  const pageRef = useRef(page);
   const [inspection,setInspection] = useState<Inspection | null>(null);
   const inspectionRef = useRef<Inspection | null>(null);
   const [confirmedMovie,setConfirmedMovie] = useState<Movie | null>(null);
@@ -110,7 +111,11 @@ export function App() {
       const context = inspectionRef.current;
       if (context && next !== context.target) { inspectionRef.current = null; setInspection(null); setInspectionError(''); if (next !== context.source) setConfirmedMovie(null); }
       if (next !== 'event' && next !== context?.target) setEventPrefill(null);
-      setPage(next); window.scrollTo(0,0); requestAnimationFrame(() => heading.current?.focus()); };
+      if (!context && pageRef.current === 'seen' && next.startsWith('movie/')) {
+        const context: Inspection = {source:'seen',target:next,candidate:{kind:'local',movie:{id:next.slice(6),title:'',year:null,tmdbId:null,poster:null}}};
+        inspectionRef.current = context; setInspection(context);
+      }
+      pageRef.current = next; setPage(next); window.scrollTo(0,0); requestAnimationFrame(() => heading.current?.focus()); };
     window.addEventListener('hashchange',update); return () => window.removeEventListener('hashchange',update);
   },[]);
   const applyMovie = (movie: MovieDetail | Movie) => setCatalog(current => current ? ({...current,
@@ -143,17 +148,18 @@ export function App() {
   const classics = catalog ? sortClassics(catalog.movies.filter(m => m.classic)) : [];
   const eligible = classics.filter(m => m.ranking?.eligible && m.ranking.rankable);
   const excluded = classics.filter(m => !m.ranking?.eligible);
-  const missing = catalog ? missingAnswers(catalog.movies,catalog.members).length : 0;
+  const missing = catalog ? missingAnswers(catalog.movies,catalog.members,viewer?.id ?? '').length : 0;
   const isPreview = page.startsWith('preview/tmdb/');
   const isDetail = page.startsWith('movie/') || isPreview;
-  const inspecting = inspection && page === inspection.target;
+  const detailContext = inspection && page === inspection.target;
+  const inspecting = detailContext && inspection.source !== 'seen';
   const eventRoute = page === 'event' || page.startsWith('event/') ? page : inspecting ? inspection.source : null;
   const title = (page === 'event' || page.startsWith('event/')) ? 'Event' : isDetail ? 'Film detail' : destinations.find(d => d.path === page)?.label ?? 'Page not found';
   const writesEnabled = Boolean(health && (!health.authenticationRequired || viewer));
   if ((localLogin || health?.authenticationRequired) && health && !viewer && !loading) return <SignInScreen configured={health.googleAuthConfigured} error={actionError || loadError} busy={authBusy} onCredential={signIn} onLocalLogin={localLogin ? signInAsTroy : undefined} onRetry={() => void load()} />;
   if (needsAvatar(viewer) && viewer) return <AvatarScreen viewer={viewer} externalError={actionError || loadError} onClaimed={claimed => { setViewer(claimed); void load(); }} onLogout={() => void logout()} />;
   return <div className={`app-layout ${navigationExpanded ? 'navigation-expanded' : 'navigation-collapsed'}`}><Navigation page={page} expanded={navigationExpanded} onToggle={() => setNavigationExpanded(value => !value)} /><div className="bookclub-shell"><header className="site-header"><a className="brand" href="#/home"><Clapperboard aria-hidden="true" /><span>BookClub<small>HAVE YOU UPDATED THE SPREAD... WEB APP?</small></span></a><div className="viewer-controls">{viewer ? <AccountMenu viewer={viewer} busy={authBusy} onLogout={() => void logout()} /> : <span className="header-tag">{health?.demo ? 'LOCAL DEMO' : 'FILM CLUB'}</span>}</div></header>
-    <main id="main"><div className="page-heading"><div><h1 ref={heading} tabIndex={-1}>{title}</h1>{page.startsWith('event/') && <p className="subtitle">Correct the event details and film lineup.</p>}</div>{inspecting && <div className="button-set inspection-actions"><Action icon={X} disabled={confirming} onClick={() => { window.location.hash = `/${inspection.source}`; }}>Nope, this isn't it</Action><Action icon={Check} variant="primary" disabled={confirming || !writesEnabled} onClick={() => void confirmFilm()}>{confirming ? 'Adding…' : 'Yes, this one!'}</Action></div>}</div>
+    <main id="main"><div className="page-heading"><div><h1 ref={heading} tabIndex={-1}>{title}</h1>{page.startsWith('event/') && <p className="subtitle">Correct the event details and film lineup.</p>}</div>{detailContext && inspection.source === 'seen' && <Action icon={ArrowLeft} onClick={() => { window.location.hash = '/seen'; }}>Back</Action>}{inspecting && <div className="button-set inspection-actions"><Action icon={X} disabled={confirming} onClick={() => { window.location.hash = `/${inspection.source}`; }}>Nope, this isn't it</Action><Action icon={Check} variant="primary" disabled={confirming || !writesEnabled} onClick={() => void confirmFilm()}>{confirming ? 'Adding…' : 'Yes, this one!'}</Action></div>}</div>
     {inspectionError && inspecting && <p className="error-message" role="alert">{inspectionError}</p>}
     {notice && <div className="notice" role="status"><Check size={20} aria-hidden="true" /><span>{notice}</span><Action icon={X} aria-label="Dismiss message" onClick={() => setNotice('')} /></div>}
     {health?.demo && <p className="demo-label"><Info size={16} aria-hidden="true" />Local disposable database</p>}
@@ -175,8 +181,8 @@ export function App() {
       }} /></div>}
       {page.startsWith('event/') && !catalog.sessions.some(s => s.id === page.slice(6)) && <Empty title="Event not found">The event may have been deleted. Return to History to review available events.</Empty>}
       {page === 'classics' && <ClassicsScreen viewer={viewer} movies={classics} writesEnabled={writesEnabled} onMovie={applyMovie} />}
-      {page === 'seen' && <SeenScreen catalog={catalog} answer={answer} writesEnabled={writesEnabled} />}
-      {isDetail && !isPreview && <DetailScreen isAdmin={viewer?.role === 'admin'} key={page} id={page.slice(6)} members={catalog.members} answer={answer} writesEnabled={writesEnabled} onMovie={applyMovie} />}
+      {(page === 'seen' || (detailContext && inspection.source === 'seen')) && <div hidden={page !== 'seen'}><SeenScreen key={viewer?.id} viewerId={viewer?.id ?? ''} catalog={catalog} answer={answer} writesEnabled={writesEnabled} /></div>}
+      {isDetail && !isPreview && <DetailScreen isAdmin={viewer?.role === 'admin'} key={page} id={page.slice(6)} members={catalog.members} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {isPreview && <PreviewScreen key={page} id={page.slice('preview/tmdb/'.length)} preview={inspecting ? inspection.preview : undefined} pending={inspecting ? inspection.pending : undefined} />}
       {!isDetail && page !== 'event' && !page.startsWith('event/') && !destinations.some(d => d.path === page) && <Empty title="Page not found"><RouteLink to="home" icon={Home}>Go home</RouteLink></Empty>}
     </>}

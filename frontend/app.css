@@ -331,3 +331,9 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
   .metrics-summary { grid-template-columns: repeat(4,minmax(0,1fr)); }
   .metrics-rankings { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
+
+.detail-seen-summary { display: flex; }
+.detail-seen-column { flex: 1 1 auto; padding: var(--space-12); }
+.detail-seen-column + .detail-seen-column { border-left: 1px solid var(--asphalt); }
+.detail-seen-members { display: flex; flex-wrap: wrap; gap: var(--space-16); margin-top: var(--space-16); }
+.detail-seen-members .club-identity { flex-direction: column; text-align: center; }

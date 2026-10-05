@@ -553,7 +553,7 @@ Advanced or unusual options should remain disclosed.
 
 ### Seen It?
 
-Prioritise repeated low-friction answering.
+Prioritise repeated low-friction answering for the authenticated viewer only: unanswered Classics films, personal Yes/No and Undo. Queue identity stacks year, runtime and persisted director below the title; use “HAVE YOU SEEN...” without member or Unknown badges.
 
 Yes and No should remain equally reachable and should not visually bias the answer.
 
@@ -567,7 +567,7 @@ Backfill, current-turn completion and correction semantics must remain truthful.
 
 ### Film detail
 
-Lead with film identity, Seen state, ratings and shared appearances. Use a score-only ranking view to avoid repeating identity. Disclose technical provenance and maintenance.
+Lead with film identity, Seen state, ratings and shared appearances. Seen state is a read-only two-column summary: Haven’t Seen It (explicit No) and Seen It (explicit Yes), with a divider and existing stacked avatar/name identities in member sort order. Unanswered members appear in neither column. Detail entered from Seen It? shows Back in the heading row and preserves the personal queue/Undo context; normal navigation shows neither Back nor Event-search controls. Use a score-only ranking view to avoid repeating identity. Disclose technical provenance and maintenance.
 
 Only Event-search inspection shows “Nope, this isn't it” and the stronger “Yes, this one!” on the right of the Film detail heading. Nope and browser Back return to the preserved editor without removing the candidate. Yes appends a saved canonical movie, importing an external candidate only at confirmation; recoverable import errors stay inline on detail. External previews share the identity presentation and omit stored-only sections. External films are not persisted before Yes.
 

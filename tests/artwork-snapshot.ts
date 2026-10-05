@@ -12,11 +12,11 @@ const source = new DatabaseSync('worker/.wrangler/state/v3/d1/miniflare-D1Databa
 const local = disposableD1();
 copySnapshot(source,local.sqlite); source.close();
 const repo = new Repository(local.db), before = await repo.catalog();
-const desired = [missingAnswers(before.movies,before.members)[0]?.movie,...before.sessions[0].movies,
+const desired = [missingAnswers(before.movies,before.members,before.members[0]?.id ?? '')[0]?.movie,...before.sessions[0].movies,
   ...sortClassics(before.movies.filter(m=>m.classic)).slice(0,5)].filter(m=>m && tmdbIdentity(m));
 const sample = [...new Map(desired.map(m=>[m.id,m])).values()].slice(0,10);
 // Limit eligibility in the disposable copy to the controlled sample only.
-local.sqlite.prepare('UPDATE movies SET tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=?').run(new Date().toISOString(),new Date().toISOString());
+local.sqlite.prepare("UPDATE movies SET director='Fixture Director',tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=?").run(new Date().toISOString(),new Date().toISOString());
 for (const movie of sample) local.sqlite.prepare('UPDATE movies SET tmdb_metadata_checked_at=NULL,tmdb_artwork_checked_at=NULL WHERE id=?').run(movie.id);
 globalThis.fetch = async (input) => {
   const id = new URL(String(input)).pathname.split('/').at(-1);
@@ -24,7 +24,7 @@ globalThis.fetch = async (input) => {
   if (!movie) throw Error('Only selected fixture identities may be requested.');
   return Response.json({id:Number(id),title:movie.title,original_title:movie.original_title,release_date:movie.release_date || `${movie.year || 2000}-01-01`,runtime:movie.runtime,
     overview:movie.overview,genres:movie.genres.map(name=>({name})),poster_path:'/fixture-poster.jpg',backdrop_path:'/fixture-backdrop.jpg',vote_average:0,vote_count:0,
-    external_ids:{imdb_id:movie.external_ids.find(e=>e.provider==='imdb')?.external_id}});
+    credits:{crew:[{job:'Director',name:'Fixture Director'}]},external_ids:{imdb_id:movie.external_ids.find(e=>e.provider==='imdb')?.external_id}});
 };
 const service = new MovieService(repo,{DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:4173',TMDB_READ_TOKEN:'mock-only'});
 const result = await service.enrichMetadata(10), after = await repo.catalog();

@@ -30,7 +30,7 @@ export function rankMovie(scores: Score[], answers: SeenAnswer[], members: Membe
   const sources = latestScores(scores).filter(s => requiredScores.includes(`${s.provider}:${s.metric}` as typeof requiredScores[number]))
     .map(s => ({provider: s.provider,metric: s.metric,value: scoreValue(s)!,retrieved_via: s.retrieved_via ?? 'unspecified'}));
   const missingRequiredScores = requiredScores.filter(key => !sources.some(s => `${s.provider}:${s.metric}` === key));
-  const rankable = missingRequiredScores.length === 0, rawScore = rankable ? sources.reduce((n,s) => n+s.value**2,0) : null;
+  const rankable = missingRequiredScores.length === 0 && unknownCount === 0 && active.length > 0, rawScore = missingRequiredScores.length === 0 ? sources.reduce((n,s) => n+s.value**2,0) : null;
   const unseenMultiplier = 1.025 ** unseenCount, tieBreak = seed * 0.00001;
   const eligible = active.length > 0 && seenCount < active.length;
   const residualScore = rawScore === null ? null : (rawScore * unseenMultiplier + tieBreak) * (eligible ? 1 : -1);
@@ -44,8 +44,8 @@ export function sortClassics(movies: Movie[]): Movie[] {
     || (b.ranking?.finalScore ?? -Infinity)-(a.ranking?.finalScore ?? -Infinity)
     || a.title.localeCompare(b.title,'en',{sensitivity: 'base'}) || (a.year ?? 0)-(b.year ?? 0) || a.id.localeCompare(b.id,'en'));
 }
-export function missingAnswers(movies: Movie[], members: Member[]) {
-  return sortClassics(movies.filter(m => m.classic)).flatMap(movie => members.filter(m => m.active === 1)
+export function missingAnswers(movies: Movie[], members: Member[], viewerId: string) {
+  return sortClassics(movies.filter(m => m.classic)).flatMap(movie => members.filter(m => m.active === 1 && m.id === viewerId)
     .filter(member => !movie.seen.some(s => s.member_id === member.id))
     .sort((a,b) => a.sort_order-b.sort_order).map(member => ({movie,member})));
 }

@@ -102,6 +102,8 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
   const seenMatch = path.match(/^\/api\/v1\/movies\/([^/]+)\/seen\/([^/]+)$/);
   if (seenMatch && method === 'PUT') {
     const movieId = idSchema.parse(seenMatch[1]), memberId = idSchema.parse(seenMatch[2]);
+    const actor = requireViewer(auth.viewer);
+    if (actor.id !== memberId) throw new ApiError(403,'FORBIDDEN','You may only answer Seen It? for yourself.');
     const input = seenSchema.parse(await body(request)); await repo.setSeen(movieId,memberId,input.seen);
     return json(await movies.detail(movieId));
   }

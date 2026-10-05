@@ -243,3 +243,5 @@ describe('explicit rotation, Classics and History',()=>{
     env.DB=db;env.LOCAL_WRITE_BYPASS='true';for(const [path,method] of protectedRoutes.filter(([p,m])=>!(p==='/rotation'&&m==='GET')&&!p.endsWith('/audit'))) expect((await call(path,method,method==='GET'?undefined:{})).status).toBe(401);
   });
 });
+
+it('Seen writes and Undo are personal even for admins',async()=>{ local.sqlite.exec("DELETE FROM seen_states WHERE movie_id='arrival'"); expect((await call('/movies/arrival/seen/member-1','PUT',{seen:true},2)).status).toBe(403); await data(await call('/movies/arrival/seen/member-2','PUT',{seen:true},2)); expect(local.sqlite.prepare("SELECT member_id,seen FROM seen_states WHERE movie_id='arrival'").all()).toEqual([{member_id:'member-2',seen:1}]); await data(await call('/movies/arrival/seen/member-1','PUT',{seen:false},1)); await data(await call('/movies/arrival/seen/member-2','PUT',{seen:null},2)); expect(local.sqlite.prepare("SELECT member_id,seen FROM seen_states WHERE movie_id='arrival'").all()).toEqual([{member_id:'member-1',seen:0}]); });

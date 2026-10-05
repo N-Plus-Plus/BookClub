@@ -8,7 +8,7 @@ import { App } from '../frontend/App';
 import { BuilderSetPicker } from '../frontend/BuilderSetPicker';
 
 vi.mock('../frontend/api',() => ({
-  api:{health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn()},
+  api:{health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn()},
   ApiClientError:class extends Error {},hasSession:() => true,setUnauthorizedHandler:vi.fn(),setDevMember:vi.fn(),clearSession:vi.fn(),storeSession:vi.fn(),
 }));
 const movies: Movie[] = Array.from({length:8},(_,i) => ({id:`saved-${i}`,title:`Film ${i}`,year:1998,original_title:null,release_date:null,runtime:100,overview:'Overview',genres:[],assets:[],external_ids:i === 7 ? [{provider:'tmdb',external_id:'107'}] : [],scores:[],seen:[],classic:false,ranking:null}));
@@ -166,4 +166,40 @@ it('unresolvable and empty Builder sets are disabled without truncating their sa
   expect(container.textContent).toContain('This set contains unavailable film data.');
   await click(actions[0]); expect(choose).not.toHaveBeenCalled();
   await click(actions[2]); expect(choose).toHaveBeenCalledWith(['saved-2','saved-0','saved-2']);
+});
+
+it('Seen queue, Home count, Undo and Detail context belong to the viewer',async()=>{
+  const personal={...movies[0],classic:true,director:'Stored Director',seen:[{member_id:'other',seen:1,updated_at:''}]};
+  const other={id:'other',display_name:'Other',sort_order:1,active:1,avatar:1};
+  vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:[personal],members:[catalog.members[0],other]});
+  vi.mocked(api.detail).mockResolvedValue({...personal,appearances:[]});
+  await act(async()=>root.unmount()); root=createRoot(container);
+  window.location.hash='/home'; await act(async()=>root.render(createElement(App))); await flush();
+  expect(container.querySelector('.stat-link strong')?.textContent).toBe('1');
+  await navigate('seen');
+  expect(container.textContent).toContain('1 remaining'); expect(container.textContent).toContain('HAVE YOU SEEN...');
+  expect(container.textContent).toContain('Director: Stored Director'); expect(container.textContent).not.toContain('Answer unknown');
+  expect(container.querySelector<HTMLAnchorElement>('.answer-card')!.getAttribute('href')).toBe('#/movie/saved-0');
+  await navigate('movie/saved-0');
+  expect(button('Back')).toBeTruthy(); expect(button('Yes, this one!')).toBeUndefined();
+  const columns=container.querySelectorAll('.detail-seen-column');
+  expect(columns[0].textContent).toBe("Haven't Seen It"); expect(columns[1].textContent).toContain('OTHER'); expect(columns[1].textContent).not.toContain('MEMBER 2');
+  expect(container.querySelector('.member-state')).toBeNull();
+  await click(button('Back')); expect(window.location.hash).toBe('#/seen');
+  vi.mocked(api.seen).mockImplementation(async (_id,memberId,value)=>({...personal,appearances:[],seen:value === null ? personal.seen : [...personal.seen,{member_id:memberId,seen:Number(value),updated_at:''}]}));
+  await click(button('Yes, seen it')); expect(api.seen).toHaveBeenLastCalledWith(personal.id,'member-2',true);
+  expect(container.textContent).toContain('0 remaining');
+  await click(button('Undo last answer')); expect(api.seen).toHaveBeenLastCalledWith(personal.id,'member-2',null);
+  expect(container.textContent).toContain('1 remaining');
+  await navigate('home'); await navigate('movie/saved-0'); expect(button('Back')).toBeUndefined();
+});
+
+it('Detail groups explicit answers in member order and omits unanswered members',async()=>{
+  const members=[4,2,1,3].map(n=>({id:`m${n}`,display_name:`Person ${n}`,sort_order:n,active:1,avatar:n}));
+  vi.mocked(api.catalog).mockResolvedValue({...catalog,members});
+  vi.mocked(api.detail).mockResolvedValue({...movies[0],appearances:[],seen:[{member_id:'m4',seen:0,updated_at:''},{member_id:'m1',seen:0,updated_at:''},{member_id:'m3',seen:1,updated_at:''}]});
+  await act(async()=>root.unmount()); root=createRoot(container); window.location.hash='/movie/saved-0';
+  await act(async()=>root.render(createElement(App))); await flush();
+  const groups=[...container.querySelectorAll('.detail-seen-column')].map(column=>[...column.querySelectorAll('.club-identity')].map(member=>member.textContent));
+  expect(groups).toEqual([['PERSON 1','PERSON 4'],['PERSON 3']]);
 });

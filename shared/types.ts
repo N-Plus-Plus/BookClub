@@ -13,7 +13,7 @@ export interface Ranking {
 }
 export interface Movie {
   id: string; title: string; original_title: string | null; year: number | null;
-  release_date: string | null; runtime: number | null; overview: string | null;
+  release_date: string | null; runtime: number | null; overview: string | null; director?: string | null;
   tmdb_metadata_checked_at?: string | null;
   tmdb_artwork_checked_at?: string | null;
   genres: string[]; assets: Asset[]; external_ids: ExternalId[]; scores: Score[];
