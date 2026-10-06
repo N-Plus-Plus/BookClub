@@ -415,3 +415,7 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .chart-track > .chart-bar-lavender { background: var(--lavender); }
 
 .metrics-content { gap: calc(var(--space-16) + 1rem); }
+
+.seen-plot-summary { font-family: var(--font-prose); font-weight: 300; font-size: var(--text-body); line-height: 1.6; }
+.seen-plot-collapsed { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; height: 4.8em; overflow: hidden; }
+.seen-plot-toggle { margin-top: var(--space-10); font-size: var(--text-compact); }

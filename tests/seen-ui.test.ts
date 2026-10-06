@@ -2,6 +2,7 @@
 import { act, createElement, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { SeenScreen } from '../frontend/SeenScreen';
 import { useSeenAnswers } from '../frontend/seen-answers';
@@ -19,10 +20,12 @@ let preloads:HTMLImageElement[];
 const sources=()=>preloads.map(image=>image.src);
 let observed: Catalog;
 let refreshCatalog:(next:Catalog)=>void;
+let writeAnswer:ReturnType<typeof useSeenAnswers>['answer'];
 let beginRead:ReturnType<typeof useSeenAnswers>['beginCatalogRead'];
 function Harness(){
  const [data,setData]=useState<Catalog | null>(catalog); observed = data!;
  const saves=useSeenAnswers('m',setData,answer);
+ writeAnswer=saves.answer;
  refreshCatalog=next=>setData(saves.reconcileCatalog(next)); beginRead=saves.beginCatalogRead;
  return createElement(SeenScreen,{catalog:data!,viewerId:'m',writesEnabled:true,answer:saves.answer,pending:saves.pending,failures:saves.failures,retry:saves.retry});
 }
@@ -31,16 +34,15 @@ beforeEach(()=>{vi.clearAllMocks();answer.mockReset();answer.mockImplementation(
 afterEach(async()=>{await act(async()=>root.unmount());container.remove();vi.unstubAllGlobals();});
 const mount=async()=>act(async()=>root.render(createElement(Harness)));
 const click=async(label:string)=>act(async()=>{[...container.querySelectorAll('button')].find(b=>b.textContent===label)!.click();});
-it('uses catalogue metadata, preloads the next three posters, refills and retains images through Yes, No and Undo',async()=>{
+it('uses catalogue metadata, preloads the next three posters, refills and retains images through Yes, No and corrections',async()=>{
  await mount();expect(api.detail).not.toHaveBeenCalled();
  expect(sources()).toEqual([1,2,3].map(i=>`https://image.tmdb.org/t/p/w342/f${i}.jpg`));
  expect(container.querySelector('.answer-card')?.textContent).toContain('Catalogue Director 0');
  await click('Yes, seen it');expect(container.querySelector('.answer-card')?.textContent).toContain('Catalogue Director 1');
  expect(sources()).toHaveLength(4);expect(sources().at(-1)).toContain('/f4.jpg');
- await click('Undo last answer');expect(container.querySelector('.answer-card')?.textContent).toContain('Film 00');
- expect(sources()).toHaveLength(4);
- await click('No, not yet');expect(sources()).toHaveLength(4);expect(api.detail).not.toHaveBeenCalled();
- expect(answer.mock.calls).toEqual([['f0','m',true],['f0','m',null],['f0','m',false]]);
+ await click('Change to No');expect(sources()).toHaveLength(4);
+ await click('No, not yet');expect(sources()).toHaveLength(5);expect(api.detail).not.toHaveBeenCalled();
+ expect(answer.mock.calls).toEqual([['f0','m',true],['f0','m',false],['f1','m',false]]);
 });
 it('deduplicates shared URLs, skips missing posters and keeps normal fallback after preload failure',async()=>{
  const data={...catalog,movies:films.map((movie,i)=>i===2?{...movie,assets:films[1].assets}:i===3?{...movie,assets:[]}:movie)};
@@ -68,10 +70,10 @@ it('answers optimistically, serialises rapid taps, retains failed answers and of
  await act(async()=>requests[2].resolve({...detail('f0'),seen:[{member_id:'m',seen:1,updated_at:'saved'}]}));
  expect(container.querySelector('[role="alert"]')).toBeNull();expect(observed.movies[0].seen[0].updated_at).toBe('saved');expect(api.detail).not.toHaveBeenCalled();
 });
-it('orders answer, correction, Undo and a new answer without stale responses overwriting local intent',async()=>{
+it('orders answer, correction, application-layer null write and a new answer without stale responses overwriting local intent',async()=>{
  const requests:((movie:MovieDetail)=>void)[]=[];
  answer.mockImplementation(()=>new Promise<MovieDetail>(resolve=>requests.push(resolve)));
- await mount();await click('Yes, seen it');await click('Change to No');await click('Undo last answer');await click('No, not yet');
+ await mount();await click('Yes, seen it');await click('Change to No');await act(async()=>writeAnswer('f0','m',null,'Film 00'));await click('No, not yet');
  expect(answer).toHaveBeenCalledTimes(1);expect(observed.movies[0].seen[0].seen).toBe(0);
  for(const value of [true,false,null,false]) {
    const index=requests.length-1;
@@ -81,15 +83,46 @@ it('orders answer, correction, Undo and a new answer without stale responses ove
  expect(answer.mock.calls).toEqual([['f0','m',true],['f0','m',false],['f0','m',null],['f0','m',false]]);
  expect(container.querySelector('.answer-card')?.textContent).toContain('Film 01');expect(container.querySelectorAll('.recent-answer')).toHaveLength(1);
 });
-it('paginates recent-first session activity only above 20 and handles new answers and Undo',async()=>{
- await mount();for(let i=0;i<20;i++)await click('Yes, seen it');
- expect(container.querySelectorAll('.recent-answer')).toHaveLength(20);expect(container.querySelector('.recent-pagination')).toBeNull();
- await click('No, not yet');expect(container.querySelectorAll('.recent-answer')).toHaveLength(20);expect(container.querySelector('.recent-list strong')?.textContent).toBe('Film 20');
+it('paginates five newest-first answers with Previous/Next and returns to page one for new answers',async()=>{
+ await mount();for(let i=0;i<5;i++)await click('Yes, seen it');
+ expect(container.querySelectorAll('.recent-answer')).toHaveLength(5);expect(container.querySelector('.recent-pagination')).toBeNull();
+ await click('No, not yet');expect(container.querySelectorAll('.recent-answer')).toHaveLength(5);
+ expect([...container.querySelectorAll('.recent-list strong')].map(e=>e.textContent)).toEqual(['Film 05','Film 04','Film 03','Film 02','Film 01']);
  const controls=container.querySelector('.recent-pagination')!;expect(controls.parentElement?.lastElementChild).toBe(controls);
+ expect(container.textContent).toContain('Page 1 of 2');expect([...controls.querySelectorAll('button')].map(b=>b.disabled)).toEqual([true,false]);
  await click('Next');expect(container.querySelectorAll('.recent-answer')).toHaveLength(1);expect(container.querySelector('.recent-list strong')?.textContent).toBe('Film 00');
- await click('Yes, seen it');expect(container.textContent).toContain('Page 1 of 2');expect(container.querySelector('.recent-list strong')?.textContent).toBe('Film 21');
- await click('Next');await click('Undo last answer');await click('Undo last answer');expect(container.querySelector('.recent-pagination')).toBeNull();expect(container.querySelectorAll('.recent-answer')).toHaveLength(20);
- expect(answer).toHaveBeenLastCalledWith('f20','m',null);
+ expect(container.textContent).toContain('Page 2 of 2');expect([...controls.querySelectorAll('button')].map(b=>b.disabled)).toEqual([false,true]);
+ await click('Change to No');expect(answer).toHaveBeenLastCalledWith('f0','m',false);expect(container.textContent).toContain('Page 2 of 2');
+ await click('Previous');expect(container.querySelector('.recent-list strong')?.textContent).toBe('Film 05');
+ await click('Next');await click('Yes, seen it');expect(container.textContent).toContain('Page 1 of 2');expect(container.querySelector('.recent-list strong')?.textContent).toBe('Film 06');
+});
+it('omits Undo and the transient pending-save label while answers are saving',async()=>{
+ answer.mockImplementation(()=>new Promise(()=>{}));
+ await mount();await click('Yes, seen it');
+ expect(container.textContent).not.toContain('pending save');expect(container.querySelector('[role="status"]')).toBeNull();
+ expect(container.textContent).not.toContain('Undo');expect(container.querySelector('.recent-answer')).not.toBeNull();
+});
+it('clamps the plot to three fixed lines and toggles More/Less outside the film link, preserving preference across films',async()=>{
+ await mount();
+ const overview='A long plot summary. '.repeat(60);
+ await act(async()=>refreshCatalog({...catalog,movies:films.map(f=>({...f,overview}))}));
+ const summary=()=>container.querySelector('.seen-plot-summary')!;
+ expect(summary().textContent).toBe(overview);expect(summary().classList.contains('seen-plot-collapsed')).toBe(true);
+ const css=readFileSync('frontend/app.css','utf8');
+ const rules=css.match(/\.seen-plot-collapsed\s*\{([^}]+)\}/)![1];
+ expect(rules).toMatch(/-webkit-line-clamp:\s*3/);expect(rules).toMatch(/height:\s*4\.8em/);expect(rules).toMatch(/overflow:\s*hidden/);
+ const toggle=()=>container.querySelector<HTMLButtonElement>('.seen-plot-toggle')!;
+ expect(toggle().closest('a')).toBeNull();expect(toggle().getAttribute('aria-expanded')).toBe('false');
+ expect(toggle().getAttribute('aria-controls')).toBe(summary().id);
+ expect(container.querySelector('.answer-card')!.compareDocumentPosition(summary()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+ expect(summary().compareDocumentPosition(container.querySelector('.answer-actions')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+ await click('More');expect(toggle().getAttribute('aria-expanded')).toBe('true');expect(summary().classList.contains('seen-plot-collapsed')).toBe(false);
+ await click('Yes, seen it');expect(container.querySelector('.answer-card')?.textContent).toContain('Film 01');expect(toggle().textContent).toBe('Less');
+ await click('Less');expect(summary().classList.contains('seen-plot-collapsed')).toBe(true);
+ await click('No, not yet');expect(toggle().textContent).toBe('More');expect(summary().classList.contains('seen-plot-collapsed')).toBe(true);
+});
+it('omits the summary block and disclosure when overview is absent',async()=>{
+ await mount();expect(container.querySelector('.seen-plot')).toBeNull();expect(container.querySelector('.seen-plot-toggle')).toBeNull();
 });
 it('shows only Films brought contribution bars with alternating palette classes',()=>{
  container.innerHTML=renderToStaticMarkup(createElement(MetricsScreen,{catalog:{...catalog,members:[member,{...member,id:'m2',display_name:'Other',sort_order:2}]},viewer:null,onUpdated:async()=>{}}));

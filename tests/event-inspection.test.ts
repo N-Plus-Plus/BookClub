@@ -175,7 +175,7 @@ it('unresolvable and empty Builder sets are disabled without truncating their sa
   await click(actions[2]); expect(choose).toHaveBeenCalledWith(['saved-2','saved-0','saved-2']);
 });
 
-it('Seen queue, Home count, Undo and Detail context belong to the viewer',async()=>{
+it('Seen queue, Home count, corrections and Detail context belong to the viewer',async()=>{
   const personal={...movies[0],classic:true,director:'Stored Director',seen:[{member_id:'other',seen:1,updated_at:''}]};
   const other={id:'other',display_name:'Other',sort_order:1,active:1,avatar:1};
   vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:[personal],members:[catalog.members[0],other]});
@@ -196,8 +196,9 @@ it('Seen queue, Home count, Undo and Detail context belong to the viewer',async(
   vi.mocked(api.seen).mockImplementation(async (_id,memberId,value)=>({...personal,appearances:[],seen:value === null ? personal.seen : [...personal.seen,{member_id:memberId,seen:Number(value),updated_at:''}]}));
   await click(button('Yes, seen it')); expect(api.seen).toHaveBeenLastCalledWith(personal.id,'member-2',true);
   expect(container.textContent).toContain('0 remaining');
-  await click(button('Undo last answer')); expect(api.seen).toHaveBeenLastCalledWith(personal.id,'member-2',null);
-  expect(container.textContent).toContain('1 remaining');
+  expect(button('Undo last answer')).toBeUndefined();
+  await click(button('Change to No')); expect(api.seen).toHaveBeenLastCalledWith(personal.id,'member-2',false);
+  expect(container.textContent).toContain('0 remaining');
   await navigate('home'); await navigate('movie/saved-0'); expect(button('Back')).toBeUndefined();
 });
 

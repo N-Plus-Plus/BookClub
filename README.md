@@ -50,7 +50,7 @@ Cloudflare Workers Static Assets hosts the root `/` build at `bookclub.nissen.ne
 
 ## Current limits
 
-Metrics is all-time, without date-range filtering. History restore is an admin API without a management screen. Unsaved Event/Builder edits are discarded on navigation; saved Builder sets persist privately. Seen queue undo covers the current visit; film detail can correct persisted answers. No notifications, PWA or scheduled provider refresh is implemented.
+Metrics is all-time, without date-range filtering. History restore is an admin API without a management screen. Unsaved Event/Builder edits are discarded on navigation; saved Builder sets persist privately. Seen It? Recent answers offers current-visit corrections, five per page; film detail can correct persisted answers. No notifications, PWA or scheduled provider refresh is implemented.
 
 ## Further documentation
 
