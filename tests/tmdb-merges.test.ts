@@ -4,6 +4,8 @@ import { ensureMergeReceipts, planMerge, applyMerge, planRemoval, applyRemoval, 
 import { parseRound2, runRound2, round2Compatibility, captureBaseline } from '../scripts/dev/pair-tmdb-round2';
 import { Repository } from '../worker/src/repository';
 import type { ProviderMovie } from '../worker/src/providers/types';
+import { parseTmdbEnrichment, parseMdbEnrichment } from '../worker/src/providers/enrichment';
+import { tmdbEnrichmentFixture, mdbEnrichmentFixture } from './enrichment-fixtures';
 let local:ReturnType<typeof disposableD1>;
 const a={movie_id:'a',title:'Fictional Film',source_refs:['Should Watch:2']};
 const b={movie_id:'b',title:'Fictional Film!',source_refs:['Tracker:2:2']};
@@ -56,6 +58,17 @@ it('chooses richest survivor deterministically and TMDB owner overrides richness
  expect((await planMerge(local.db,op)).survivor).toBe('a');expect((await planMerge(local.db,{...op,members:[b,a]})).survivor).toBe('a');
  local.sqlite.exec("INSERT INTO sessions(id,event_date) VALUES('s','2000');INSERT INTO session_movies VALUES('s','b',1)");expect((await planMerge(local.db,op)).survivor).toBe('b');
  local.sqlite.exec("INSERT INTO movie_external_ids VALUES('a','tmdb','42')");expect((await planMerge(local.db,op)).survivor).toBe('a');
+});
+it('preserves complete provider cache sets and archives source cache during explicitly requested identity merges',async()=>{
+  local.sqlite.exec("INSERT INTO movie_external_ids VALUES('a','imdb','tt0000042');INSERT INTO movie_external_ids VALUES('b','tmdb','42')");
+  const repo=new Repository(local.db);
+  await repo.cacheEnrichment('a',parseMdbEnrichment(mdbEnrichmentFixture(),{provider:'imdb',external_id:'tt0000042'},'2026-10-07T00:00:00Z')!);
+  await repo.cacheEnrichment('b',parseTmdbEnrichment(tmdbEnrichmentFixture(),'2026-10-07T00:00:00Z')!);
+  const plan=await planMerge(local.db,{tmdb_id:'42',members:[a],kind:'existing'});await applyMerge(local.db,plan);
+  expect(local.sqlite.prepare('SELECT movie_id,provider FROM movie_provider_enrichment_state ORDER BY provider').all()).toEqual([{movie_id:'b',provider:'mdblist'},{movie_id:'b',provider:'tmdb'}]);
+  expect(local.sqlite.prepare('SELECT * FROM movie_provider_keywords').all()).toHaveLength(4);expect(local.sqlite.prepare('SELECT * FROM movie_provider_credits').all()).toHaveLength(21);
+  const receipt=JSON.parse(String(local.sqlite.prepare('SELECT snapshot_json FROM local_movie_merge_receipts').get()!.snapshot_json));expect(receipt.movie_provider_watch_offers).toHaveLength(4);
+  expect(local.sqlite.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
 });
 it('group merges/attaches transactionally and changed/missing receipts cannot masquerade as success',async()=>{
  addDurable();const plan=await planMerge(local.db,op);await applyMerge(local.db,plan,snapshot());expect((await planMerge(local.db,op)).already).toBe(true);

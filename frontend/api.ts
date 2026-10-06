@@ -33,7 +33,7 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
         ...(import.meta.env.DEV && localStorage.getItem('bookclub.dev-member') ? {'X-BookClub-Dev-Member': localStorage.getItem('bookclub.dev-member')!} : {}),
         ...(authenticated && sentToken ? { Authorization: `Bearer ${sentToken}` } : {}),
       }, ...(data === undefined ? {} : { body: JSON.stringify(data) }),
-      signal: signal ? AbortSignal.any([signal,AbortSignal.timeout(15000)]) : AbortSignal.timeout((path === '/movies/enrich-metadata' || path === '/movies/enrich-metadata-selected' || path === '/movies/maintain') ? 105000 : path === '/classics/enrich' ? 65000 : 15000),
+      signal: signal ? AbortSignal.any([signal,AbortSignal.timeout(15000)]) : AbortSignal.timeout((path === '/movies/enrich-metadata' || path === '/movies/enrich-metadata-selected' || path === '/movies/enrich-provider-selected' || path === '/movies/maintain') ? 105000 : path === '/classics/enrich' ? 65000 : 15000),
     });
   } catch { throw new Error('Could not reach BookClub. Check your connection and that the API is running, then retry.'); }
   if (response.status === 401 && authenticated && sentToken === sessionToken) { clearSession(); unauthorized?.(); }
@@ -56,6 +56,7 @@ export const api = {
   }, health: () => request<Health>('/health','GET',undefined,false),
   scoreMaintenanceStatus: () => request<import('../shared/types').ScoreMaintenanceStatus>('/movies/maintenance-status'),
   maintainMovies: (mode: import('../shared/score-maintenance').MaintenanceMode,movie_ids: string[]) => request<ScoreMaintenance>('/movies/maintain','POST',{mode,movie_ids}),
+  enrichProvider: (provider: import('../shared/enrichment').EnrichmentProvider,movie_ids: string[]) => request<import('../shared/enrichment').EnrichmentBatch>('/movies/enrich-provider-selected','POST',{provider,movie_ids}),
   enrichMetadata: (limit = METADATA_MAINTENANCE_BATCH_SIZE) => request<MetadataEnrichment>('/movies/enrich-metadata','POST',{limit:Math.min(limit,METADATA_MAINTENANCE_BATCH_SIZE)}),
   enrichMetadataSelected: async (movie_ids: string[]): Promise<SelectedMetadataEnrichment> => {
     try { return await request<SelectedMetadataEnrichment>('/movies/enrich-metadata-selected','POST',{movie_ids}); }

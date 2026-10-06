@@ -1,30 +1,16 @@
 import type { Catalog, RefreshResult, ScoreMaintenance } from '../shared/types';
 import { maintenanceIdentity, maintenanceMovies } from '../shared/score-maintenance';
 import { maintainScores, type MaintenanceRun } from './score-maintenance';
+import { loadMaintenanceCheckpoint, saveMaintenanceCheckpoint, type MaintenanceCheckpoint } from './maintenance-checkpoint';
 
 export const OMDB_CHECKPOINT_KEY = 'bookclub.omdb-metadata.v1';
-export interface OmdbCheckpoint { version: 1; remainingIds: string[]; completed: number }
+export type OmdbCheckpoint = MaintenanceCheckpoint;
 type StorageAccess = Pick<Storage,'getItem' | 'setItem' | 'removeItem'>;
-const browserStorage = () => { try { return globalThis.localStorage; } catch { return undefined; } };
-export function saveOmdbCheckpoint(checkpoint: OmdbCheckpoint | null, storage: StorageAccess | undefined = browserStorage()) {
-  try {
-    if (checkpoint?.remainingIds.length) storage?.setItem(OMDB_CHECKPOINT_KEY,JSON.stringify(checkpoint));
-    else storage?.removeItem(OMDB_CHECKPOINT_KEY);
-  } catch { /* Storage denial must not interrupt maintenance. */ }
+export function saveOmdbCheckpoint(checkpoint: OmdbCheckpoint | null, storage?: StorageAccess) {
+  saveMaintenanceCheckpoint(OMDB_CHECKPOINT_KEY,checkpoint,storage);
 }
-export function loadOmdbCheckpoint(storage: StorageAccess | undefined = browserStorage()): OmdbCheckpoint | null {
-  try {
-    const raw = storage?.getItem(OMDB_CHECKPOINT_KEY);
-    if (!raw) return null;
-    const value = JSON.parse(raw);
-    if (value?.version !== 1 || !Array.isArray(value.remainingIds) || !value.remainingIds.length
-      || value.remainingIds.length > 100000 || !value.remainingIds.every((id: unknown) => typeof id === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(id))
-      || new Set(value.remainingIds).size !== value.remainingIds.length || !Number.isSafeInteger(value.completed) || value.completed < 0
-      || value.completed > 100000 || Object.keys(value).some(key => !['version','remainingIds','completed'].includes(key))) {
-      saveOmdbCheckpoint(null,storage); return null;
-    }
-    return {version:1,remainingIds:value.remainingIds,completed:value.completed};
-  } catch { saveOmdbCheckpoint(null,storage); return null; }
+export function loadOmdbCheckpoint(storage?: StorageAccess): OmdbCheckpoint | null {
+  return loadMaintenanceCheckpoint(OMDB_CHECKPOINT_KEY,storage);
 }
 export function reconcileOmdbCheckpoint(checkpoint: OmdbCheckpoint, catalog: Catalog): OmdbCheckpoint {
   const eligible = new Set(maintenanceMovies(catalog).filter(m => maintenanceIdentity(m,'metadata')).map(m => m.id));

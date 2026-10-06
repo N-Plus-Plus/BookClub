@@ -80,7 +80,7 @@ describe('rating providers',()=>{
       const result=await new MdbListProvider('secret-key').batch(provider,ids);
       expect([...result.keys()]).toEqual([ids[1],ids[0]]);
       expect(result.get(ids[0])).toEqual([]);expect(result.get(ids[1])?.[0]).toMatchObject({normalized_value:80});
-      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ids:provider==='tmdb'?[278,603]:ids});
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ids:provider==='tmdb'?[278,603]:ids,append_to_response:['keyword']});
       expect(warn).not.toHaveBeenCalled();
     } finally {warn.mockRestore();}
   });

@@ -1,6 +1,8 @@
 import type { ExternalId, Score } from '../../../shared/types';
 import { RatingError, ratingRequest, record } from './ratings';
 import { ProviderError } from './http';
+import { parseMdbEnrichment } from './enrichment';
+import type { EnrichmentCapture } from '../../../shared/enrichment';
 // Official Media Info schema: https://api.mdblist.com/schema/ (GET and POST media routes).
 const sources: Record<string,[string,string,number]> = {
   imdb: ['imdb','rating',10], tomatoes: ['rottentomatoes','critic',100],
@@ -29,16 +31,18 @@ export function mdbId(ids: ExternalId[]): ExternalId | undefined {
     ?? ids.find(e => e.provider === 'tmdb' && /^[1-9]\d*$/.test(e.external_id));
 }
 export class MdbListProvider {
-  constructor(private key: string, private onLimits?: (headers: Headers) => Promise<void>) {}
+  constructor(private key: string, private onLimits?: (headers: Headers) => Promise<void>, private onMedia?: (id: ExternalId,capture: EnrichmentCapture | undefined) => Promise<void>) {}
   async scores(id: ExternalId) {
-    return parseMdbList(await ratingRequest(`https://api.mdblist.com/${id.provider}/movie/${encodeURIComponent(id.external_id)}/?apikey=${encodeURIComponent(this.key)}`,'MDBList',undefined,this.onLimits));
+    const data=await ratingRequest(`https://api.mdblist.com/${id.provider}/movie/${encodeURIComponent(id.external_id)}/?apikey=${encodeURIComponent(this.key)}&append_to_response=keyword`,'MDBList',undefined,this.onLimits);
+    const scores=parseMdbList(data), capture=parseMdbEnrichment(data,id,new Date().toISOString());
+    await this.onMedia?.(id,capture); return scores;
   }
   async batch(provider: string, ids: string[]): Promise<Map<string,Score[]>> {
     if (!ids.length || ids.length > 10) throw new RatingError('MDBList batches require 1–10 IDs.');
     let data: unknown;
     try {
       data = await ratingRequest(`https://api.mdblist.com/${provider}/movie/?apikey=${encodeURIComponent(this.key)}`,'MDBList',
-        {method: 'POST',headers: {'Content-Type': 'application/json'},body: JSON.stringify({ids: provider === 'tmdb' ? ids.map(Number) : ids})},this.onLimits);
+        {method: 'POST',headers: {'Content-Type': 'application/json'},body: JSON.stringify({ids: provider === 'tmdb' ? ids.map(Number) : ids,append_to_response:['keyword']})},this.onLimits);
     } catch (error) {
       // A batch endpoint 404 cannot establish that any particular film is missing.
       if (error instanceof ProviderError && error.kind === 'not_found') throw new RatingError('MDBList batch lookup is unavailable. Try later.');
@@ -50,7 +54,10 @@ export class MdbListProvider {
       // Live Media Info uses provider-scoped IDs; top-level id is MDBList's own ID.
       // imdb_id is also documented by the official single-item Media Info schema.
       const id = provider === 'imdb' ? entry?.ids?.imdb ?? entry?.imdb_id : entry?.ids?.tmdb;
-      if ((typeof id === 'string' || typeof id === 'number' && Number.isSafeInteger(id)) && ids.includes(String(id))) result.set(String(id),parseMdbList(entry,at,'batch'));
+      if ((typeof id === 'string' || typeof id === 'number' && Number.isSafeInteger(id)) && ids.includes(String(id))) {
+        if (result.has(String(id))) throw new RatingError('MDBList returned duplicate batch identities.');
+        result.set(String(id),parseMdbList(entry,at,'batch'));
+      }
     }
     if (result.size < new Set(ids).size) console.warn('MDBList batch correlation incomplete',{
       provider, requested: new Set(ids).size, returned: data.length, matched: result.size,
@@ -63,6 +70,11 @@ export class MdbListProvider {
       if (!(typeof id === 'string' || typeof id === 'number' && Number.isSafeInteger(id)))
         throw new RatingError('MDBList returned an unrecognised batch identity response.');
       parseMdbList(entry,at,'batch');
+    }
+    // Validate the complete ratings/correlation envelope before saving any enrichment.
+    for (const entry of data) {
+      const externalId=String(provider === 'imdb' ? entry?.ids?.imdb ?? entry?.imdb_id : entry?.ids?.tmdb);
+      if (result.has(externalId)) { const identity={provider,external_id:externalId}; await this.onMedia?.(identity,parseMdbEnrichment(entry,identity,at)); }
     }
     return result;
   }

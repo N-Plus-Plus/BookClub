@@ -2,12 +2,13 @@ import { createHash } from 'node:crypto';
 import { Repository } from '../../worker/src/repository.ts';
 import { near } from './pair-tmdb.ts';
 import type { ProviderMovie } from '../../worker/src/providers/types.ts';
+import { providerEnrichmentTables } from '../../shared/enrichment';
 
 export type Member = {movie_id:string;title:string;source_refs:string[]};
 export type Merge = {tmdb_id:string;members:Member[];kind:'existing'|'group';owner_confirmed?:true};
 type Value = string|number|null;
 export type Row = Record<string,Value>;
-export const relatedTables=['movie_score_checks','movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies'] as const;
+export const relatedTables=['movie_score_checks','movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies',...providerEnrichmentTables] as const;
 export const receiptTable='local_movie_merge_receipts';
 const quote=(s:string)=>'"'+s.replaceAll('"','""')+'"';
 const hash=(op:Merge)=>createHash('sha256').update(JSON.stringify({kind:op.kind,tmdb_id:op.tmdb_id,members:[...op.members].sort((a,b)=>a.movie_id.localeCompare(b.movie_id)).map(m=>({...m,source_refs:[...m.source_refs].sort()}))})).digest('hex');
@@ -63,7 +64,7 @@ export async function planMerge(db:D1Database,op:Merge,state?:Record<string,Row[
   }
   const ids=[...new Set([...op.members.map(m=>m.movie_id),...(owner?[owner]:[])])];
   const snapshot:Record<string,Row[]>={movies:state?state.movies.filter(r=>ids.includes(String(r.id))):await rowsFor(db,'movies',ids)};
-  for(const table of relatedTables)snapshot[table]=state?state[table].filter(r=>ids.includes(String(r.movie_id))):await rowsFor(db,table,ids);
+  for(const table of relatedTables)snapshot[table]=state?.[table]?state[table].filter(r=>ids.includes(String(r.movie_id))):await rowsFor(db,table,ids);
   for(const member of op.members){
     const movie=snapshot.movies.find(r=>r.id===member.movie_id)!;
     const refs=snapshot.movie_import_refs.filter(r=>r.movie_id===member.movie_id);
@@ -107,7 +108,7 @@ export async function planRemoval(db:D1Database,op:Removal,state?:Record<string,
     if(receipt?.operation_hash===operationHash)return {already:true as const,op,operationHash,snapshot};
     throw Error('Missing removal movie has no matching receipt.');
   }
-  for(const table of relatedTables)snapshot[table]=state?state[table].filter(r=>r.movie_id===op.movie_id):await rowsFor(db,table,[op.movie_id]);
+  for(const table of relatedTables)snapshot[table]=state?.[table]?state[table].filter(r=>r.movie_id===op.movie_id):await rowsFor(db,table,[op.movie_id]);
   const movie=snapshot.movies[0],refs=snapshot.movie_import_refs;
   if(!movie.import_source||movie.import_key!==op.movie_id||refs.some(r=>r.import_source!==movie.import_source)||JSON.stringify(refs.map(r=>r.source_ref).sort())!==JSON.stringify([...op.source_refs].sort()))throw Error('Removal provenance/source_refs mismatch.');
   if(movie.title!==op.title||snapshot.session_movies.length!==op.appearance_count||Boolean(snapshot.classics.length)!==op.classic)throw Error('Removal title/appearance/membership state changed.');
@@ -153,6 +154,21 @@ export async function applyMerge(db:D1Database,plan:MergePlan,metadata?:Provider
   for(const id of removed.slice(1))statements.push(db.prepare(`INSERT INTO ${receiptTable}(source_movie_id,survivor_movie_id,tmdb_id,operation_hash,snapshot_json) VALUES(?,?,?,?,?)`).bind(id,survivor,op.tmdb_id,operationHash,JSON.stringify(snapshot)));
   const removedWhere=removed.map(()=>'?').join(',');
   const update=(table:string)=>statements.push(db.prepare(`UPDATE ${quote(table)} SET movie_id=? WHERE movie_id IN (${removedWhere})`).bind(survivor,...removed));
+  // Cache sets must stay coherent. Choose the latest successful whole provider set,
+  // retaining all prior rows in the already-guarded receipt rather than unioning sets.
+  const cacheStates=[...snapshot.movie_provider_enrichment_state].sort((a,b)=>String(b.checked_at).localeCompare(String(a.checked_at))||Number(b.movie_id===survivor)-Number(a.movie_id===survivor)||String(a.movie_id).localeCompare(String(b.movie_id)));
+  const providers=new Set<Value>();
+  for (const state of cacheStates) {
+    if (providers.has(state.provider)) continue; providers.add(state.provider);
+    if (!snapshot.movie_external_ids.some(i=>i.provider===state.identity_provider && i.external_id===state.external_id)) throw Error('Provider cache identity requires owner review before merging.');
+    for (const table of providerEnrichmentTables) {
+      statements.push(db.prepare(`DELETE FROM ${table} WHERE movie_id=? AND provider=?`).bind(survivor,state.provider));
+      for (const row of snapshot[table].filter(r=>r.movie_id===state.movie_id && r.provider===state.provider)) {
+        const fields=Object.keys(row);
+        statements.push(db.prepare(`INSERT INTO ${table}(${fields.map(quote).join(',')}) VALUES(${fields.map(()=>'?').join(',')})`).bind(...fields.map(f=>f==='movie_id'?survivor:row[f])));
+      }
+    }
+  }
   for(const table of ['session_movies','builder_movies','movie_import_refs','source_scores','seen_import_observations'])update(table);
   // Latest conclusive dimension wins; equal timestamps prefer available, then survivor.
   const checks=[...snapshot.movie_score_checks].sort((a,b)=>String(b.checked_at).localeCompare(String(a.checked_at))||Number(b.available)-Number(a.available)||Number(b.movie_id===survivor)-Number(a.movie_id===survivor));
@@ -182,6 +198,7 @@ export async function applyMerge(db:D1Database,plan:MergePlan,metadata?:Provider
   for(const table of ['movie_genres','seen_states'])statements.push(db.prepare(`DELETE FROM ${table} WHERE movie_id IN (${removedWhere})`).bind(...removed));
   for(const id of removed)statements.push(db.prepare('DELETE FROM movies WHERE id=?').bind(id));
   await db.batch(statements);
+  if (metadata?.enrichment) await repo.cacheEnrichment(survivor,metadata.enrichment);
 }
 
 export function mergeSummary(plan:MergePlan) {

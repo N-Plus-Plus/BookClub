@@ -27,6 +27,8 @@ export const sessionSchema = z.object({
 export const classicSchema = z.object({classic: z.boolean()}).strict();
 export const maintenanceSchema = z.object({mode: z.enum(['missing','refresh','metadata']), movie_ids: z.array(idSchema).min(1).max(10)}).strict();
 export const selectedMetadataSchema = z.object({movie_ids: z.array(idSchema).min(1).max(METADATA_MAINTENANCE_BATCH_SIZE)}).strict();
+export const providerEnrichmentSchema = z.object({provider:z.enum(['tmdb','mdblist']),movie_ids:z.array(idSchema).min(1).max(10)}).strict()
+  .refine(v=>v.provider!=='tmdb' || v.movie_ids.length<=METADATA_MAINTENANCE_BATCH_SIZE,{message:'Choose at most two TMDB films.',path:['movie_ids']});
 export const enrichmentSchema = z.object({limit: z.number().int().min(1).max(10).default(10)}).strict();
 export const seenSchema = z.object({ seen: z.boolean().nullable() }).strict();
 export const importSchema = z.object({ provider: z.literal('tmdb'), externalId: z.string().regex(/^[1-9]\d{0,9}$/) }).strict();

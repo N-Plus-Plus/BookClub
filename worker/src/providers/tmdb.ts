@@ -3,6 +3,7 @@ import type { SearchResult, TmdbPreview } from '../../../shared/types';
 import { ApiError } from '../http';
 import { record } from './ratings';
 import { providerJson } from './http';
+import { parseTmdbEnrichment } from './enrichment';
 
 interface TmdbFilm {
   id: number; title: string; original_title: string; release_date?: string; runtime?: number;
@@ -11,7 +12,7 @@ interface TmdbFilm {
   credits?: {crew?: {job: string; name: string}[]};
 }
 export function directors(crew: {job: string; name: string}[] = []): string | null {
-  const names = [...new Set(crew.filter(person => person.job === 'Director').map(person => person.name.trim()).filter(Boolean))];
+  const names = [...new Set((Array.isArray(crew) ? crew : []).filter(person => person?.job === 'Director' && typeof person.name==='string').map(person => person.name.trim()).filter(Boolean))];
   return names.length ? new Intl.ListFormat('en-AU',{style:'long',type:'conjunction'}).format(names) : null;
 }
 export class TmdbProvider implements MovieSearchProvider, MovieMetadataProvider, MovieArtworkProvider, MovieScoreProvider {
@@ -26,7 +27,7 @@ export class TmdbProvider implements MovieSearchProvider, MovieMetadataProvider,
       poster: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null }));
   }
   async details(id: string): Promise<ProviderMovie> {
-    const m = await this.request<TmdbFilm>(`movie/${encodeURIComponent(id)}?append_to_response=external_ids,credits`);
+    const m = await this.movie(id);
     const fetched_at = new Date().toISOString();
     const score = record('tmdb','rating',m.vote_average,10,'tmdb',fetched_at,m.vote_count);
     return { title: m.title, original_title: m.original_title ?? null, year: m.release_date ? Number(m.release_date.slice(0,4)) : null,
@@ -35,7 +36,13 @@ export class TmdbProvider implements MovieSearchProvider, MovieMetadataProvider,
       external_ids: [{ provider: 'tmdb', external_id: String(m.id) }, ...(m.external_ids?.imdb_id ? [{ provider: 'imdb', external_id: m.external_ids.imdb_id }] : [])],
       assets: [ ...(m.poster_path ? [{ provider: 'tmdb', asset_type: 'poster' as const, reference: `https://image.tmdb.org/t/p/w500${m.poster_path}`, width: null, height: null, preferred: 1 }] : []),
         ...(m.backdrop_path ? [{ provider: 'tmdb', asset_type: 'backdrop' as const, reference: `https://image.tmdb.org/t/p/w1280${m.backdrop_path}`, width: null, height: null, preferred: 1 }] : []) ],
-      scores: score ? [score] : [], fetched_at };
+      scores: score ? [score] : [], fetched_at, enrichment:parseTmdbEnrichment(m,fetched_at) };
+  }
+  private movie(id: string) {
+    return this.request<TmdbFilm>(`movie/${encodeURIComponent(id)}?append_to_response=external_ids,credits,keywords,release_dates`);
+  }
+  async enrichment(id: string) {
+    return parseTmdbEnrichment(await this.movie(id),new Date().toISOString());
   }
   async preview(id: string): Promise<TmdbPreview> {
     const m = await this.request<TmdbFilm>(`movie/${encodeURIComponent(id)}?append_to_response=credits`);

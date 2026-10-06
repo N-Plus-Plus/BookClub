@@ -14,6 +14,13 @@ const failure = (provider: string, error: unknown): ProviderResult => ({provider
   ...(error instanceof ProviderError && error.retryAfter !== undefined ? {retryAfter: error.retryAfter} : {})});
 export class ScoreService {
   constructor(private repo: Repository, private env: Env) {}
+  private mdb(movies: Movie[]) {
+    return new MdbListProvider(this.env.MDBLIST_API_KEY!,this.limits('mdblist'),async (identity,capture) => {
+      if (!capture) return;
+      const movie=movies.find(m=>{const id=mdbId(m.external_ids);return id?.provider===identity.provider && id.external_id===identity.external_id;});
+      if (movie) await this.repo.cacheEnrichment(movie.id,capture);
+    });
+  }
   private providerWide(error: unknown): error is ProviderError {
     return error instanceof ProviderError && ['credentials','rate_limited','outage','network'].includes(error.kind);
   }
@@ -47,7 +54,7 @@ export class ScoreService {
     else if (!this.env.MDBLIST_API_KEY) providers.push({provider:'mdblist',status:'skipped',count:0,message:'Not configured.'});
     else if (!id) providers.push({provider:'mdblist',status:'skipped',count:0,message:'A supported external ID is required.'});
     // An omitted batch entry gets one sequential single-film attempt; errors never re-enter capture.
-    else try { const scores = batch?.scores !== undefined ? batch.scores : await this.providerCall('mdblist',() => new MdbListProvider(this.env.MDBLIST_API_KEY!,this.limits('mdblist')).scores(id)); snapshots.push(...scores); providers.push({provider:'mdblist',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { if (failures && this.providerWide(error)) failures.set('mdblist',error); providers.push(failure('mdblist',error)); }
+    else try { const scores = batch?.scores !== undefined ? batch.scores : await this.providerCall('mdblist',() => this.mdb([movie]).scores(id)); snapshots.push(...scores); providers.push({provider:'mdblist',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { if (failures && this.providerWide(error)) failures.set('mdblist',error); providers.push(failure('mdblist',error)); }
     const missing = refresh ? this.needs({...movie,scores:[]},snapshots) : this.needs(movie,snapshots);
     const unresolved = missing.filter(key => !eligible || eligible.includes(key));
     const omdbUseful = Boolean(imdb && ['imdb:rating','rottentomatoes:critic','metacritic:critic'].some(key => unresolved.includes(key)));
@@ -61,8 +68,9 @@ export class ScoreService {
     else if (failures?.has('tmdb')) providers.push(this.suppressed('tmdb',failures.get('tmdb')!));
     else if (!this.env.TMDB_READ_TOKEN || !tmdb) providers.push({provider:'tmdb',status:'skipped',count:0,message:!tmdb ? 'A valid TMDB identity is required.' : 'Not configured.'});
     else try {
-      const scores = await this.providerCall('tmdb',() => new TmdbProvider(this.env.TMDB_READ_TOKEN!,this.limits('tmdb')).scores(tmdb.external_id));
-      snapshots.push(...scores);
+      const detail = await this.providerCall('tmdb',() => new TmdbProvider(this.env.TMDB_READ_TOKEN!,this.limits('tmdb')).details(tmdb.external_id));
+      if (detail.enrichment) await this.repo.cacheEnrichment(movie.id,detail.enrichment);
+      const scores=detail.scores; snapshots.push(...scores);
       providers.push({provider:'tmdb',status:'success',count:scores.length,message:scores.length ? 'Scores captured.' : 'No usable ratings supplied.'});
     } catch (error) { if (failures && this.providerWide(error)) failures.set('tmdb',error); providers.push(failure('tmdb',error)); }
     const captured = missingOnly ? snapshots.filter(s => s.retrieved_via === 'mdblist' || this.needs(movie,[]).includes(`${s.provider}:${s.metric}`)) : snapshots;
@@ -100,7 +108,7 @@ export class ScoreService {
       const group = candidates.filter(m => mdbId(m.external_ids)?.provider === provider);
       if (!group.length || failures.has('mdblist')) continue;
       try {
-        const result = await this.providerCall('mdblist',() => new MdbListProvider(this.env.MDBLIST_API_KEY!,this.limits('mdblist')).batch(provider,group.map(m => mdbId(m.external_ids)!.external_id)));
+        const result = await this.providerCall('mdblist',() => this.mdb(group).batch(provider,group.map(m => mdbId(m.external_ids)!.external_id)));
         for (const m of group) batch.set(m.id,{scores:result.get(mdbId(m.external_ids)!.external_id)});
       } catch (error) {
         for (const m of group) batch.set(m.id,{error});
@@ -133,7 +141,7 @@ export class ScoreService {
       const group = selected.filter(m => mdbId(m.external_ids)?.provider === provider);
       if (!group.length) continue;
       try {
-        const result = await this.providerCall('mdblist',() => new MdbListProvider(this.env.MDBLIST_API_KEY!,this.limits('mdblist')).batch(provider,group.map(m => mdbId(m.external_ids)!.external_id)));
+        const result = await this.providerCall('mdblist',() => this.mdb(group).batch(provider,group.map(m => mdbId(m.external_ids)!.external_id)));
         for (const m of group) batch.set(m.id,{scores: result.get(mdbId(m.external_ids)!.external_id)});
       } catch (error) { for (const m of group) batch.set(m.id,{error}); if (this.providerWide(error)) { failures.set('mdblist',error); break; } }
     }

@@ -23,6 +23,7 @@ vi.mock('react', async importOriginal => ({...await importOriginal<typeof import
   useEffect: (effect: () => () => void) => { hooks.cleanup ??= effect(); },
 }));
 vi.mock('../frontend/api', () => ({api: {enrichMetadataSelected: vi.fn()}}));
+vi.mock('../frontend/bulk-maintenance',()=>({useBulkMaintenanceLock:()=>({busy:false,acquire:()=>true,release:()=>{}})}));
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   const promise = new Promise<T>(done => { resolve = done; });

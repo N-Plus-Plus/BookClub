@@ -6,6 +6,8 @@ import { requiredScores } from '../../shared/ranking';
 import type { ProviderMovie } from './providers/types';
 import { ApiError } from './http';
 import { ProductRepository } from './product-repository';
+import { EnrichmentRepository } from './enrichment-repository';
+import type { EnrichmentCapture } from '../../shared/enrichment';
 
 import { assembleMovies, groupMovies } from './catalog-assembly';
 import { effectiveScoreSql, usableScoreSql, liveScoreSql } from './score-sql';
@@ -16,6 +18,15 @@ type WithMovie<T> = T & { movie_id: string };
 
 export class Repository {
   constructor(private db: D1Database) {}
+  private enrichmentCapability?: Promise<boolean>;
+  enrichmentSupported() {
+    return this.enrichmentCapability ??= this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='movie_provider_enrichment_state'").first().then(Boolean);
+  }
+  async cacheEnrichment(id: string, capture: EnrichmentCapture) {
+    const supported=await this.enrichmentSupported();
+    if (!supported) return {changed:false,canonicalChanged:false,conflicts:0,unsupported:true};
+    return new EnrichmentRepository(this.db).save(id,capture);
+  }
   // Repository instances are request-scoped; never retain an old schema across requests.
   private directorCapability?: Promise<boolean>;
   private hasDirector() {
@@ -280,6 +291,7 @@ export class Repository {
     statements.push(...m.scores.map(s => this.db.prepare('INSERT INTO source_scores(id,movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via) VALUES(?,?,?,?,?,?,?,?,?,?)')
       .bind(crypto.randomUUID(),id,s.provider,s.metric,s.raw_value,s.raw_scale,s.normalized_value,s.vote_count,s.fetched_at,s.retrieved_via ?? 'tmdb')));
     await this.db.batch(statements);
+    if (m.enrichment) await this.cacheEnrichment(id,m.enrichment);
     return id;
   }
   async providerCooldown(provider: string, readOnly = false): Promise<number | null> {
@@ -357,6 +369,7 @@ export class Repository {
       if (/movie_external_ids/.test(String(error))) throw new ApiError(409,'IDENTITY_CONFLICT','External identity conflicts with a canonical film. Owner reconciliation is required.');
       throw error;
     }
+    if (m.enrichment) await this.cacheEnrichment(id,m.enrichment);
   }
   // Internal batch builder: callers must validate identity/ownership before executing.
   // Also used inside the local canonical-merge transaction, from the same details response.

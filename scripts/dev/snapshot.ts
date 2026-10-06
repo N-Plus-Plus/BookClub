@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { providerEnrichmentTables } from '../../shared/enrichment';
 
 export const sourceIdentity = {database_name: 'bookclub-prod', database_id: 'df848632-a192-4c64-9bfb-25c59d3aa631'};
 export const localId = '00000000-0000-0000-0000-000000000001';
@@ -16,6 +17,8 @@ const tables = (db: DatabaseSync) => db.prepare("SELECT name FROM sqlite_master 
 const columns = (db: DatabaseSync, table: string) => db.prepare(`PRAGMA table_info(${quote(table)})`).all().map(r => String(r.name));
 // Explicit pre-0010 compatibility only; every other source-only column fails closed.
 const retiredSessionColumns = ['title','notes','swap_note'];
+// Additive 0016 caches may be absent from an older authorised source export.
+const optionalEnrichmentTables: readonly string[]=providerEnrichmentTables;
 // Production maintenance receipts are outside the application migration ledger.
 // Create only these reviewed local schemas; never execute source CREATE SQL.
 export const maintenanceSchemas: Record<string, string> = {
@@ -72,7 +75,7 @@ export function copySnapshot(source: DatabaseSync, target: DatabaseSync) {
   const names = tables(source), destination = tables(target);
   const extra = names.filter(name => !destination.includes(name));
   const unknown = extra.filter(name => !Object.hasOwn(maintenanceSchemas,name));
-  const missing = destination.filter(name => !names.includes(name));
+  const missing = destination.filter(name => !names.includes(name) && !optionalEnrichmentTables.includes(name));
   if (unknown.length || missing.length) throw new SnapshotOperationError(`copySnapshot / schema comparison: Source tables differ from current migrations; unreviewed source tables: ${unknown.length}; missing destination tables: ${missing.join(', ') || 'none'}.`);
   const counts: Record<string, number> = {};
   const triggers = target.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger'").all();

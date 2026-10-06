@@ -3,6 +3,7 @@ export interface ProviderMovie {
   title: string; original_title: string | null; year: number | null; release_date: string | null;
   runtime: number | null; overview: string | null; director?: string | null; genres: string[];
   external_ids: ExternalId[]; assets: Asset[]; scores: Score[]; fetched_at: string;
+  enrichment?: import('../../../shared/enrichment').EnrichmentCapture;
 }
 export interface MovieSearchProvider { search(query: string): Promise<SearchResult[]> }
 export interface MovieMetadataProvider { details(id: string): Promise<ProviderMovie> }

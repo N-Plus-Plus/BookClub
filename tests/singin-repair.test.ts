@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { disposableD1 } from './d1';
 import { repairSql, survivor, duplicate } from '../scripts/dev/repair-singin';
+import { Repository } from '../worker/src/repository';
+import { parseTmdbEnrichment } from '../worker/src/providers/enrichment';
+import { tmdbEnrichmentFixture } from './enrichment-fixtures';
 let local:ReturnType<typeof disposableD1>;
 beforeEach(()=>{
   local=disposableD1();
@@ -40,6 +43,16 @@ it('atomically rejects raced Seen evidence without changing either movie',()=>{
   expect(()=>local.sqlite.exec(sql)).toThrow('raced');
   expect(local.sqlite.prepare('SELECT count(*) AS n FROM movies').get()?.n).toBe(2);
   expect(local.sqlite.prepare('SELECT * FROM movie_identity_operations').all()).toEqual([]);
+});
+it('archives and discards wrong-identity cache while preserving the survivor cache',async()=>{
+  const repo=new Repository(local.db);
+  await repo.cacheEnrichment(duplicate,parseTmdbEnrichment(tmdbEnrichmentFixture(1438810),'2026-10-07T00:00:00Z')!);
+  await repo.cacheEnrichment(survivor,parseTmdbEnrichment(tmdbEnrichmentFixture(872),'2026-10-06T00:00:00Z')!);
+  const cache=local.sqlite.prepare('SELECT * FROM movie_provider_enrichment_state WHERE movie_id=?').all(survivor);
+  local.sqlite.exec(repairSql(local.sqlite)!);
+  expect(local.sqlite.prepare('SELECT * FROM movie_provider_enrichment_state').all()).toEqual(cache);
+  expect(local.sqlite.prepare('SELECT * FROM movie_provider_credits').all()).toHaveLength(21);
+  const receipt=JSON.parse(String(local.sqlite.prepare('SELECT snapshot_json FROM movie_identity_merge_receipts').get()!.snapshot_json));expect(receipt.movie_provider_credits).toHaveLength(21);
 });
 it('fails closed for unfamiliar movie dependencies',()=>{
   local.sqlite.exec('CREATE TABLE unexpected(movie_id TEXT REFERENCES movies(id))');

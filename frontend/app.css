@@ -258,6 +258,7 @@ select.field__input { width: 100%; min-width: 0; }
 .session-meta .club-avatar { width: 36px; height: 36px; }
 textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .button-set > .button { min-width: var(--target-min); max-width: 100%; }
+.enrichment-maintenance .button { white-space: normal; }
 
 /* State feedback and readability; existing action fills and geometry are retained. */
 .button[data-intent="constructive"] { --button-text: #102016; }

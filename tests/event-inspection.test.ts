@@ -329,13 +329,15 @@ describe('URL-only Admin screen',() => {
     expect(button('Populate Missing Scores')).toBeUndefined();
     expect(container.textContent).not.toContain('Scores and OMDb metadata');
   });
-  it('renders both maintenance families only on Admin and keeps them out of navigation and member screens',async()=>{
+  it('renders all four maintenance sections only on Admin and keeps them out of navigation and member screens',async()=>{
     await asAdmin(); await navigate('admin');
     expect(container.querySelector('h1')?.textContent).toBe('Admin');
-    expect(container.querySelectorAll('main section.card h2')).toHaveLength(2);
+    expect(container.querySelectorAll('main section.card h2')).toHaveLength(4);
     for(const label of ['Populate Missing Scores','Refresh Scores','Enrich/Refresh Metadata','Fill missing metadata']) expect(button(label)).toBeTruthy();
     expect(container.textContent).toContain('Scores and OMDb metadata');
     expect(container.textContent).toContain('TMDB metadata and artwork');
+    expect(container.textContent).toContain('TMDB enrichment cache');
+    expect(container.textContent).toContain('MDBList enrichment cache');
     await click(container.querySelector<HTMLButtonElement>('.account-menu-trigger')!);
     expect(container.querySelector('.account-menu-dropdown')?.textContent).toBe('Logout');
     expect(container.querySelector('a[href="#/admin"]')).toBeNull();

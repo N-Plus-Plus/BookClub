@@ -1,12 +1,13 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
+import { providerEnrichmentTables } from '../../shared/enrichment';
 
 export const survivor = 'import-54c64501eb9c95218d8c8bbb';
 export const duplicate = 'import-6667f6a95ca5c9ae57a0bc6f';
 const operation = 'singin-in-the-rain-identity-repair-v1';
 const quote = (value: unknown): string => value === null ? 'NULL' : typeof value === 'number' ? String(value) : `'${String(value).replaceAll("'", "''")}'`;
 const identifier = (value: string) => `"${value.replaceAll('"', '""')}"`;
-const owned = ['movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies','movie_score_checks'];
+const owned: readonly string[] = ['movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies','movie_score_checks',...providerEnrichmentTables];
 
 /** Generate private, snapshot-guarded D1 SQL from a local/offline database. No provider calls. */
 export function repairSql(db: DatabaseSync): string | null {

@@ -2,6 +2,8 @@ import { z, ZodError } from 'zod';
 import { ApiError, allowedOrigins, authorizeMutation, localBypass, json, type Env } from './http';
 import { classicSchema, selectedMetadataSchema, maintenanceSchema, enrichmentSchema, idSchema, importSchema, movieSchema, seenSchema, sessionSchema } from './validation';
 import { ScoreService } from './score-service';
+import { EnrichmentService } from './enrichment-service';
+import { providerEnrichmentSchema } from './validation';
 import { Repository } from './repository';
 import { MovieService } from './services';
 import { authenticate, login, verifyGoogle, type GoogleVerifier } from './auth';
@@ -79,6 +81,11 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
     requireAdmin(auth.viewer);
     const input = maintenanceSchema.parse(await body(request));
     return json(await new ScoreService(repo,env).maintain(input.mode,input.movie_ids));
+  }
+  if (path === '/api/v1/movies/enrich-provider-selected' && method === 'POST') {
+    requireAdmin(auth.viewer);
+    const input=providerEnrichmentSchema.parse(await body(request));
+    return json(await new EnrichmentService(repo,env).maintain(input.provider,input.movie_ids));
   }
   if (path === '/api/v1/classics/enrich' && method === 'POST') {
     requireAdmin(auth.viewer);
