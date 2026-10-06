@@ -72,8 +72,9 @@ export class ScoreService {
     await this.repo.appendScores(movie.id,captured);
     if (refresh || missingOnly) {
       const freshMissing = this.needs({...movie,scores:[]},snapshots);
-      const checks = (eligible ?? [...requiredScores]).flatMap(key => {
+      const checks = [...requiredScores].flatMap(key => {
         if (!freshMissing.includes(key)) return [{key,available:true}];
+        if (eligible && !eligible.includes(key)) return [];
         // Every identity-applicable path must complete. Missing credentials and failures are inconclusive.
         const paths = ['mdblist',...(['imdb:rating','rottentomatoes:critic','metacritic:critic'].includes(key) && imdb ? ['omdb'] : []),...(key === 'tmdb:rating' && tmdb ? ['tmdb'] : [])];
         return paths.every(name => providers.some(p => p.provider === name && p.status === 'success')) ? [{key,available:false}] : [];

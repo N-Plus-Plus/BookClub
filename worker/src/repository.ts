@@ -155,7 +155,10 @@ export class Repository {
   async saveScoreChecks(id: string, checks: {key:string;available:boolean}[]) {
     if (!checks.length) return;
     const at = new Date().toISOString();
-    await this.db.batch(checks.map(check => this.db.prepare(`INSERT INTO movie_score_checks(movie_id,score_key,available,checked_at) VALUES(?,?,?,?) ON CONFLICT(movie_id,score_key) DO UPDATE SET available=excluded.available,checked_at=excluded.checked_at`).bind(id,check.key,Number(check.available),at)));
+    // Stored live scores are positive evidence; retain legacy positive rows untouched.
+    await this.db.batch(checks.map(check => check.available
+      ? this.db.prepare('DELETE FROM movie_score_checks WHERE movie_id=? AND score_key=? AND available=0').bind(id,check.key)
+      : this.db.prepare(`INSERT INTO movie_score_checks(movie_id,score_key,available,checked_at) VALUES(?,?,0,?) ON CONFLICT(movie_id,score_key) DO UPDATE SET available=0,checked_at=excluded.checked_at`).bind(id,check.key,at)));
   }
   async scoreMaintenanceStatus(): Promise<import('../../shared/types').ScoreMaintenanceStatus> {
     const rows = (await this.db.prepare(`WITH scope AS (

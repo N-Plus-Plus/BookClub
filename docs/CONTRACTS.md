@@ -16,7 +16,7 @@ Describe the current contract, not its historical evolution. Do not duplicate st
 
 ## Admin score maintenance status
 
-Authenticated admin-only `GET /api/v1/movies/maintenance-status` returns `candidateIds`, `eligibleDimensions`, `unavailableDimensions` and `unavailableFilms` for distinct Classics/active History films. Candidates have at least one missing usable live/API score without a conclusive negative check; the browser filters valid operation identities. Unavailable counts cover absent dimensions with negative observations, excluding stored usable live/API scores. Ordinary catalog, detail, auth and navigation payloads do not include score-check rows. Batch mutation responses remain bounded to the selected films.
+Authenticated admin-only `GET /api/v1/movies/maintenance-status` returns `candidateIds`, `eligibleDimensions`, `unavailableDimensions` and `unavailableFilms` for distinct Classics/active History films. Candidates have at least one missing usable live/API score without a conclusive negative check; the browser filters valid operation identities. Unavailable counts cover absent dimensions with negative observations, excluding stored usable live/API scores. Ordinary catalog, detail, auth and navigation payloads do not include score-check rows. Batch mutation responses remain bounded to the selected films. Positive availability is established only by usable live/API snapshots; legacy positive check rows are inert. Successful fresh captures clear matching negative observations, confirmed absence updates them, and inconclusive attempts preserve them. No API payload changes are required for negative-only persistence.
 
 ## Scope and contract index
 

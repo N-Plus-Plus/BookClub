@@ -200,6 +200,8 @@ If pending migrations only add schema or otherwise remain compatible with the cu
 3. verify schema;
 4. deploy Worker.
 
+Migration `0015_drop_redundant_score_index.sql` removes only the explicit score lookup index; the UNIQUE identity index covers current queries. It rewrites/deletes no source rows or constraints. Both old and new Workers operate before or after this migration, so schema-first is safe. Negative-only score-check persistence uses the existing 0013 table and tolerates legacy positives; it requires an API Worker deployment but no frontend deployment or positive-row cleanup. Both the schema migration and API deployment are needed for the complete write reduction. Other pending migrations retain their own compatibility gates.
+
 ### Destructive or compatibility-sensitive migrations
 
 If a migration drops, renames, constrains, or materially changes schema used by either the old or new Worker, do not blindly apply migrations first or deploy the Worker first.

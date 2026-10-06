@@ -43,3 +43,29 @@ it('0013 adds constrained score observations without changing movies and cascade
  local.sqlite.exec("DELETE FROM movies WHERE id='check'");expect(local.sqlite.prepare('SELECT * FROM movie_score_checks').all()).toEqual([]);
  }finally{local.sqlite.close();}
 });
+
+it('0015 drops only the redundant index, preserving snapshots and all unique identities',async()=>{
+ const local=disposableD1('0014_session_movie_lookup.sql');try {
+ local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));
+ const schema=()=>local.sqlite.prepare("SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name").all();
+ const beforeSchema=schema(),before=local.sqlite.prepare('SELECT * FROM source_scores ORDER BY id').all();
+ const migration=readFileSync('worker/migrations/0015_drop_redundant_score_index.sql','utf8');
+ local.sqlite.exec(migration);
+ expect(schema()).toEqual(beforeSchema.filter(r=>r.name!=='scores_by_movie'));
+ expect(local.sqlite.prepare('SELECT * FROM source_scores ORDER BY id').all()).toEqual(before);
+ local.sqlite.exec(migration); // Harmless replay; the normal ledger applies it only once.
+ expect(local.sqlite.prepare('PRAGMA index_list(source_scores)').all().map(r=>r.name).sort()).toEqual(['sqlite_autoindex_source_scores_1','sqlite_autoindex_source_scores_2','sqlite_autoindex_source_scores_3']);
+ const insert=local.sqlite.prepare(`INSERT INTO source_scores(id,movie_id,provider,metric,raw_value,raw_scale,fetched_at,retrieved_via,source_ref,import_source,import_key) VALUES(?,'arrival','imdb','rating',8,10,'2026-10-06','mdblist',?,?,?)`);
+ insert.run('identity-a','ref-a','fixture','a');
+ expect(()=>insert.run('identity-b','ref-a','fixture','b')).toThrow('UNIQUE');
+ insert.run('identity-c','ref-b','fixture','c');
+ expect(()=>insert.run('identity-d','ref-c','fixture','a')).toThrow('UNIQUE');
+ expect(()=>insert.run('identity-a','ref-d','fixture','d')).toThrow('UNIQUE');
+ const {Repository}=await import('../worker/src/repository');const repo=new Repository(local.db);
+ const score={provider:'tmdb',metric:'rating',raw_value:8,raw_scale:10,normalized_value:80,vote_count:null,fetched_at:'2026-10-06',retrieved_via:'tmdb'};
+ await repo.appendScores('arrival',[score,score]);await repo.appendScores('arrival',[score]);
+ expect(local.sqlite.prepare("SELECT count(*) n FROM source_scores WHERE movie_id='arrival' AND provider='tmdb' AND fetched_at='2026-10-06'").get()?.n).toBe(1);
+ expect(local.sqlite.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+ }finally{local.sqlite.close();}
+ const fresh=disposableD1();try{expect(fresh.sqlite.prepare("SELECT name FROM sqlite_schema WHERE name='scores_by_movie'").all()).toEqual([]);}finally{fresh.sqlite.close();}
+});

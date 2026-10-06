@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import worker from '../worker/src/index';
 import { disposableD1 } from './d1';
 import { Repository } from '../worker/src/repository';
+import { ScoreService } from '../worker/src/score-service';
 import type { Env } from '../worker/src/http';
 import { maintainScores } from '../frontend/score-maintenance';
 import type { ScoreMaintenance } from '../shared/types';
@@ -20,6 +21,18 @@ const add = async (id: string, provider='imdb') => {
  const repo=new Repository(local.db); const film=await repo.manualMovie({title:id}); await repo.setClassic(film,true);
  local.sqlite.prepare('INSERT INTO movie_external_ids VALUES(?,?,?)').run(film,provider,provider==='imdb'?id:'123'); return film;
 };
+it('does not clear a negative observation when a found snapshot fails to persist',async()=>{
+ const film=await add('tt0000993'),repo=new Repository(local.db);
+ await repo.saveScoreChecks(film,[{key:'imdb:rating',available:false}]);
+ const before=local.sqlite.prepare('SELECT * FROM movie_score_checks WHERE movie_id=?').all(film);
+ vi.stubGlobal('fetch',vi.fn(async()=>Response.json({ids:{imdb:'tt0000993'},ratings})));
+ vi.spyOn(repo,'appendScores').mockRejectedValueOnce(new Error('Snapshot write failed'));
+ const saveChecks=vi.spyOn(repo,'saveScoreChecks');
+ await expect(new ScoreService(repo,env).refresh(film)).rejects.toThrow('Snapshot write failed');
+ expect(saveChecks).not.toHaveBeenCalled();
+ expect(local.sqlite.prepare('SELECT * FROM movie_score_checks WHERE movie_id=?').all(film)).toEqual(before);
+ expect(local.sqlite.prepare('SELECT * FROM source_scores WHERE movie_id=?').all(film)).toEqual([]);
+});
 it('guards all modes as admin only and rejects bounds or films outside Classics/History before provider calls',async() => {
  const fetch=vi.fn();vi.stubGlobal('fetch',fetch);
  for (const mode of ['missing','refresh','metadata']) expect((await call(mode,['arrival'],'member-2')).status).toBe(403);
@@ -44,6 +57,49 @@ it('populates all returned MDBList inputs and does not fetch films merely missin
  const result=await data(await call('missing',[film]));expect(result.results[0].movie.scores.filter(s=>s.provider==='imdb')).toHaveLength(2);
  expect(result.results[0].movie.ranking?.rankable).toBe(false);
  expect((await data(await call('missing',[film]))).results).toHaveLength(0);expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it('six newly available dimensions append provenance without positive check writes',async()=>{
+ const film=await add('tt0000990'),repo=new Repository(local.db),queries:string[]=[];
+ const prepare=local.db.prepare.bind(local.db);vi.spyOn(local.db,'prepare').mockImplementation(sql=>{queries.push(sql);return prepare(sql);});
+ vi.stubGlobal('fetch',vi.fn(async()=>Response.json([{ids:{imdb:'tt0000990'},ratings}])));
+ const result=await data(await call('missing',[film]));
+ expect(result.results[0].movie.scores).toHaveLength(6);
+ expect(result.results[0].movie.scores.every(s=>s.retrieved_via==='mdblist' && s.source_ref==='')).toBe(true);
+ expect(await repo.scoreChecks([film])).toEqual([]);
+ expect(queries.filter(q=>q.startsWith('INSERT')&&q.includes('source_scores'))).toHaveLength(6);
+ expect(queries.filter(q=>q.startsWith('INSERT')&&q.includes('movie_score_checks'))).toEqual([]);
+ expect(queries.filter(q=>q.startsWith('DELETE FROM movie_score_checks'))).toHaveLength(6);
+});
+
+it('failed Refresh preserves negative observations and confirmed absence updates their timestamp',async()=>{
+ const film=await add('tt0000991'),repo=new Repository(local.db);
+ await repo.saveScoreChecks(film,[{key:'imdb:rating',available:false}]);
+ local.sqlite.prepare("UPDATE movie_score_checks SET checked_at='2000-01-01' WHERE movie_id=?").run(film);
+ const before=local.sqlite.prepare('SELECT * FROM movie_score_checks WHERE movie_id=?').all(film);
+ const fetch=vi.fn(async(_url:string)=>new Response(null,{status:503}));vi.stubGlobal('fetch',fetch);
+ await data(await call('refresh',[film]));
+ expect(local.sqlite.prepare('SELECT * FROM movie_score_checks WHERE movie_id=?').all(film)).toEqual(before);
+ fetch.mockImplementation(async(url:string)=>url.includes('mdblist') ? Response.json([{ids:{imdb:'tt0000991'},ratings:[]}]) : Response.json({Response:'True',Ratings:[]}));
+ await data(await call('refresh',[film]));
+ const updated=local.sqlite.prepare("SELECT * FROM movie_score_checks WHERE movie_id=? AND score_key='imdb:rating'").get(film);
+ expect(updated).toMatchObject({available:0});expect(updated?.checked_at).not.toBe('2000-01-01');
+});
+
+it('legacy positives are inert, status uses live evidence, and Populate clears incidental negative dimensions',async()=>{
+ const film=await add('tt0000992'),repo=new Repository(local.db),baseline=await repo.scoreMaintenanceStatus();
+ local.sqlite.prepare("INSERT INTO movie_score_checks VALUES(?,'imdb:rating',1,'2000-01-01')").run(film);
+ expect(await repo.scoreMaintenanceStatus()).toEqual(baseline);
+ await repo.saveScoreChecks(film,[{key:'letterboxd:rating',available:false}]);
+ expect(await repo.scoreMaintenanceStatus()).toEqual({...baseline,eligibleDimensions:baseline.eligibleDimensions-1,unavailableDimensions:baseline.unavailableDimensions+1,unavailableFilms:baseline.unavailableFilms+1});
+ await repo.appendScores(film,[{provider:'letterboxd',metric:'rating',raw_value:4,raw_scale:5,normalized_value:80,vote_count:null,fetched_at:'2026-01-01',retrieved_via:'mdblist'}]);
+ expect(await repo.scoreMaintenanceStatus()).toEqual({...baseline,eligibleDimensions:baseline.eligibleDimensions-1});
+ vi.stubGlobal('fetch',vi.fn(async()=>Response.json([{ids:{imdb:'tt0000992'},ratings}])));
+ const result=await data(await call('missing',[film]));expect(result.results).toHaveLength(1);
+ expect(await repo.scoreChecks([film])).toEqual([{movie_id:film,score_key:'imdb:rating',available:1}]);
+ expect(local.sqlite.prepare("SELECT checked_at FROM movie_score_checks WHERE movie_id=?").get(film)?.checked_at).toBe('2000-01-01');
+ expect((await repo.scoreMaintenanceStatus()).candidateIds).not.toContain(film);
+ expect(result.results[0].movie.ranking?.sources).toHaveLength(6);
 });
 it('refreshes OMDb fallback despite old scores, reuses metadata without extra calls, and preserves unavailable fields',async()=>{
  const film=await add('tt0000003'),repo=new Repository(local.db);env.MDBLIST_API_KEY=undefined;
@@ -186,7 +242,7 @@ it('persists conclusive absence, skips Populate, and reconsiders it on Refresh w
  await data(await call('refresh',[film]));expect(fetch).toHaveBeenCalledTimes(4);
  fetch.mockImplementation(async(url:string)=>url.includes('mdblist') ? Response.json([{ids:{imdb:'tt0000901'},ratings:[{source:'imdb',value:8}]}]) : Response.json({Response:'True',Ratings:[]}));
  const result=await data(await call('refresh',[film]));
- expect((await repo.scoreChecks([film])).find(c=>c.score_key==='imdb:rating')?.available).toBe(1);
+ expect((await repo.scoreChecks([film])).find(c=>c.score_key==='imdb:rating')).toBeUndefined();
  expect(result.results[0].movie.ranking?.sources).toHaveLength(1);
  expect(local.sqlite.prepare('SELECT count(*) n FROM source_scores WHERE movie_id=?').get(film)?.n).toBe(1);
  const catalog=await repo.catalog();expect(JSON.stringify(catalog)).not.toContain('score_key');

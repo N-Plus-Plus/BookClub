@@ -8,6 +8,8 @@ import { hydrateCatalog } from '../shared/catalog';
 import { metadataCandidate, metadataGaps, tmdbIdentity } from '../shared/metadata';
 import { metadataSql, metadataPrioritySql } from '../worker/src/metadata-sql';
 import { ScoreService } from '../worker/src/score-service';
+import { effectiveScoreSql } from '../worker/src/score-sql';
+import type { SQLInputValue } from 'node:sqlite';
 import worker from '../worker/src/index';
 import type { Env } from '../worker/src/http';
 import type { Movie, Score, Session } from '../shared/types';
@@ -154,4 +156,30 @@ it('Session response queries constrain all film data to that lineup and never re
  const filmQueries=queries.filter(q=>q.startsWith('SELECT') && /FROM (movies|movie_assets|movie_external_ids|source_scores|seen_states|classics|movie_genres)\b/.test(q));
  expect(filmQueries).toHaveLength(7);expect(filmQueries.every(q=>q.includes('s.id=?'))).toBe(true);
  expect(queries.some(q=>q.includes('FROM cycles')||q.includes('s.host_member_id,sm.position'))).toBe(false);
+});
+
+it('0015 retains score lookup plans, effective ranking, hydration and maintenance results',async()=>{
+ const previous=disposableD1('0014_session_movie_lookup.sql');try {
+ previous.sqlite.exec(readFileSync('worker/seed.sql','utf8'));
+ const queries:{sql:string;values:SQLInputValue[]}[]=[],prepare=previous.db.prepare.bind(previous.db);
+ vi.spyOn(previous.db,'prepare').mockImplementation(sql=>{
+  const record={sql,values:[] as SQLInputValue[]};if(sql.includes('source_scores'))queries.push(record);
+  const statement=prepare(sql);
+  return {...statement,bind:(...values:SQLInputValue[])=>{record.values=values;return statement.bind(...values);}} as D1PreparedStatement;
+ });
+ const repo=new Repository(previous.db);
+ const read=async()=>[await repo.catalog(),await repo.compactCatalog(),await repo.movies(),await repo.movies(true),await repo.movieDetails(['arrival','moon']),await repo.session('demo-1'),await repo.scoreMaintenanceStatus(),await repo.enrichmentCandidates(2)];
+ const before=await read();
+ queries.push({sql:effectiveScoreSql("AND ss.movie_id IN (?)"),values:['arrival']},
+  {sql:'SELECT * FROM source_scores WHERE movie_id=? AND provider=? AND metric=? AND retrieved_via=? ORDER BY fetched_at DESC',values:['arrival','imdb','rating','mdblist']});
+ const plans=()=>queries.map(q=>previous.sqlite.prepare('EXPLAIN QUERY PLAN '+q.sql).all(...q.values).map(r=>String(r.detail)).join('\n'));
+ const oldPlans=plans();expect(oldPlans.some(p=>p.includes('USING INDEX scores_by_movie'))).toBe(true);
+ previous.sqlite.exec(readFileSync('worker/migrations/0015_drop_redundant_score_index.sql','utf8'));
+ const newPlans=plans();
+ expect(newPlans).toEqual(oldPlans.map(p=>p.replaceAll('scores_by_movie','sqlite_autoindex_source_scores_2')));
+ expect(newPlans.at(-1)).toContain('SEARCH source_scores USING INDEX sqlite_autoindex_source_scores_2 (movie_id=? AND provider=? AND metric=? AND retrieved_via=?)');
+ expect(newPlans.at(-2)).toContain('SEARCH live USING INDEX sqlite_autoindex_source_scores_2 (movie_id=? AND provider=? AND metric=?)');
+ expect(newPlans.at(-2)).toContain('SEARCH ss USING INDEX sqlite_autoindex_source_scores_2 (movie_id=?)');
+ expect(await read()).toEqual(before);
+ }finally{previous.sqlite.close();}
 });
