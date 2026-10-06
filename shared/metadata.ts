@@ -13,7 +13,7 @@ export function tmdbIdentity(movie: MetadataIdentity) {
   return id && /^[1-9]\d{0,9}$/.test(id) ? id : undefined;
 }
 export function metadataCandidate(movie: MetadataEligibility) {
-  return Boolean(tmdbIdentity(movie)) && (!movie.director?.trim() || tmdbMetadataIsStale(movie.tmdb_metadata_checked_at)
+  return Boolean(tmdbIdentity(movie)) && (tmdbMetadataIsStale(movie.tmdb_metadata_checked_at)
     || (!movie.tmdb_artwork_checked_at && ['poster','backdrop'].some(type =>
       !movie.assets.some(a => a.provider === 'tmdb' && a.asset_type === type))));
 }

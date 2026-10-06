@@ -199,7 +199,25 @@ describe('bounded existing-film metadata enrichment',()=>{
   });
 });
 
-it('missing director stays eligible after a recent complete metadata check',async()=>{ local.sqlite.prepare("UPDATE movies SET tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=? WHERE id='arrival'").run(new Date().toISOString(),new Date().toISOString()); expect((await repo.metadataCandidates(10)).map(m=>m.id)).toContain('arrival'); vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(details()))); await service.enrichMetadata(10); expect((await service.detail('arrival')).director).toBe('Fictional Director'); expect((await repo.metadataCandidates(10)).map(m=>m.id)).not.toContain('arrival'); });
+it.each([null,'',' '])('recent successful checks do not loop for absent director %j',async director=>{
+  const fresh=new Date().toISOString();
+  local.sqlite.prepare("UPDATE movies SET director=?,tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=? WHERE id='arrival'").run(director,fresh,fresh);
+  const movie=(await repo.catalog()).movies.find(m=>m.id==='arrival')!;
+  expect(metadataCandidate(movie)).toBe(false);expect(metadataQueue([movie])).toEqual([]);
+  expect((await repo.metadataCandidates(10)).map(m=>m.id)).not.toContain('arrival');
+  expect(await repo.metadataCounts()).toMatchObject({remaining:0});
+  const fetch=vi.fn();vi.stubGlobal('fetch',fetch);
+  expect(await service.enrichMetadataSelected(['arrival'])).toMatchObject({results:[{status:'skipped'}]});
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it('successful details with no director complete both checks',async()=>{
+  const fetch=vi.fn().mockResolvedValue(Response.json({...details(),credits:{crew:[]},poster_path:null,backdrop_path:null}));vi.stubGlobal('fetch',fetch);
+  await service.enrichMetadataSelected(['arrival']);
+  expect((await service.detail('arrival')).director).toBeNull();
+  expect(await service.enrichMetadataSelected(['arrival'])).toMatchObject({results:[{status:'skipped'}]});
+  expect(await repo.metadataCounts()).toMatchObject({remaining:0});expect(fetch).toHaveBeenCalledOnce();
+});
 
 describe('selected-ID metadata maintenance',()=>{
   const selected=(movie_ids:unknown)=>worker.fetch(new Request('http://api/api/v1/movies/enrich-metadata-selected',{method:'POST',headers:{Authorization:`Bearer ${token}`},body:JSON.stringify({movie_ids})}),env);
@@ -239,12 +257,11 @@ describe('selected-ID metadata maintenance',()=>{
     const fetch=vi.fn();vi.stubGlobal('fetch',fetch);
     expect(await service.enrichMetadataSelected(['arrival','arrival'])).toMatchObject({results:[{movieId:'arrival',status:'skipped'}]});expect(fetch).not.toHaveBeenCalled();
   });
-  it.each(['unchecked','stale','director','artwork'])('retains %s eligibility',async rule=>{
+  it.each(['unchecked','stale','artwork'])('retains %s eligibility',async rule=>{
     const fresh=new Date().toISOString();
-    local.sqlite.prepare("UPDATE movies SET director='Director',tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=? WHERE id='arrival'").run(fresh,fresh);
+    local.sqlite.prepare("UPDATE movies SET director=NULL,tmdb_metadata_checked_at=?,tmdb_artwork_checked_at=? WHERE id='arrival'").run(fresh,fresh);
     if(rule==='unchecked') local.sqlite.exec("UPDATE movies SET tmdb_metadata_checked_at=NULL WHERE id='arrival'");
     if(rule==='stale') local.sqlite.exec("UPDATE movies SET tmdb_metadata_checked_at='2000-01-01' WHERE id='arrival'");
-    if(rule==='director') local.sqlite.exec("UPDATE movies SET director=' ' WHERE id='arrival'");
     if(rule==='artwork') local.sqlite.exec("UPDATE movies SET tmdb_artwork_checked_at=NULL WHERE id='arrival'; DELETE FROM movie_assets WHERE movie_id='arrival'");
     const fetch=vi.fn().mockResolvedValue(Response.json(details()));vi.stubGlobal('fetch',fetch);
     expect(await service.enrichMetadataSelected(['arrival'])).toMatchObject({results:[{status:'success'}]});expect(fetch).toHaveBeenCalledOnce();

@@ -14,8 +14,7 @@ export function metadataSql(director:boolean, priority:boolean) {
     FROM movies m LEFT JOIN movie_external_ids e ON e.movie_id=m.id AND e.provider='tmdb'
     LEFT JOIN artwork a ON a.movie_id=m.id ${priority ? 'LEFT JOIN genres g ON g.movie_id=m.id' : ''}),
   eligible AS (SELECT *,coalesce((${validTmdbSql('tmdb_id')}),0) AS identified,
-    (metadata_director IS NULL OR trim(metadata_director,char(9)||char(10)||char(11)||char(12)||char(13)||char(32)||char(160)||char(5760)||char(8192)||char(8193)||char(8194)||char(8195)||char(8196)||char(8197)||char(8198)||char(8199)||char(8200)||char(8201)||char(8202)||char(8232)||char(8233)||char(8239)||char(8287)||char(12288)||char(65279))=''
-    OR tmdb_metadata_checked_at IS NULL OR tmdb_metadata_checked_at=''
+    (tmdb_metadata_checked_at IS NULL OR tmdb_metadata_checked_at=''
     OR julianday(tmdb_metadata_checked_at)<=julianday(?)-${TMDB_METADATA_REFRESH_DAYS}
     OR ((tmdb_artwork_checked_at IS NULL OR tmdb_artwork_checked_at='') AND (poster=0 OR backdrop=0))) AS candidate
     FROM metadata)`;

@@ -62,15 +62,15 @@ export function SessionCard({session,members,actions,dateHeading,variant}: {sess
 }
 // Classics keeps compact labels and presentation order independent of other views.
 const classicsRatings = [
-  ['imdb','rating','IMDb'], ['letterboxd','rating','L.boxd'], ['metacritic','critic','M.critic'],
-  ['rottentomatoes','audience','RT Aud.'], ['rottentomatoes','critic','RT Critic'], ['tmdb','rating','TMDB'],
+  ['imdb','rating','IMDb','IMDb Rating'], ['letterboxd','rating','LB','Letterboxd Rating'], ['metacritic','critic','MC','Metacritic Critic Score'],
+  ['rottentomatoes','audience','RT-A','Rotten Tomatoes Audience Score'], ['rottentomatoes','critic','RT-C','Rotten Tomatoes Critic Score'], ['tmdb','rating','TMDB','TMDB Rating'],
 ] as const;
 export function RankingScore({movie,compact = false,variant}: {movie: Movie; compact?: boolean; variant?: 'home' | 'classics'}) {
   const r = movie.ranking!;
-  const scoreLine = variant === 'classics' ? classicsRatings.flatMap(([provider,metric,label]) => {
+  const scoreLine = variant === 'classics' ? classicsRatings.flatMap(([provider,metric,label,description]) => {
     const source = r.sources.find(s => s.provider === provider && s.metric === metric);
-    return source ? [`${label} ${formatScore100(source.value)}`] : [];
-  }).join(' · ') : r.sources.map(s => `${ratingLabel(s.provider,s.metric)} ${formatScore100(s.value)}`).join(' · ');
+    return source ? [<span key={`${provider}:${metric}`} title={description} aria-label={`${description}: ${formatScore100(source.value)}`}>{label} {formatScore100(source.value)}</span>] : [];
+  }) : r.sources.map(s => `${ratingLabel(s.provider,s.metric)} ${formatScore100(s.value)}`).join(' · ');
   return <div className="stack ranking-score">{!variant && <div className="rank-top">
     <span className="badge" data-intent={r.eligible ? 'constructive' : 'destructive'}>{!r.eligible ? 'Disqualified' : r.rankable ? 'Ranked' : 'Needs Data'}</span>
     <strong className="score numeric">{r.finalScore?.toFixed(2) ?? '—'}<small>residual score</small></strong></div>}

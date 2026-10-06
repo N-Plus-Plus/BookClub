@@ -83,9 +83,20 @@ it('uses exact ordered compact Classics scores, omits missing ratings and explan
  const inputs=[...extra,...scores];const movie={...film(1),scores:inputs,ranking:rankMovie(inputs,film(1).seen,members)};
  const render=async(m:Movie)=>act(async()=>root.render(createElement(ClassicsScreen,{movies:[m],viewer:null,writesEnabled:false,onMovie:vi.fn()})));
  await render(movie);
- expect(container.querySelector('.ranking-source-scores')?.textContent).toBe('IMDb 80 · L.boxd 82 · M.critic 81.5 · RT Aud. 90 · RT Critic 85 · TMDB 70');
+ const items=()=>[...container.querySelectorAll('.ranking-source-scores > span')];
+ expect(items().map(item=>item.textContent)).toEqual(['IMDb 80','LB 82','MC 81.5','RT-A 90','RT-C 85','TMDB 70']);
+ expect(items().map(item=>item.getAttribute('title'))).toEqual(['IMDb Rating','Letterboxd Rating','Metacritic Critic Score','Rotten Tomatoes Audience Score','Rotten Tomatoes Critic Score','TMDB Rating']);
+ for(const item of items()) expect(item.getAttribute('aria-label')).toBe(`${item.getAttribute('title')}: ${item.textContent?.split(' ').at(-1)}`);
+ expect(container.querySelector('.ranking-source-scores')?.textContent).not.toContain('·');
+ const style=document.createElement('style');style.textContent=readFileSync('frontend/app.css','utf8');document.head.appendChild(style);
+ try {
+  const row=getComputedStyle(container.querySelector('.ranking-source-scores')!);
+  expect([row.display,row.width,row.flexWrap,row.justifyContent,row.alignItems]).toEqual(['flex','100%','nowrap','space-between','baseline']);
+  for(const item of items()) {const css=getComputedStyle(item);expect(css.whiteSpace).toBe('nowrap');expect(css.flex).toBe('0 0 auto');}
+ } finally {style.remove();}
  await render(film(1));
- expect(container.querySelector('.ranking-source-scores')?.textContent).toBe('IMDb 80 · RT Aud. 90 · RT Critic 85');
+ expect(items().map(item=>item.textContent)).toEqual(['IMDb 80','RT-A 90','RT-C 85']);
+ await render(film(1,'missing'));expect(items()).toHaveLength(0);
  expect(container.textContent).not.toContain('Missing:');expect(container.textContent).not.toContain('using available-score average');
  expect(container.textContent).not.toContain('Watch Order uses six ratings');
  expect(container.querySelector('.developer-tools')).toBeNull();

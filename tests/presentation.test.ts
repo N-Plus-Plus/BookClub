@@ -122,7 +122,7 @@ it('compact ranking shows all six genuine labels and never presents imputation a
  const extra=[['letterboxd','rating',4,5],['metacritic','critic',80,100],['tmdb','rating',8,10]].map(([provider,metric,value,scale])=>({provider:String(provider),metric:String(metric),raw_value:Number(value),raw_scale:Number(scale),normalized_value:null,vote_count:null,fetched_at:'2026-01-01'}));
  const film={...movie,scores:[...movie.scores,...extra]};film.ranking=rankMovie(film.scores,[],members);
  const result=text(renderToStaticMarkup(createElement(RankingScore,{movie:film,variant:'classics',compact:true})));
- for(const label of ['IMDb 87','RT Aud. 87.5','RT Critic 87.3','L.boxd 80','M.critic 80','TMDB 80'])expect(result).toContain(label);
+ for(const label of ['IMDb 87','RT-A 87.5','RT-C 87.3','LB 80','MC 80','TMDB 80'])expect(result).toContain(label);
  expect(result).not.toMatch(/residual score|Score breakdown/);
  const partial={...movie,scores:movie.scores.slice(0,1),ranking:rankMovie(movie.scores.slice(0,1),[],members)};
  const element=document.createElement('div');element.innerHTML=renderToStaticMarkup(createElement(RankingScore,{movie:partial,variant:'classics',compact:true}));
@@ -189,4 +189,15 @@ it('applies a single row of full-width controls beside a flexible History text c
     expect(getComputedStyle(element.querySelector('.history-event-heading')!).minWidth).toBe('0');
     expect(getComputedStyle(element.querySelector('.eyebrow')!).whiteSpace).toBe('normal');
   } finally {stylesheet.remove();element.remove();}
+});
+
+it('keeps the Google render target transparent without changing its sizing',()=>{
+ const style=document.createElement('style');style.textContent=readFileSync('frontend/app.css','utf8');document.head.appendChild(style);
+ const wrapper=document.createElement('div');wrapper.className='google-sign-in';
+ const injected=document.createElement('iframe');injected.style.width='320px';wrapper.appendChild(injected);document.body.appendChild(wrapper);
+ try {
+  const css=getComputedStyle(wrapper);
+  expect(css.backgroundColor).toBe('rgba(0, 0, 0, 0)');expect(css.borderTopWidth).toBe('0px');expect(css.padding).toBe('0px');
+  expect(css.width).toBe('100%');expect(css.maxWidth).toBe('100%');expect(injected.style.width).toBe('320px');
+ } finally {wrapper.remove();style.remove();}
 });
