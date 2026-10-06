@@ -91,7 +91,7 @@ it('uses exact ordered compact Classics scores, omits missing ratings and explan
  const style=document.createElement('style');style.textContent=readFileSync('frontend/app.css','utf8');document.head.appendChild(style);
  try {
   const row=getComputedStyle(container.querySelector('.ranking-source-scores')!);
-  expect([row.display,row.width,row.flexWrap,row.justifyContent,row.alignItems]).toEqual(['flex','100%','nowrap','space-between','baseline']);
+  expect([row.display,row.width,row.flexWrap,row.justifyContent,row.alignItems]).toEqual(['flex','100%','wrap','space-between','baseline']);
   for(const item of items()) {const css=getComputedStyle(item);expect(css.whiteSpace).toBe('nowrap');expect(css.flex).toBe('0 0 auto');}
  } finally {style.remove();}
  await render(film(1));

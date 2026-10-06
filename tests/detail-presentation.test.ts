@@ -106,7 +106,9 @@ it('scopes responsive full-width overview and fit-content status to Detail and r
   expect(css).toContain('.detail-identity { display: grid; grid-template-columns: auto minmax(0,1fr); }');
   expect(css).toMatch(/\.detail-identity \.detail-overview \{ grid-column: 1 \/ -1;.*font-weight: 300;.*line-height: 1.6;/);
   expect(css).toMatch(/\.detail-classics-status \{ grid-column: 1 \/ -1; width: fit-content;/);
-  expect(css).toContain('.detail-seen-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }');
+  expect(css).toContain('.detail-seen-summary { display: flex; }');
+  expect(css).toContain('.detail-seen-column h3 { white-space: nowrap; }');
+  expect(css).toContain('.detail-seen-column { flex: 1 1 max-content; min-width: min-content; padding-inline: var(--space-12); }');
   expect(css).toContain('.detail-seen-column-yes { text-align: right; padding-right: 0; }');
   expect(css).toContain('.detail-seen-column-yes .detail-seen-members { justify-content: flex-end; }');
 });

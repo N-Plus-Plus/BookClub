@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
-import { createElement } from 'react';
+import { act, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { expect, it } from 'vitest';
-import { SourceScores } from '../frontend/components';
+import { expect, it, vi } from 'vitest';
+import { RankingCard, SourceScores } from '../frontend/components';
+import { createRoot } from 'react-dom/client';
+import { ClassicsScreen } from '../frontend/ClassicsScreen';
+import { DetailScreen } from '../frontend/DetailScreen';
+import { api } from '../frontend/api';
+import type { MovieDetail } from '../shared/types';
 import { parseMdbList } from '../worker/src/providers/mdblist';
 import { rankMovie } from '../shared/ranking';
 const ratings=[{source:'imdb',value:9},{source:'letterboxd',value:9.2},{source:'metacritic',value:97},{source:'popcorn',value:97},{source:'tomatoes',value:100},{source:'tmdb',value:85}];
@@ -43,4 +48,47 @@ it('keeps intrinsic columns and readable typography with graceful wrapping',()=>
  const row=getComputedStyle(node.firstElementChild!);expect([row.display,row.flexWrap,row.justifyContent]).toEqual(['flex','wrap','space-between']);
  for(const item of node.firstElementChild!.children){const css=getComputedStyle(item);expect([css.flex,css.display,css.flexDirection,css.alignItems]).toEqual(['0 0 auto','flex','column','center']);}
  }finally{node.remove();style.remove();}
+});
+
+vi.mock('../frontend/api',()=>({api:{detail:vi.fn()}}));
+it.each([5,6,7,9])('Home, Classics and Detail share genuine-only presentation with %s scores',async count=>{
+ const inputs=count===5?ratings.filter(r=>r.source!=='letterboxd'):[...ratings,...optional.slice(0,count-6)];
+ const scores=parseMdbList({ratings:inputs},'2026-10-06','batch');
+ const members=[{id:'m1',display_name:'Member',active:1,sort_order:1}];
+ const seen=[{member_id:'m1',seen:0,updated_at:''}];
+ const ranking=rankMovie(scores,seen,members),before=structuredClone(ranking);
+ const movie:MovieDetail={id:'shared-'+count,title:'Shared scores',year:2000,runtime:100,original_title:null,release_date:null,director:null,genres:[],overview:'Overview',assets:[],external_ids:[],classic:true,scores,seen,ranking,appearances:[]};
+ const expected=renderToStaticMarkup(createElement(SourceScores,{scores,ranking}));
+ const node=document.createElement('div');
+ for(const element of [createElement(RankingCard,{movie,variant:'home',rank:1}),createElement(ClassicsScreen,{movies:[movie],viewer:null,writesEnabled:false,onMovie:vi.fn()})]){
+  node.innerHTML=renderToStaticMarkup(element);
+  expect(node.querySelector('.ranking-source-scores')?.outerHTML).toBe(expected);
+  expect(node.querySelectorAll('.ranking-source-scores > span')).toHaveLength(count);
+  expect(node.textContent).not.toMatch(/Missing:|using available-score average|imput|residual|Score breakdown/);
+ }
+ Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
+ const root=createRoot(node);vi.mocked(api.detail).mockResolvedValue(movie);
+ try{
+  await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members})));
+  const row=node.querySelector('.ranking-source-scores')!;
+  expect(row.outerHTML).toBe(expected);
+  expect(row.classList.contains('ranking-source-scores-stacked')).toBe(count>6);
+  expect(row.nextElementSibling?.className).toBe('detail-overview');
+  expect(row.textContent).not.toMatch(/Missing|average|imput/);
+  expect(node.querySelector('.detail-score-breakdown')).toBeTruthy();
+  if(count===5){
+   expect(ranking.imputedScores).toHaveLength(1);
+   expect(row.textContent).not.toContain('LB');
+   expect(node.querySelector('.detail-rating-summary')?.textContent).toContain('Letterboxd Rating: - (average used)');
+   expect(node.querySelector('.detail-score-breakdown')?.textContent).toContain('Letterboxd (missing)');
+  }
+ }finally{await act(async()=>root.unmount());}
+ expect(ranking).toEqual(before);
+});
+
+it('keeps inline pairs together but allows the shared row to wrap on narrow screens',()=>{
+ const style=document.createElement('style');style.textContent=readFileSync('frontend/app.css','utf8');document.head.appendChild(style);
+ const {node}=render(6);document.body.appendChild(node);
+ try{expect(getComputedStyle(node.firstElementChild!).flexWrap).toBe('wrap');for(const item of node.firstElementChild!.children)expect(getComputedStyle(item).whiteSpace).toBe('nowrap');}
+ finally{node.remove();style.remove();}
 });

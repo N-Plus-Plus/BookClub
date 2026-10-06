@@ -2,7 +2,7 @@ import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Eye, Film, RefreshCw, type LucideIcon } from 'lucide-react';
 import { latestScores, requiredScores, scoreValue } from '../shared/ranking';
 import { posterReference } from '../shared/artwork';
-import { formatScore100, possessiveName, ratingLabel } from './presentation';
+import { formatScore100, possessiveName } from './presentation';
 import { ClubIdentity } from './ClubIdentity';
 import type { Member, Movie, Ranking, Score, Session } from '../shared/types';
 
@@ -88,7 +88,6 @@ export function RankingScore({movie,compact = false,variant}: {movie: Movie; com
     <strong className="score numeric">{r.finalScore?.toFixed(2) ?? '—'}<small>residual score</small></strong></div>}
     <p className="meta">{r.seenCount} Seen · {r.unseenCount} No{variant !== 'home' && <> · {r.unknownCount} Unknown</>}</p>
     {(!compact || variant === 'classics') && <SourceScores ranking={r} scores={movie.scores} />}
-    {variant !== 'classics' && r.missingRequiredScores.length > 0 && <p className="meta">Missing: {r.missingRequiredScores.map(key => { const [provider,metric] = key.split(':'); return ratingLabel(provider,metric); }).join(', ')}{r.imputedScores.length > 0 && ' · using available-score average'}</p>}
     {!variant && <details><summary><Eye size={17} aria-hidden="true" />Score breakdown</summary><div className="breakdown">
       <p>Sum of squares <strong>{r.rawScore?.toFixed(2) ?? 'Incomplete'}</strong></p><p>Unseen multiplier <strong>{r.unseenMultiplier.toFixed(6)}</strong></p>
       {r.sources.map(s => <p key={`${s.provider}:${s.metric}`}>{s.provider} ({s.metric})<strong>{formatScore100(s.value)} / 100</strong></p>)}

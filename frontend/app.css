@@ -345,8 +345,10 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
   .metrics-rankings { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 
-.detail-seen-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
-.detail-seen-column { min-width: 0; padding-inline: var(--space-12); }
+/* Intrinsic bundles share spare width equally; shrink only when both cannot fit. */
+.detail-seen-summary { display: flex; }
+.detail-seen-column { flex: 1 1 max-content; min-width: min-content; padding-inline: var(--space-12); }
+.detail-seen-column h3 { white-space: nowrap; }
 .detail-seen-column:first-child { padding-left: 0; }
 .detail-seen-column-yes { text-align: right; padding-right: 0; }
 .detail-seen-column-yes .detail-seen-members { justify-content: flex-end; }
@@ -386,7 +388,7 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .classics-ranking-row { padding-bottom: calc(var(--space-16) + var(--space-12)); }
 .classics-ranking-row .rank-number { color: var(--text-primary); font-size: 1.12rem; font-weight: 600; }
 .classics-ranking-row .movie-title { overflow-wrap: anywhere; }
-.ranking-source-scores { display: flex; width: 100%; flex-wrap: nowrap; justify-content: space-between; align-items: baseline; }
+.ranking-source-scores { display: flex; width: 100%; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-2); }
 .ranking-source-scores > span { white-space: nowrap; flex: 0 0 auto; }
 .ranking-source-scores-stacked { flex-wrap: wrap; align-items: flex-start; gap: var(--space-2); }
 .ranking-source-scores-stacked > span { display: flex; flex-direction: column; align-items: center; }
