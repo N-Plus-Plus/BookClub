@@ -1,7 +1,7 @@
 import type { ExternalId, Score } from '../../../shared/types';
 import { RatingError, ratingRequest, record } from './ratings';
 import { ProviderError } from './http';
-import { parseMdbEnrichment } from './enrichment';
+import { parseMdbEnrichment, parseMdbTitle } from './enrichment';
 import type { EnrichmentCapture } from '../../../shared/enrichment';
 // Official Media Info schema: https://api.mdblist.com/schema/ (GET and POST media routes).
 const sources: Record<string,[string,string,number]> = {
@@ -31,11 +31,11 @@ export function mdbId(ids: ExternalId[]): ExternalId | undefined {
     ?? ids.find(e => e.provider === 'tmdb' && /^[1-9]\d*$/.test(e.external_id));
 }
 export class MdbListProvider {
-  constructor(private key: string, private onLimits?: (headers: Headers) => Promise<void>, private onMedia?: (id: ExternalId,capture: EnrichmentCapture | undefined) => Promise<void>) {}
+  constructor(private key: string, private onLimits?: (headers: Headers) => Promise<void>, private onMedia?: (id: ExternalId,capture: EnrichmentCapture | undefined, title: string | null) => Promise<void>) {}
   async scores(id: ExternalId) {
     const data=await ratingRequest(`https://api.mdblist.com/${id.provider}/movie/${encodeURIComponent(id.external_id)}/?apikey=${encodeURIComponent(this.key)}&append_to_response=keyword`,'MDBList',undefined,this.onLimits);
     const scores=parseMdbList(data), capture=parseMdbEnrichment(data,id,new Date().toISOString());
-    await this.onMedia?.(id,capture); return scores;
+    await this.onMedia?.(id,capture,parseMdbTitle(data,id)); return scores;
   }
   async batch(provider: string, ids: string[]): Promise<Map<string,Score[]>> {
     if (!ids.length || ids.length > 10) throw new RatingError('MDBList batches require 1–10 IDs.');
@@ -74,7 +74,7 @@ export class MdbListProvider {
     // Validate the complete ratings/correlation envelope before saving any enrichment.
     for (const entry of data) {
       const externalId=String(provider === 'imdb' ? entry?.ids?.imdb ?? entry?.imdb_id : entry?.ids?.tmdb);
-      if (result.has(externalId)) { const identity={provider,external_id:externalId}; await this.onMedia?.(identity,parseMdbEnrichment(entry,identity,at)); }
+      if (result.has(externalId)) { const identity={provider,external_id:externalId}; await this.onMedia?.(identity,parseMdbEnrichment(entry,identity,at),parseMdbTitle(entry,identity)); }
     }
     return result;
   }

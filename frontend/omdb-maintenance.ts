@@ -1,5 +1,5 @@
 import type { Catalog, RefreshResult, ScoreMaintenance } from '../shared/types';
-import { maintenanceIdentity, maintenanceMovies } from '../shared/score-maintenance';
+import { maintenanceIdentity } from '../shared/score-maintenance';
 import { maintainScores, type MaintenanceRun } from './score-maintenance';
 import { loadMaintenanceCheckpoint, saveMaintenanceCheckpoint, type MaintenanceCheckpoint } from './maintenance-checkpoint';
 
@@ -13,11 +13,11 @@ export function loadOmdbCheckpoint(storage?: StorageAccess): OmdbCheckpoint | nu
   return loadMaintenanceCheckpoint(OMDB_CHECKPOINT_KEY,storage);
 }
 export function reconcileOmdbCheckpoint(checkpoint: OmdbCheckpoint, catalog: Catalog): OmdbCheckpoint {
-  const eligible = new Set(maintenanceMovies(catalog).filter(m => maintenanceIdentity(m,'metadata')).map(m => m.id));
+  const eligible = new Set(catalog.movies.filter(m => maintenanceIdentity(m,'metadata')).map(m => m.id));
   return {...checkpoint,remainingIds:checkpoint.remainingIds.filter(id => eligible.has(id))};
 }
 export function freshOmdbCheckpoint(catalog: Catalog): OmdbCheckpoint {
-  return {version:1,remainingIds:maintenanceMovies(catalog).filter(m => maintenanceIdentity(m,'metadata')).map(m => m.id),completed:0};
+  return {version:1,remainingIds:catalog.movies.filter(m => maintenanceIdentity(m,'metadata')).map(m => m.id),completed:0};
 }
 /** Accepted batches only: transport/application errors and blocking responses stay pending. */
 export async function maintainOmdbMetadata(options: {
@@ -31,7 +31,8 @@ export async function maintainOmdbMetadata(options: {
     const response = await options.batch(ids);
     if (response.results.length !== ids.length || response.results.some((r,i) => r.movie?.id !== ids[i]))
       throw new Error('Metadata batch returned an incomplete or stale response. Refresh BookClub before resuming.');
-    return response;
+    // Failed films stay in the checkpoint; a resume may replay successful peers in this bounded batch.
+    return {...response,results:response.results.map(r=>({...r,providers:r.providers.map(p=>p.status==='failed' ? {...p,blocking:true} : p)}))};
   },stopped:options.stopped,
     progress:async (run,batch) => {
       const nextCompleted = originalCompleted+run.processed;

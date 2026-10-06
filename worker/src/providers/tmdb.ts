@@ -4,6 +4,7 @@ import { ApiError } from '../http';
 import { record } from './ratings';
 import { providerJson } from './http';
 import { parseTmdbEnrichment } from './enrichment';
+import { usableTitle } from '../../../shared/titles';
 
 interface TmdbFilm {
   id: number; title: string; original_title: string; release_date?: string; runtime?: number;
@@ -28,6 +29,7 @@ export class TmdbProvider implements MovieSearchProvider, MovieMetadataProvider,
   }
   async details(id: string): Promise<ProviderMovie> {
     const m = await this.movie(id);
+    if (String(m.id)!==id || !usableTitle(m.title)) throw new ApiError(409,'IDENTITY_CONFLICT','TMDB returned an unusable film identity or title.');
     const fetched_at = new Date().toISOString();
     const score = record('tmdb','rating',m.vote_average,10,'tmdb',fetched_at,m.vote_count);
     return { title: m.title, original_title: m.original_title ?? null, year: m.release_date ? Number(m.release_date.slice(0,4)) : null,

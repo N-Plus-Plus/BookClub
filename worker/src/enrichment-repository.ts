@@ -1,5 +1,8 @@
 import type { EnrichmentCapture } from '../../shared/enrichment';
 import { ApiError } from './http';
+import { canonicalTitleStatement, TitleRepository } from './title-repository';
+
+import { usableTitle } from '../../shared/titles';
 
 const metadataColumns=['title','runtime','original_language','budget','revenue','popularity','tagline'] as const;
 const relations = {
@@ -14,7 +17,11 @@ export class EnrichmentRepository {
   async save(movieId: string, capture: EnrichmentCapture) {
     const {provider,identity,fetchedAt}=capture;
     const before=await this.db.prepare('SELECT * FROM movie_provider_metadata WHERE movie_id=? AND provider=?').bind(movieId,provider).first<Record<string,unknown>>();
-    const metadata=Object.fromEntries(metadataColumns.map(c=>[c,capture.metadata[c] === undefined ? before?.[c] ?? null : capture.metadata[c]]));
+    const metadata=Object.fromEntries(metadataColumns.map(column=>{
+      const supplied=column==='title' ? usableTitle(capture.metadata.title) : capture.metadata[column];
+      const preserve=column==='title' ? supplied===null : supplied===undefined;
+      return [column,preserve ? before?.[column] ?? null : supplied];
+    }));
     const values: Record<string,Record<string,unknown>[] | undefined> = {...capture,identity_claims:capture.identities?.map(i=>({identity_provider:i.provider,external_id:i.external_id}))} as unknown as Record<string,Record<string,unknown>[] | undefined>;
     const sets=Object.entries(relations).map(([name,columns])=>({name,columns,rows:values[name] === undefined ? undefined : [...new Map(values[name]!.map(row=>{
       const fields=columns.map(c=>row[c] ?? null);
@@ -50,13 +57,16 @@ export class EnrichmentRepository {
     }
     const knownBefore=await this.db.prepare('SELECT provider,external_id FROM movie_external_ids WHERE movie_id=?').bind(movieId).all<{provider:string;external_id:string}>();
     for (const claim of capture.identities ?? []) statements.push(this.db.prepare('INSERT OR IGNORE INTO movie_external_ids(movie_id,provider,external_id) VALUES(?,?,?)').bind(movieId,claim.provider,claim.external_id));
-    try { await this.db.batch(statements); }
+    const titleSupported=await new TitleRepository(this.db).supported();
+    if (titleSupported) statements.push(canonicalTitleStatement(this.db,movieId));
+    let titleChanged=false;
+    try { const result=await this.db.batch(statements); titleChanged=titleSupported && result.at(-1)!.results.length>0; }
     catch (error) {
       if (String(error).includes('movie_provider_enrichment_state.external_id')) throw new ApiError(409,'IDENTITY_CONFLICT','Stored provider identity changed. Refresh before retrying.');
       throw error;
     }
     const knownAfter=await this.db.prepare('SELECT provider,external_id FROM movie_external_ids WHERE movie_id=?').bind(movieId).all<{provider:string;external_id:string}>();
     const conflicts=(capture.identities ?? []).filter(c=>!knownAfter.results.some(i=>i.provider===c.provider && i.external_id===c.external_id)).length;
-    return {changed,canonicalChanged:knownAfter.results.length>knownBefore.results.length,conflicts};
+    return {changed,canonicalChanged:titleChanged || knownAfter.results.length>knownBefore.results.length,conflicts};
   }
 }

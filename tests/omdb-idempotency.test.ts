@@ -75,11 +75,12 @@ it('provider and database failures cannot report successful change',async()=>{
  expect((await new ScoreService(repo,env).maintain('metadata',[id])).results[0].providers[0]).toMatchObject({status:'failed',count:0});
  expect(writes()).toEqual([]);
 });
-it('deleted and newly out-of-scope queued IDs give explicit scope errors before provider calls',async()=>{
- const fetch=vi.fn();vi.stubGlobal('fetch',fetch);await repo.setClassic(id,false);
- await expect(new ScoreService(repo,env).maintain('metadata',[id])).rejects.toMatchObject({status:422,code:'INVALID_SCOPE',message:expect.stringContaining('queued film')});
+it('metadata accepts non-Classics films while scores reject them and deleted films fail before calls',async()=>{
+ const fetch=vi.fn(async()=>Response.json({Response:'True',imdbID:'tt0000001',Title:'Canonical'}));vi.stubGlobal('fetch',fetch);await repo.setClassic(id,false);
+ await expect(new ScoreService(repo,env).maintain('refresh',[id])).rejects.toMatchObject({status:422,code:'INVALID_SCOPE',message:expect.stringContaining('queued film')});
+ await new ScoreService(repo,env).maintain('metadata',[id]);expect(fetch).toHaveBeenCalledTimes(1);fetch.mockClear();
  local.sqlite.prepare('DELETE FROM movies WHERE id=?').run(id);
- await expect(new ScoreService(repo,env).maintain('metadata',[id])).rejects.toMatchObject({status:422,code:'INVALID_SCOPE'});
+ await expect(new ScoreService(repo,env).maintain('metadata',[id])).rejects.toMatchObject({status:404,code:'NOT_FOUND'});
  expect(fetch).not.toHaveBeenCalled();
 });
 

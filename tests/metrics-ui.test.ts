@@ -52,7 +52,7 @@ it('empty identities preserve report axes and restrained missing states without 
  const html=renderToStaticMarkup(createElement(MetricsScreen,{catalog:{...catalog,sessions:[]},viewer:null,onUpdated:async()=>{}}));
  const container=document.createElement('div');container.innerHTML=html;
  expect(container.querySelectorAll('.metrics-rating-profile > div')).toHaveLength(9);
- expect(container.querySelectorAll('.metrics-extremes section')).toHaveLength(4);
+ expect(container.querySelectorAll('.metrics-extremes section')).toHaveLength(10);
  expect(container.textContent).toContain('No events for this identity');
  expect(container.textContent).toContain('No director data for this selection.');
  expect(container.textContent).not.toMatch(/NaN|Infinity|undefined|0 \/ 0/);

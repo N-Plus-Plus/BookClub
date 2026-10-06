@@ -16,7 +16,7 @@ afterEach(()=>{vi.unstubAllGlobals();vi.restoreAllMocks();});
 describe('TMDB analytical capture',()=>{
   it('parses scalars, country/language names and company IDs without decorations',()=>{
     const parsed=parseTmdbEnrichment(tmdbEnrichmentFixture(),at)!;
-    expect(parsed.metadata).toEqual({original_language:'fr',budget:1000000,revenue:2000000,popularity:12.25,tagline:'A tagline'});
+    expect(parsed.metadata).toEqual({title:'Provider title',original_language:'fr',budget:1000000,revenue:2000000,popularity:12.25,tagline:'A tagline'});
     expect(parsed.countries).toEqual([{code:'US',name:'United States of America'},{code:'AU',name:'Australia'}]);
     expect(parsed.languages?.[1]).toEqual({code:'fr',name:'Français',english_name:'French'});
     expect(parsed.companies).toEqual([{external_id:'7',name:'Studio',origin_country:'AU'}]);
@@ -47,7 +47,7 @@ describe('TMDB analytical capture',()=>{
   });
   it('malformed optional scalars are omitted while useful data remains; incomplete arrays cannot capture',()=>{
     const m={...tmdbEnrichmentFixture(),budget:{},tagline:[],popularity:'bad'};
-    expect(parseTmdbEnrichment(m,at)?.metadata).toEqual({original_language:'fr',revenue:2000000});
+    expect(parseTmdbEnrichment(m,at)?.metadata).toEqual({title:'Provider title',original_language:'fr',revenue:2000000});
     expect(parseTmdbEnrichment({...m,production_companies:{}},at)).toBeUndefined();
     expect(parseTmdbEnrichment({...m,credits:{crew:[]}},at)).toBeUndefined();
   });
@@ -78,7 +78,7 @@ describe('verified MDBList Media Info shape',()=>{
     const result=await new MdbListProvider('fictional',undefined,capture).batch('imdb',['tt0000042']);
     expect(fetch).toHaveBeenCalledTimes(1);expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ids:['tt0000042'],append_to_response:['keyword']});
     expect(result.get('tt0000042')).toEqual(parseMdbList(mdbEnrichmentFixture(),expect.any(String),'batch'));
-    expect(capture).toHaveBeenCalledWith({provider:'imdb',external_id:'tt0000042'},expect.objectContaining({provider:'mdblist'}));
+    expect(capture).toHaveBeenCalledWith({provider:'imdb',external_id:'tt0000042'},expect.objectContaining({provider:'mdblist'}),'MDBList title');
   });
 });
 describe('provider cache API and durable current state',()=>{
@@ -101,12 +101,15 @@ describe('provider cache API and durable current state',()=>{
     const orphan=await repo.manualMovie({title:'Orphan'});
     expect((await data(await call('tmdb',[orphan]))).results[0].status).toBe('skipped');expect(fetch).not.toHaveBeenCalled();
   });
-  it('walks an identified non-History/non-Classics movie without changing canonical state or score snapshots',async()=>{
+  it('walks an identified non-History/non-Classics movie reconciling its title without changing other canonical fields or scores',async()=>{
     const before=await repo.catalog(),scores=local.sqlite.prepare('SELECT * FROM source_scores').all();
     const fetch=vi.fn(async()=>Response.json(tmdbEnrichmentFixture()));vi.stubGlobal('fetch',fetch);
     const result=await data(await call('tmdb',['film']));expect(result.results[0].status).toBe('updated');expect(result).not.toHaveProperty('movies');
     expect(rows('credits')).toHaveLength(21);expect(rows('content_ratings')).toHaveLength(3);expect(rows('metadata')[0]).toMatchObject({budget:1000000,provider:'tmdb'});
-    expect(await repo.catalog()).toEqual(before);expect(local.sqlite.prepare('SELECT * FROM source_scores').all()).toEqual(scores);expect(fetch).toHaveBeenCalledTimes(1);
+    const after=await repo.catalog();
+    expect(after.movies.find(m=>m.id==='film')).toEqual({...before.movies.find(m=>m.id==='film'),title:'Provider title'});
+    expect({...after,movies:after.movies.filter(m=>m.id!=='film')}).toEqual({...before,movies:before.movies.filter(m=>m.id!=='film')});
+    expect(result.canonicalChanged).toBe(true);expect(local.sqlite.prepare('SELECT * FROM source_scores').all()).toEqual(scores);expect(fetch).toHaveBeenCalledTimes(1);
   });
   it('dedicated TMDB capture tolerates unrelated malformed optional presentation fields without clearing cached scalars',async()=>{
     vi.stubGlobal('fetch',vi.fn(async()=>Response.json({...tmdbEnrichmentFixture(),genres:{},original_title:{},budget:{},popularity:[]})));
@@ -134,7 +137,7 @@ describe('provider cache API and durable current state',()=>{
     vi.stubGlobal('fetch',vi.fn(async()=>Response.json([mdbEnrichmentFixture()])));
     const result=await data(await call('mdblist',['film']));expect(result.results[0]).toMatchObject({status:'updated',conflicts:1});expect(result.canonicalChanged).toBe(true);
     expect(await repo.findExternal('trakt','309')).toBe('other');expect(await repo.findExternal('tvdb','572')).toBe('film');expect(rows('identity_claims')).toContainEqual(expect.objectContaining({identity_provider:'trakt',external_id:'309'}));
-    expect(rows('metadata')[0]).toMatchObject({title:'MDBList title',runtime:97});expect(local.sqlite.prepare("SELECT title,runtime FROM movies WHERE id='film'").get()).toEqual({title:'Canonical title',runtime:111});
+    expect(rows('metadata')[0]).toMatchObject({title:'MDBList title',runtime:97});expect(local.sqlite.prepare("SELECT title,runtime FROM movies WHERE id='film'").get()).toEqual({title:'MDBList title',runtime:111});
     expect(local.sqlite.prepare("SELECT * FROM source_scores WHERE movie_id='film'").all()).toHaveLength(0);
   });
   it.each(['missing','refresh'])('%s scores opportunistically save enrichment with exactly one MDBList HTTP call',async mode=>{

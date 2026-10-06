@@ -24,8 +24,23 @@ it('Stop after a delayed batch retains accepted checkpoint progress and never la
 it('provider-wide failure retains failed/unprocessed films, acknowledges earlier success and stops subsequent batches',async()=>{
   const batch=vi.fn(async()=>({results:[{movieId:'film-0',status:'updated' as const,message:'Saved'},{movieId:'film-1',status:'failed' as const,message:'Rate limited',blocking:true,retryAfter:120}],canonicalChanged:true,stopped:true})),checkpointChanged=vi.fn();
   const run=await maintainEnrichment({provider:'tmdb',checkpoint:checkpoint(5),batch,checkpointChanged,progress:()=>{},stopped:()=>false});
-  expect(batch).toHaveBeenCalledTimes(1);expect(run).toMatchObject({updated:1,failed:1,canonicalChanged:true});expect(run.failure).toContain('120 seconds');
+  expect(batch).toHaveBeenCalledTimes(1);expect(run).toMatchObject({processed:2,remaining:4,updated:1,failed:1,canonicalChanged:true});expect(run.failure).toContain('120 seconds');
   expect(checkpointChanged).toHaveBeenLastCalledWith({version:1,completed:1,remainingIds:['film-1','film-2','film-3','film-4']});
+});
+it('mixed MDBList results count failed films as remaining while processed counts every result',async()=>{
+  const saved=checkpoint(10),checkpointChanged=vi.fn(),progress=vi.fn();
+  const batch=vi.fn(async():Promise<EnrichmentBatch>=>({results:saved.remainingIds.map((movieId,i)=>i===9?{movieId,status:'failed',message:'Unavailable',blocking:false}:{movieId,status:i<5?'updated':'no_change',message:'Saved'}),canonicalChanged:false}));
+  const run=await maintainEnrichment({provider:'mdblist',checkpoint:saved,batch,checkpointChanged,progress,stopped:()=>false});
+  expect(run).toMatchObject({processed:10,total:10,remaining:1,updated:5,noChange:4,failed:1});
+  expect(checkpointChanged).toHaveBeenLastCalledWith({version:1,completed:9,remainingIds:['film-9']});
+  expect(progress).toHaveBeenLastCalledWith(run);
+});
+it('stopped partial batches retain both failed and unattempted films in displayed remaining',async()=>{
+  const checkpointChanged=vi.fn(),batch=vi.fn(async():Promise<EnrichmentBatch>=>({results:[{movieId:'film-0',status:'no_change',message:'Unchanged'},{movieId:'film-1',status:'failed',message:'Quota reached',blocking:true}],canonicalChanged:false,stopped:true}));
+  const run=await maintainEnrichment({provider:'mdblist',checkpoint:checkpoint(10),batch,checkpointChanged,progress:()=>{},stopped:()=>false});
+  expect(run).toMatchObject({processed:2,total:10,remaining:9,noChange:1,failed:1});
+  expect(checkpointChanged).toHaveBeenLastCalledWith({version:1,completed:1,remainingIds:checkpoint(10).remainingIds.slice(1)});
+  expect(batch).toHaveBeenCalledTimes(1);expect(run.message).toContain('Stopped');
 });
 it('transport and stale/duplicate batch responses preserve checkpoint, and resume carries completed count',async()=>{
   const saved={...checkpoint(3),completed:7};

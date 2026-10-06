@@ -1,3 +1,5 @@
+import { usableTitle } from '../../shared/titles';
+import { canonicalTitleStatement, providerTitleStatement, TitleRepository } from '../../worker/src/title-repository';
 import { createHash } from 'node:crypto';
 import { Repository } from '../../worker/src/repository.ts';
 import { near } from './pair-tmdb.ts';
@@ -192,7 +194,23 @@ export async function applyMerge(db:D1Database,plan:MergePlan,metadata?:Provider
   // Repoint unique external aliases before deletion; conflicts abort the transaction.
   for(const external of snapshot.movie_external_ids.filter(r=>r.movie_id!==survivor))statements.push(db.prepare('UPDATE movie_external_ids SET movie_id=? WHERE movie_id=? AND provider=?').bind(survivor,external.movie_id,external.provider));
   if(!snapshot.movie_external_ids.some(r=>r.provider==='tmdb'))statements.push(db.prepare("INSERT INTO movie_external_ids VALUES(?,'tmdb',?)").bind(survivor,op.tmdb_id));
-  if(metadata)statements.push(...repo.metadataStatements(survivor,metadata,captureScores));
+  const titleAuthority=await new TitleRepository(db).supported();
+  if(titleAuthority) {
+    // Title-only score captures do not advance complete-enrichment state. Preserve
+    // their latest evidence too; compatible canonical identities were checked above.
+    for(const provider of ['omdb','tmdb','mdblist']) {
+      const evidence=snapshot.movie_provider_metadata.filter(r=>r.provider===provider && usableTitle(r.title))
+        .sort((a,b)=>String(b.fetched_at).localeCompare(String(a.fetched_at)) || Number(b.movie_id===survivor)-Number(a.movie_id===survivor) || String(a.movie_id).localeCompare(String(b.movie_id)))[0];
+      if(!evidence)continue;
+      const identity=snapshot.movie_external_ids.find(i=>i.movie_id===evidence.movie_id && i.provider===(provider==='tmdb'?'tmdb':'imdb'))
+        ?? (provider==='mdblist' ? snapshot.movie_external_ids.find(i=>i.movie_id===evidence.movie_id && i.provider==='tmdb') : undefined);
+      if(!identity)throw Error('Provider title identity requires owner review before merging.');
+      const title=providerTitleStatement(db,survivor,provider,evidence.title,{provider:String(identity.provider),external_id:String(identity.external_id)},String(evidence.fetched_at));
+      if(title)statements.push(title);
+    }
+  }
+  if(metadata)statements.push(...repo.metadataStatements(survivor,metadata,captureScores,true,titleAuthority));
+  else if(titleAuthority)statements.push(canonicalTitleStatement(db,survivor));
   // Old immutable audit/fingerprint IDs remain resolvable through these durable receipts.
   statements.push(db.prepare(`UPDATE ${receiptTable} SET survivor_movie_id=? WHERE survivor_movie_id IN (${removedWhere})`).bind(survivor,...removed));
   for(const table of ['movie_genres','seen_states'])statements.push(db.prepare(`DELETE FROM ${table} WHERE movie_id IN (${removedWhere})`).bind(...removed));

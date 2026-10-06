@@ -62,9 +62,12 @@ it('chooses richest survivor deterministically and TMDB owner overrides richness
 it('preserves complete provider cache sets and archives source cache during explicitly requested identity merges',async()=>{
   local.sqlite.exec("INSERT INTO movie_external_ids VALUES('a','imdb','tt0000042');INSERT INTO movie_external_ids VALUES('b','tmdb','42')");
   const repo=new Repository(local.db);
-  await repo.cacheEnrichment('a',parseMdbEnrichment(mdbEnrichmentFixture(),{provider:'imdb',external_id:'tt0000042'},'2026-10-07T00:00:00Z')!);
-  await repo.cacheEnrichment('b',parseTmdbEnrichment(tmdbEnrichmentFixture(),'2026-10-07T00:00:00Z')!);
+  await repo.cacheEnrichment('a',parseMdbEnrichment({...mdbEnrichmentFixture(),title:a.title},{provider:'imdb',external_id:'tt0000042'},'2026-10-07T00:00:00Z')!);
+  await repo.cacheEnrichment('b',parseTmdbEnrichment({...tmdbEnrichmentFixture(),title:b.title},'2026-10-07T00:00:00Z')!);
+  await repo.cacheProviderTitle('a','omdb',a.title,{provider:'imdb',external_id:'tt0000042'},'2026-10-08T00:00:00Z');
   const plan=await planMerge(local.db,{tmdb_id:'42',members:[a],kind:'existing'});await applyMerge(local.db,plan);
+  expect(local.sqlite.prepare("SELECT title,title_source FROM movies WHERE id='b'").get()).toEqual({title:a.title,title_source:'omdb'});
+  expect(local.sqlite.prepare('SELECT provider FROM movie_provider_metadata ORDER BY provider').all()).toEqual([{provider:'mdblist'},{provider:'omdb'},{provider:'tmdb'}]);
   expect(local.sqlite.prepare('SELECT movie_id,provider FROM movie_provider_enrichment_state ORDER BY provider').all()).toEqual([{movie_id:'b',provider:'mdblist'},{movie_id:'b',provider:'tmdb'}]);
   expect(local.sqlite.prepare('SELECT * FROM movie_provider_keywords').all()).toHaveLength(4);expect(local.sqlite.prepare('SELECT * FROM movie_provider_credits').all()).toHaveLength(21);
   const receipt=JSON.parse(String(local.sqlite.prepare('SELECT snapshot_json FROM local_movie_merge_receipts').get()!.snapshot_json));expect(receipt.movie_provider_watch_offers).toHaveLength(4);

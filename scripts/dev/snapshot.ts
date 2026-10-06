@@ -121,6 +121,9 @@ export function copySnapshot(source: DatabaseSync, target: DatabaseSync) {
          OR json_type(changes_json,'$.after.title') IS NOT NULL
          OR json_type(changes_json,'$.after.notes') IS NOT NULL
          OR json_type(changes_json,'$.after.swap_note') IS NOT NULL`);
+    // A pre-0017 export has no authority column; classify its fallback without changing titles.
+    if (!columns(source,'movies').includes('title_source') && columns(target,'movies').includes('title_source'))
+      target.exec("UPDATE movies SET title_source='legacy-spreadsheet' WHERE import_source='legacy-spreadsheet'");
     operation = 'destination table seed_runs / seed marker';
     target.exec("INSERT OR IGNORE INTO seed_runs(name) VALUES('demo-v1')");
     operation = 'destination schema / restore triggers';

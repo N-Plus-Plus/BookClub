@@ -46,8 +46,8 @@ it('atomically rejects raced Seen evidence without changing either movie',()=>{
 });
 it('archives and discards wrong-identity cache while preserving the survivor cache',async()=>{
   const repo=new Repository(local.db);
-  await repo.cacheEnrichment(duplicate,parseTmdbEnrichment(tmdbEnrichmentFixture(1438810),'2026-10-07T00:00:00Z')!);
-  await repo.cacheEnrichment(survivor,parseTmdbEnrichment(tmdbEnrichmentFixture(872),'2026-10-06T00:00:00Z')!);
+  await repo.cacheEnrichment(duplicate,parseTmdbEnrichment({...tmdbEnrichmentFixture(1438810),title:'Singing in the rain'},'2026-10-07T00:00:00Z')!);
+  await repo.cacheEnrichment(survivor,parseTmdbEnrichment({...tmdbEnrichmentFixture(872),title:"Singin' in the Rain"},'2026-10-06T00:00:00Z')!);
   const cache=local.sqlite.prepare('SELECT * FROM movie_provider_enrichment_state WHERE movie_id=?').all(survivor);
   local.sqlite.exec(repairSql(local.sqlite)!);
   expect(local.sqlite.prepare('SELECT * FROM movie_provider_enrichment_state').all()).toEqual(cache);

@@ -43,21 +43,21 @@ it('keeps blocking/cooldown batches pending without automatic retries',async()=>
  await maintainOmdbMetadata({checkpoint,batch,stopped:()=>false,progress:async()=>{},checkpointChanged:saveOmdbCheckpoint});
  expect(batch).toHaveBeenCalledTimes(1);expect(loadOmdbCheckpoint()).toEqual(checkpoint);
 });
-it('continues through the existing isolated non-blocking film failure outcome',async()=>{
+it('keeps an isolated film failure pending for explicit resume',async()=>{
  const checkpoint=freshOmdbCheckpoint(catalog(['one']));saveOmdbCheckpoint(checkpoint);
  const r=response(['one']);r.results[0].providers=[{provider:'omdb',status:'failed',count:0,message:'Not found',blocking:false}];
  const run=await maintainOmdbMetadata({checkpoint,batch:async()=>r,stopped:()=>false,progress:async()=>{},checkpointChanged:saveOmdbCheckpoint});
- expect(run.failed).toBe(1);expect(loadOmdbCheckpoint()).toBeNull();
+ expect(run.failed).toBe(1);expect(loadOmdbCheckpoint()).toEqual(checkpoint);
 });
 it('rejects incomplete or mismatched batch responses without skipping films',async()=>{
  const checkpoint=freshOmdbCheckpoint(catalog(['one','two']));saveOmdbCheckpoint(checkpoint);
  await maintainOmdbMetadata({checkpoint,batch:async()=>response(['two']),stopped:()=>false,progress:async()=>{},checkpointChanged:saveOmdbCheckpoint});
  expect(loadOmdbCheckpoint()).toEqual(checkpoint);
 });
-it('reconciles deleted, invalid-identity and out-of-scope IDs in frozen order, without appending new films',()=>{
+it('reconciles deleted and invalid-identity IDs, retaining non-Classics films in frozen order, without appending new films',()=>{
  const checkpoint={version:1 as const,remainingIds:['third','deleted','invalid','orphan','first'],completed:390};
  const current=catalog(['first','third','invalid','orphan','new']);current.movies[2].external_ids=[];current.movies[3].classic=false;
- expect(reconcileOmdbCheckpoint(checkpoint,current)).toEqual({version:1,remainingIds:['third','first'],completed:390});
+ expect(reconcileOmdbCheckpoint(checkpoint,current)).toEqual({version:1,remainingIds:['third','orphan','first'],completed:390});
 });
 it.each(['bad JSON',JSON.stringify({version:2,remainingIds:['one'],completed:0}),JSON.stringify({version:1,remainingIds:['one','one'],completed:0}),JSON.stringify({version:1,remainingIds:['one'],completed:-1}),JSON.stringify({version:1,remainingIds:[1],completed:0})])('discards corrupt or incompatible checkpoints: %s',raw=>{
  localStorage.setItem(OMDB_CHECKPOINT_KEY,raw);expect(loadOmdbCheckpoint()).toBeNull();expect(localStorage.getItem(OMDB_CHECKPOINT_KEY)).toBeNull();
@@ -127,4 +127,9 @@ it('counts attempted outcomes while keeping the final quota-blocked ten-film bat
  await maintainOmdbMetadata({checkpoint:loadOmdbCheckpoint()!,batch:retry,stopped:()=>stop,progress:async(_run,results)=>{if(results)stop=true;},checkpointChanged:saveOmdbCheckpoint});
  expect(retry).toHaveBeenCalledExactlyOnceWith(all.slice(280,290));
  expect(loadOmdbCheckpoint()?.completed).toBe(290);
+});
+
+it('fresh OMDb metadata queues include valid-IMDb films outside History and Classics',()=>{
+ const current=catalog(['inside','outside']);current.movies[1].classic=false;
+ expect(freshOmdbCheckpoint(current).remainingIds).toEqual(['inside','outside']);
 });

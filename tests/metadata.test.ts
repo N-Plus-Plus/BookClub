@@ -170,8 +170,12 @@ describe('bounded existing-film metadata enrichment',()=>{
   });
   it('rolls back metadata when an external ID collision races preflight',async()=>{
     local.sqlite.exec("DELETE FROM movie_external_ids WHERE movie_id='arrival' AND provider='imdb'");
-    const batch=local.db.batch.bind(local.db);let raced=false;
-    local.db.batch=(async(statements:D1PreparedStatement[])=>{if(!raced&&statements.length<10){raced=true;local.sqlite.exec("INSERT INTO movie_external_ids VALUES('moon','imdb','tt2543164')");}return batch(statements);}) as D1Database['batch'];
+    const build=repo.metadataStatements.bind(repo);
+    vi.spyOn(repo,'metadataStatements').mockImplementation((...args)=>{
+      const statements=build(...args);
+      local.sqlite.exec("INSERT INTO movie_external_ids VALUES('moon','imdb','tt2543164')");
+      return statements;
+    });
     vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(details())));
     expect((await service.enrichMetadata(1)).results[0].status).toBe('conflict');expect((await repo.catalog()).movies.find(m=>m.id==='arrival')?.title).toBe('Arrival');
     expect((await repo.catalog()).movies.find(m=>m.id==='arrival')!.tmdb_metadata_checked_at).toBeNull();

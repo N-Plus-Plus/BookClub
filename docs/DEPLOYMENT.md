@@ -195,6 +195,8 @@ Choose an order that keeps production coherent throughout the release.
 
 Migration `0016_provider_enrichment.sql` adds only provider-cache tables and analytical indexes, preserving existing movie, score and product tables. Old Workers ignore the new tables. New ordinary metadata/score paths capability-detect the cache and continue without it on older schemas; the dedicated enrichment route fails safely before provider calls until 0016 exists. Apply additive 0016 after the normal fresh backup and compatibility gates, deploy the API, then publish the frontend controls. Existing 0010–0013 bridge gates still apply when upgrading an older database. No provider crawl runs automatically after migration/deployment. The guarded local snapshot copier permits precisely these ten destination-only cache tables when copying a pre-0016 source; unknown source tables/columns still fail closed. This compatibility change performs no production refresh itself.
 
+Migration `0017_canonical_title.sql` adds title authority with fallback classification and an insert trigger; it changes no existing title. Old Workers ignore the new column. Apply schema before the new Worker, then frontend. The new title endpoints require 0017; ordinary provider cache/title writes capability-detect older schemas. Run the explicit admin cached reconciliation after deployment to apply existing evidence without quota, then operator-selected independent provider jobs. No crawl runs during migration or deployment.
+
 If pending migrations only add schema or otherwise remain compatible with the currently deployed Worker, the normal order is:
 
 1. backup;

@@ -24,7 +24,7 @@ export async function maintainEnrichment(options: {
       checkpoint={...checkpoint,completed:checkpoint.completed+accepted.size,remainingIds:checkpoint.remainingIds.filter(id=>!accepted.has(id))};
       options.checkpointChanged(checkpoint.remainingIds.length?checkpoint:null);
       const failed=batch.results.filter(r=>r.status==='failed'), conflicts=batch.results.reduce((n,r)=>n+(r.conflicts ?? 0),0);
-      run={...run,processed:run.processed+batch.results.length,remaining:run.remaining-batch.results.length,
+      run={...run,processed:run.processed+batch.results.length,remaining:checkpoint.remainingIds.length,
         updated:run.updated+batch.results.filter(r=>r.status==='updated').length,noChange:run.noChange+batch.results.filter(r=>r.status==='no_change').length,
         failed:run.failed+failed.length,conflicts:run.conflicts+conflicts,canonicalChanged:run.canonicalChanged || batch.canonicalChanged,quota:batch.quota ?? run.quota,
         failure:failed.length ? `${failed[0].message}${failed[0].retryAfter===undefined ? '' : ` Retry after at least ${failed[0].retryAfter} seconds.`}` : run.failure};

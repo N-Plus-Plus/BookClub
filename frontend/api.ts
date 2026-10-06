@@ -47,6 +47,7 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
   return payload.data as T;
 }
 export const api = {
+  metricsEnrichment: () => request<import('../shared/metrics-enrichment').MetricsEnrichment>('/metrics/enrichment'),
   catalog: async (): Promise<Catalog> => {
     try { return hydrateCatalog(await request<CompactCatalog>('/catalog/compact')); }
     catch (error) {

@@ -38,3 +38,13 @@ it('navigation/unmount stops after accepted pending batch and remount offers Res
   await act(async()=>root.render(createElement('div',null,'Elsewhere')));await act(async()=>resolve({results:ids.map(movieId=>({movieId,status:'updated',message:'Saved'})),canonicalChanged:false}));
   await render();expect(button('Resume TMDB enrichment · 9 remaining')).toBeTruthy();expect(api.enrichProvider).toHaveBeenCalledTimes(1);
 });
+it.each([false,true])('MDBList progress and Resume agree for mixed results (partial=%s)',async partial=>{
+  vi.mocked(api.enrichProvider).mockImplementation(async(_provider,ids)=>({results:(partial?ids.slice(0,2):ids).map((movieId,i)=>i===1?{movieId,status:'failed',message:'Unavailable',blocking:false}:{movieId,status:'updated',message:'Saved'}),canonicalChanged:false,stopped:true}));
+  await render();await act(async()=>button('Refresh MDBList enrichment').click());
+  const saved=JSON.parse(localStorage.getItem('bookclub.mdblist-enrichment.v1')!);
+  expect(saved.remainingIds).toContain('film-1');expect(saved.remainingIds).toHaveLength(partial?10:2);
+  const section=container.querySelector('#mdblist-enrichment-heading')!.closest('section')!;
+  expect(section.querySelector('[role="status"]')?.textContent).toContain(`${partial?2:10} / 11 processed · ${saved.remainingIds.length} remaining`);
+  expect(button(`Resume MDBList enrichment · ${saved.remainingIds.length} remaining`)).toBeTruthy();
+  expect(api.enrichProvider).toHaveBeenCalledTimes(1);
+});

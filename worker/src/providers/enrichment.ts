@@ -1,4 +1,5 @@
 import type { EnrichmentCapture } from '../../../shared/enrichment';
+import { usableTitle } from '../../../shared/titles';
 import type { ExternalId } from '../../../shared/types';
 
 type ObjectValue = Record<string,unknown>;
@@ -51,8 +52,13 @@ export function parseTmdbEnrichment(data: unknown, at: string): EnrichmentCaptur
     }
   }
   return {provider:'tmdb',identity:{provider:'tmdb',external_id:id(m.id)!},fetchedAt:at,
-    metadata:scalars(m,['original_language','tagline'],['budget','revenue','popularity']),countries,languages,companies,
+    metadata:scalars(m,['title','original_language','tagline'],['budget','revenue','popularity']),countries,languages,companies,
     credits:[...cast.sort((a,b)=>a.billing_order!-b.billing_order! || a.ordinal-b.ordinal).slice(0,15).map((c,ordinal)=>({...c,ordinal})),...crew],keywords,content_ratings:ratings};
+}
+export function parseMdbTitle(data: unknown, identity: ExternalId): string | null {
+  const m=object(data),ids=object(m?.ids);
+  if (!m || (m.type!==undefined && m.type!=='movie') || String(ids?.[identity.provider] ?? (identity.provider==='imdb' ? m.imdb_id : undefined))!==identity.external_id) return null;
+  return usableTitle(m.title);
 }
 export function parseMdbEnrichment(data: unknown, identity: ExternalId, at: string): EnrichmentCapture | undefined {
   const m=object(data), ids=object(m?.ids); if (!m || !ids || !text(m.title) || (m.type!==undefined && m.type!=='movie') || String(ids[identity.provider] ?? m.imdb_id) !== identity.external_id) return undefined;

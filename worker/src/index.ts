@@ -1,10 +1,12 @@
 import { z, ZodError } from 'zod';
 import { ApiError, allowedOrigins, authorizeMutation, localBypass, json, type Env } from './http';
-import { classicSchema, selectedMetadataSchema, maintenanceSchema, enrichmentSchema, idSchema, importSchema, movieSchema, seenSchema, sessionSchema } from './validation';
+import { titleReconcileSchema, classicSchema, selectedMetadataSchema, maintenanceSchema, enrichmentSchema, idSchema, importSchema, movieSchema, seenSchema, sessionSchema } from './validation';
 import { ScoreService } from './score-service';
 import { EnrichmentService } from './enrichment-service';
+import { TitleRepository } from './title-repository';
 import { providerEnrichmentSchema } from './validation';
 import { Repository } from './repository';
+import { MetricsRepository } from './metrics-repository';
 import { MovieService } from './services';
 import { authenticate, login, verifyGoogle, type GoogleVerifier } from './auth';
 import { AuthRepository } from './auth-repository';
@@ -47,6 +49,12 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
     return json({ loggedOut: true });
   }
   if (method !== 'GET' && method !== 'OPTIONS') authorizeMutation(env,auth.viewer);
+  if (path === '/api/v1/movies/title-authority' && method === 'GET') { requireAdmin(auth.viewer); return json(await new TitleRepository(env.DB).status()); }
+  if (path === '/api/v1/movies/reconcile-titles' && method === 'POST') {
+    requireAdmin(auth.viewer);
+    const input=titleReconcileSchema.parse(await body(request));
+    return json(await new TitleRepository(env.DB).reconcileBatch(input.after ?? null));
+  }
   if (path === '/api/v1/movies/maintenance-status' && method === 'GET') { requireAdmin(auth.viewer); return json(await repo.scoreMaintenanceStatus()); }
   if (path === '/api/v1/avatars' && method === 'GET') { requireViewer(auth.viewer); return json(await product.availableAvatars()); }
   if (path === '/api/v1/auth/avatar' && method === 'POST') return json(await product.claimAvatar(requireViewer(auth.viewer),avatarSchema.parse(await body(request)).avatar));
@@ -135,6 +143,7 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
     const id = await product.saveSession(input,auth.viewer,sessionMatch ? idSchema.parse(sessionMatch[1]) : undefined);
     return json(await repo.session(id),sessionMatch ? 200 : 201);
   }
+  if (path === '/api/v1/metrics/enrichment' && method === 'GET') return json(await new MetricsRepository(env.DB).enrichment());
   if (path === '/api/v1/catalog/compact' && method === 'GET') return json(await repo.compactCatalog());
   if (method === 'GET' && ['/api/v1/catalog','/api/v1/members','/api/v1/movies','/api/v1/sessions','/api/v1/classics','/api/v1/cycles'].includes(path)) {
     if (path.endsWith('/catalog')) return json(await repo.catalog());

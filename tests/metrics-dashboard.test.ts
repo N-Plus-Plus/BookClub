@@ -103,10 +103,10 @@ describe('Metrics dashboard',() => {
   it('extremes deduplicate canonical films and permit the same film to win several categories',() => {
     const a = metricsFilm('a',{year:1920,runtime:300,scores:[observation('imdb','rating',10,10)]}),b = metricsFilm('b',{year:2020,runtime:80,scores:[observation('imdb','rating',1,10)]});
     const rows = rowsOf([a,b],[a,a,b]),report = extremesCabinet(rows);
-    expect(report.highest?.movie.id).toBe('a');expect(report.lowest?.movie.id).toBe('b');expect(report.oldest?.movie.id).toBe('a');expect(report.longest?.movie.id).toBe('a');
+    expect(report.highest?.items.map(r => r.movie.id)).toEqual(['a']);expect(report.lowest?.items.map(r => r.movie.id)).toEqual(['b']);expect(report.oldest?.items.map(r => r.movie.id)).toEqual(['a']);expect(report.longest?.items.map(r => r.movie.id)).toEqual(['a']);
     expect(extremesCabinet([...rows].reverse())).toEqual(report);
     const ties = rowsOf([metricsFilm('z'),metricsFilm('a')]);
-    expect(Object.values(extremesCabinet(ties)).map(r => r?.movie.id)).toEqual(['a','a','a','a']);
+    expect(Object.values(extremesCabinet(ties)).map(r => r?.items.map(item => item.movie.id))).toEqual([['a','z'],['a','z'],['a','z'],['a','z']]);
   });
   it('missing extremes and empty dashboards stay safe',() => {
     const rows = rowsOf([metricsFilm('a',{scores:[],year:null,runtime:null,director:null,genres:[]})]);

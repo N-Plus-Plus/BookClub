@@ -110,12 +110,15 @@ export function popularityMetrics(rows: Appearance[]) {
 }
 export function extremesCabinet(rows: Appearance[]) {
   const unique = uniqueAppearances(rows);
-  const winner = (value: (row: Appearance) => number | null,descending: boolean) => unique.filter(row => {
-    const number = value(row); return number !== null && Number.isFinite(number);
-  }).sort((a,b) => (descending ? value(b)!-value(a)! : value(a)!-value(b)!) || tie(a,b))[0] ?? null;
-  return {highest:winner(row => row.imdb,true),lowest:winner(row => row.imdb,false),
-    oldest:winner(row => row.movie.year !== null && row.movie.year > 0 ? row.movie.year : null,false),
-    longest:winner(row => row.movie.runtime !== null && row.movie.runtime > 0 ? row.movie.runtime : null,true)};
+  return {highest:tiedExtreme(unique,row => row.imdb),lowest:tiedExtreme(unique,row => row.imdb,'min'),
+    oldest:tiedExtreme(unique,row => row.movie.year !== null && row.movie.year > 0 ? row.movie.year : null,'min'),
+    longest:tiedExtreme(unique,row => row.movie.runtime !== null && row.movie.runtime > 0 ? row.movie.runtime : null)};
+}
+export function tiedExtreme<T>(items: readonly T[],value: (item:T) => number | null,direction: 'max' | 'min' = 'max'): {value:number;items:T[]} | null {
+  const qualifying = items.filter(item => {const number = value(item);return number !== null && Number.isFinite(number);});
+  if (!qualifying.length) return null;
+  const extreme = qualifying.reduce((best,item) => direction === 'max' ? Math.max(best,value(item)!) : Math.min(best,value(item)!),value(qualifying[0])!);
+  return {value:extreme,items:qualifying.filter(item => value(item) === extreme)};
 }
 export function metricsDashboard(rows: Appearance[],all: Appearance[]) {
   return {fingerprint:genreFingerprint(rows,all),decades:decadeDistribution(rows),directors:directorFingerprint(rows),

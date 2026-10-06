@@ -1,4 +1,5 @@
 import { ProviderError } from './http';
+import { usableTitle } from '../../../shared/titles';
 import type { Score } from '../../../shared/types';
 import { RatingError, ratingRequest, record } from './ratings';
 function omdbFailure(data: unknown): ProviderError | undefined {
@@ -22,14 +23,14 @@ export function parseOmdb(data: unknown, at = new Date().toISOString()): Score[]
   }
   return scores.filter((s): s is Score => s !== null);
 }
-export interface OmdbMetadata { year: number | null; runtime: number | null; director: string | null; genres: string[] }
+export interface OmdbMetadata { title: string | null; year: number | null; runtime: number | null; director: string | null; genres: string[] }
 export function parseOmdbMetadata(data: unknown): OmdbMetadata {
   parseOmdb(data); // Validate provider success without inventing missing values.
   const d = data as Record<string,unknown>;
   const year = typeof d.Year === 'string' && /^\d{4}$/.test(d.Year) ? Number(d.Year) : null;
   const runtime = typeof d.Runtime === 'string' && /^\d+ min$/.test(d.Runtime) ? Number(d.Runtime.split(' ')[0]) : null;
   const text = (value: unknown) => typeof value === 'string' && value.trim() && value.trim() !== 'N/A' ? value.trim() : null;
-  return {year:year && year >= 1870 && year <= 2200 ? year : null,runtime:runtime && runtime <= 10000 ? runtime : null,
+  return {title:usableTitle(d.Title),year:year && year >= 1870 && year <= 2200 ? year : null,runtime:runtime && runtime <= 10000 ? runtime : null,
     director:text(d.Director),genres:text(d.Genre)?.split(',').map(g => g.trim()).filter(Boolean) ?? []};
 }
 export class OmdbProvider {
@@ -37,7 +38,9 @@ export class OmdbProvider {
   async details(id: string) {
     const data = await ratingRequest(`https://www.omdbapi.com/?apikey=${encodeURIComponent(this.key)}&i=${encodeURIComponent(id)}&type=movie`,'OMDb',undefined,this.onLimits,omdbFailure);
     if (data && typeof data === 'object' && 'imdbID' in data && data.imdbID !== id) throw new ProviderError('OMDb','not_found','OMDb returned a different IMDb identity. Owner review is required.');
-    return {scores:parseOmdb(data),metadata:parseOmdbMetadata(data)};
+    const metadata=parseOmdbMetadata(data);
+    if (!(data && typeof data === 'object' && 'imdbID' in data && data.imdbID === id)) metadata.title=null;
+    return {scores:parseOmdb(data),metadata};
   }
   async scores(id: string) { return (await this.details(id)).scores; }
 }

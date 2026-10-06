@@ -26,8 +26,9 @@ const target=()=>{
 };
 it.each([false,true])('repairs identity and relationships without wrong-provider contamination (merge=%s)',async merge=>{
   if(merge)target();
-  await new Repository(local.db).cacheEnrichment(sourceId,parseTmdbEnrichment(tmdbEnrichmentFixture(1037212),'2026-10-07T00:00:00Z')!);
+  await new Repository(local.db).cacheEnrichment(sourceId,parseTmdbEnrichment({...tmdbEnrichmentFixture(1037212),title:'Love Affair'},'2026-10-07T00:00:00Z')!);
   const plan=loveAffairRepairSql(local.sqlite),id=merge?'correct':sourceId;
+  expect(local.sqlite.prepare('SELECT title_source FROM movies WHERE id=?').get(sourceId)?.title_source).toBe('tmdb');
   expect(plan.mode).toBe(merge?'merge':'in-place');expect(plan.survivor).toBe(id);
   local.sqlite.exec(plan.sql!);local.sqlite.exec(plan.sql!);
   expect(loveAffairRepairSql(local.sqlite).sql).toBeNull();
@@ -39,11 +40,12 @@ it.each([false,true])('repairs identity and relationships without wrong-provider
   for(const t of ['movie_assets','movie_genres','movie_score_checks','movie_provider_metadata','movie_provider_enrichment_state','movie_provider_credits'])expect(local.sqlite.prepare(`SELECT * FROM ${t}`).all()).toEqual([]);
   const receipt=JSON.parse(String(local.sqlite.prepare('SELECT snapshot_json FROM movie_identity_merge_receipts').get()!.snapshot_json));
   expect(receipt.source_scores).toHaveLength(2);expect(receipt.movie_provider_credits).toHaveLength(21);
+  expect(local.sqlite.prepare('SELECT title_source FROM movies WHERE id=?').get(id)?.title_source).toBe(merge?'manual':'legacy-spreadsheet');
   expect(local.sqlite.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
 });
 it('preserves a healthy survivor and its cache/scores',async()=>{
   target();const repo=new Repository(local.db);
-  await repo.cacheEnrichment('correct',parseTmdbEnrichment(tmdbEnrichmentFixture(43739),'2026-10-07T00:00:00Z')!);
+  await repo.cacheEnrichment('correct',parseTmdbEnrichment({...tmdbEnrichmentFixture(43739),title:'Love Affair'},'2026-10-07T00:00:00Z')!);
   const cache=local.sqlite.prepare('SELECT * FROM movie_provider_enrichment_state').all();
   local.sqlite.exec(loveAffairRepairSql(local.sqlite).sql!);
   expect(local.sqlite.prepare('SELECT * FROM movie_provider_enrichment_state').all()).toEqual(cache);

@@ -141,8 +141,8 @@ it.each(['Populate Missing Scores','Refresh Scores','Enrich/Refresh Metadata'])(
  ]}))})).mockImplementationOnce(()=>new Promise(resolve=>{release=resolve;}));
  vi.mocked(api.scoreMaintenanceStatus).mockResolvedValueOnce({candidateIds:movies.map(m=>m.id),eligibleDimensions:5729,unavailableDimensions:7,unavailableFilms:3});
  await act(async()=>root.render(createElement(AdminScreen,{catalog:{movies:[...movies,{...film(99),external_ids:[{provider:'tmdb',external_id:'99'}]},film(100)],members,sessions:[],cycles:[]},writesEnabled:true,onMovie:vi.fn(),onUpdated:async()=>{}})));
- expect(container.textContent).toContain('Scores: IMDb, RT-A, RT-C, LB, MC and TMDB. Populate fills missing scores; Refresh rechecks identified films. Metadata refreshes year, runtime, director and IMDb genres.');
- expect(container.textContent).toContain('1 need score identity · 2 need IMDb identity for metadata.');
+ expect(container.textContent).toContain('Scores: IMDb, RT-A, RT-C, LB, MC and TMDB. Populate fills missing scores; Refresh rechecks identified films. OMDb Metadata refreshes title, year, runtime, director and genres across the whole catalogue with a valid IMDb identity.');
+ expect(container.textContent).toContain('1 need score identity · 2 need IMDb identity for metadata · 11 eligible for whole-catalogue OMDb Metadata.');
  expect(container.textContent).toContain('5729 score inputs eligible · 7 confirmed unavailable (3 films).');
  vi.useFakeTimers();await click(label);
  expect(container.textContent).toContain('Stop after this batch');expect(container.textContent).toContain('10 /');

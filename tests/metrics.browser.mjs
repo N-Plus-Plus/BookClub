@@ -3,9 +3,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { metricsFixture } from './metrics-fixture.ts';
+import { metricsEnrichmentFixture } from './metrics-enrichment-fixture.ts';
 const {chromium} = await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
 const browser = await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : undefined),headless:true});
-const context = await browser.newContext();
+const context = await browser.newContext({hasTouch:true});
 const page = await context.newPage(),catalog = metricsFixture(),errors = [],requests = [];
 page.on('pageerror',error => errors.push(error.message));
 await context.addInitScript(() => localStorage.setItem('bookclub.dev-member','m1'));
@@ -17,6 +18,7 @@ await context.route('**/api/v1/**',async route => {
   if (path.endsWith('/health')) data = {status:'ok',environment:'local',authenticationRequired:false,googleAuthConfigured:false,demo:true};
   else if (path.endsWith('/auth/me')) data = {viewer:{...catalog.members[0],role:'member'}};
   else if (path.endsWith('/rotation')) data = null;
+  else if (path.endsWith('/metrics/enrichment')) data = sparse ? {movies:{}} : metricsEnrichmentFixture();
   else if (path.endsWith('/catalog/compact')) {
     const movies = sparse ? catalog.movies.map(m => ({...m,year:null,runtime:null,director:null,genres:[],scores:[]})) : catalog.movies;
     data = {...catalog,movies,sessions:catalog.sessions.map(({movies,...s}) => ({...s,movie_ids:movies.map(m => m.id)}))};
@@ -34,6 +36,8 @@ try {
     await page.setViewportSize({width,height:900});
     await page.goto('http://localhost:4173/#/metrics');
     await page.getByRole('heading',{name:'Genre detail',exact:true}).waitFor();
+    await page.getByText('Loading enriched Metrics…',{exact:true}).waitFor({state:'hidden'});
+    assert.equal(requests.filter(path => path.endsWith('/metrics/enrichment')).length,1,'one lazy read during the mounted Metrics visit');
     await page.locator('.metrics-filters button').first().click();
     for (const direction of ['Top','Bottom']) await page.getByRole('group',{name:`${direction} 5 score filter`}).getByRole('button',{name:'IMDb',exact:true}).click();
     for (const footer of await page.locator('.metrics-film-footer').all()) {
@@ -59,15 +63,24 @@ try {
     assert.match(await page.locator('.metrics-popularity-list').first().textContent(),/2,000,000 IMDb votes/);
     assert.match(await page.locator('.metrics-popularity-list').nth(1).textContent(),/12 IMDb votes/);
     assert(await page.locator('.metrics-extremes .poster-empty').count() === 4);
+    assert.equal(await page.locator('.metrics-theme-signature').count(),5);
+    assert.equal(await page.locator('.metrics-scatter a').count(),7);
+    assert.match(await page.locator('.metrics-economics-scatter').textContent(),/7 \/ 10 unique films/);
+    assert.equal(await page.locator('.metrics-classifications .metrics-stacked-profile').count(),5);
+    assert.match(await page.locator('.metrics-classifications').textContent(),/MA15\+ 100.0%/);
     const available = await page.locator('.metrics-content').evaluate(e => e.clientWidth);
     assert.equal(await columns(page.locator('.metrics-extremes')),available >= 540 ? 2 : 1);
-    assert.equal(await columns(page.locator('.metrics-paired')),available >= 720 ? 2 : 1);
+    for (const pair of await page.locator('.metrics-paired').all()) assert.equal(await columns(pair),available >= 720 ? 2 : 1);
     assert(!(await overflow()),`${width}: ALL page overflow`);
     await page.screenshot({path:`.verification/metrics/all-${width}.png`,fullPage:true});
-    for (const [section,selector] of [['orientation','.metrics-filters'],['taste','.metrics-fingerprint'],['ratings','.metrics-rating-profile'],['rankings','.metrics-rankings'],['genres','.metrics-genre-scroll'],['extremes','.metrics-extremes']]) { await page.locator(selector).scrollIntoViewIfNeeded(); await page.screenshot({path:`.verification/metrics/${section}-${width}.png`}); }
+    for (const [section,selector] of [['orientation','.metrics-filters'],['taste','.metrics-fingerprint'],['themes','.metrics-themes'],['talent','.metrics-talent'],['world','.metrics-countries'],['language','.metrics-languages'],['classification','.metrics-classifications'],['economics','.metrics-economics-scatter'],['diversity','.metrics-diversity'],['ratings','.metrics-rating-profile'],['rankings','.metrics-rankings'],['genres','.metrics-genre-scroll'],['extremes','.metrics-extremes']]) { await page.locator(selector).scrollIntoViewIfNeeded(); await page.screenshot({path:`.verification/metrics/${section}-${width}.png`}); }
     for (let i = 1;i <= 5;i++) {
       await page.locator('.metrics-filters button').nth(i).click();
       assert.equal(await signature.count(),0);
+      assert.equal(await page.locator('.metrics-theme-signature').count(),0);
+      assert.equal(await page.locator('.metrics-languages .metrics-stacked-profile').count(),2);
+      assert.equal(await page.locator('.metrics-classifications .metrics-stacked-profile').count(),2);
+      assert.equal(await page.locator('.metrics-median-budget .metrics-distribution-row').count(),2);
       const expected = [3,2,6,1,2][i-1];
       assert.equal(await page.locator('.metrics-summary .stat strong').nth(1).textContent(),String(expected));
       assert(await page.locator('.metrics-fingerprint .metrics-distribution-row').count() <= 5);
@@ -81,6 +94,23 @@ try {
       assert(!/NaN|Infinity|undefined|0 \/ 0/.test(await page.locator('.metrics-content').textContent()));
     }
     await page.locator('.metrics-filters button').nth(1).click();
+    for (const role of ['Cast','Director','Writer','Cinematographer','Composer','Editor','Producer']) {
+      await page.locator('.metrics-talent select').selectOption(role);
+      assert.match(await page.locator('.metrics-talent').textContent(),new RegExp(`${role} known for 2 / 3 appearances`));
+    }
+    await page.locator('.metrics-talent select').selectOption('Cast');
+    assert(await page.locator('.metrics-talent select').evaluate(e => e.getBoundingClientRect().height) >= 44,'role selector touch target');
+    await page.locator('.metrics-economics-scatter select').selectOption('');
+    await page.mouse.move(0,0);
+    await page.locator('.metrics-scatter').scrollIntoViewIfNeeded();
+    const point = await page.locator('.metrics-scatter circle:not(.metrics-scatter-target)').first().boundingBox();
+    await page.touchscreen.tap(point.x+point.width/2,point.y+point.height/2);
+    assert(new URL(page.url()).hash === '#/metrics','first point tap inspects without navigating');
+    assert.match(await page.locator('.metrics-scatter-detail').textContent(),/Budget.*Revenue.*SEAN/s);
+    await page.locator('.metrics-scatter a').first().focus();
+    assert.match(await page.locator('.metrics-scatter-detail').textContent(),/Budget.*Revenue.*SEAN/s);
+    assert(!(await page.locator('.metrics-scatter').evaluate(e => /NaN|Infinity/.test(e.outerHTML))));
+    assert(await page.locator('.metrics-scatter text').first().evaluate(e => e.getBoundingClientRect().height) >= 12,'scatter labels remain readable');
     await page.getByRole('group',{name:'Top 5 score filter'}).getByRole('button',{name:'Roger Ebert',exact:true}).click();
     assert.match(await page.locator('.metrics-rankings section').first().textContent(),/3.5 \/ 4/);
     assert.equal(requests.length,baseline,'filter/selector generated an API request');
@@ -90,6 +120,7 @@ try {
   sparse = true;
   await page.setViewportSize({width:390,height:900});await page.reload();
   await page.getByRole('heading',{name:'Genre detail',exact:true}).waitFor();
+  await page.getByText('Loading enriched Metrics…',{exact:true}).waitFor({state:'hidden'});
   await page.locator('.metrics-filters button').nth(1).click();
   const text = await page.locator('.metrics-content').textContent();
   for (const message of ['No recognised genres for this selection.','No director data for this selection.','No IMDb vote data for this selection.','No data for this selection.']) assert(text.includes(message));
