@@ -4,7 +4,7 @@ import { Repository } from './repository';
 import { MovieService } from './services';
 import { MdbListProvider, mdbId } from './providers/mdblist';
 import { TmdbProvider } from './providers/tmdb';
-import { OmdbProvider } from './providers/omdb';
+import { OmdbCredentials } from './providers/omdb-credentials';
 import { ProviderError } from './providers/http';
 import { type MaintenanceMode } from '../../shared/score-maintenance';
 import { missingLiveScoreDimensions, requiredScores } from '../../shared/ranking';
@@ -38,7 +38,8 @@ export class ScoreService {
     };
   }
   private needs(movie: Movie, snapshots: Score[]) { return missingLiveScoreDimensions([...movie.scores,...snapshots]); }
-  private async capture(movie: Movie, batch?: {scores?: Score[]; error?: unknown}, failures?: Map<string,ProviderError>, refresh = false, missingOnly = false, eligible?: string[]): Promise<ProviderResult[]> {
+  private omdb() { return new OmdbCredentials(this.repo,this.env,identity => this.limits(identity)); }
+  private async capture(movie: Movie,omdb: OmdbCredentials, batch?: {scores?: Score[]; error?: unknown}, failures?: Map<string,ProviderError>, refresh = false, missingOnly = false, eligible?: string[]): Promise<ProviderResult[]> {
     const providers: ProviderResult[] = [], snapshots: Score[] = [];
     const id = mdbId(movie.external_ids), imdb = movie.external_ids.find(e => e.provider === 'imdb' && /^tt\d{7,10}$/.test(e.external_id));
     if (batch?.error) { providers.push(failure('mdblist',batch.error)); }
@@ -51,9 +52,9 @@ export class ScoreService {
     const unresolved = missing.filter(key => !eligible || eligible.includes(key));
     const omdbUseful = Boolean(imdb && ['imdb:rating','rottentomatoes:critic','metacritic:critic'].some(key => unresolved.includes(key)));
     if (failures?.has('omdb')) providers.push(this.suppressed('omdb',failures.get('omdb')!));
-    else if (!this.env.OMDB_API_KEY) providers.push({provider:'omdb',status:'skipped',count:0,message:'Not configured.'});
+    else if (!omdb.configured) providers.push({provider:'omdb',status:'skipped',count:0,message:'Not configured.'});
     else if (!omdbUseful) providers.push({provider:'omdb',status:'skipped',count:0,message:'No missing score OMDb can supply.'});
-    else try { const detail = await this.providerCall('omdb',() => new OmdbProvider(this.env.OMDB_API_KEY!,this.limits('omdb')).details(imdb!.external_id)); const scores = detail.scores; if (refresh || missingOnly) await this.repo.enrichOmdbMetadata(movie.id,imdb!.external_id,detail.metadata); snapshots.push(...scores); providers.push({provider:'omdb',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { if (failures && this.providerWide(error)) failures.set('omdb',error); providers.push(failure('omdb',error)); }
+    else try { const detail = await omdb.details(imdb!.external_id); const scores = detail.scores; if (refresh || missingOnly) await this.repo.enrichOmdbMetadata(movie.id,imdb!.external_id,detail.metadata); snapshots.push(...scores); providers.push({provider:'omdb',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { if (failures && this.providerWide(error)) failures.set('omdb',error); providers.push(failure('omdb',error)); }
     const tmdb = movie.external_ids.find(e => e.provider === 'tmdb' && /^[1-9]\d{0,9}$/.test(e.external_id));
     const tmdbMissing = this.needs(refresh ? {...movie,scores:[]} : movie,snapshots).includes('tmdb:rating') && (!eligible || eligible.includes('tmdb:rating'));
     if (!tmdbMissing) providers.push({provider:'tmdb',status:'skipped',count:0,message:'TMDB rating already available.'});
@@ -85,13 +86,13 @@ export class ScoreService {
   }
   async refresh(id: string): Promise<RefreshResult> {
     const service = new MovieService(this.repo,this.env);
-    const providers = await this.capture(await service.detail(id));
+    const providers = await this.capture(await service.detail(id),this.omdb());
     return {movie: await service.detail(id),providers};
   }
   async maintain(mode: MaintenanceMode, ids: string[]) {
     if (!ids.length || ids.length > 10) throw new ApiError(422,'INVALID_LIMIT','Choose 1–10 films.');
     const selected = await this.repo.maintenanceDetails([...new Set(ids)],true);
-    const failures = new Map<string,ProviderError>(), batch = new Map<string,{scores?: Score[]; error?: unknown}>();
+    const omdb = this.omdb(), failures = new Map<string,ProviderError>(), batch = new Map<string,{scores?: Score[]; error?: unknown}>();
     const checks = mode === 'missing' ? await this.repo.scoreChecks(selected.map(m => m.id)) : [];
     const eligible = (m: Movie) => this.needs(m,[]).filter(key => !checks.some(c => c.movie_id === m.id && c.score_key === key && c.available === 0));
     const candidates = selected.filter(m => mode !== 'missing' || eligible(m).length > 0);
@@ -109,13 +110,13 @@ export class ScoreService {
     const results: {id:string; providers:ProviderResult[]}[] = [];
     for (const movie of candidates) {
       if (results.length && !failures.size) await new Promise(resolve => setTimeout(resolve,500));
-      if (mode !== 'metadata') { results.push({id:movie.id,providers:await this.capture(movie,batch.get(movie.id),failures,mode === 'refresh',mode === 'missing',mode === 'missing' ? eligible(movie) : undefined)}); continue; }
+      if (mode !== 'metadata') { results.push({id:movie.id,providers:await this.capture(movie,omdb,batch.get(movie.id),failures,mode === 'refresh',mode === 'missing',mode === 'missing' ? eligible(movie) : undefined)}); continue; }
       const imdb = movie.external_ids.find(e => e.provider === 'imdb' && /^tt\d{7,10}$/.test(e.external_id));
       let result: ProviderResult;
       if (failures.has('omdb')) result = this.suppressed('omdb',failures.get('omdb')!);
-      else if (!this.env.OMDB_API_KEY || !imdb) result = {provider:'omdb',status:'skipped',count:0,message:!imdb ? 'A valid IMDb identity is required.' : 'Not configured.'};
+      else if (!omdb.configured || !imdb) result = {provider:'omdb',status:'skipped',count:0,message:!imdb ? 'A valid IMDb identity is required.' : 'Not configured.'};
       else try {
-        const detail = await this.providerCall('omdb',() => new OmdbProvider(this.env.OMDB_API_KEY!,this.limits('omdb')).details(imdb.external_id));
+        const detail = await omdb.details(imdb.external_id);
         const changed = await this.repo.enrichOmdbMetadata(movie.id,imdb.external_id,detail.metadata);
         result = {provider:'omdb',status:'success',count:changed ? 1 : 0,message:changed ? 'Available IMDb metadata refreshed.' : 'IMDb metadata is unchanged.'};
       } catch (error) { if (this.providerWide(error)) failures.set('omdb',error); result = failure('omdb',error); }
@@ -127,7 +128,7 @@ export class ScoreService {
   async enrich(limit: number) {
     if (!Number.isInteger(limit) || limit < 1 || limit > 10) throw new ApiError(422,'INVALID_LIMIT','Choose 1–10 films.');
     const candidates = await this.repo.enrichmentCandidates(limit);
-    const selected = await this.repo.movieDetails(candidates.ids), batch = new Map<string,{scores?: Score[]; error?: unknown}>(), failures = new Map<string,ProviderError>();
+    const omdb = this.omdb(), selected = await this.repo.movieDetails(candidates.ids), batch = new Map<string,{scores?: Score[]; error?: unknown}>(), failures = new Map<string,ProviderError>();
     if (this.env.MDBLIST_API_KEY) for (const provider of ['imdb','tmdb']) {
       const group = selected.filter(m => mdbId(m.external_ids)?.provider === provider);
       if (!group.length) continue;
@@ -138,7 +139,7 @@ export class ScoreService {
     }
     const results = [];
     // Sequential fallback prevents a provider-wide failure from multiplying calls.
-    for (const m of selected) results.push({id:m.id,providers:await this.capture(m,batch.get(m.id),failures)});
+    for (const m of selected) results.push({id:m.id,providers:await this.capture(m,omdb,batch.get(m.id),failures)});
     const current = await this.repo.movieDetails(results.map(r => r.id));
     return {results:results.map((r,i) => ({providers:r.providers,movie:current[i]})),remaining:candidates.remaining,unidentified:candidates.unidentified};
   }

@@ -46,7 +46,7 @@ CORS reflects exact configured origins only, never `*`, with no cookie credentia
 
 | Method / path | Request / result |
 | --- | --- |
-| GET `/health` | `{status,environment,authenticationRequired,googleAuthConfigured,tmdbConfigured,mdblistConfigured,omdbConfigured,demo}`; configuration presence only, no secrets. `demo` means local environment, not proof that catalog rows are fictional. |
+| GET `/health` | `{status,environment,authenticationRequired,googleAuthConfigured,tmdbConfigured,mdblistConfigured,omdbConfigured,demo}`; configuration presence only, no secrets; `omdbConfigured` is true when either OMDb key is configured, with no per-key health fields. `demo` means local environment, not proof that catalog rows are fictional. |
 | POST `/auth/google` | `{credential}` -> `{token,viewer,expiresAt}`; viewer `{id,display_name,sort_order,avatar,role}` |
 | GET `/auth/me` | `{viewer}`; null for anonymous local bypass |
 | POST `/auth/logout` | Revoke current hash -> `{loggedOut:true}` |
@@ -150,7 +150,7 @@ This ignored operator package contains identity/canonical decisions only: no loc
 | `VITE_API_BASE_URL` | Public build-time Worker origin without `/api/v1`; production has no localhost fallback; dev fixes localhost |
 | `VITE_GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_ID` | Same public Google Web client audience, frontend build / Worker runtime |
 | `APP_ENV`, `LOCAL_WRITE_BYPASS`, `ALLOWED_ORIGINS`, `DB` | Worker trust/env/origin/D1 bindings; top-level production and named local are separate |
-| `TMDB_READ_TOKEN`, `MDBLIST_API_KEY`, `OMDB_API_KEY` | Optional Worker-only credentials; explicit resolver may use private TMDB process env/file |
+| `TMDB_READ_TOKEN`, `MDBLIST_API_KEY`, `OMDB_API_KEY`, `OMDB_API_KEY_SECONDARY` | Optional Worker-only credentials; explicit resolver may use private TMDB process env/file |
 | `worker/.dev.vars.local`, `.env.local`, `.env.production.local` | Ignored local secrets / public frontend build configuration; examples tracked |
 | `/#/...`, `/` in development/build/preview | Static hash routes; preserve Vite base-aware asset/identity paths |
 | `public/avatars/0.png`–`19.png`, `a.png` | Fixed one-time member choices and reserved Classics asset; never modify source assets to simplify tests |

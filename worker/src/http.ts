@@ -1,6 +1,6 @@
 export interface Env {
   DB: D1Database; APP_ENV: string; LOCAL_WRITE_BYPASS: string; ALLOWED_ORIGINS: string; TMDB_READ_TOKEN?: string; GOOGLE_CLIENT_ID?: string;
-  MDBLIST_API_KEY?: string; OMDB_API_KEY?: string; TVDB_API_KEY?: string;
+  MDBLIST_API_KEY?: string; OMDB_API_KEY?: string; OMDB_API_KEY_SECONDARY?: string; TVDB_API_KEY?: string;
 }
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }

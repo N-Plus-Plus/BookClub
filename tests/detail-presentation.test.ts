@@ -24,7 +24,7 @@ it('places Detail overview and informational status below poster and metadata, p
   await render();
   const identity=container.querySelector('.detail-identity')!;
   expect(identity.children[0].classList.contains('poster-large')).toBe(true);
-  expect([...identity.children].slice(1).map(node=>node.className)).toEqual(['film-identity-metadata','detail-overview','badge detail-classics-status']);
+  expect([...identity.children].slice(1).map(node=>node.className)).toEqual(['film-identity-metadata','meta ranking-source-scores','detail-overview','badge detail-classics-status']);
   const metadata=identity.querySelector('.film-identity-metadata')!;
   for(const copy of ['A Film','Original title: Original Film','Runtime: 3 hrs, 8 mins','Release: 1982-01-01','Director: A Director','Drama · Mystery'])expect(metadata.textContent).toContain(copy);
   expect(metadata.textContent).not.toContain('1982 ·');expect(metadata.textContent).not.toContain('188 min');
@@ -49,7 +49,7 @@ it('preserves missing overview fallback',()=>{
 
 it('uses two affirmed Seen columns with no parent heading or unanswered identities',async()=>{
   await render();
-  expect([...container.querySelectorAll('.detail-seen-column h3')].map(node=>node.textContent)).toEqual(["Haven't Seen It",'Seen It']);
+  expect([...container.querySelectorAll('.detail-seen-column h3')].map(node=>node.textContent)).toEqual(["Haven't",'Seen It']);
   expect([...container.querySelectorAll('.detail-seen-column')].map(column=>[...column.querySelectorAll('.club-identity')].map(node=>node.textContent))).toEqual([['TROY'],['SEAN']]);
   expect(container.querySelector('.detail-seen-column-yes')).toBeTruthy();
   expect([...container.querySelectorAll('h2')].map(node=>node.textContent)).not.toContain('Seen It?');
@@ -109,4 +109,15 @@ it('scopes responsive full-width overview and fit-content status to Detail and r
   expect(css).toContain('.detail-seen-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }');
   expect(css).toContain('.detail-seen-column-yes { text-align: right; padding-right: 0; }');
   expect(css).toContain('.detail-seen-column-yes .detail-seen-members { justify-content: flex-end; }');
+});
+
+it.each([true,false])('places genuine scores directly before overview regardless of Classics membership (%s)',async classic=>{
+ await render({...movie,classic});
+ const row=container.querySelector('.ranking-source-scores')!;
+ expect(row.nextElementSibling?.className).toBe('detail-overview');
+ expect([...row.children].map(n=>n.textContent)).toEqual(['IMDb 81.4','LB 98.7','MC 93','RT-A 92','RT-C 99']);
+ expect(row.textContent).not.toContain('TMDB');
+ expect(Boolean(container.querySelector('.detail-classics-score'))).toBe(classic);
+ await render({...movie,id:'empty',classic,ranking:rankMovie([],[],members)});
+ expect(container.querySelector('.ranking-source-scores')).toBeNull();
 });

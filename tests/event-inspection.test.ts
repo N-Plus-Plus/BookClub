@@ -190,7 +190,7 @@ it('Seen queue, Home count, corrections and Detail context belong to the viewer'
   await navigate('movie/saved-0');
   expect(button('Back')).toBeTruthy(); expect(button('Yes, this one!')).toBeUndefined();
   const columns=container.querySelectorAll('.detail-seen-column');
-  expect(columns[0].textContent).toBe("Haven't Seen It"); expect(columns[1].textContent).toContain('OTHER'); expect(columns[1].textContent).not.toContain('MEMBER 2');
+  expect(columns[0].textContent).toBe("Haven't"); expect(columns[1].textContent).toContain('OTHER'); expect(columns[1].textContent).not.toContain('MEMBER 2');
   expect(container.querySelector('.member-state')).toBeNull();
   await click(button('Back')); expect(window.location.hash).toBe('#/seen');
   vi.mocked(api.seen).mockImplementation(async (_id,memberId,value)=>({...personal,appearances:[],seen:value === null ? personal.seen : [...personal.seen,{member_id:memberId,seen:Number(value),updated_at:''}]}));
@@ -299,7 +299,7 @@ it('Home shows only the top two eligible rankable Classics with summary scores',
   const top=sortClassics(pool).filter(m=>m.ranking?.eligible&&m.ranking.rankable).slice(0,2);
   expect([...cards].map(e=>e.querySelector('a')?.getAttribute('href'))).toEqual(top.map(m=>'#/movie/'+m.id));
   expect([...cards].map(e=>e.querySelector('.rank-number')?.textContent)).toEqual(['#1','#2']);
-  for(const card of cards){expect(card.textContent).toContain('0 Seen · 1 No');expect(card.textContent).toContain('IMDb 80 · RT audience 90 · RT critic 85');expect(card.textContent).not.toMatch(/Ranked|Unknown|residual score|Score breakdown/);expect(card.querySelector('details,.score,.badge')).toBeNull();}
+  for(const card of cards){expect(card.textContent).toContain('0 Seen · 1 No');expect([...card.querySelectorAll('.ranking-source-scores > span')].map(node=>node.textContent)).toEqual(['IMDb 80','RT-A 90','RT-C 85']);expect(card.textContent).not.toMatch(/Ranked|Unknown|residual score|Score breakdown/);expect(card.querySelector('details,.score,.badge')).toBeNull();}
   expect(container.querySelector('.home-session-card .eyebrow')?.textContent).toBe('1 January 2026');
   await navigate('classics');expect(container.querySelector('.ranking-row .score, .ranking-row details')).toBeNull();expect(container.querySelector('.ranking-row')?.textContent).toContain('IMDb 80');
 });

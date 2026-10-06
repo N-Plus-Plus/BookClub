@@ -386,8 +386,8 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .classics-ranking-row { padding-bottom: calc(var(--space-16) + var(--space-12)); }
 .classics-ranking-row .rank-number { color: var(--text-primary); font-size: 1.12rem; font-weight: 600; }
 .classics-ranking-row .movie-title { overflow-wrap: anywhere; }
-.classics-ranking-row .ranking-source-scores { display: flex; width: 100%; flex-wrap: nowrap; justify-content: space-between; align-items: baseline; }
-.classics-ranking-row .ranking-source-scores > span { white-space: nowrap; flex: 0 0 auto; }
+.ranking-source-scores { display: flex; width: 100%; flex-wrap: nowrap; justify-content: space-between; align-items: baseline; }
+.ranking-source-scores > span { white-space: nowrap; flex: 0 0 auto; }
 @media (max-width: 719px) {
   .classics-ranking-row .movie-title { font-size: calc(var(--text-movie-title) * .75); }
 }
@@ -405,6 +405,7 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .classics-pagination { align-items: center; justify-content: space-between; }
 .detail-grid-without-seen { grid-template-columns: minmax(0,1fr); }
 .detail-identity { display: grid; grid-template-columns: auto minmax(0,1fr); }
+.detail-identity > .ranking-source-scores { grid-column: 1 / -1; }
 .detail-identity .detail-overview { grid-column: 1 / -1; font-family: var(--font-prose); font-weight: 300; font-size: var(--text-body); line-height: 1.6; }
 .detail-classics-status { grid-column: 1 / -1; width: fit-content; max-width: 100%; }
 .detail-classics-score { min-width: 0; }

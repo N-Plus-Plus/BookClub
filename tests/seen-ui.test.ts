@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { rankMovie } from '../shared/ranking';
 import { SeenScreen } from '../frontend/SeenScreen';
 import { useSeenAnswers } from '../frontend/seen-answers';
 import { MetricsScreen } from '../frontend/MetricsScreen';
@@ -163,4 +164,14 @@ it('retains intentions confirmed while an older catalogue snapshot is still in f
  const reconciled=read.apply(catalog);read.release();expect(reconciled.movies[0].seen[0].seen).toBe(1);
  // Completed intentions stop overlaying subsequent, genuinely newer reads.
  expect(beginRead().apply(catalog).movies[0].seen).toEqual([]);
+});
+
+it('places genuine scores immediately before plot and updates them as the queue advances',async()=>{
+ await mount();
+ const scored=films.slice(0,3).map((film,i)=>({...film,overview:'Plot '+i,ranking:rankMovie(i===2?[]:[{provider:'imdb',metric:'rating',raw_value:80+i,raw_scale:100,normalized_value:80+i,vote_count:null,fetched_at:''}],[],[member])}));
+ await act(async()=>refreshCatalog({...catalog,movies:scored}));
+ const row=()=>container.querySelector('.ranking-source-scores');
+ expect(row()?.textContent).toBe('IMDb 81');expect(row()?.nextElementSibling?.className).toBe('seen-plot');
+ await click('Yes, seen it');expect(row()?.textContent).toBe('IMDb 80');expect(row()?.nextElementSibling?.className).toBe('seen-plot');
+ await click('No, not yet');expect(row()).toBeNull();expect(container.querySelector('.seen-plot')).toBeTruthy();
 });

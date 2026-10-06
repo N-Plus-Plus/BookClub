@@ -74,7 +74,7 @@ it('supports partial anchor, delete and restore evidence and malformed evidence 
 
 it('uses /100 formatting in ranking without changing derived precision or native Metrics IMDb',() => {
   const ranking=text(renderToStaticMarkup(createElement(RankingScore,{movie})));
-  expect(ranking).toContain('IMDb 87 · RT audience 87.5 · RT critic 87.3');
+  expect(ranking).toContain('IMDb 87');expect(ranking).toContain('RT-A 87.5');expect(ranking).toContain('RT-C 87.3');
   expect(ranking).toContain('87 / 100');expect(ranking).toContain('87.5 / 100');
   expect(ranking).toContain(movie.ranking!.finalScore!.toFixed(2));expect(ranking).toContain(movie.ranking!.rawScore!.toFixed(2));expect(ranking).toContain('1.000000');
   const metrics=text(renderToStaticMarkup(createElement(MetricsScreen,{catalog,viewer:null,onUpdated:async()=>{}})));

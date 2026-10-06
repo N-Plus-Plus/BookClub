@@ -30,7 +30,7 @@ export function RotationCard({catalog,rotation,viewer,onUpdated,onUseBuilder}: {
       setBusy(true); setError(''); setFeedback('');
       void api.swapRotation({target_member_id:selected.id,version:rotation.version}).then(turn => { setTargetId(''); setFeedback(message); onUpdated(turn); }).catch(e => setError(e instanceof Error ? e.message : 'Swap failed.')).finally(() => setBusy(false));
     }}>
-      {current && <p className="meta">Swap {current.display_name.toUpperCase()} with another member who has not yet had their turn this cycle. They become current now; {current.display_name.toUpperCase()} moves to their position for this cycle only. Next cycle returns to normal order.</p>}
+      {current && <p className="meta">Swap {current.display_name.toUpperCase()} with another member who has not yet had their turn this cycle. They become current now; {current.display_name.toUpperCase()} moves to their position for this cycle only.</p>}
       {targets.length ? <><label className="input-label">Swap current turn<select required className="field__input" value={selected?.id ?? ''} disabled={busy} onChange={e => setTargetId(e.target.value)}><option value="">Choose a member</option>{targets.map(({member}) => <option value={member.id} key={member.id}>{member.display_name.toUpperCase()}</option>)}</select></label><Action icon={ArrowLeftRight} type="submit" disabled={busy || !selected}>Swap turns</Action></> : <p className="meta">No eligible future turns this cycle.</p>}
       {feedback && <p role="status" className="meta">{feedback}</p>}{error && <p className="error-message" role="alert">{error}</p>}
     </form></details>}

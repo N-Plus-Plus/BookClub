@@ -3,7 +3,7 @@ import { Eye, Film, RefreshCw, type LucideIcon } from 'lucide-react';
 import { posterReference } from '../shared/artwork';
 import { formatScore100, possessiveName, ratingLabel } from './presentation';
 import { ClubIdentity } from './ClubIdentity';
-import type { Member, Movie, Session } from '../shared/types';
+import type { Member, Movie, Ranking, Session } from '../shared/types';
 
 const ACTION_ICON_SIZE = 18;
 
@@ -60,22 +60,25 @@ export function SessionCard({session,members,actions,dateHeading,variant}: {sess
     {session.planned_at && <p className="meta">Planned {new Date(session.planned_at).toLocaleString('en-AU')}</p>}
   </article>;
 }
-// Classics keeps compact labels and presentation order independent of other views.
-const classicsRatings = [
+// Genuine source scores share compact labels and canonical presentation order.
+const sourceRatings = [
   ['imdb','rating','IMDb','IMDb Rating'], ['letterboxd','rating','LB','Letterboxd Rating'], ['metacritic','critic','MC','Metacritic Critic Score'],
   ['rottentomatoes','audience','RT-A','Rotten Tomatoes Audience Score'], ['rottentomatoes','critic','RT-C','Rotten Tomatoes Critic Score'], ['tmdb','rating','TMDB','TMDB Rating'],
 ] as const;
+export function SourceScores({ranking}: {ranking?: Ranking | null}) {
+  const items = sourceRatings.flatMap(([provider,metric,label,description]) => {
+    const source = ranking?.sources.find(s => s.provider === provider && s.metric === metric);
+    return source ? [<span key={`${provider}:${metric}`} title={description} aria-label={`${description}: ${formatScore100(source.value)}`}>{label} {formatScore100(source.value)}</span>] : [];
+  });
+  return items.length ? <p className="meta ranking-source-scores">{items}</p> : null;
+}
 export function RankingScore({movie,compact = false,variant}: {movie: Movie; compact?: boolean; variant?: 'home' | 'classics'}) {
   const r = movie.ranking!;
-  const scoreLine = variant === 'classics' ? classicsRatings.flatMap(([provider,metric,label,description]) => {
-    const source = r.sources.find(s => s.provider === provider && s.metric === metric);
-    return source ? [<span key={`${provider}:${metric}`} title={description} aria-label={`${description}: ${formatScore100(source.value)}`}>{label} {formatScore100(source.value)}</span>] : [];
-  }) : r.sources.map(s => `${ratingLabel(s.provider,s.metric)} ${formatScore100(s.value)}`).join(' · ');
   return <div className="stack ranking-score">{!variant && <div className="rank-top">
     <span className="badge" data-intent={r.eligible ? 'constructive' : 'destructive'}>{!r.eligible ? 'Disqualified' : r.rankable ? 'Ranked' : 'Needs Data'}</span>
     <strong className="score numeric">{r.finalScore?.toFixed(2) ?? '—'}<small>residual score</small></strong></div>}
     <p className="meta">{r.seenCount} Seen · {r.unseenCount} No{variant !== 'home' && <> · {r.unknownCount} Unknown</>}</p>
-    {(!compact || variant === 'classics') && <p className="meta ranking-source-scores">{scoreLine}</p>}
+    {(!compact || variant === 'classics') && <SourceScores ranking={r} />}
     {variant !== 'classics' && r.missingRequiredScores.length > 0 && <p className="meta">Missing: {r.missingRequiredScores.map(key => { const [provider,metric] = key.split(':'); return ratingLabel(provider,metric); }).join(', ')}{r.imputedScores.length > 0 && ' · using available-score average'}</p>}
     {!variant && <details><summary><Eye size={17} aria-hidden="true" />Score breakdown</summary><div className="breakdown">
       <p>Sum of squares <strong>{r.rawScore?.toFixed(2) ?? 'Incomplete'}</strong></p><p>Unseen multiplier <strong>{r.unseenMultiplier.toFixed(6)}</strong></p>
