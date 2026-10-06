@@ -491,3 +491,9 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .metrics-genre-scroll tbody tr { height: var(--genre-row-height); }
 .metrics-genre-scroll .metrics-table th,.metrics-genre-scroll .metrics-table td { box-sizing: border-box; padding-top: 4px; padding-bottom: 4px; }
 @container member-content (max-width: 420px) { .metrics-film-item { grid-template-columns: minmax(0,1fr); } }
+
+@media (max-width: 389px) {
+  .add-classic-modal .search-row { flex-wrap: wrap; }
+  .add-classic-modal .search-row .movie-row { flex-basis: 100%; }
+  .add-classic-modal .search-row > .button { margin-left: auto; }
+}
