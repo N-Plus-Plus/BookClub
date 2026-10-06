@@ -167,10 +167,10 @@ describe('explicit rotation, Classics and History',()=>{
     await call('/movies/moon/seen/member-1','PUT',{seen:false});await call(`/sessions/${s.id}`,'PUT',{event_date:'2031-01-01',kind:'classics',movie_ids:['moon','alien'],cycle_id:s.cycle_id,cycle_slot:5});
     expect(local.sqlite.prepare("SELECT seen FROM seen_states WHERE movie_id='moon' AND member_id='member-1'").get()?.seen).toBe(0);expect(await turn()).toEqual(after);
   });
-  it('backfilled Classics neither marks Seen nor advances rotation',async()=>{
+  it('backfilled Classics marks Seen without advancing rotation',async()=>{
     await call('/sessions/demo-classics','DELETE',undefined,2);
     const before=await turn(),seen=local.sqlite.prepare('SELECT * FROM seen_states ORDER BY movie_id,member_id').all();
-    expect((await session({kind:'classics',host_member_id:null,cycle_id:before.cycle_id,cycle_slot:5,event_date:'1999-01-01'})).status).toBe(201);expect(await turn()).toEqual(before);expect(local.sqlite.prepare('SELECT * FROM seen_states ORDER BY movie_id,member_id').all()).toEqual(seen);
+    expect((await session({kind:'classics',host_member_id:null,cycle_id:before.cycle_id,cycle_slot:5,event_date:'1999-01-01'})).status).toBe(201);expect(await turn()).toEqual(before);expect(local.sqlite.prepare("SELECT seen FROM seen_states WHERE movie_id='moon'").all()).toEqual(Array.from({length:4},()=>({seen:1})));expect(local.sqlite.prepare("SELECT * FROM seen_states WHERE movie_id<>'moon' ORDER BY movie_id,member_id").all()).toEqual(seen.filter(row=>row.movie_id!=='moon'));
   });
   it('follows 1→2→3→4→5→next 1 with independent dates, derived host and permanent anchor',async()=>{
     local.sqlite.exec('UPDATE club_rotation SET cycle_id=NULL,nominal_slot=1,version=version+1');

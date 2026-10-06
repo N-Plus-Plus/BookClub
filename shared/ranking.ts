@@ -74,8 +74,8 @@ export function sortClassics(movies: Movie[]): Movie[] {
     || (b.ranking?.finalScore ?? -Infinity)-(a.ranking?.finalScore ?? -Infinity)
     || a.title.localeCompare(b.title,'en',{sensitivity: 'base'}) || (a.year ?? 0)-(b.year ?? 0) || a.id.localeCompare(b.id,'en'));
 }
-export function missingAnswers(movies: Movie[], members: Member[], viewerId: string) {
-  return sortClassics(movies.filter(m => m.classic)).flatMap(movie => members.filter(m => m.active === 1 && m.id === viewerId)
+export function missingAnswers(movies: Movie[], members: Member[], viewerId: string, historyMovieIds: ReadonlySet<string> = new Set()) {
+  return sortClassics(movies.filter(m => m.classic && !historyMovieIds.has(m.id))).flatMap(movie => members.filter(m => m.active === 1 && m.id === viewerId)
     .filter(member => !movie.seen.some(s => s.member_id === member.id))
     .sort((a,b) => a.sort_order-b.sort_order).map(member => ({movie,member})));
 }

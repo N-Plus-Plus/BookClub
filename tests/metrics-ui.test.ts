@@ -27,7 +27,7 @@ it('defaults on each mount, keeps nine selectors independent, displays full head
  for(const [label,name,,,,,display] of dimensions) {
   await select(0,label);
   expect(sections()[0].querySelector('h2')?.textContent).toBe(`Top 5 by ${name}`);
-  expect([...sections()[0].querySelectorAll('.metrics-film-item > strong')].map(s=>s.textContent)).toEqual([display,display]);
+  expect([...sections()[0].querySelectorAll('.metrics-film-footer > strong')].map(s=>s.textContent)).toEqual([display,display]);
   expect(sections()[1].querySelector('h2')?.textContent).toBe('Bottom 5 by IMDb');
   expect(container.querySelector('.metrics-filters button[aria-pressed=true]')?.textContent).toContain('MEMBER');
  }
@@ -35,7 +35,7 @@ it('defaults on each mount, keeps nine selectors independent, displays full head
  for(const [label,name,,,,,display] of dimensions) {
   await select(1,label);
   expect(sections()[1].querySelector('h2')?.textContent).toBe(`Bottom 5 by ${name}`);
-  expect(sections()[1].querySelector('.metrics-film-item > strong')?.textContent).toBe(display);
+  expect(sections()[1].querySelector('.metrics-film-footer > strong')?.textContent).toBe(display);
   expect(sections()[0].querySelector('h2')?.textContent).toBe('Top 5 by Letterboxd');
  }
  expect(container.querySelector('.metrics-summary')!.textContent).toBe(summary);

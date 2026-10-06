@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ChartNoAxesColumn, CalendarPlus, ListPlus, Check, ChevronRight, Clapperboard, Eye, History, Home, Info, Library, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, ChartNoAxesColumn, CalendarPlus, ListPlus, Check, ChevronRight, Clapperboard, Eye, History, Home, Info, Library, Plus, RefreshCw, X } from 'lucide-react';
 import type { Catalog, FilmCandidate, Movie, MovieDetail, TmdbPreview, Viewer, Rotation } from '../shared/types';
 import { missingAnswers, sortClassics } from '../shared/ranking';
 import { SignInScreen } from './SignInScreen';
@@ -11,6 +11,7 @@ import { patchCatalogMovie, useSeenAnswers } from './seen-answers';
 import { DetailScreen } from './DetailScreen';
 import { PreviewScreen } from './PreviewScreen';
 import { HistoryScreen } from './HistoryScreen';
+import { AddClassicModal } from './AddClassicModal';
 import { ClassicsScreen } from './ClassicsScreen';
 import { AvatarScreen } from './AvatarScreen';
 import { AccountMenu } from './AccountMenu';
@@ -26,6 +27,7 @@ const localLogin = import.meta.env.DEV && import.meta.env.MODE !== 'import-previ
 type Inspection = {source: string; target: string; candidate: FilmCandidate; preview?: TmdbPreview; pending?: Promise<TmdbPreview>};
 const route = () => window.location.hash.slice(2) || 'home';
 export function App() {
+  const [addingClassic,setAddingClassic] = useState(false);
   const [page,setPage] = useState(route);
   const pageRef = useRef(page);
   const [inspection,setInspection] = useState<Inspection | null>(null);
@@ -166,7 +168,7 @@ export function App() {
   const classics = catalog ? sortClassics(catalog.movies.filter(m => m.classic)) : [];
   const eligible = classics.filter(m => m.ranking?.eligible && m.ranking.rankable);
   const excluded = classics.filter(m => !m.ranking?.eligible);
-  const missing = catalog ? missingAnswers(catalog.movies,catalog.members,viewer?.id ?? '').length : 0;
+  const missing = catalog ? missingAnswers(catalog.movies,catalog.members,viewer?.id ?? '',new Set(catalog.sessions.flatMap(s => s.movies.map(m => m.id)))).length : 0;
   const isPreview = page.startsWith('preview/tmdb/');
   const isDetail = page.startsWith('movie/') || isPreview;
   const detailContext = inspection && page === inspection.target;
@@ -179,8 +181,8 @@ export function App() {
   if ((localLogin || health?.authenticationRequired) && health && !viewer && !loading) return <SignInScreen configured={health.googleAuthConfigured} error={actionError || loadError} busy={authBusy} onCredential={signIn} onLocalLogin={localLogin ? signInAsTroy : undefined} onRetry={() => void load()} />;
   if (needsAvatar(viewer) && viewer) return <AvatarScreen viewer={viewer} externalError={actionError || loadError} onClaimed={claimed => { setViewer(claimed); void load(); }} onLogout={() => void logout()} />;
   return <div className={`app-layout ${navigationExpanded ? 'navigation-expanded' : 'navigation-collapsed'}`}>{localDevelopment && health?.demo && <p className="demo-label"><Info size={12} aria-hidden="true" />Local disposable database</p>}<Navigation page={page} expanded={navigationExpanded} onToggle={() => setNavigationExpanded(value => !value)} /><div className="bookclub-shell"><header className="site-header"><a className="brand" href="#/home"><Clapperboard aria-hidden="true" /><span>BookClub<small>HAVE YOU UPDATED THE SPREADSH... WEB APP?</small></span></a><div className="viewer-controls">{viewer ? <AccountMenu viewer={viewer} busy={authBusy} onLogout={() => void logout()} /> : <span className="header-tag">{health?.demo ? 'LOCAL DEMO' : 'FILM CLUB'}</span>}</div></header>
-    <main id="main"><div className="page-heading"><div className="page-title-region"><h1 ref={heading} tabIndex={-1}>{title}</h1>{page.startsWith('event/') && <p className="subtitle">Correct the event details and film lineup.</p>}</div>{detailContext && inspection.source === 'seen' && <Action icon={ArrowLeft} onClick={() => { window.location.hash = '/seen'; }}>Back</Action>}{inspecting && <div className="button-set inspection-actions"><Action icon={X} disabled={confirming} onClick={() => { window.location.hash = `/${inspection.source}`; }}>Nope, this isn't it</Action><Action icon={Check} variant="primary" disabled={confirming || !writesEnabled} onClick={() => void confirmFilm()}>{confirming ? 'Adding…' : 'Yes, this one!'}</Action></div>}</div>
-    {inspectionError && inspecting && <p className="error-message" role="alert">{inspectionError}</p>}
+    <main id="main"><div className="page-heading"><div className="page-title-region"><h1 ref={heading} tabIndex={-1}>{title}</h1>{page.startsWith('event/') && <p className="subtitle">Correct the event details and film lineup.</p>}</div>{page === 'classics' && viewer && writesEnabled && catalog && <div className="page-heading-actions"><Action icon={Plus} variant="primary" onClick={() => setAddingClassic(true)}>Add Classic</Action></div>}{detailContext && inspection.source === 'seen' && <Action icon={ArrowLeft} onClick={() => { window.location.hash = '/seen'; }}>Back</Action>}{inspecting && <div className="button-set inspection-actions"><Action icon={X} disabled={confirming} onClick={() => { window.location.hash = `/${inspection.source}`; }}>Nope, this isn't it</Action><Action icon={Check} variant="primary" disabled={confirming || !writesEnabled} onClick={() => void confirmFilm()}>{confirming ? 'Adding…' : 'Yes, this one!'}</Action></div>}</div>
+    {page === 'classics' && addingClassic && viewer && writesEnabled && catalog && <AddClassicModal catalog={catalog} onMovie={applyMovie} onClose={() => setAddingClassic(false)} />}{inspectionError && inspecting && <p className="error-message" role="alert">{inspectionError}</p>}
     {notice && <div className="notice" role="status"><Check size={20} aria-hidden="true" /><span>{notice}</span><Action icon={X} aria-label="Dismiss message" onClick={() => setNotice('')} /></div>}
     {isAdminPage && DevTools && localDevelopment && catalog && <Suspense fallback={null}><DevTools members={catalog.members} onChanged={load} /></Suspense>}
     {catalog && loadError && <div className="refresh-failure" role="alert"><p>Could not load BookClub data. Showing the last loaded journal.</p><p className="meta">{loadError}</p><Action icon={RefreshCw} variant="secondary" disabled={refreshing} onClick={() => void load()}>Try again</Action></div>}

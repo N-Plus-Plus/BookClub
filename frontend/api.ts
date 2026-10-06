@@ -85,6 +85,7 @@ export const api = {
   deleteSession: (id: string) => request(`/sessions/${encodeURIComponent(id)}`,'DELETE'),
   restoreSession: (id: string) => request(`/sessions/${encodeURIComponent(id)}/restore`,'POST'),
   audit: (id: string) => request<HistoryAudit[]>(`/sessions/${encodeURIComponent(id)}/audit`),
+  removeClassic: (id: string) => request<MovieDetail>(`/movies/${encodeURIComponent(id)}/classics`,'DELETE'),
   classic: (id: string,classic: boolean) => request<MovieDetail>(`/movies/${encodeURIComponent(id)}/classics`,'PUT',{classic}),
   refreshScores: (id: string) => request<RefreshResult>(`/movies/${encodeURIComponent(id)}/refresh-scores`,'POST'),
   enrich: (limit = 10) => request<{results: RefreshResult[]; remaining: number; unidentified: number}>('/classics/enrich','POST',{limit}),

@@ -10,7 +10,7 @@ export function SeenScreen({catalog,viewerId,answer,writesEnabled,failures = [],
   catalog: Catalog; viewerId: string; answer: (m:string,p:string,s:boolean|null,title:string) => void; writesEnabled: boolean;
   pending?: number; failures?: SeenSave[]; retry?: (save:SeenSave) => void;
 }) {
-  const queue = missingAnswers(catalog.movies,catalog.members,viewerId);
+  const queue = missingAnswers(catalog.movies,catalog.members,viewerId,new Set(catalog.sessions.flatMap(s => s.movies.map(m => m.id))));
   const initial = useRef(queue.length);
   const [recent,setRecent] = useState<Recent[]>([]);
   const [recentPage,setRecentPage] = useState(1);
@@ -47,7 +47,7 @@ export function SeenScreen({catalog,viewerId,answer,writesEnabled,failures = [],
     <label className="progress-label">{completed} of {Math.max(initial.current,queue.length)} answers completed this visit<progress value={completed} max={Math.max(1,initial.current,queue.length)} /></label>
     <div aria-live="polite" aria-atomic="true">{next ? <MovieLink movie={visibleMovie!} className="answer-card" key={`${next.movie.id}-${next.member.id}`}><Poster movie={visibleMovie!} large /><div className="answer-copy"><p className="eyebrow">HAVE YOU SEEN...</p><h2 className="movie-title">{visibleMovie!.title}</h2><p className="meta">{visibleMovie!.year ?? 'Year unknown'}</p><p className="meta">{visibleMovie!.runtime ? `${visibleMovie!.runtime} min` : 'Runtime unknown'}</p><p className="meta">Director: {visibleMovie!.director ?? 'Unknown'}</p></div></MovieLink> : <Empty title="All caught up">You have answered every current Classics candidate.<RouteLink to="classics" icon={Library}>Explore Classics</RouteLink></Empty>}</div>
     <SourceScores ranking={visibleMovie?.ranking} scores={visibleMovie?.scores} />
-    {visibleMovie?.overview && <div className="seen-plot"><p id="seen-plot-summary" className={`seen-plot-summary${plotExpanded ? "" : " seen-plot-collapsed"}`}>{visibleMovie.overview}</p><button type="button" className="button seen-plot-toggle" aria-expanded={plotExpanded} aria-controls="seen-plot-summary" onClick={() => setPlotExpanded(expanded => !expanded)}>{plotExpanded ? "Less" : "More"}</button></div>}
+    {visibleMovie?.overview && <div className="seen-plot"><p id="seen-plot-summary" className={`seen-plot-summary${plotExpanded ? "" : " seen-plot-collapsed"}`}>{visibleMovie.overview}</p><button type="button" className="description-disclosure seen-plot-toggle" aria-expanded={plotExpanded} aria-controls="seen-plot-summary" onClick={() => setPlotExpanded(expanded => !expanded)}>{plotExpanded ? "Less" : "More"}</button></div>}
     {next && <div className="answer-actions"><Action className="button seen-yes" icon={Check} disabled={!writesEnabled} onClick={() => respond(true)}>Yes, seen it</Action><Action className="button seen-no" icon={X} disabled={!writesEnabled} onClick={() => respond(false)}>No, not yet</Action></div>}
     {failures.length > 0 && <div className="stack" role="alert"><p className="error-message">{failures.length} answers could not be confirmed. Retry to save your selected answers.</p>{failures.map(save => <div key={`${save.movieId}-${save.memberId}`}><p className="meta">{save.title}: {save.seen === null ? 'Unanswered' : save.seen ? 'Seen' : 'Not seen'} · Unsaved. {save.message}</p><Action icon={RefreshCw} disabled={!writesEnabled} onClick={() => retry?.(save)}>Retry saving {save.title}</Action></div>)}</div>}
     </section>

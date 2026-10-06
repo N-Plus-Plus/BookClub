@@ -17,6 +17,7 @@ import ReactDOM from '${domUrl}';
 import '/node_modules/@fontsource/lexend-deca/400.css';
 import '/node_modules/@fontsource/lexend-deca/600.css';
 import '/style.css'; import '/frontend/app.css';
+import {AddClassicModal} from '/frontend/AddClassicModal.tsx';
 import {ClassicsScreen} from '/frontend/ClassicsScreen.tsx';
 import {FilmPicker} from '/frontend/FilmPicker.tsx';
 import {api} from '/frontend/api.ts';
@@ -26,7 +27,7 @@ const movie=id=>({id,title:id==='B'?'A very long film title to verify the select
 api.search=async query=>({local:[{id:query,title:movie(query).title,year:2000,tmdbId:null,poster:null}],external:[],lookup:{available:true,message:null}});
 api.detail=async id=>movie(id);
 api.classic=async id=>({...movie(id),classic:true});
-function Screen(){const [movies,setMovies]=React.useState([movie('A')]); return React.createElement(ClassicsScreen,{catalog:{movies,members,sessions:[],cycles:[]},movies:movies.filter(m=>m.classic),viewer:{id:'m',display_name:'Member',role:'member',sort_order:1,avatar:1},writesEnabled:true,onMovie:m=>setMovies(current=>[...current.filter(f=>f.id!==m.id),m])});}
+function Screen(){const [movies,setMovies]=React.useState([movie('A')]);const [adding,setAdding]=React.useState(false);const onMovie=m=>setMovies(current=>[...current.filter(f=>f.id!==m.id),m]);const catalog={movies,members,sessions:[],cycles:[]}; return React.createElement(React.Fragment,null,React.createElement('div',{className:'page-heading'},React.createElement('h1',null,'Classics'),React.createElement('div',{className:'page-heading-actions'},React.createElement('button',{className:'button','data-intent':'constructive',onClick:()=>setAdding(true)},'Add Classic'))),adding?React.createElement(AddClassicModal,{catalog,onMovie,onClose:()=>setAdding(false)}):null,React.createElement(ClassicsScreen,{catalog:{movies,members,sessions:[],cycles:[]},movies:movies.filter(m=>m.classic),viewer:{id:'m',display_name:'Member',role:'member',sort_order:1,avatar:1},writesEnabled:true,onMovie:m=>setMovies(current=>[...current.filter(f=>f.id!==m.id),m])}));}
 function Builder(){const [selected,setSelected]=React.useState([]);return React.createElement(FilmPicker,{selected,onSelected:setSelected,onMovie:()=>{}});}
 const root=ReactDOM.createRoot(document.getElementById('root'));
 window.renderSelection=screen=>root.render(React.createElement('main',{className:'bookclub-shell'},screen==='builder'?React.createElement(Builder,{key:screen}):React.createElement(Screen,{key:screen})));

@@ -103,8 +103,9 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
   if (refreshMatch && method === 'POST') { requireAdmin(auth.viewer); return json(await new ScoreService(repo,env).refresh(idSchema.parse(refreshMatch[1]))); }
   const classicMatch = path.match(/^\/api\/v1\/movies\/([^/]+)\/classics$/);
   if (classicMatch && method === 'PUT') {
-    const id = idSchema.parse(classicMatch[1]); await repo.setClassic(id,classicSchema.parse(await body(request)).classic); return json(await movies.detail(id));
+    const id = idSchema.parse(classicMatch[1]); const input = classicSchema.parse(await body(request)); if (!input.classic) { requireAdmin(auth.viewer); await repo.removeClassic(id); } else await repo.setClassic(id,true); return json(await movies.detail(id));
   }
+  if (classicMatch && method === 'DELETE') { requireAdmin(auth.viewer); const id = idSchema.parse(classicMatch[1]); await repo.removeClassic(id); return json(await movies.detail(id)); }
   if (path === '/api/v1/movies/search' && method === 'GET') {
     const query = z.string().trim().min(1).max(150).parse(url.searchParams.get('q') ?? '');
     return json(await movies.search(query));

@@ -179,7 +179,7 @@ export class ProductRepository {
     } else statements.push(this.db.prepare('INSERT INTO sessions(id,event_date,host_member_id,legacy_cycle_label,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,builder_id,builder_revision,completed_turn_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
       .bind(id,...fields,builder?.created_at ?? null,actor?.id ?? null,builder?.id ?? null,builder?.revision ?? null,turn?.version ?? null));
     statements.push(...input.movie_ids.map((movie,i) => this.db.prepare('INSERT INTO session_movies(session_id,movie_id,position) VALUES(?,?,?)').bind(id,movie,i+1)));
-    if (turn && slot === 5) for (const movie of new Set(input.movie_ids)) statements.push(this.db.prepare(`INSERT INTO seen_states(movie_id,member_id,seen) SELECT ?,id,1 FROM members WHERE active=1
+    for (const movie of new Set(input.movie_ids)) statements.push(this.db.prepare(`INSERT INTO seen_states(movie_id,member_id,seen) SELECT ?,id,1 FROM members WHERE active=1
       ON CONFLICT(movie_id,member_id) DO UPDATE SET seen=1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')`).bind(movie));
     const oldFilms = before ? (await this.db.prepare('SELECT movie_id,position FROM session_movies WHERE session_id=? ORDER BY position').bind(id).all()).results : null;
     statements.push(this.audit(actor,id,existingId ? 'edit' : 'create',{before: before ? {...before,films: oldFilms} : null,after: {...input,cycle_id: cycleId},planned_at: builder?.created_at ?? before?.planned_at ?? null,turn_before: turn,rotation_unchanged: Boolean(existingId),requires_rotation_review: Boolean(existingId && before?.completed_turn_version != null)}));
@@ -203,7 +203,7 @@ export class ProductRepository {
     if (!before) throw missing();
     const cycle = before.date_precision === 'cycle_rough' && before.cycle_id ? await this.db.prepare('SELECT rough_date FROM cycles WHERE id=?').bind(before.cycle_id).first<{rough_date: string}>() : null;
     const date = cycle?.rough_date ?? before.event_date;
-    await this.batch([this.db.prepare('UPDATE sessions SET deleted_at=NULL,deleted_by=NULL,event_date=? WHERE id=?').bind(date,id),this.audit(actor,id,'restore',{before,after: {event_date: date},rotation_unchanged: true,requires_rotation_review: before.completed_turn_version != null})]);
+    await this.batch([this.db.prepare('UPDATE sessions SET deleted_at=NULL,deleted_by=NULL,event_date=? WHERE id=?').bind(date,id),this.db.prepare("INSERT INTO seen_states(movie_id,member_id,seen) SELECT sm.movie_id,m.id,1 FROM session_movies sm CROSS JOIN members m WHERE sm.session_id=? AND m.active=1 GROUP BY sm.movie_id,m.id ON CONFLICT(movie_id,member_id) DO UPDATE SET seen=1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')").bind(id),this.audit(actor,id,'restore',{before,after: {event_date: date},rotation_unchanged: true,requires_rotation_review: before.completed_turn_version != null})]);
   }
   async auditTrail(id: string): Promise<HistoryAudit[]> {
     if (!await this.db.prepare('SELECT id FROM sessions WHERE id=?').bind(id).first()) throw missing();

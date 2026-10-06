@@ -94,7 +94,7 @@ export function RankingScore({movie,compact = false,variant}: {movie: Movie; com
       {r.warnings.map(w => <small key={w}>{w}</small>)}{!r.eligible && <p>Excluded from watch order: all active members Seen, or no active roster.</p>}
     </div></details>}</div>;
 }
-export function RankingCard({movie,rank,compact = false,variant}: {movie: Movie; rank?: number; compact?: boolean; variant?: 'home' | 'classics'}) {
+export function RankingCard({movie,rank,compact = false,variant,action}: {action?: ReactNode; movie: Movie; rank?: number; compact?: boolean; variant?: 'home' | 'classics'}) {
   const r = movie.ranking!;
-  return <article className={variant === 'home' ? 'card rank-card home-rank-card' : variant === 'classics' ? 'ranking-row classics-ranking-row' : compact ? 'ranking-row' : 'card rank-card'}><div className="candidate-identity"><span className="rank-number">{rank ? (variant ? `#${rank}` : String(rank).padStart(2,'0')) : r.eligible ? '—' : 'DQ'}</span><MovieRow movie={movie}>{variant === 'classics' && movie.director && <p className="meta candidate-director">{movie.director}</p>}</MovieRow></div><RankingScore movie={movie} compact={compact} variant={variant} /></article>;
+  return <article className={variant === 'home' ? 'card rank-card home-rank-card' : variant === 'classics' ? 'ranking-row classics-ranking-row' : compact ? 'ranking-row' : 'card rank-card'}>{action}<div className="candidate-identity"><span className="rank-number">{rank ? (variant ? `#${rank}` : String(rank).padStart(2,'0')) : r.eligible ? '—' : 'DQ'}</span><MovieRow movie={movie}>{variant === 'classics' && movie.director && <p className="meta candidate-director">{movie.director}</p>}</MovieRow></div><RankingScore movie={movie} compact={compact} variant={variant} /></article>;
 }

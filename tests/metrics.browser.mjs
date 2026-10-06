@@ -30,12 +30,24 @@ const columns = locator => locator.evaluate(e => getComputedStyle(e).gridTemplat
 const overflow = () => page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
 const results = [];
 try {
-  for (const width of [390,720,1024,1600]) {
+  for (const width of [320,390,720,1024,1600]) {
     await page.setViewportSize({width,height:900});
     await page.goto('http://localhost:4173/#/metrics');
     await page.getByRole('heading',{name:'Genre detail',exact:true}).waitFor();
     await page.locator('.metrics-filters button').first().click();
     for (const direction of ['Top','Bottom']) await page.getByRole('group',{name:`${direction} 5 score filter`}).getByRole('button',{name:'IMDb',exact:true}).click();
+    for (const footer of await page.locator('.metrics-film-footer').all()) {
+      const geometry = await footer.evaluate(e => { const s=e.querySelector('strong').getBoundingClientRect(),i=e.lastElementChild.getBoundingClientRect();return {score:s.toJSON(),identity:i.toJSON()}; });
+      assert(geometry.score.x < geometry.identity.x,`${width}: score precedes identity`);
+      assert(geometry.score.y < geometry.identity.bottom && geometry.identity.y < geometry.score.bottom,`${width}: shared footer row`);
+    }
+    const scroll = page.locator('.metrics-genre-scroll');
+    const rowsVisible = await scroll.evaluate(e => {const r=e.getBoundingClientRect();return [...e.querySelectorAll('tbody tr')].filter(tr=>tr.getBoundingClientRect().bottom<=r.bottom+1).length;});
+    assert.equal(rowsVisible,5,`${width}: five full genres`);
+    assert(await scroll.evaluate(e=>e.scrollHeight>e.clientHeight));
+    await scroll.evaluate(e=>e.scrollTop=e.scrollHeight);
+    assert(await scroll.evaluate(e=>e.scrollTop>0));
+    await scroll.evaluate(e=>e.scrollTop=0);
     const baseline = requests.length;
     const signature = page.locator('.metrics-signature');
     assert.equal(await signature.count(),5);
@@ -52,7 +64,7 @@ try {
     assert.equal(await columns(page.locator('.metrics-paired')),available >= 720 ? 2 : 1);
     assert(!(await overflow()),`${width}: ALL page overflow`);
     await page.screenshot({path:`.verification/metrics/all-${width}.png`,fullPage:true});
-    for (const [section,selector] of [['orientation','.metrics-filters'],['taste','.metrics-fingerprint'],['ratings','.metrics-rating-profile'],['extremes','.metrics-extremes']]) { await page.locator(selector).scrollIntoViewIfNeeded(); await page.screenshot({path:`.verification/metrics/${section}-${width}.png`}); }
+    for (const [section,selector] of [['orientation','.metrics-filters'],['taste','.metrics-fingerprint'],['ratings','.metrics-rating-profile'],['rankings','.metrics-rankings'],['genres','.metrics-genre-scroll'],['extremes','.metrics-extremes']]) { await page.locator(selector).scrollIntoViewIfNeeded(); await page.screenshot({path:`.verification/metrics/${section}-${width}.png`}); }
     for (let i = 1;i <= 5;i++) {
       await page.locator('.metrics-filters button').nth(i).click();
       assert.equal(await signature.count(),0);

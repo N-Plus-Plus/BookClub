@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import type { Catalog, Movie, MovieDetail } from '../shared/types';
 import { rankMovie, missingAnswers } from '../shared/ranking';
+import { AddClassicModal } from '../frontend/AddClassicModal';
 import { ClassicsScreen } from '../frontend/ClassicsScreen';
 import { FilmPicker } from '../frontend/FilmPicker';
 import { api } from '../frontend/api';
@@ -38,8 +39,9 @@ afterEach(async()=>{await act(async()=>root.unmount());container.remove();});
 async function open(movies: Movie[] = []) {
   function Screen() {
     const [list,setList] = useState(movies);
+    const [adding,setAdding] = useState(false);
     const catalog: Catalog = {movies:list,members,sessions:[],cycles:[]};
-    return createElement(ClassicsScreen,{catalog,movies:list.filter(m=>m.classic),viewer:{id:'member',display_name:'Member',sort_order:1,avatar:1,role:'member'},writesEnabled:true,onMovie:m=>setList(current=>[...current.filter(f=>f.id!==m.id),m])});
+    return createElement('div',{},createElement('button',{onClick:()=>setAdding(true)},'Add Classic'),adding ? createElement(AddClassicModal,{catalog,onMovie:m=>setList(current=>[...current.filter(f=>f.id!==m.id),m]),onClose:()=>setAdding(false)}) : null,createElement(ClassicsScreen,{catalog,movies:list.filter(m=>m.classic),viewer:{id:'member',display_name:'Member',sort_order:1,avatar:1,role:'member'},writesEnabled:true,onMovie:m=>setList(current=>[...current.filter(f=>f.id!==m.id),m])}));
   }
   await act(async()=>root.render(createElement(Screen)));
   await click(button('Add Classic'));

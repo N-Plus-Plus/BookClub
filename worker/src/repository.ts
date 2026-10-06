@@ -270,6 +270,15 @@ export class Repository {
     if (classic) await this.db.prepare("INSERT OR IGNORE INTO classics(movie_id,source) VALUES(?,'member-added')").bind(id).run();
     else await this.db.prepare('DELETE FROM classics WHERE movie_id=?').bind(id).run();
   }
+  async removeClassic(id: string) {
+    await this.assertMovie(id);
+    if (!await this.db.prepare('SELECT movie_id FROM classics WHERE movie_id=?').bind(id).first()) throw new ApiError(404,'NOT_FOUND','Classic not found.');
+    await this.db.batch([
+      this.db.prepare('DELETE FROM seen_states WHERE movie_id=? AND EXISTS(SELECT 1 FROM classics WHERE movie_id=?)').bind(id,id),
+      this.db.prepare('DELETE FROM classics WHERE movie_id=?').bind(id),
+      this.db.prepare("INSERT INTO seen_states(movie_id,member_id,seen) SELECT ?,id,1 FROM members WHERE active=1 AND EXISTS(SELECT 1 FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE sm.movie_id=? AND s.deleted_at IS NULL) ON CONFLICT(movie_id,member_id) DO UPDATE SET seen=1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')").bind(id,id),
+    ]);
+  }
   async appendScores(id: string, scores: Score[]) {
     await this.assertMovie(id);
     const unique = new Map(scores.map(s => [`${s.provider}:${s.metric}:${s.retrieved_via ?? 'unspecified'}`,s]));
