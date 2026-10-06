@@ -10,7 +10,8 @@ import type { ScoreMaintenance } from '../shared/types';
 let local: ReturnType<typeof disposableD1>, env: Env;
 const call = (mode: string, movie_ids: string[], member='member-1') => worker.fetch(new Request('http://api/api/v1/movies/maintain',{method:'POST',headers:{'X-BookClub-Dev-Member':member},body:JSON.stringify({mode,movie_ids})}),env);
 const data = async (response: Response): Promise<ScoreMaintenance> => { expect(response.status,await response.clone().text()).toBe(200); return (await response.json() as {data:ScoreMaintenance}).data; };
-const ratings = [{source:'imdb',value:9},{source:'tomatoes',value:92},{source:'popcorn',value:93},{source:'letterboxd',value:4},{source:'metacritic',value:85},{source:'tmdb',value:81}];
+const ratings = [{source:'imdb',value:9},{source:'tomatoes',value:92},{source:'popcorn',value:93},{source:'letterboxd',value:8},{source:'metacritic',value:85},{source:'tmdb',value:81}];
+const singleRatings = ratings.map(r=>r.source==='letterboxd'?{...r,value:4}:r);
 beforeEach(() => {
   local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));
   local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-1'");
@@ -21,11 +22,25 @@ const add = async (id: string, provider='imdb') => {
  const repo=new Repository(local.db); const film=await repo.manualMovie({title:id}); await repo.setClassic(film,true);
  local.sqlite.prepare('INSERT INTO movie_external_ids VALUES(?,?,?)').run(film,provider,provider==='imdb'?id:'123'); return film;
 };
+it('Refresh persists batch Letterboxd, clears its negative and preserves historical /5 snapshots',async()=>{
+ const film=await add('tt0050083'),repo=new Repository(local.db);
+ await repo.appendScores(film,[{provider:'letterboxd',metric:'rating',raw_value:4,raw_scale:5,normalized_value:80,vote_count:100,fetched_at:'2026-01-01',retrieved_via:'mdblist'}]);
+ const historical=local.sqlite.prepare('SELECT * FROM source_scores WHERE movie_id=?').all(film);
+ expect((await repo.movieDetails([film]))[0].ranking?.sources).toContainEqual(expect.objectContaining({provider:'letterboxd',value:80}));
+ await repo.saveScoreChecks(film,[{key:'letterboxd:rating',available:false}]);
+ const fetch=vi.fn().mockResolvedValue(Response.json([{ids:{imdb:'tt0050083'},ratings:ratings.map(r=>r.source==='letterboxd'?{...r,value:9.2,votes:1760374}:r)}]));vi.stubGlobal('fetch',fetch);
+ const result=await data(await call('refresh',[film]));
+ expect(fetch).toHaveBeenCalledTimes(1);
+ expect(result.results[0].movie.scores).toContainEqual(expect.objectContaining({provider:'letterboxd',raw_value:9.2,raw_scale:10,normalized_value:92,vote_count:1760374,retrieved_via:'mdblist'}));
+ expect(await repo.scoreChecks([film])).toEqual([]);
+ expect(local.sqlite.prepare('SELECT * FROM source_scores WHERE id=?').get(historical[0].id)).toEqual(historical[0]);
+ expect(result.results[0].movie.ranking?.sources).toContainEqual(expect.objectContaining({provider:'letterboxd',value:92}));
+});
 it('does not clear a negative observation when a found snapshot fails to persist',async()=>{
  const film=await add('tt0000993'),repo=new Repository(local.db);
  await repo.saveScoreChecks(film,[{key:'imdb:rating',available:false}]);
  const before=local.sqlite.prepare('SELECT * FROM movie_score_checks WHERE movie_id=?').all(film);
- vi.stubGlobal('fetch',vi.fn(async()=>Response.json({ids:{imdb:'tt0000993'},ratings})));
+ vi.stubGlobal('fetch',vi.fn(async()=>Response.json({ids:{imdb:'tt0000993'},ratings:singleRatings})));
  vi.spyOn(repo,'appendScores').mockRejectedValueOnce(new Error('Snapshot write failed'));
  const saveChecks=vi.spyOn(repo,'saveScoreChecks');
  await expect(new ScoreService(repo,env).refresh(film)).rejects.toThrow('Snapshot write failed');
@@ -298,7 +313,7 @@ it('legacy-only ratings remain unresolved and the third live capture immediately
  await repo.appendScores(film,requiredScores.map(key=>{const [provider,metric]=key.split(':');return {provider,metric,raw_value:70,raw_scale:100,normalized_value:null,vote_count:null,fetched_at:'2026-01-01',retrieved_via:'legacy-spreadsheet'};}));
  expect((await repo.scoreMaintenanceStatus()).candidateIds).toContain(film);
  await repo.appendScores(film,ratings.slice(0,2).map(r=>({provider:r.source==='imdb'?'imdb':'rottentomatoes',metric:r.source==='imdb'?'rating':'critic',raw_value:r.value,raw_scale:r.source==='imdb'?10:100,normalized_value:null,vote_count:null,fetched_at:'2026-01-01',retrieved_via:'mdblist'})));
- const fetch=vi.fn(async(url:string)=>url.includes('mdblist')?Response.json([{ids:{imdb:'tt0000910'},ratings:[{source:'letterboxd',value:4}]}]):Response.json({Response:'True',Ratings:[]}));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn(async(url:string)=>url.includes('mdblist')?Response.json([{ids:{imdb:'tt0000910'},ratings:[{source:'letterboxd',value:8}]}]):Response.json({Response:'True',Ratings:[]}));vi.stubGlobal('fetch',fetch);
  const result=await data(await call('missing',[film]));
  expect(result.results[0].movie.ranking!.sources).toHaveLength(3);
  expect(result.results[0].movie.ranking!.sources.every(s=>s.retrieved_via!=='legacy-spreadsheet')).toBe(true);
@@ -320,7 +335,7 @@ it.each(['scores','empty','not_found'])('recovers only the omitted film in a ten
    return Response.json(ids.filter(id=>id!=='tt0000104').reverse().map(id=>({ids:{imdb:id},ratings})));
   }
   expect(url).toContain('/imdb/movie/tt0000104/');
-  return outcome==='not_found'?new Response(null,{status:404}):Response.json({ratings:outcome==='scores'?ratings:[]});
+  return outcome==='not_found'?new Response(null,{status:404}):Response.json({ratings:outcome==='scores'?singleRatings:[]});
  });vi.stubGlobal('fetch',fetch);
  const promise=maintainScores({ids:films,batch:async ids=>data(await call('missing',ids)),stopped:()=>false,progress:async()=>{}});
  await vi.runAllTimersAsync();const run=await promise;
@@ -336,7 +351,11 @@ it.each(['scores','empty','not_found'])('recovers only the omitted film in a ten
   const checks=await repo.scoreChecks([omitted]);
   expect(checks.filter(c=>c.available===0).map(c=>c.score_key)).toEqual(expect.arrayContaining(['letterboxd:rating','rottentomatoes:audience','tmdb:rating']));
   expect(checks.some(c=>c.score_key==='imdb:rating')).toBe(false); // Missing OMDb credentials remain inconclusive.
- } else expect((await repo.movieDetails([omitted]))[0].scores).toHaveLength(6);
+ } else {
+  const recovered=(await repo.movieDetails([omitted]))[0].scores;
+  expect(recovered).toHaveLength(6);
+  expect(recovered.find(s=>s.provider==='letterboxd')).toMatchObject({raw_value:4,raw_scale:5,normalized_value:80});
+ }
  expect((await repo.movieDetails([films[0],films[10]])).every(m=>m.scores.length===6)).toBe(true);
 });
 it('a valid empty targeted recovery exhausts OMDb/TMDB fallback before writing conclusive checks',async()=>{

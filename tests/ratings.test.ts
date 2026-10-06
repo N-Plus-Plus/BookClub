@@ -9,6 +9,31 @@ describe('rating providers',()=>{
     expect(scores[2]).toMatchObject({provider:'rottentomatoes',metric:'audience'});
     expect(scores[5]).toMatchObject({raw_scale:100,normalized_value:81});
   });
+  it.each(['single','batch'] as const)('preserves MDBList mappings for the %s endpoint',endpoint=>{
+    const scores=parseMdbList({ratings:[{source:'imdb',value:8.2},{source:'tomatoes',value:95},{source:'popcorn',value:90},{source:'letterboxd',value:endpoint==='single'?4.6:9.2,votes:1760374},{source:'metacritic',value:88},{source:'tmdb',value:81}]},'2026-10-06',endpoint);
+    expect(scores.map(s=>[s.provider,s.metric,s.raw_scale])).toEqual([
+      ['imdb','rating',10],['rottentomatoes','critic',100],['rottentomatoes','audience',100],
+      ['letterboxd','rating',endpoint==='single'?5:10],['metacritic','critic',100],['tmdb','rating',100],
+    ]);
+    expect(scores[3]).toMatchObject({raw_value:endpoint==='single'?4.6:9.2,normalized_value:92,vote_count:1760374,retrieved_via:'mdblist'});
+    expect(scores.filter(s=>s.provider!=='letterboxd').map(s=>s.normalized_value)).toEqual([82,95,90,88,81]);
+  });
+  it('uses endpoint contracts even for ambiguous values at or below five',()=>{
+    const response={ratings:[{source:'letterboxd',value:4}]};
+    expect(parseMdbList(response,'2026-10-06','single')[0]).toMatchObject({raw_scale:5,normalized_value:80});
+    expect(parseMdbList(response,'2026-10-06','batch')[0]).toMatchObject({raw_scale:10,normalized_value:40});
+  });
+  it('retains the verified Letterboxd value in correlated batch results',async()=>{
+    const fetch=vi.fn().mockResolvedValue(Response.json([{ids:{imdb:'tt0050083'},ratings:[{source:'letterboxd',value:9.2,votes:1760374}]}]));vi.stubGlobal('fetch',fetch);
+    const result=await new MdbListProvider('fictional').batch('imdb',['tt0050083']);
+    expect(result.get('tt0050083')).toMatchObject([{provider:'letterboxd',raw_value:9.2,raw_scale:10,normalized_value:92,vote_count:1760374}]);
+    expect(fetch).toHaveBeenCalledTimes(1);expect(fetch.mock.calls[0][1].method).toBe('POST');
+  });
+  it('uses the verified single-film GET Letterboxd scale',async()=>{
+    const fetch=vi.fn().mockResolvedValue(Response.json({ratings:[{source:'letterboxd',value:4.6,score:92,votes:1760374}]}));vi.stubGlobal('fetch',fetch);
+    expect(await new MdbListProvider('fictional').scores({provider:'imdb',external_id:'tt0050083'})).toMatchObject([{raw_value:4.6,raw_scale:5,normalized_value:92,vote_count:1760374}]);
+    expect(fetch).toHaveBeenCalledTimes(1);expect(fetch.mock.calls[0][1]?.method).toBeUndefined();
+  });
   it('never invents absent or malformed scores; legitimate zero is valid',()=>{
     expect(parseMdbList({ratings:[{source:'imdb',value:null},{source:'tomatoes',value:''},{source:'popcorn',value:101},{source:'letterboxd',value:'N/A'},{source:'tmdb',value:0}]})).toHaveLength(1);
     expect(()=>parseMdbList({Error:'private'})).toThrow('unrecognised');

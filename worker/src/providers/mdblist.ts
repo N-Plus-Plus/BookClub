@@ -8,14 +8,16 @@ const sources: Record<string,[string,string,number]> = {
   audience: ['rottentomatoes','audience',100], letterboxd: ['letterboxd','rating',5],
   metacritic: ['metacritic','critic',100], tmdb: ['tmdb','rating',100],
 };
-export function parseMdbList(data: unknown, at = new Date().toISOString()): Score[] {
+// Media Info GET returns Letterboxd /5; POST batches return /10. Never infer from value.
+export function parseMdbList(data: unknown, at = new Date().toISOString(), endpoint: 'single' | 'batch' = 'single'): Score[] {
   if (!data || typeof data !== 'object' || !Array.isArray((data as {ratings?: unknown}).ratings)) throw new RatingError('MDBList returned an unrecognised ratings response.');
   const scores = new Map<string,Score>();
   for (const item of (data as {ratings: unknown[]}).ratings) {
     if (!item || typeof item !== 'object') continue;
     const r = item as {source?: string; value?: unknown; votes?: unknown};
     const mapping = r.source ? sources[r.source] : undefined; if (!mapping) continue;
-    const s = record(mapping[0],mapping[1],r.value,mapping[2],'mdblist',at,r.votes);
+    const scale = r.source === 'letterboxd' && endpoint === 'batch' ? 10 : mapping[2];
+    const s = record(mapping[0],mapping[1],r.value,scale,'mdblist',at,r.votes);
     if (s) scores.set(`${s.provider}:${s.metric}`,s);
   }
   return [...scores.values()];
@@ -46,7 +48,7 @@ export class MdbListProvider {
       // Live Media Info uses provider-scoped IDs; top-level id is MDBList's own ID.
       // imdb_id is also documented by the official single-item Media Info schema.
       const id = provider === 'imdb' ? entry?.ids?.imdb ?? entry?.imdb_id : entry?.ids?.tmdb;
-      if ((typeof id === 'string' || typeof id === 'number' && Number.isSafeInteger(id)) && ids.includes(String(id))) result.set(String(id),parseMdbList(entry,at));
+      if ((typeof id === 'string' || typeof id === 'number' && Number.isSafeInteger(id)) && ids.includes(String(id))) result.set(String(id),parseMdbList(entry,at,'batch'));
     }
     if (result.size < new Set(ids).size) console.warn('MDBList batch correlation incomplete',{
       provider, requested: new Set(ids).size, returned: data.length, matched: result.size,
@@ -58,7 +60,7 @@ export class MdbListProvider {
       const id = provider === 'imdb' ? entry?.ids?.imdb ?? entry?.imdb_id : entry?.ids?.tmdb;
       if (!(typeof id === 'string' || typeof id === 'number' && Number.isSafeInteger(id)))
         throw new RatingError('MDBList returned an unrecognised batch identity response.');
-      parseMdbList(entry,at);
+      parseMdbList(entry,at,'batch');
     }
     return result;
   }
