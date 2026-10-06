@@ -36,6 +36,26 @@ it('Refresh persists batch Letterboxd, clears its negative and preserves histori
  expect(local.sqlite.prepare('SELECT * FROM source_scores WHERE id=?').get(historical[0].id)).toEqual(historical[0]);
  expect(result.results[0].movie.ranking?.sources).toContainEqual(expect.objectContaining({provider:'letterboxd',value:92}));
 });
+it.each(['missing','refresh'])('%s persists optional MDBList batch observations without changing completeness',async mode=>{
+ const film=await add('tt0050083'),repo=new Repository(local.db);
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json([{ids:{imdb:'tt0050083'},ratings:[...ratings,{source:'metacriticuser',value:9.2,votes:918},{source:'trakt',value:89,votes:18919},{source:'rogerebert',value:4.0}]}])));
+ const result=await data(await call(mode,[film]));
+ const expected=[
+  {provider:'metacritic',metric:'user',raw_value:9.2,raw_scale:10,normalized_value:92,vote_count:918},
+  {provider:'trakt',metric:'rating',raw_value:89,raw_scale:100,normalized_value:89,vote_count:18919},
+  {provider:'rogerebert',metric:'rating',raw_value:4.0,raw_scale:4,normalized_value:100,vote_count:null},
+ ];
+ const stored=local.sqlite.prepare('SELECT * FROM source_scores WHERE movie_id=?').all(film);
+ for(const s of expected){
+  expect(stored).toContainEqual(expect.objectContaining({...s,retrieved_via:'mdblist'}));
+  expect(result.results[0].movie.scores).toContainEqual(expect.objectContaining(s));
+ }
+ expect(result.results[0].providers.find(p=>p.provider==='mdblist')).toMatchObject({status:'success',count:9});
+ expect(await repo.scoreChecks([film])).toEqual([]);
+ vi.mocked(fetch).mockClear();
+ expect((await data(await call('missing',[film]))).results).toEqual([]);
+ expect(fetch).not.toHaveBeenCalled();
+});
 it('does not clear a negative observation when a found snapshot fails to persist',async()=>{
  const film=await add('tt0000993'),repo=new Repository(local.db);
  await repo.saveScoreChecks(film,[{key:'imdb:rating',available:false}]);

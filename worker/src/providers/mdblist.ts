@@ -7,6 +7,8 @@ const sources: Record<string,[string,string,number]> = {
   popcorn: ['rottentomatoes','audience',100], tomatoesaudience: ['rottentomatoes','audience',100],
   audience: ['rottentomatoes','audience',100], letterboxd: ['letterboxd','rating',5],
   metacritic: ['metacritic','critic',100], tmdb: ['tmdb','rating',100],
+  metacriticuser: ['metacritic','user',10], trakt: ['trakt','rating',100],
+  rogerebert: ['rogerebert','rating',4],
 };
 // Media Info GET returns Letterboxd /5; POST batches return /10. Never infer from value.
 export function parseMdbList(data: unknown, at = new Date().toISOString(), endpoint: 'single' | 'batch' = 'single'): Score[] {

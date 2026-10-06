@@ -34,6 +34,16 @@ describe('rating providers',()=>{
     expect(await new MdbListProvider('fictional').scores({provider:'imdb',external_id:'tt0050083'})).toMatchObject([{raw_value:4.6,raw_scale:5,normalized_value:92,vote_count:1760374}]);
     expect(fetch).toHaveBeenCalledTimes(1);expect(fetch.mock.calls[0][1]?.method).toBeUndefined();
   });
+  it.each(['single','batch'] as const)('retains informational ratings with fixed upstream scales in %s responses',endpoint=>{
+    const scores=parseMdbList({ratings:[{source:'metacriticuser',value:9.2,votes:918},{source:'trakt',value:89,votes:18919},{source:'rogerebert',value:4.0}]},'2026-10-06',endpoint);
+    expect(scores).toEqual([
+      expect.objectContaining({provider:'metacritic',metric:'user',raw_value:9.2,raw_scale:10,normalized_value:92,vote_count:918,retrieved_via:'mdblist'}),
+      expect.objectContaining({provider:'trakt',metric:'rating',raw_value:89,raw_scale:100,normalized_value:89,vote_count:18919,retrieved_via:'mdblist'}),
+      expect.objectContaining({provider:'rogerebert',metric:'rating',raw_value:4.0,raw_scale:4,normalized_value:100,vote_count:null,retrieved_via:'mdblist'}),
+    ]);
+    expect(parseMdbList({ratings:[{source:'metacriticuser',value:4},{source:'trakt',value:4},{source:'rogerebert',value:2}]},'2026-10-06',endpoint).map(s=>[s.raw_scale,s.normalized_value])).toEqual([[10,40],[100,4],[4,50]]);
+    expect(parseMdbList({ratings:[{source:'metacritic_user',value:9.2},{source:'roger_ebert',value:4}]})).toEqual([]);
+  });
   it('never invents absent or malformed scores; legitimate zero is valid',()=>{
     expect(parseMdbList({ratings:[{source:'imdb',value:null},{source:'tomatoes',value:''},{source:'popcorn',value:101},{source:'letterboxd',value:'N/A'},{source:'tmdb',value:0}]})).toHaveLength(1);
     expect(()=>parseMdbList({Error:'private'})).toThrow('unrecognised');

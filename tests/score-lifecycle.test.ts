@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { effectiveRankingScores, liveScoreDimensions, missingLiveScoreDimensions, rankMovie, requiredScores } from '../shared/ranking';
+import { parseMdbList } from '../worker/src/providers/mdblist';
 import type { Score } from '../shared/types';
 import { effectiveScoreSql } from '../worker/src/score-sql';
 import { disposableD1 } from './d1';
@@ -43,3 +44,21 @@ it('SQL preserves duplicates, service precedence, invalid scores and final share
 });
 
 it('legacy ties remain deterministic below the cutoff',()=>{const inputs=[...legacy(),{...score(4,'legacy-spreadsheet',90),source_ordinal:99,legacy_preferred:1}];expect(effectiveRankingScores(inputs)).toEqual(effectiveRankingScores([...inputs].reverse()));expect(effectiveRankingScores(inputs).find(s=>s.provider==='metacritic')?.raw_value).toBe(90);});
+
+it('optional ratings never affect ranking, live completeness or legacy retirement',()=>{
+ const optional=parseMdbList({ratings:[{source:'metacriticuser',value:9.2},{source:'trakt',value:89},{source:'rogerebert',value:4}]});
+ expect(requiredScores).toEqual(['imdb:rating','rottentomatoes:audience','rottentomatoes:critic','letterboxd:rating','metacritic:critic','tmdb:rating']);
+ expect(liveScoreDimensions(optional)).toEqual([]);
+ for(let n=0;n<=6;n++) for(const baseline of [Array.from({length:n},(_,i)=>score(i)),[...legacy(),...Array.from({length:n},(_,i)=>score(i))]]) {
+  for(let mask=1;mask<8;mask++) {
+   const enriched=[...baseline,...optional.filter((_,i)=>mask&(1<<i))];
+   expect(liveScoreDimensions(enriched)).toEqual(liveScoreDimensions(baseline));
+   expect(missingLiveScoreDimensions(enriched)).toEqual(missingLiveScoreDimensions(baseline));
+   expect(effectiveRankingScores(enriched)).toEqual(effectiveRankingScores(baseline));
+   for(const seen of [[],[{member_id:'member',updated_at:'2026-10-06',seen:0 as const}],[{member_id:'member',updated_at:'2026-10-06',seen:1 as const}]]) {
+    const members=[{id:'member',display_name:'Member',sort_order:1,active:1 as const,avatar:null,role:'member' as const}];
+    expect(rankMovie(enriched,seen,members,123)).toEqual(rankMovie(baseline,seen,members,123));
+   }
+  }
+ }
+});
