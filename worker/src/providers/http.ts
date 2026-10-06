@@ -16,13 +16,22 @@ export function rateLimitHeaders(headers: Headers) {
   for (const key of ['X-RateLimit-Limit','X-RateLimit-Remaining','X-RateLimit-Reset','Retry-After']) { const value = headers.get(key); if (value) values[key] = value; }
   return Object.keys(values).length ? values : undefined;
 }
-export async function providerJson(url: string, provider: string, init?: RequestInit, onLimits?: (headers: Headers) => Promise<void>): Promise<unknown> {
+export type AuthenticationBodyClassifier = (data: unknown) => ProviderError | undefined;
+export async function providerJson(url: string, provider: string, init?: RequestInit, onLimits?: (headers: Headers) => Promise<void>, classifyAuthenticationBody?: AuthenticationBodyClassifier): Promise<unknown> {
   let response: Response;
   try { response = await fetch(url,{...init,signal: AbortSignal.timeout(8000),headers:{Accept:'application/json',...init?.headers}}); }
   catch { throw new ProviderError(provider,'network',`${provider} could not be reached. Try later.`); }
   const limits = rateLimitHeaders(response.headers);
   if (response.status === 404) throw new ProviderError(provider,'not_found',`${provider} could not find this film.`);
-  if (response.status === 401 || response.status === 403) throw new ProviderError(provider,'credentials',`${provider} credentials are unavailable. Contact the administrator.`);
+  if (response.status === 401 || response.status === 403) {
+    if (classifyAuthenticationBody) {
+      let data: unknown;
+      try { data = await response.json(); } catch { /* Unusable bodies retain the safe credentials fallback. */ }
+      const failure = classifyAuthenticationBody(data);
+      if (failure) throw failure;
+    }
+    throw new ProviderError(provider,'credentials',`${provider} credentials are unavailable. Contact the administrator.`);
+  }
   if (response.status === 429) throw new ProviderError(provider,'rate_limited',`${provider} rate limit reached. Try later.`,retryAfter(response.headers.get('Retry-After')),limits);
   if (response.status >= 500) throw new ProviderError(provider,'outage',`${provider} is temporarily unavailable. Try later.`,undefined,limits);
   if (!response.ok) throw new ProviderError(provider,'outage',`${provider} lookup is unavailable. Try later.`,undefined,limits);

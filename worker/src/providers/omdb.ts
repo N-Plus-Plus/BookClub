@@ -1,11 +1,18 @@
 import { ProviderError } from './http';
 import type { Score } from '../../../shared/types';
 import { RatingError, ratingRequest, record } from './ratings';
+function omdbFailure(data: unknown): ProviderError | undefined {
+  if (!data || typeof data !== 'object') return;
+  const d = data as {Response?: unknown; Error?: unknown};
+  if (d.Response !== 'False' || typeof d.Error !== 'string') return;
+  if (/limit|quota/i.test(d.Error)) return new ProviderError('OMDb','rate_limited','OMDb quota/rate limit reached. Try later.',86400);
+  if (/api key/i.test(d.Error)) return new ProviderError('OMDb','credentials','OMDb credentials are unavailable. Contact the administrator.');
+}
 export function parseOmdb(data: unknown, at = new Date().toISOString()): Score[] {
   if (!data || typeof data !== 'object') throw new RatingError('OMDb returned an unrecognised response.');
   const d = data as {Response?: string; imdbRating?: unknown; imdbVotes?: unknown; Metascore?: unknown; Ratings?: {Source: string; Value: string}[]};
-  if (d.Response === 'False' && /limit|quota/i.test(String((data as {Error?: unknown}).Error))) throw new ProviderError('OMDb','rate_limited','OMDb quota reached. Try later.',86400);
-  if (d.Response === 'False' && /api key/i.test(String((data as {Error?: unknown}).Error))) throw new ProviderError('OMDb','credentials','OMDb credentials are unavailable. Contact the administrator.');
+  const failure = omdbFailure(data);
+  if (failure) throw failure;
   if (d.Response === 'False') throw new RatingError('OMDb could not supply this film. Check configuration, quota or IMDb ID.');
   if (d.Response !== 'True') throw new RatingError('OMDb returned an unrecognised response.');
   const scores = [record('imdb','rating',d.imdbRating,10,'omdb',at,d.imdbVotes),record('metacritic','critic',d.Metascore,100,'omdb',at)];
@@ -28,7 +35,7 @@ export function parseOmdbMetadata(data: unknown): OmdbMetadata {
 export class OmdbProvider {
   constructor(private key: string, private onLimits?: (headers: Headers) => Promise<void>) {}
   async details(id: string) {
-    const data = await ratingRequest(`https://www.omdbapi.com/?apikey=${encodeURIComponent(this.key)}&i=${encodeURIComponent(id)}&type=movie`,'OMDb',undefined,this.onLimits);
+    const data = await ratingRequest(`https://www.omdbapi.com/?apikey=${encodeURIComponent(this.key)}&i=${encodeURIComponent(id)}&type=movie`,'OMDb',undefined,this.onLimits,omdbFailure);
     if (data && typeof data === 'object' && 'imdbID' in data && data.imdbID !== id) throw new ProviderError('OMDb','not_found','OMDb returned a different IMDb identity. Owner review is required.');
     return {scores:parseOmdb(data),metadata:parseOmdbMetadata(data)};
   }

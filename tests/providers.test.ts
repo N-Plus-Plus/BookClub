@@ -51,3 +51,8 @@ describe('optional lookup service',() => {
     expect(result.local).toEqual([local]); expect(result.lookup.available).toBe(false); expect(result.lookup.message).toContain('could not be reached');
   });
 });
+
+it.each([401,403])('keeps TMDB HTTP %s as credentials despite quota-like bodies',async status=>{
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({Response:'False',Error:'Request limit reached!'},{status})));
+ await expect(new TmdbProvider('test-credential').details('42')).rejects.toMatchObject({kind:'credentials',message:'TMDB credentials are unavailable. Contact the administrator.'});
+});

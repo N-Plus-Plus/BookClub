@@ -75,3 +75,25 @@ it('does not treat unrecognised partial batch entries as recoverable film omissi
  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json([{id:123,ratings:[]}])));
  await expect(new MdbListProvider('key').batch('tmdb',['123'])).rejects.toMatchObject({kind:'outage',message:'MDBList returned an unrecognised batch identity response.'});
 });
+
+it.each([401,403])('classifies OMDb HTTP %s bodies without leaking upstream data',async status=>{
+ const fetch=vi.fn();vi.stubGlobal('fetch',fetch);
+ for(const Error of ['Request limit reached!','Daily request limit exceeded','Daily quota exhausted']) {
+  fetch.mockResolvedValueOnce(Response.json({Response:'False',Error},{status,headers:{'Retry-After':'120'}}));
+  await expect(new OmdbProvider('secret-key').details('tt0000001')).rejects.toMatchObject({kind:'rate_limited',code:'PROVIDER_RATE_LIMITED',retryAfter:86400,message:'OMDb quota/rate limit reached. Try later.'});
+ }
+ for(const body of [JSON.stringify({Response:'False',Error:'Invalid API key!'}),'private malformed secret-key','',JSON.stringify({Response:'False',Error:'unknown private error'}),JSON.stringify({Response:'True'})]) {
+  fetch.mockResolvedValueOnce(new Response(body,{status}));
+  await expect(new OmdbProvider('secret-key').details('tt0000001')).rejects.toMatchObject({kind:'credentials',code:'PROVIDER_NOT_CONFIGURED',message:'OMDb credentials are unavailable. Contact the administrator.'});
+ }
+});
+it('keeps successful OMDb details unchanged',async()=>{
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({Response:'True',imdbID:'tt0000001',imdbRating:'8.2',Year:'2001',Runtime:'100 min',Director:'A Director',Genre:'Drama'})));
+ const detail=await new OmdbProvider('secret-key').details('tt0000001');
+ expect(detail.metadata).toEqual({year:2001,runtime:100,director:'A Director',genres:['Drama']});
+ expect(detail.scores[0]).toMatchObject({provider:'imdb',raw_value:8.2,retrieved_via:'omdb'});
+});
+it.each([401,403])('keeps MDBList HTTP %s as credentials despite quota-like bodies',async status=>{
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({Response:'False',Error:'Request limit reached!'},{status})));
+ await expect(new MdbListProvider('secret-key').scores({provider:'imdb',external_id:'tt0000001'})).rejects.toMatchObject({kind:'credentials',message:'MDBList credentials are unavailable. Contact the administrator.'});
+});

@@ -122,11 +122,13 @@ it('stops upstream requests proactively when a successful response reports quota
  const fetch=vi.fn().mockResolvedValue(Response.json([{ids:{imdb:'tt0000006'},ratings}],{headers:{'X-RateLimit-Remaining':'0','X-RateLimit-Reset':String(Math.ceil(Date.now()/1000)+120)}}));vi.stubGlobal('fetch',fetch);
  await data(await call('refresh',[film]));await data(await call('refresh',[film]));expect(fetch).toHaveBeenCalledTimes(1);
 });
-it('recognises OMDb body-level quota limits, retains saved data and avoids repeated requests',async()=>{
+it.each([200,401,403])('recognises OMDb body-level quota limits on HTTP %s, retains saved data and avoids repeated requests',async status=>{
  const a=await add('tt0000007'),b=await add('tt0000008');
- const fetch=vi.fn().mockResolvedValue(Response.json({Response:'False',Error:'Request limit reached!'}));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn().mockResolvedValue(Response.json({Response:'False',Error:'Request limit reached!'},{status}));vi.stubGlobal('fetch',fetch);
  const result=await data(await call('metadata',[a,b]));expect(fetch).toHaveBeenCalledTimes(1);
- expect(result.results[0].providers[0]).toMatchObject({status:'failed',retryAfter:86400});expect(result.results[1].providers[0].status).toBe('skipped');
+ expect(result.results[0].providers[0]).toMatchObject({status:'failed',blocking:true,retryAfter:86400,message:'OMDb quota/rate limit reached. Try later.'});expect(result.results[1].providers[0]).toMatchObject({status:'skipped',blocking:true});
+ await data(await call('metadata',[a,b]));expect(fetch).toHaveBeenCalledTimes(1);
+ expect(await new Repository(local.db).providerCooldown('omdb')).toBeGreaterThan(86390);
 });
 
 it('captures six MDBList signals even when the original three are present, without direct TMDB calls or persisted imputation',async()=>{

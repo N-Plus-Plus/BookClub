@@ -157,7 +157,7 @@ Once fixtures exist, document:
 - reset/cleanup behaviour;
 - any data sanitisation rule.
 
-`tests/d1.ts` applies real migrations to an in-memory Node SQLite D1 adapter; `tests/import-fixture.ts` builds fictional workbook inputs. Tests use hand-maintained generic members/films, mocks and temporary directories, with cleanup owned by the test. Import/provider/REST tests never use the private archive, production accounts or live providers. Use Node 24 for the complete suite; see [ARCHITECTURE](ARCHITECTURE.md).
+`tests/d1.ts` applies real migrations to an in-memory Node SQLite D1 adapter; `tests/import-fixture.ts` builds fictional workbook inputs. Tests use hand-maintained generic members/films, mocks and temporary directories, with cleanup owned by the test. Provider tests include fictional OMDb HTTP 401/403 quota/credentials bodies and malformed authentication bodies; bulk/resume tests protect cooldown suppression and pending-batch accounting. Import/provider/REST tests never use the private archive, production accounts or live providers. Use Node 24 for the complete suite; see [ARCHITECTURE](ARCHITECTURE.md).
 
 Local demo data lives in `worker/seed.sql`; `seed_runs` makes startup idempotent. `db:reset` deletes local work and is not a routine test prerequisite. Production snapshot copies are private even after auth sanitisation; screenshots/results belong in ignored `.verification/`, never public fixtures. See [DATA](DATA.md).
 

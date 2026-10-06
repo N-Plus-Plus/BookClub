@@ -108,3 +108,23 @@ it('metadata resume retains ten-film batch bounds, two-second pacing and Stop du
  await vi.advanceTimersByTimeAsync(1999);expect(batch).toHaveBeenCalledTimes(1);expect(batch.mock.calls[0][0]).toHaveLength(10);
  stop=true;await vi.advanceTimersByTimeAsync(1);expect((await pending).remaining).toBe(11);expect(loadOmdbCheckpoint()?.completed).toBe(10);
 });
+
+it('counts attempted outcomes while keeping the final quota-blocked ten-film batch pending for resume',async()=>{
+ const all=Array.from({length:975},(_,i)=>`film-${i}`),checkpoint=freshOmdbCheckpoint(catalog(all));saveOmdbCheckpoint(checkpoint);
+ let calls=0;
+ const batch=vi.fn(async selected=>{
+  const r=response(selected);calls++;
+  if(calls===1) for(const item of r.results.slice(0,6)) item.providers[0].count=1;
+  if(calls===29) r.results[9].providers=[{provider:'omdb',status:'failed',count:0,blocking:true,retryAfter:86400,message:'OMDb quota/rate limit reached. Try later.'}];
+  return r;
+ });
+ const pending=maintainOmdbMetadata({checkpoint,batch,stopped:()=>false,progress:async()=>{},checkpointChanged:saveOmdbCheckpoint});
+ await vi.runAllTimersAsync();
+ expect(await pending).toMatchObject({processed:280,total:975,remaining:695,updated:6,noChange:284,failed:1});
+ expect(batch).toHaveBeenCalledTimes(29);
+ expect(loadOmdbCheckpoint()).toEqual({version:1,completed:280,remainingIds:all.slice(280)});
+ const retry=vi.fn(async selected=>response(selected));let stop=false;
+ await maintainOmdbMetadata({checkpoint:loadOmdbCheckpoint()!,batch:retry,stopped:()=>stop,progress:async(_run,results)=>{if(results)stop=true;},checkpointChanged:saveOmdbCheckpoint});
+ expect(retry).toHaveBeenCalledExactlyOnceWith(all.slice(280,290));
+ expect(loadOmdbCheckpoint()?.completed).toBe(290);
+});
