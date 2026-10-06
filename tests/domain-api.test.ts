@@ -5,12 +5,25 @@ import { disposableD1 } from './d1';
 import { Repository } from '../worker/src/repository';
 import type { Env } from '../worker/src/http';
 import type { Catalog, MovieDetail, RefreshResult, Session } from '../shared/types';
+import { missingAnswers } from '../shared/ranking';
 let local: ReturnType<typeof disposableD1>, env: Env;
 const call = (path: string,method='GET',body?: unknown) => worker.fetch(new Request(`http://api/api/v1${path}`,{method,headers:{'X-BookClub-Dev-Member':'member-1'},...(body===undefined?{}:{body:JSON.stringify(body)})}),env);
 const data = async <T>(response: Response): Promise<T> => { expect(response.ok,await response.clone().text()).toBe(true);return (await response.json() as {data:T}).data; };
 beforeEach(()=>{local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:5173'};});
 afterEach(()=>{local.sqlite.close();vi.unstubAllGlobals();});
 describe('cycles and membership',()=>{
+  it('adds a canonical Classic exactly once with derived unanswered queues and no invented data',async()=>{
+    const movie=await data<MovieDetail>(await call('/movies','POST',{title:'Fictional new Classic',year:2001,runtime:111}));
+    const added=await data<MovieDetail>(await call(`/movies/${movie.id}/classics`,'PUT',{classic:true}));
+    const repeated=await data<MovieDetail>(await call(`/movies/${movie.id}/classics`,'PUT',{classic:true}));
+    expect(repeated.classics_membership).toEqual(added.classics_membership);
+    const catalog=await data<Catalog>(await call('/catalog'));
+    expect(catalog.movies.filter(m=>m.id===movie.id&&m.classic)).toHaveLength(1);
+    for(const member of catalog.members.filter(m=>m.active)) expect(missingAnswers(catalog.movies,catalog.members,member.id).some(entry=>entry.movie.id===movie.id)).toBe(true);
+    expect(added.seen).toEqual([]); expect(added.scores).toEqual([]); expect(added.appearances).toEqual([]);
+    expect(added.ranking).toMatchObject({eligible:true,rankable:false,unknownCount:4});
+    expect(local.sqlite.prepare('SELECT count(*) n FROM classics WHERE movie_id=?').get(movie.id)?.n).toBe(1);
+  });
   it('seed shows cycles, three candidate states, Unknown and additional ratings; rerun preserves changes',async()=>{
     const catalog=await data<Catalog>(await call('/catalog'));expect(catalog.cycles).toHaveLength(1);expect(catalog.sessions.some(s=>s.kind==='classics')).toBe(true);
     const classics=catalog.movies.filter(m=>m.classic);expect(classics.some(m=>m.ranking?.rankable&&m.ranking.eligible)).toBe(true);expect(classics.some(m=>!m.ranking?.rankable)).toBe(true);expect(classics.some(m=>!m.ranking?.eligible)).toBe(true);

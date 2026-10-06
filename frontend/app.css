@@ -436,3 +436,7 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
   .metrics-film-item > .stack { grid-column: 1 / -1; }
   .metrics-film-item > strong { grid-column: 2; }
 }
+
+.add-classic-modal .detail-overview { font-family: var(--font-prose); font-weight: 300; font-size: var(--text-body); line-height: 1.6; }
+.add-classic-modal .classic-eligibility { color: var(--ruby); }
+.add-classic-modal .movie-copy { overflow-wrap: anywhere; }

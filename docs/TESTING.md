@@ -198,6 +198,10 @@ The local pairing/merge tests use disposable migrated D1 and mocked TMDB. They c
 
 `node tests/compact-scores.browser.mjs` uses local Vite and optional Playwright with synthetic Home Next Classics cards, Classics and Film Detail, blocking API/external requests. It verifies five/six inline-pair and seven/nine stacked modes at 320/390/720/1440px without page overflow; screenshots stay in ignored `.verification/compact-scores/`.
 
+`node tests/film-selection.browser.mjs` uses Vite and optional Playwright with synthetic Classics/Builder data and blocked APIs/external requests. It checks 320/390/720/1440px composition, keyboard selection/focus, replacement, commit, Escape and overflow; screenshots stay in ignored `.verification/film-selection/`.
+
+`tests/film-selection.test.ts` covers shared accepted-selection reset/focus, replacement identity/overview/eligibility, History/all-Seen rejection, read-only external preview, canonical import/retry, duplicate submission protection, immediate Classics reconciliation, derived Seen/unranked lifecycle and ordered Builder additions/repeats/removal/navigation. Event inspection tests verify accepted Yes resets while Nope/Back preserve the draft search. The disposable-D1 membership case in `domain-api.test.ts` verifies idempotent addition, immediate catalogue membership, derived per-member unanswered queues and absence of fabricated Seen/score/History data.
+
 ## Optional local rendered and persistence checks
 
 Read [STYLE](../STYLE.md) fully before interface changes; source review alone is not layout verification. Review populated mobile, desktop and relevant intermediate widths, long/missing content and loading/error/recovery states. Do not broaden a documentation-only pass into application tests by default; check files, links, facts and `git diff --check` instead.

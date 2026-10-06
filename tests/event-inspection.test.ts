@@ -88,7 +88,8 @@ describe('preserved Event film inspection',() => {
     await search(); await click(container.querySelector<HTMLAnchorElement>('.search-row a')!);
     expect(api.detail).toHaveBeenCalledWith('saved-0'); await click(button('Yes, this one!')); await flush();
     expect(lineup()).toEqual(['Film 0']); expect(api.importMovie).not.toHaveBeenCalled();
-    await click(container.querySelector<HTMLAnchorElement>('.search-row a')!); await click(button('Yes, this one!')); await flush();
+    expect(container.querySelector<HTMLInputElement>('input[maxlength="150"]')!.value).toBe(''); expect(container.querySelector('.search-row')).toBeNull();
+    await search(); await click(container.querySelector<HTMLAnchorElement>('.search-row a')!); await click(button('Yes, this one!')); await flush();
     expect(lineup()).toEqual(['Film 0','Film 0']);
     await navigate('movie/saved-0'); expect(button('Yes, this one!')).toBeUndefined();
   });

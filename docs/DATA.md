@@ -92,6 +92,8 @@ Native Worker D1 batches atomically combine headers/joins, publication, audits, 
 
 Migration `0011_cycle_turn_swaps.sql` adds `club_rotation.human_order`, a sparse JSON object mapping human position numbers to member IDs. Missing positions use permanent member `sort_order`; swaps never change that order. The singleton owns the current cycle map even before slot 1 creates a Cycle row. Admin swaps exchange only the current human position with one future uncompleted human position whose active member has no active Event in this cycle. Repository validation and transaction-time guards reject stale versions, raced Events or deactivation. Positional publication retains the map through slots 1–5; CLSC completion atomically clears it when returning to slot 1, so the next cycle uses normal A → B → C → D → CLSC order. Reloads and publication resolve identity from the durable map; historical stored hosts remain independent.
 
+Add Classic uses existing canonical identity import and idempotent Classics membership writes. Its UI blocks existing membership, active History appearances and explicit Seen by every active member, rechecking the canonical detail at confirmation. New membership derives the ordinary member-specific unanswered queue; it creates no queue rows, Seen answers or synthetic ratings. Incomplete answers or absent genuine ratings keep the film unranked under normal ranking.
+
 ## External data, derived data and refresh
 
 Provider details belong in [INTEGRATIONS](INTEGRATIONS.md); payload/format boundaries in [CONTRACTS](CONTRACTS.md). Google auth records retain verified binding, not Google ID tokens. TMDB metadata/artwork and MDBList/OMDb ratings remain stored until explicit refresh; ordinary page loads use these snapshots.
