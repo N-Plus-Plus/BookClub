@@ -241,3 +241,7 @@ Report exact commands/results, full-suite run or omission, blocked/skipped check
 Score lifecycle regression coverage: `tests/score-lifecycle.test.ts` exercises the 0–6 live-dimension boundary, duplicates, invalid values, development demos, immediate retirement and disposable SQLite/shared-ranking equivalence. `tests/bulk-maintenance.test.ts` covers legacy-only live acquisition, negative checks and full Refresh reconsideration.
 
 `tests/singin-repair.test.ts` uses disposable migrated D1 to verify guarded duplicate reconciliation, Cycle 34 preservation, Classics/seed/Seen/import/legacy-score retention, wrong-provider state discard, receipt evidence, identical reruns and race/unknown-relationship/conflict rejection.
+
+`tests/silence-repair.test.ts` covers the exact guarded mismatch repair in place and into an existing survivor, reference/seed/legacy-evidence preservation, History Seen, wrong-provider cleanup, survivor cache retention, repeat safety and identity/History/score/roster races. Singin coverage also verifies the explicitly selected History Seen restoration option.
+
+`tests/love-affair-repair.test.ts` covers the exact 1974-to-1939 mismatch in place and into a verified survivor, Classics/seed/Seen/reference and legacy-score preservation, wrong-provider cleanup, stale checks, unique identities, repeat safety and guarded race rejection. Candidate-only repair preserves Seen answers without inventing History; active History retains the all-Seen invariant.

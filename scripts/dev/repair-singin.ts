@@ -10,7 +10,7 @@ const identifier = (value: string) => `"${value.replaceAll('"', '""')}"`;
 const owned: readonly string[] = ['movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies','movie_score_checks',...providerEnrichmentTables];
 
 /** Generate private, snapshot-guarded D1 SQL from a local/offline database. No provider calls. */
-export function repairSql(db: DatabaseSync): string | null {
+export function repairSql(db: DatabaseSync, historySeen = false): string | null {
   const rows = (table: string, scope: string) => db.prepare(`SELECT * FROM ${identifier(table)} WHERE ${scope}`).all();
   const source = rows('movies', `id=${quote(duplicate)}`);
   const target = rows('movies', `id=${quote(survivor)}`);
@@ -27,6 +27,7 @@ export function repairSql(db: DatabaseSync): string | null {
     return null;
   }
   if (source[0].import_source !== 'legacy-spreadsheet' || source[0].import_key !== duplicate) fail();
+  if (source[0].title !== 'Singing in the rain' || source[0].year !== 2025) fail();
   const sourceIds = rows('movie_external_ids', `movie_id=${quote(duplicate)}`);
   if (sourceIds.length !== 1 || sourceIds[0].provider !== 'tmdb' || sourceIds[0].external_id !== '1438810') fail();
   const scope = `movie_id IN (${quote(duplicate)},${quote(survivor)})`;
@@ -41,6 +42,7 @@ export function repairSql(db: DatabaseSync): string | null {
   guard('movies', `id IN (${quote(duplicate)},${quote(survivor)})`);
   guard('sessions',`id=${quote(history[0].id)}`);
   guard('cycles',`id=${quote(history[0].cycle_id)}`);
+  if (historySeen) guard('members','active=1');
   for (const table of tables) {
     const name = String(table.name);
     // Offline SQLite permits FK discovery; generated D1 SQL does not use this PRAGMA.
@@ -78,6 +80,7 @@ INSERT INTO movie_identity_merge_receipts(source_movie_id,survivor_movie_id,tmdb
 VALUES(${quote(duplicate)},${quote(survivor)},'872',${quote(operation)},${quote(JSON.stringify(snapshots))});
 ${['classics','classics_seed_allocations','seen_states','movie_import_refs','seen_import_observations'].map(t=>`UPDATE ${t} SET movie_id=${quote(survivor)} WHERE movie_id=${quote(duplicate)};`).join('\n')}
 UPDATE source_scores SET movie_id=${quote(survivor)} WHERE movie_id=${quote(duplicate)} AND id IN (${scoreIds});
+${historySeen ? `INSERT INTO seen_states(movie_id,member_id,seen) SELECT ${quote(survivor)},id,1 FROM members WHERE active=1 ON CONFLICT(movie_id,member_id) DO UPDATE SET seen=1,updated_at=CASE WHEN seen_states.seen=1 THEN seen_states.updated_at ELSE strftime('%Y-%m-%dT%H:%M:%fZ','now') END;` : ''}
 DELETE FROM movies WHERE id=${quote(duplicate)};
 END;
 INSERT OR IGNORE INTO movie_identity_operations(operation_key,manifest_hash,sql_hash) VALUES(${quote(operation)},${quote(createHash('sha256').update(JSON.stringify(snapshots)).digest('hex'))},'__SQL_HASH__');

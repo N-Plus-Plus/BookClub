@@ -62,3 +62,10 @@ it('rejects conflicting survivor Seen and identities',()=>{
   local.sqlite.prepare("INSERT INTO seen_states(movie_id,member_id,seen) VALUES(?,'m',1)").run(survivor);
   expect(()=>repairSql(local.sqlite)).toThrow('preflight conflict');
 });
+it('optionally re-establishes History Seen while archiving the original candidate answers',()=>{
+  local.sqlite.exec(repairSql(local.sqlite,true)!);
+  expect(local.sqlite.prepare('SELECT seen FROM seen_states').all()).toEqual([{seen:1}]);
+  const receipt=JSON.parse(String(local.sqlite.prepare('SELECT snapshot_json FROM movie_identity_merge_receipts').get()!.snapshot_json));
+  expect(receipt.seen_states[0].seen).toBe(0);
+  expect(repairSql(local.sqlite,true)).toBeNull();
+});
