@@ -18,7 +18,7 @@ const film=(i:number,group='ranked'):Movie=>{
  return {id:'f'+i,title:'Film '+i,year:2001,runtime:100,director:i===1?'A Director':null,original_title:null,release_date:null,overview:null,genres:[],assets:[],external_ids:[],classic:true,scores:inputs,seen,ranking:rankMovie(inputs,seen,members)};
 };
 let root:Root,container:HTMLDivElement;
-beforeEach(()=>{vi.clearAllMocks();Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});container=document.createElement('div');document.body.appendChild(container);root=createRoot(container);});
+beforeEach(()=>{localStorage.clear();vi.clearAllMocks();Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});container=document.createElement('div');document.body.appendChild(container);root=createRoot(container);});
 afterEach(async()=>{await act(async()=>root.unmount());container.remove();vi.useRealTimers();});
 const click=async(label:string)=>act(async()=>{[...container.querySelectorAll('button')].find(b=>b.textContent===label || b.getAttribute('aria-label')?.startsWith(label+':'))!.click();});
 it('paginates each Classics view, retains global ranks, resets tabs and clamps shrinking lists',async()=>{
@@ -152,8 +152,12 @@ it.each(['Populate Missing Scores','Refresh Scores','Enrich/Refresh Metadata'])(
  await act(async()=>{await vi.advanceTimersByTimeAsync(2000);});
  await act(async()=>release({results:[{movie:{...movies[10],appearances:[]},providers:[{provider:'omdb',status:'failed',count:0,message:'Provider cooling down.',retryAfter:120}]}]}));
  expect(container.textContent).toContain('omdb · failed: Provider cooling down. Wait 120s before retrying.');
- expect(container.textContent).toContain('Stopped after a provider failure or cooldown.');expect(container.textContent).toContain(label === 'Refresh Scores' ? '12 / 12 films processed' : '11 / 11 films processed');
+ expect(container.textContent).toContain('Stopped after a provider failure or cooldown.');expect(container.textContent).toContain(label === 'Enrich/Refresh Metadata' ? '10 / 11 films processed' : label === 'Refresh Scores' ? '12 / 12 films processed' : '11 / 11 films processed');
  expect(container.querySelectorAll('.classics-maintenance li')).toHaveLength(1);
+ if (label === 'Enrich/Refresh Metadata') {
+  expect(container.textContent).toContain('Resume Metadata '+String.fromCharCode(183)+' 1 remaining');
+  expect(JSON.parse(localStorage.getItem('bookclub.omdb-metadata.v1')!)).toEqual({version:1,completed:10,remainingIds:['f10']});
+ }
 });
 
 it('scopes orange progress fill to score maintenance across browser engines',()=>{

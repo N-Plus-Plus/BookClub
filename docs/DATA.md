@@ -44,7 +44,7 @@ Migration `0015_drop_redundant_score_index.sql` drops only `scores_by_movie`. Th
 
 ## Reverse History index
 
-Additive migration `0014_session_movie_lookup.sql` creates `session_movies_by_movie(movie_id,session_id,position)`. It covers film appearances and maintenance reverse scope lookups without changing joins or the existing session/position primary key. Disposable current-schema EXPLAIN changes the selected-film lookup from `SCAN sm` to a covering indexed search. Metadata aggregates use existing identity/artwork indexes; no speculative metadata index was added. Production migration ledger is verified through 0014.
+Additive migration `0014_session_movie_lookup.sql` creates `session_movies_by_movie(movie_id,session_id,position)`. It covers film appearances and maintenance reverse scope lookups without changing joins or the existing session/position primary key. Disposable current-schema EXPLAIN changes the selected-film lookup from `SCAN sm` to a covering indexed search. Metadata aggregates use existing identity/artwork indexes; no speculative metadata index was added. Production migration ledger is live state and must be verified for each authorised release.
 
 ## Data overview and stores
 
@@ -150,7 +150,7 @@ Supported archive workflow is [scripts/import/README](../scripts/import/README.m
 
 The production importer is a separate operator CLI; [PRODUCTION](../scripts/import/PRODUCTION.md) owns its target/hash/capture/export-proof gates and partial-write recovery. Its initial bootstrap is complete according to existing project records; do not replay it after real logins/actions. REST batches have at most 100 statements and no assumed atomic rollback. Inspect read-only preflight after failure; identical continuation requires zero conflicts. The local importer has no remote path.
 
-Wrangler applies ordered SQL migrations and records `d1_migrations`. Current source contains 0001–0015 (0007 metadata, 0008 cooldowns, 0009 artwork check, 0010 removal of obsolete event text/swap guards, 0011 cycle swaps, 0012 canonical movie director, 0013 conclusive score checks, 0014 reverse History lookup index, 0015 redundant score index removal). Add migrations; applied migrations are immutable. Preserve 0005 LF and trigger `WHEN` parser guards. Production ledger is verified through 0014; recheck the remote ledger for each authorised release. Future schema changes follow the backup and Worker/schema compatibility gates in [DEPLOYMENT](DEPLOYMENT.md). No general schema rollback is established.
+Wrangler applies ordered SQL migrations and records `d1_migrations`. Current source contains 0001–0015 (0007 metadata, 0008 cooldowns, 0009 artwork check, 0010 removal of obsolete event text/swap guards, 0011 cycle swaps, 0012 canonical movie director, 0013 conclusive score checks, 0014 reverse History lookup index, 0015 redundant score index removal). Add migrations; applied migrations are immutable. Preserve 0005 LF and trigger `WHEN` parser guards. Verify the live production ledger for each authorised release. Future schema changes follow the backup and Worker/schema compatibility gates in [DEPLOYMENT](DEPLOYMENT.md). No general schema rollback is established.
 
 ## Backup, recovery and local snapshots
 
