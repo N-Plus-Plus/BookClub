@@ -2,7 +2,7 @@ import type { Movie, TmdbPreview } from '../shared/types';
 import type { ReactNode } from 'react';
 import { Poster } from './components';
 
-function runtimeLabel(minutes: number | null) {
+export function runtimeLabel(minutes: number | null) {
   if (!minutes) return 'Unknown';
   const hours = Math.floor(minutes / 60), remainder = minutes % 60;
   return [hours ? `${hours} ${hours === 1 ? 'hr' : 'hrs'}` : '', remainder ? `${remainder} ${remainder === 1 ? 'min' : 'mins'}` : ''].filter(Boolean).join(', ');

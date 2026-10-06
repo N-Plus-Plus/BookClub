@@ -46,7 +46,7 @@ try {
         await page.getByRole('button',{name:'New set',exact:true}).click();
         await page.getByLabel('Search saved films & TMDB').fill('fixture');await page.getByRole('button',{name:'Search',exact:true}).click();
       }
-      if(screen==='metrics') await page.getByRole('heading',{name:'By Genre',exact:true}).waitFor();
+      if(screen==='metrics') await page.getByRole('heading',{name:'Genre detail',exact:true}).waitFor();
       else {
         await page.locator('img.poster').first().waitFor();await page.locator('img.poster').first().scrollIntoViewIfNeeded();
         await page.waitForFunction(()=>[...document.querySelectorAll('img.poster')].some(e=>e.complete && e.naturalWidth>0));

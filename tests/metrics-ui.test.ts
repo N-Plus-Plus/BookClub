@@ -4,10 +4,11 @@ import { createRoot } from 'react-dom/client';
 import { expect, it } from 'vitest';
 import { MetricsScreen } from '../frontend/MetricsScreen';
 import type { Catalog, Movie } from '../shared/types';
-const dimensions=[['IMDb','IMDb','imdb','rating',10,8.1,'8.1 / 10'],['LB','Letterboxd','letterboxd','rating',5,4.25,'4.25 / 5'],['MC','Metacritic','metacritic','critic',100,76,'76 / 100'],['RT-A','Rotten Tomatoes - Audience','rottentomatoes','audience',100,82,'82 / 100'],['RT-C','Rotten Tomatoes - Critic','rottentomatoes','critic',100,91,'91 / 100'],['TMDB','TMDB','tmdb','rating',10,7.3,'7.3 / 10']] as const;
+import { renderToStaticMarkup } from 'react-dom/server';
+const dimensions=[['IMDb','IMDb','imdb','rating',10,8.1,'8.1 / 10'],['LB','Letterboxd','letterboxd','rating',5,4.25,'4.25 / 5'],['MC','Metacritic','metacritic','critic',100,76,'76 / 100'],['MC-U','Metacritic User','metacritic','user',10,7.8,'7.8 / 10'],['Trakt','Trakt','trakt','rating',100,71,'71 / 100'],['Ebert','Roger Ebert','rogerebert','rating',4,3.5,'3.5 / 4'],['RT-A','Rotten Tomatoes - Audience','rottentomatoes','audience',100,82,'82 / 100'],['RT-C','Rotten Tomatoes - Critic','rottentomatoes','critic',100,91,'91 / 100'],['TMDB','TMDB','tmdb','rating',10,7.3,'7.3 / 10']] as const;
 const movie:Movie={id:'a',title:'A film with a long title for the Metrics list',year:2000,original_title:null,release_date:null,runtime:null,overview:null,genres:['Drama'],assets:[],external_ids:[],seen:[],classic:false,ranking:null,scores:dimensions.map(([, ,provider,metric,raw_scale,raw_value])=>({provider,metric,raw_scale,raw_value,normalized_value:null,vote_count:null,fetched_at:'2000-01-01',retrieved_via:'mdblist'}))};
 const catalog:Catalog={members:[{id:'m',display_name:'Member',active:1,sort_order:1}],movies:[movie],cycles:[],sessions:[{id:'s',movies:[movie,movie],host_member_id:'m',cycle_slot:1,kind:'hosted',event_date:'2000-01-01',legacy_cycle_label:null,cycle_id:null,date_precision:'exact'}]};
-it('defaults on each mount, keeps six ordered selectors independent, displays full headings/native scores and preserves identity and IMDb summaries',async()=>{
+it('defaults on each mount, keeps nine selectors independent, displays full headings/native scores and preserves identity and IMDb summaries',async()=>{
  Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
  const container=document.createElement('div');document.body.appendChild(container);let root=createRoot(container);
  const mount=()=>act(async()=>root.render(createElement(MetricsScreen,{catalog,viewer:null,onUpdated:async()=>{}})));
@@ -16,7 +17,7 @@ it('defaults on each mount, keeps six ordered selectors independent, displays fu
  try {
  await mount();
  for(const section of sections()) {
-  expect([...section.querySelectorAll('button')].map(b=>b.textContent)).toEqual(['IMDb','LB','MC','RT-A','RT-C','TMDB']);
+  expect([...section.querySelectorAll('button')].map(b=>b.textContent)).toEqual(['IMDb','LB','MC','MC-U','RT-A','RT-C','TMDB','Trakt','Ebert']);
   expect(section.querySelector('button[aria-pressed=true]')?.textContent).toBe('IMDb');
  }
  await act(async()=>container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[1].click());
@@ -45,5 +46,15 @@ it('defaults on each mount, keeps six ordered selectors independent, displays fu
  await act(async()=>root.unmount());root=createRoot(container);await mount();
  expect(sections().map(s=>s.querySelector('h2')?.textContent)).toEqual(['Top 5 by IMDb','Bottom 5 by IMDb']);
  } finally {await act(async()=>root.unmount());container.remove();}
+});
+
+it('empty identities preserve report axes and restrained missing states without invalid fractions',() => {
+ const html=renderToStaticMarkup(createElement(MetricsScreen,{catalog:{...catalog,sessions:[]},viewer:null,onUpdated:async()=>{}}));
+ const container=document.createElement('div');container.innerHTML=html;
+ expect(container.querySelectorAll('.metrics-rating-profile > div')).toHaveLength(9);
+ expect(container.querySelectorAll('.metrics-extremes section')).toHaveLength(4);
+ expect(container.textContent).toContain('No events for this identity');
+ expect(container.textContent).toContain('No director data for this selection.');
+ expect(container.textContent).not.toMatch(/NaN|Infinity|undefined|0 \/ 0/);
 });
 
