@@ -9,6 +9,7 @@ import { ProviderError } from './providers/http';
 import { type MaintenanceMode } from '../../shared/score-maintenance';
 import { missingLiveScoreDimensions, requiredScores } from '../../shared/ranking';
 const failure = (provider: string, error: unknown): ProviderResult => ({provider,status: 'failed',count: 0,
+  blocking: !(error instanceof ProviderError && error.kind === 'not_found'),
   message: error instanceof ApiError ? error.message : `${provider} refresh failed. Try later.`,
   ...(error instanceof ProviderError && error.retryAfter !== undefined ? {retryAfter: error.retryAfter} : {})});
 export class ScoreService {
@@ -17,7 +18,7 @@ export class ScoreService {
     return error instanceof ProviderError && ['credentials','rate_limited','outage','network'].includes(error.kind);
   }
   private suppressed(provider: string, error: ProviderError): ProviderResult {
-    return {provider,status:'skipped',count:0,message:`Skipped after ${provider} became unavailable during this enrichment operation.`,...(error.retryAfter === undefined ? {} : {retryAfter:error.retryAfter})};
+    return {provider,status:'skipped',count:0,blocking:true,message:`Skipped after ${provider} became unavailable during this enrichment operation.`,...(error.retryAfter === undefined ? {} : {retryAfter:error.retryAfter})};
   }
   private async providerCall<T>(provider: string, call: () => Promise<T>): Promise<T> {
     const wait = await this.repo.providerCooldown(provider);
@@ -41,11 +42,11 @@ export class ScoreService {
     const providers: ProviderResult[] = [], snapshots: Score[] = [];
     const id = mdbId(movie.external_ids), imdb = movie.external_ids.find(e => e.provider === 'imdb' && /^tt\d{7,10}$/.test(e.external_id));
     if (batch?.error) { providers.push(failure('mdblist',batch.error)); }
-    else if (failures?.has('mdblist')) providers.push(this.suppressed('mdblist',failures.get('mdblist')!));
+    else if (batch?.scores === undefined && failures?.has('mdblist')) providers.push(this.suppressed('mdblist',failures.get('mdblist')!));
     else if (!this.env.MDBLIST_API_KEY) providers.push({provider:'mdblist',status:'skipped',count:0,message:'Not configured.'});
     else if (!id) providers.push({provider:'mdblist',status:'skipped',count:0,message:'A supported external ID is required.'});
-    else if (batch && batch.scores === undefined) providers.push({provider:'mdblist',status:'failed',count:0,message:'Incomplete batch response. Try later.'});
-    else try { const scores = batch ? batch.scores ?? [] : await this.providerCall('mdblist',() => new MdbListProvider(this.env.MDBLIST_API_KEY!,this.limits('mdblist')).scores(id)); snapshots.push(...scores); providers.push({provider:'mdblist',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { if (failures && this.providerWide(error)) failures.set('mdblist',error); providers.push(failure('mdblist',error)); }
+    // An omitted batch entry gets one sequential single-film attempt; errors never re-enter capture.
+    else try { const scores = batch?.scores !== undefined ? batch.scores : await this.providerCall('mdblist',() => new MdbListProvider(this.env.MDBLIST_API_KEY!,this.limits('mdblist')).scores(id)); snapshots.push(...scores); providers.push({provider:'mdblist',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { if (failures && this.providerWide(error)) failures.set('mdblist',error); providers.push(failure('mdblist',error)); }
     const missing = refresh ? this.needs({...movie,scores:[]},snapshots) : this.needs(movie,snapshots);
     const unresolved = missing.filter(key => !eligible || eligible.includes(key));
     const omdbUseful = Boolean(imdb && ['imdb:rating','rottentomatoes:critic','metacritic:critic'].some(key => unresolved.includes(key)));

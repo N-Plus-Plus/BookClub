@@ -33,17 +33,15 @@ export function ClassicsMaintenance({catalog,writesEnabled,onMovie,onUpdated}: {
     }
   };
   return <section className="card stack classics-maintenance" aria-labelledby="score-maintenance-heading"><h2 id="score-maintenance-heading">Scores and OMDb metadata</h2>
-    <p className="meta">Covers all {movies.length} distinct films in Classics and History. Scores use IMDb, RT audience, RT critic, Letterboxd, Metacritic and TMDB. Refreshing scores can change Ranked order.</p>
-    <p className="meta">Populate fills unresolved missing score inputs. Checked unavailable scores are reconsidered by Refresh. Refresh checks every identified film. Requests run sequentially in bounded batches, with no automatic retries and a stop on provider failures or cooldowns.</p>
-    <p className="meta">Metadata separately refreshes release year, runtime, director and IMDb genres through OMDb. Available metadata is also saved when a score fallback already uses OMDb, without another call. Unavailable values preserve stored metadata.</p>
-    <p className="meta">{movies.filter(m => !maintenanceIdentity(m,'refresh')).length} films need a score identity · {movies.filter(m => !maintenanceIdentity(m,'metadata')).length} films need an IMDb identity for metadata.</p>
-    {status && <p className="meta">{status.eligibleDimensions} missing scores still eligible to check · {status.unavailableDimensions} checked, no source data available ({status.unavailableFilms} films).</p>}
+    <p className="meta">Scores: IMDb, RT-A, RT-C, LB, MC and TMDB. Populate fills missing scores; Refresh rechecks identified films. Metadata refreshes year, runtime, director and IMDb genres.</p>
+    <p className="meta">{movies.filter(m => !maintenanceIdentity(m,'refresh')).length} need score identity · {movies.filter(m => !maintenanceIdentity(m,'metadata')).length} need IMDb identity for metadata.</p>
+    {status && <p className="meta">{status.eligibleDimensions} score inputs eligible · {status.unavailableDimensions} confirmed unavailable ({status.unavailableFilms} films).</p>}
     <div className="button-set">{(Object.keys(labels) as MaintenanceMode[]).map(operation => <Action key={operation} icon={RefreshCw} disabled={Boolean(mode) || !writesEnabled || !movies.some(m => maintenanceIdentity(m,operation) && (operation !== 'missing' || status?.candidateIds.includes(m.id)))} onClick={() => void start(operation)}>{labels[operation]}</Action>)}
     {mode && <Action icon={Square} onClick={() => { stop.current = true; }}>Stop after this batch</Action>}</div>
     {run && <div className="stack" role="status"><p className="meta">{mode ? `${labels[mode]}… ` : ''}{run.processed} / {run.total} films processed · {run.remaining} remaining · {run.updated} updated · {run.noChange} with no new scores · {run.failed} failures.</p>
-      <progress max={Math.max(1,run.total)} value={run.processed} aria-label="Bulk maintenance progress" />
+      <progress className="score-maintenance-progress" max={Math.max(1,run.total)} value={run.processed} aria-label="Bulk maintenance progress" />
       {run.message && <p className="meta">{run.message}</p>}
-      <ProviderFeedback providers={run.providers} />
+      {run.providers.some(provider => provider.status === 'failed') && <ProviderFeedback providers={run.providers.filter(provider => provider.status === 'failed')} />}
     </div>}{error && <p className="error-message" role="alert">{error}</p>}
   </section>;
 }

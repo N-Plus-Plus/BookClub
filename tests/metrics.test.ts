@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateMetrics } from '../shared/metrics';
+import { calculateMetrics, metricsScoreDimensions } from '../shared/metrics';
 import { movieGenres, normalizeGenre, normalizedGenres } from '../shared/genres';
 import type { Catalog, Movie, Session } from '../shared/types';
 const film = (id: string,imdb: number | null,genres: string[] = []): Movie => ({id,title:id,year:2000,original_title:null,release_date:null,runtime:null,overview:null,genres,assets:[],external_ids:[],seen:[],classic:false,ranking:null,
@@ -45,3 +45,19 @@ describe('appearance Metrics',()=>{
     expect(calculateMetrics({...catalog,movies:[{...c,genres:['Made Up']}],sessions:[event('unknown',[c],'m1',1)]}).uncategorised).toBe(1);
   });
 });
+
+ describe('selected Metrics dimensions',()=>{
+  it.each(metricsScoreDimensions)('ranks genuine $name scores with provenance, repeats, filtering and stable ties',dimension=>{
+    const scored=(id:string,value:number):Movie=>({...film(id,1),scores:[...film(id,1).scores.filter(s=>s.provider!==dimension.provider),{provider:dimension.provider,metric:dimension.metric,raw_value:value,raw_scale:dimension.scale,normalized_value:null,vote_count:null,fetched_at:'2000-01-01',retrieved_via:'mdblist'},{provider:dimension.provider,metric:dimension.metric,raw_value:0,raw_scale:dimension.scale,normalized_value:null,vote_count:null,fetched_at:'2099-01-01',retrieved_via:'legacy-spreadsheet'}]});
+    const high=scored('high',dimension.scale*.9),low=scored('low',dimension.scale*.2),missing={...film('missing',9),scores:film('missing',9).scores.filter(s=>s.provider!==dimension.provider)};
+    const data={...catalog,movies:[high,low,missing],sessions:[event('z',[high,low,missing],'m2',1),event('a',[high],'m2',2),event('other',[low],'m1',1)]};
+    const options={top:dimension.id,bottom:dimension.id};
+    const result=calculateMetrics(data,{kind:'member',memberId:'m2'},options);
+    expect(result.top.map(r=>r.movie.id)).toEqual(['high','high','low']);
+    expect(result.bottom.map(r=>r.movie.id)).toEqual(['low','high','high']);
+    expect(result.top.map(r=>r.session.id)).toEqual(['a','z','z']);
+    expect(result.top[0].selectedScore).toBeCloseTo(dimension.scale*.9);
+    expect(result.appearances).toBe(4);expect(result.uniqueFilms).toBe(3);
+    expect(calculateMetrics({...data,sessions:[...data.sessions].reverse()},{kind:'member',memberId:'m2'},options)).toEqual(result);
+  });
+ });

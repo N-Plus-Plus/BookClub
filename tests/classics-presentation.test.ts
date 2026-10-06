@@ -74,7 +74,7 @@ it('keeps the Admin DOM compact through a 980-film no-data run',async()=>{
  await act(async()=>root.render(createElement(AdminScreen,{catalog:{movies,members,sessions:[],cycles:[]},writesEnabled:true,onMovie,onUpdated:async()=>{}})));
  await click('Refresh Scores');await act(async()=>{await vi.runAllTimersAsync();});
  expect(onMovie).toHaveBeenCalledTimes(980);expect(container.textContent).toContain('980 / 980 films processed');expect(container.textContent).toContain('980 with no new scores');
- expect(container.querySelectorAll('.classics-maintenance li')).toHaveLength(1);expect(container.querySelectorAll('.classics-maintenance strong')).toHaveLength(0);
+ expect(container.querySelectorAll('.classics-maintenance li')).toHaveLength(0);expect(container.querySelectorAll('.classics-maintenance strong')).toHaveLength(0);
  expect(container.querySelector('progress')?.value).toBe(980);
 });
 
@@ -128,4 +128,39 @@ it('scopes smaller mobile titles to Classics and keeps tabs in one flexible touc
  expect(css).toContain('.classics-filters .button[aria-pressed="true"]::after');
  expect(css).toContain('bottom: 0; height: 3px; background: var(--focus-outline)');
  expect(css).toContain('padding: 0 var(--space-4); border-radius: var(--radius-pill); font-size: var(--text-eyebrow); line-height: 1.5;');
+});
+
+it.each(['Populate Missing Scores','Refresh Scores','Enrich/Refresh Metadata'])('keeps active %s feedback quiet and retains provider failures',async(label)=>{
+ const movies=Array.from({length:11},(_,i)=>({...film(i),external_ids:[{provider:'imdb',external_id:'tt0000001'}]}));
+ let release!: (value: Awaited<ReturnType<typeof api.maintainMovies>>) => void;
+ vi.mocked(api.maintainMovies).mockImplementationOnce(async(_mode,ids)=>({results:ids.map(id=>({movie:{...movies.find(m=>m.id===id)!,appearances:[]},providers:[
+  {provider:'mdblist',status:'success',count:1,message:'Captured'},
+  {provider:'omdb',status:'success',count:0,message:'No missing scores supplied.'},
+  {provider:'tmdb',status:'skipped',count:0,message:'TMDB rating already available.'},
+  {provider:'omdb',status:'skipped',count:0,message:'No missing score OMDb can supply.'},
+ ]}))})).mockImplementationOnce(()=>new Promise(resolve=>{release=resolve;}));
+ vi.mocked(api.scoreMaintenanceStatus).mockResolvedValueOnce({candidateIds:movies.map(m=>m.id),eligibleDimensions:5729,unavailableDimensions:7,unavailableFilms:3});
+ await act(async()=>root.render(createElement(AdminScreen,{catalog:{movies:[...movies,{...film(99),external_ids:[{provider:'tmdb',external_id:'99'}]},film(100)],members,sessions:[],cycles:[]},writesEnabled:true,onMovie:vi.fn(),onUpdated:async()=>{}})));
+ expect(container.textContent).toContain('Scores: IMDb, RT-A, RT-C, LB, MC and TMDB. Populate fills missing scores; Refresh rechecks identified films. Metadata refreshes year, runtime, director and IMDb genres.');
+ expect(container.textContent).toContain('1 need score identity · 2 need IMDb identity for metadata.');
+ expect(container.textContent).toContain('5729 score inputs eligible · 7 confirmed unavailable (3 films).');
+ vi.useFakeTimers();await click(label);
+ expect(container.textContent).toContain('Stop after this batch');expect(container.textContent).toContain('10 /');
+ expect(container.querySelector('.score-maintenance-progress')?.getAttribute('value')).toBe('10');
+ expect(container.querySelectorAll('.classics-maintenance li')).toHaveLength(0);
+ for(const message of ['Captured','No missing scores supplied.','TMDB rating already available.','No missing score OMDb can supply.']) expect(container.textContent).not.toContain(message);
+ await act(async()=>{await vi.advanceTimersByTimeAsync(2000);});
+ await act(async()=>release({results:[{movie:{...movies[10],appearances:[]},providers:[{provider:'omdb',status:'failed',count:0,message:'Provider cooling down.',retryAfter:120}]}]}));
+ expect(container.textContent).toContain('omdb · failed: Provider cooling down. Wait 120s before retrying.');
+ expect(container.textContent).toContain('Stopped after a provider failure or cooldown.');expect(container.textContent).toContain(label === 'Refresh Scores' ? '12 / 12 films processed' : '11 / 11 films processed');
+ expect(container.querySelectorAll('.classics-maintenance li')).toHaveLength(1);
+});
+
+it('scopes orange progress fill to score maintenance across browser engines',()=>{
+ const css=readFileSync('frontend/app.css','utf8'),palette=readFileSync('style.css','utf8');
+ expect(palette).toContain('--pumpkin: #fab153;');
+ expect(css).toContain('.score-maintenance-progress { appearance: none; border: 0; background: var(--asphalt-dark); accent-color: var(--pumpkin); }');
+ expect(css).toContain('.score-maintenance-progress::-webkit-progress-bar { background: var(--asphalt-dark); }');
+ for(const engine of ['webkit-progress-value','moz-progress-bar']) expect(css).toContain(`.score-maintenance-progress::-${engine} { background: var(--pumpkin); }`);
+ expect(css).toContain('progress { width: 100%; height: 10px; accent-color: var(--concrete); }');
 });

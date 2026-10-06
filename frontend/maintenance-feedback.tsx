@@ -12,8 +12,8 @@ export function bulkScoreSummary(results: RefreshResult[]) {
   };
 }
 
-export function ProviderFeedback({providers}: {providers: ProviderResult[]}) {
-  const notes = [...new Set(providers.map(provider => `${provider.provider} · ${provider.status}: ${provider.message}${provider.count > 0 ? ` ${provider.count} scores captured.` : ''}${provider.retryAfter !== undefined ? ` Wait ${provider.retryAfter}s before retrying.` : ''}`))];
+export function ProviderFeedback({providers}: {providers: (ProviderResult & {filmTitle?: string})[]}) {
+  const notes = [...new Set(providers.map(provider => `${provider.filmTitle ? `${provider.filmTitle} · ` : ''}${provider.provider} · ${provider.status}: ${provider.message}${provider.count > 0 ? ` ${provider.count} scores captured.` : ''}${provider.retryAfter !== undefined ? ` Wait ${provider.retryAfter}s before retrying.` : ''}`))];
   return <ul>{notes.map(note => <li key={note}>{note}</li>)}</ul>;
 }
 

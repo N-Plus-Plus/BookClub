@@ -1,5 +1,6 @@
 import type { ExternalId, Score } from '../../../shared/types';
 import { RatingError, ratingRequest, record } from './ratings';
+import { ProviderError } from './http';
 // Official Media Info schema: https://api.mdblist.com/schema/ (GET and POST media routes).
 const sources: Record<string,[string,string,number]> = {
   imdb: ['imdb','rating',10], tomatoes: ['rottentomatoes','critic',100],
@@ -30,8 +31,15 @@ export class MdbListProvider {
   }
   async batch(provider: string, ids: string[]): Promise<Map<string,Score[]>> {
     if (!ids.length || ids.length > 10) throw new RatingError('MDBList batches require 1–10 IDs.');
-    const data = await ratingRequest(`https://api.mdblist.com/${provider}/movie/?apikey=${encodeURIComponent(this.key)}`,'MDBList',
-      {method: 'POST',headers: {'Content-Type': 'application/json'},body: JSON.stringify({ids: provider === 'tmdb' ? ids.map(Number) : ids})},this.onLimits);
+    let data: unknown;
+    try {
+      data = await ratingRequest(`https://api.mdblist.com/${provider}/movie/?apikey=${encodeURIComponent(this.key)}`,'MDBList',
+        {method: 'POST',headers: {'Content-Type': 'application/json'},body: JSON.stringify({ids: provider === 'tmdb' ? ids.map(Number) : ids})},this.onLimits);
+    } catch (error) {
+      // A batch endpoint 404 cannot establish that any particular film is missing.
+      if (error instanceof ProviderError && error.kind === 'not_found') throw new RatingError('MDBList batch lookup is unavailable. Try later.');
+      throw error;
+    }
     if (!Array.isArray(data)) throw new RatingError('MDBList returned an unrecognised batch response.');
     const result = new Map<string,Score[]>(), at = new Date().toISOString();
     for (const entry of data) {
@@ -46,6 +54,12 @@ export class MdbListProvider {
       nestedTmdb: data.filter(entry => typeof entry?.ids?.tmdb === 'number' || typeof entry?.ids?.tmdb === 'string').length,
       legacyImdb: data.filter(entry => typeof entry?.imdb_id === 'string').length,
     });
+    if (result.size < new Set(ids).size) for (const entry of data) {
+      const id = provider === 'imdb' ? entry?.ids?.imdb ?? entry?.imdb_id : entry?.ids?.tmdb;
+      if (!(typeof id === 'string' || typeof id === 'number' && Number.isSafeInteger(id)))
+        throw new RatingError('MDBList returned an unrecognised batch identity response.');
+      parseMdbList(entry,at);
+    }
     return result;
   }
 }

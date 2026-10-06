@@ -70,3 +70,8 @@ describe('rating providers',()=>{
     await expect(new MdbListProvider('key').batch('imdb',['tt0111161'])).rejects.toThrow('unrecognised batch response');
   });
 });
+
+it('does not treat unrecognised partial batch entries as recoverable film omissions',async()=>{
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json([{id:123,ratings:[]}])));
+ await expect(new MdbListProvider('key').batch('tmdb',['123'])).rejects.toMatchObject({kind:'outage',message:'MDBList returned an unrecognised batch identity response.'});
+});
