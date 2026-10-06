@@ -557,9 +557,13 @@ The separate TMDB enrichment cache and MDBList enrichment cache sections follow 
 
 ### Builder
 
-Prioritise draft creation and the path from adding films through save and publish.
+Prioritise draft creation and the path from adding films through Save set and Use Set.
 
-Use a bounded, centred vertical editor on desktop. Save leads editing; Publish leads only the publication review stage. Private-set deletion uses a separate inline confirmation.
+Use a bounded, centred vertical editor on desktop. Save set persists the title, notes and ordered lineup, then returns to All sets; failures preserve the editor. Use Set saves the draft before showing a concise confirmation, then uses the existing publication transaction. Private-set deletion uses a separate inline confirmation.
+
+Search identity opens normal Detail/Preview while the same Builder editor and picker remain mounted and hidden, preserving private fields, ordering, query, results and page. Only Builder-search inspection shows an intrinsic-width Plus / Add to Set action in the page-heading action area. It confirms the canonical saved movie or explicitly imports a TMDB candidate, then returns to the editor and uses the shared accepted-selection reset. Repeated films remain permitted. Failed inclusion stays on detail with local retry feedback; returning without inclusion preserves search.
+
+Use Set current-turn feedback follows the shared effective member after swaps. The viewer’s own turn keeps normal Actual host copy; another human member produces an advisory in the approved pumpkin-dark token. Classics remains hostless and historical backfill has no current-turn warning.
 
 Advanced or unusual options should remain disclosed.
 
@@ -575,7 +579,7 @@ Yes and No retain equal geometry and accessibility, with solid mint Yes and ruby
 
 Use details → ordered films → completion as the essential Event reading order. Save follows the workflow without a review summary. The first card contains only Actual event date and “Complete the current turn”, checked by default for new events. Editing reflects stored completion without advancing rotation. Host is not selectable: new Events derive hosted identity from the effective active member assigned to the current cycle position 1–4; slot 5 is hostless Classics. Unchecking completion does not change identity. Corrections preserve stored historical host and kind; historical date controls remain disclosed. Event titles, notes, swap explanations and turn-helper prose are absent. Field errors preserve input and focus the first invalid control.
 
-Find a film shows at most six candidates per page with Previous / Next and Page N of M. Whole-title matches after whitespace/case normalisation and removal of at most one leading A or The suppress weaker contiguous-substring results; year text is not a title match. Each linked result shows a left poster and title, year and director, with Unknown/no-poster fallbacks. Inspection keeps the Event editor and its search mounted, preserving all draft fields, lineup order, query, results, pagination and manual input. Builder prefill seeds once in exact saved order; incomplete or unavailable sets cannot be used.
+Find a film shows at most six candidates per page with Previous / Next and Page N of M. Whole-title matches after whitespace/case normalisation and removal of at most one leading A or The suppress weaker contiguous-substring results; year text is not a title match. Each linked result shows a left poster and title and year, plus director only when known, with the existing unknown-year/no-poster fallbacks. Inspection keeps the Event or Builder editor and its search mounted, preserving all draft fields, lineup order, query, results, pagination and manual input. Builder prefill seeds once in exact saved order; incomplete or unavailable sets cannot be used.
 
 Accepted film inclusion clears the shared picker query, results and pagination and returns focus to the empty search field. Builder direct additions and Event Yes confirmation retain their ordered multi-film semantics, including repeated appearances; inspection cancellation preserves the search. Add Classic uses the same reset with a single replaceable selection. Linked result/lineup Film Detail navigation stays separate from selection.
 
@@ -589,7 +593,7 @@ Saved Film Detail keeps the backdrop and side-by-side poster/core metadata, with
 
 Classics score appears only for Classics candidates with ranking data: six full provider labels in IMDb, Letterboxd, Metacritic critic, RT audience, RT critic and TMDB order. Genuine inputs display integer /100; missing inputs show a dash with “average used” only when ranking supplies an imputed value. The collapsed Score breakdown groups Scores (including missing/imputed inputs), Modifiers (Unseen multiplier only) and Crunchy math (Sum of Squares of Scores (SoSoS) and SoSoS × Modifiers (residual score) from rawScore/residualScore). It omits the score hero, counts and warning summary. There is no separate Ratings, membership, per-film maintenance or technical provenance section.
 
-Only Event-search inspection shows “Nope, this isn't it” and the stronger “Yes, this one!” on the right of the Film detail heading. Nope and browser Back return to the preserved editor without removing the candidate. Yes appends a saved canonical movie, importing an external candidate only at confirmation; recoverable import errors stay inline on detail. External previews retain their year/runtime and overview beside the poster; the saved Detail variant does not change Preview. Previews omit stored-only sections. External films are not persisted before Yes.
+Only Event-search inspection shows “Nope, this isn't it” and the stronger “Yes, this one!” on the right of the Film detail heading. Nope and browser Back return to the preserved editor without removing the candidate. Yes appends a saved canonical movie, importing an external candidate only at confirmation; recoverable import errors stay inline on detail. External previews retain their year/runtime and overview beside the poster; the saved Detail variant does not change Preview. Previews omit stored-only sections. External films are not persisted before accepted confirmation. Builder-search inspection instead shows Add to Set and uses the same canonical confirmation handoff and picker reset; ordinary Film Detail has neither inclusion action.
 
 Saved Film Detail is informational; global score/provider maintenance remains on Admin.
 

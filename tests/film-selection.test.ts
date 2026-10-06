@@ -111,3 +111,9 @@ it('keeps Builder direct additions, ordering, repeated appearances, removal and 
   await click(container.querySelector<HTMLElement>('button[aria-label="Remove Film B"]')!);
   expect(container.querySelectorAll('.lineup-list li')).toHaveLength(2);
 });
+it('shared search displays only known director metadata without dangling separators',async()=>{
+  await act(async()=>root.render(createElement(FilmPicker,{movies:[film('A'),film('B',{director:null}),film('C',{director:'Unknown'})],selected:[],onSelected:vi.fn(),onMovie:vi.fn()})));
+  for (const [id,metadata] of [['A','2001 · Director: Director A'],['B','2001'],['C','2001']]) {
+    await search(id); expect(container.querySelector('.search-row .meta')?.textContent).toBe(metadata);
+  }
+});

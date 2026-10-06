@@ -474,6 +474,7 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .add-classic-modal .classic-eligibility { color: var(--ruby); }
 .add-classic-modal .movie-copy { overflow-wrap: anywhere; }
 
+.builder-turn-warning { color: var(--pumpkin-dark); }
 .page-heading-actions { flex: 0 0 auto; display: flex; justify-content: flex-end; }
 .page-heading-actions .button { width: fit-content; flex: 0 0 auto; white-space: nowrap; }
 .classics-ranking-row { position: relative; }

@@ -94,7 +94,7 @@ for(const width of (process.env.BOOKCLUB_UI_BEHAVIOUR_ONLY ? [] : [320,390,719,7
  await checkAvailableWidth(width);
  await page.goto('http://localhost:4173/#/builder');await page.getByRole('button',{name:'Open set'}).click();
  await page.getByRole('button',{name:'Delete set',exact:true}).click();await page.getByRole('button',{name:'Keep set'}).waitFor();await page.screenshot({path:`.verification/pass2-${width}-builder-delete.png`,fullPage:true});await page.getByRole('button',{name:'Keep set'}).click();
- await page.getByRole('button',{name:'Review publication'}).click();await page.getByRole('heading',{name:/Publish Browser-only/}).waitFor();await page.screenshot({path:`.verification/pass2-${width}-publication.png`,fullPage:true});
+ await page.getByRole('button',{name:'Use Set'}).click();await page.getByRole('heading',{name:/Use Browser-only/}).waitFor();await page.screenshot({path:`.verification/pass2-${width}-publication.png`,fullPage:true});
  if(width>=720){await page.getByRole('button',{name:'Collapse navigation'}).click();assert(await page.getByRole('button',{name:'Expand navigation'}).getAttribute('aria-expanded')==='false');await page.locator('#desktop-destinations a').first().focus();await page.screenshot({path:`.verification/pass2-${width}-collapsed.png`});await page.getByRole('button',{name:'Expand navigation'}).click();}
 }
 await fs.writeFile('.verification/pass2-width-results.json',JSON.stringify(results));

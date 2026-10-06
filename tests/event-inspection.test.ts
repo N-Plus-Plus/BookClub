@@ -2,7 +2,7 @@
 import { createElement, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BuilderSet, Catalog, Movie, SearchResponse, TmdbPreview } from '../shared/types';
+import type { BuilderSet, Catalog, Movie, Rotation, SearchResponse, TmdbPreview } from '../shared/types';
 import { rankMovie, sortClassics } from '../shared/ranking';
 import { api, setDevMember } from '../frontend/api';
 import { App } from '../frontend/App';
@@ -11,7 +11,7 @@ import { HistoryScreen } from '../frontend/HistoryScreen';
 import { SessionCard } from '../frontend/components';
 
 vi.mock('../frontend/api',() => ({
-  api:{swapRotation:vi.fn(),scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:['f1','f2','f3','f99','saved-7'],eligibleDimensions:30,unavailableDimensions:0,unavailableFilms:0})),maintainMovies:vi.fn(),enrichMetadataSelected:vi.fn(),audit:vi.fn(),deleteSession:vi.fn(),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn()},
+  api:{swapRotation:vi.fn(),scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:['f1','f2','f3','f99','saved-7'],eligibleDimensions:30,unavailableDimensions:0,unavailableFilms:0})),maintainMovies:vi.fn(),enrichMetadataSelected:vi.fn(),audit:vi.fn(),deleteSession:vi.fn(),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn(),saveBuilder:vi.fn(),publishBuilder:vi.fn()},
   ApiClientError:class extends Error {},hasSession:() => true,setUnauthorizedHandler:vi.fn(),setDevMember:vi.fn(),clearSession:vi.fn(),storeSession:vi.fn(),
 }));
 const movies: Movie[] = Array.from({length:8},(_,i) => ({id:`saved-${i}`,title:`Film ${i}`,year:1998,original_title:null,release_date:null,runtime:100,overview:'Overview',genres:[],assets:[],external_ids:i === 7 ? [{provider:'tmdb',external_id:'107'}] : [],scores:[],seen:[],classic:false,ranking:null}));
@@ -48,6 +48,8 @@ beforeEach(async () => {
   vi.mocked(api.preview).mockImplementation(async id => ({...preview,externalId:id}));
   vi.mocked(api.detail).mockImplementation(async id => ({...movies.find(movie => movie.id === id)!,appearances:[]}));
   vi.mocked(api.importMovie).mockResolvedValue({...movies[0],id:'canonical-import',title:'Imported film',appearances:[]});
+  vi.mocked(api.builders).mockResolvedValue([]);
+  vi.mocked(api.saveBuilder).mockImplementation(async (body,id) => ({...body,id:id ?? 'new-set',owner_member_id:'member-2',title:body.title ?? null,notes:body.notes ?? null,revision:1,created_at:'2026-01-01',updated_at:''}));
   window.location.hash = '/event';
   container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container);
   await act(async () => { root.render(createElement(App)); }); await flush();
@@ -96,7 +98,7 @@ describe('preserved Event film inspection',() => {
   it('loads preview only on inspection, caches on Previous/Next and imports external only on Yes with retry',async () => {
     await search(); expect(api.preview).not.toHaveBeenCalled();
     await click(button('Next')); expect(api.preview).not.toHaveBeenCalled();
-    expect(container.querySelectorAll('.search-row')[2].textContent).toContain('2001 · Director: Unknown');
+    expect(container.querySelectorAll('.search-row')[2].textContent).toBe('External film2001');
     await click(button('Previous')); await click(button('Next')); expect(api.preview).not.toHaveBeenCalled();
     const editor = container.querySelector('.event-workflow');
     await click(container.querySelectorAll<HTMLAnchorElement>('.search-row a')[2]);
@@ -110,11 +112,11 @@ describe('preserved Event film inspection',() => {
     expect(api.importMovie).toHaveBeenCalledTimes(2); expect(container.querySelector('.event-workflow')).toBe(editor);
     expect(lineup()).toEqual(['Imported film']); expect(api.saveSession).not.toHaveBeenCalled();
   });
-  it('director failures preserve valid search rows and show Unknown',async () => {
+  it('director failures preserve valid search rows without an unknown placeholder',async () => {
     vi.mocked(api.preview).mockRejectedValue(new Error('TMDB unavailable.'));
     await search(); await click(button('Next'));
     expect(container.querySelectorAll('.search-row')).toHaveLength(3);
-    expect(container.querySelectorAll('.search-row')[2].textContent).toContain('Director: Unknown');
+    expect(container.querySelectorAll('.search-row')[2].textContent).not.toContain('Director: Unknown');
     await click(button('Previous')); await click(button('Next')); expect(api.preview).not.toHaveBeenCalled();
   });
   it('never prefetches visible external rows and deduplicates actual inspections',async () => {
@@ -475,7 +477,7 @@ it('shows dev tools only on local Admin and reloads identity through bootstrap',
  await navigate('classics');expect(container.querySelector('.developer-tools')).toBeNull();
  expect(container.querySelector('.app-layout > .demo-label')?.textContent).toBe('Local disposable database');
  expect(container.querySelector('main .demo-label,.page-heading .demo-label')).toBeNull();
- await navigate('admin');await flush();expect(container.querySelector('.developer-tools')).toBeTruthy();
+ await navigate('admin');await vi.waitFor(async () => { await flush(); expect(container.querySelector('.developer-tools')).toBeTruthy(); });
  expect(button('Refresh Dev DB from Production')).toBeTruthy();expect(button('Confirm local replacement')).toBeUndefined();
  await click(button('Refresh Dev DB from Production'));expect(button('Confirm local replacement')).toBeTruthy();await click(button('Cancel'));
  const before=[vi.mocked(api.health).mock.calls.length,vi.mocked(api.me).mock.calls.length];
@@ -490,4 +492,115 @@ it.each(['production','import-preview'])('hides the local indicator and dev tool
  vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'admin'}});
  await act(async()=>root.unmount());root=createRoot(container);await act(async()=>root.render(createElement(App)));await flush();await navigate('admin');
  expect(container.querySelector('.demo-label,.developer-tools')).toBeNull();expect(button('Populate Missing Scores')).toBeTruthy();
+});
+
+describe('Builder inspection and Use Set',() => {
+  const openBuilder = async () => { await navigate('builder'); await click(button('New set')); };
+  const builderSearch = async () => {
+    await input(container.querySelector<HTMLInputElement>('input[maxlength="150"]')!,'film');
+    await act(async () => { container.querySelector('.builder-workflow .card form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); }); await flush();
+  };
+  it('preserves the mounted draft and search on route return and browser Back without inclusion',async () => {
+    await openBuilder();
+    const editor = container.querySelector('.builder-workflow');
+    await input(container.querySelector<HTMLInputElement>('input[maxlength="300"]')!,'Private draft');
+    const note = container.querySelector('textarea')!;
+    await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')!.set!.call(note,'Private notes'); note.dispatchEvent(new Event('input',{bubbles:true})); });
+    await builderSearch(); await click(button('Next'));
+    await click(container.querySelector<HTMLAnchorElement>('.search-row a')!);
+    expect(lineup()).toEqual([]); expect(button('Add to Set')).toBeTruthy(); expect(button('Yes, this one!')).toBeUndefined();
+    expect(container.querySelector('.builder-workflow')).toBe(editor); expect(editor?.parentElement?.hidden).toBe(true);
+    await navigate('builder');
+    expect(container.querySelector('.builder-workflow')).toBe(editor); expect(note.value).toBe('Private notes');
+    expect(container.querySelector<HTMLInputElement>('input[maxlength="300"]')!.value).toBe('Private draft');
+    expect(container.querySelector<HTMLInputElement>('input[maxlength="150"]')!.value).toBe('film');
+    expect(container.querySelector('.search-pagination')?.textContent).toContain('Page 2 of 2');
+    await click(container.querySelector<HTMLAnchorElement>('.search-row a')!);
+    await act(async () => { window.history.back(); await new Promise(resolve => setTimeout(resolve,20)); }); await flush();
+    expect(window.location.hash).toBe('#/builder'); expect(container.querySelector('.builder-workflow')).toBe(editor);
+    expect(container.querySelector('.search-pagination')?.textContent).toContain('Page 2 of 2');
+    expect(api.saveBuilder).not.toHaveBeenCalled();
+  });
+  it('canonical local confirmation matches direct Plus reset, focus, repeats, reorder and removal',async () => {
+    await openBuilder(); await builderSearch();
+    await click(container.querySelector<HTMLElement>('button[aria-label="Add Film 0"]')!);
+    const editor=container.querySelector('.builder-workflow');
+    await builderSearch(); await click(button('Next'));
+    await click(container.querySelector<HTMLAnchorElement>('.search-row a')!); await act(async () => { button('Add to Set').click(); button('Add to Set').click(); }); await flush();
+    expect(window.location.hash).toBe('#/builder'); expect(container.querySelector('.builder-workflow')).toBe(editor);
+    expect(lineup()).toEqual(['Film 0','Film 6']);
+    expect(container.querySelector<HTMLInputElement>('input[maxlength="150"]')!.value).toBe(''); expect(container.querySelector('.search-row')).toBeNull();
+    expect(document.activeElement).toBe(container.querySelector('input[maxlength="150"]'));
+    await builderSearch(); expect(container.querySelector('.search-pagination')?.textContent).toContain('Page 1 of 2');
+    await click(container.querySelector<HTMLAnchorElement>('.search-row a')!); await click(button('Add to Set'));
+    expect(lineup()).toEqual(['Film 0','Film 6','Film 0']); expect(api.importMovie).not.toHaveBeenCalled();
+    await click(container.querySelector<HTMLElement>('button[aria-label="Move Film 6 earlier"]')!); expect(lineup()).toEqual(['Film 6','Film 0','Film 0']);
+    await click(container.querySelector<HTMLElement>('button[aria-label="Remove Film 6"]')!); expect(lineup()).toEqual(['Film 0','Film 0']);
+    await navigate('home'); await navigate('movie/saved-0'); expect(button('Add to Set')).toBeUndefined();
+  });
+  it('imports only on confirmation, locks repeated submissions, preserves failure for retry and patches catalogue',async () => {
+    await openBuilder(); await builderSearch(); await click(button('Next'));
+    const editor=container.querySelector('.builder-workflow');
+    await click(container.querySelectorAll<HTMLAnchorElement>('.search-row a')[2]); expect(api.importMovie).not.toHaveBeenCalled();
+    let reject!: (error: Error) => void;
+    vi.mocked(api.importMovie).mockImplementationOnce(() => new Promise((_resolve,fail) => { reject=fail; }));
+    const add=button('Add to Set'); await act(async () => { add.click(); add.click(); });
+    expect(api.importMovie).toHaveBeenCalledTimes(1); expect(button('Adding…').disabled).toBe(true);
+    await act(async () => reject(new Error('Please retry import.'))); await flush();
+    expect(window.location.hash).toBe('#/preview/tmdb/42'); expect(container.textContent).toContain('Please retry import.');
+    expect(container.querySelector('.builder-workflow')).toBe(editor); expect(lineup()).toEqual([]);
+    expect(container.querySelector<HTMLInputElement>('input[maxlength="150"]')!.value).toBe('film');
+    expect(container.querySelector('.search-pagination')?.textContent).toContain('Page 2 of 2');
+    await click(button('Add to Set')); expect(api.importMovie).toHaveBeenLastCalledWith('42'); expect(lineup()).toEqual(['Imported film']);
+    expect(window.location.hash).toBe('#/builder'); expect(container.querySelector('.search-row')).toBeNull();
+    expect(document.activeElement).toBe(container.querySelector('input[maxlength="150"]'));
+    vi.mocked(api.builders).mockResolvedValue([{id:'new-set',owner_member_id:'member-2',title:'',notes:'',movie_ids:['canonical-import'],revision:1,created_at:'2026-01-01',updated_at:''}]);
+    await click(button('Save set')); await click(button('Open set')); expect(lineup()).toEqual(['Imported film']);
+  });
+  it.each([false,true])('successful Save returns to the reconciled list (existing=%s)',async existing => {
+    const set={id:'existing',owner_member_id:'member-2',title:'Old',notes:'Old note',movie_ids:['saved-2','saved-0','saved-2'],revision:3,created_at:'2026-01-01',updated_at:''};
+    vi.mocked(api.builders).mockResolvedValue(existing ? [set] : []);
+    await navigate('builder'); await click(button(existing ? 'Open set' : 'New set'));
+    await input(container.querySelector<HTMLInputElement>('input[maxlength="300"]')!,'Saved title');
+    const note=container.querySelector('textarea')!;
+    await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')!.set!.call(note,'Saved note'); note.dispatchEvent(new Event('input',{bubbles:true})); });
+    vi.mocked(api.builders).mockResolvedValue([{...set,id:existing ? 'existing':'new-set',title:'Saved title',notes:'Saved note',movie_ids:existing ? set.movie_ids : []}]);
+    await click(button('Save set'));
+    expect(button('Save set')).toBeUndefined(); expect(button('New set')).toBeTruthy(); expect(container.textContent).toContain('Saved title'); expect(container.textContent).toContain('Saved note');
+    expect(container.textContent).not.toContain('Private set saved.');
+    expect(api.saveBuilder).toHaveBeenCalledWith({title:'Saved title',notes:'Saved note',movie_ids:existing ? set.movie_ids:[],...(existing ? {revision:3}: {})},existing ? 'existing':undefined);
+    await click(button('Open set')); expect(lineup()).toEqual(existing ? ['Film 2','Film 0','Film 2']:[]);
+  });
+  it('save rejection preserves editor and draft for retry',async () => {
+    await openBuilder(); await input(container.querySelector<HTMLInputElement>('input[maxlength="300"]')!,'Unsaved');
+    await builderSearch(); await click(container.querySelector<HTMLElement>('button[aria-label="Add Film 0"]')!);
+    vi.mocked(api.saveBuilder).mockRejectedValueOnce(new Error('Save unavailable.')); await click(button('Save set'));
+    expect(button('Save set')).toBeTruthy(); expect(container.querySelector<HTMLInputElement>('input[maxlength="300"]')!.value).toBe('Unsaved'); expect(lineup()).toEqual(['Film 0']); expect(container.textContent).toContain('Save unavailable.');
+    await click(button('Save set')); expect(button('New set')).toBeTruthy();
+  });
+  it.each(['own','swapped-own','other','swapped-other','classics','historical'])('uses effective current-turn identity (%s)',async kind => {
+    const other={id:'sean',display_name:'Sean',sort_order:1,active:1,avatar:1};
+    const turn: Rotation={id:1,nominal_slot:kind==='classics'?5:kind.startsWith('swapped')?1:2,cycle_id:null,version:9,updated_at:'',human_order:kind==='swapped-own'?{'1':'member-2'}:kind==='swapped-other'?{'1':'sean'}:kind==='other'||kind==='historical'?{'2':'sean'}:undefined};
+    vi.mocked(api.catalog).mockResolvedValue({...catalog,members:[...catalog.members,other]}); vi.mocked(api.rotation).mockResolvedValue(turn);
+    await act(async () => root.unmount()); root=createRoot(container); window.location.hash='/builder'; await act(async () => root.render(createElement(App))); await flush();
+    await click(button('New set')); await builderSearch(); await click(container.querySelector<HTMLElement>('button[aria-label="Add Film 0"]')!); await click(button('Use Set'));
+    expect(container.querySelector('h2#publish-heading')?.textContent).toBe('Use this set?');
+    expect(container.textContent).toContain('1 film in the saved order. This will move this film into a Book Club event as the one you brought.');
+    expect(button('Use Set')).toBeTruthy(); expect(container.textContent).not.toMatch(/Review publication|Confirm publication|Publishing…/);
+    if (kind==='historical') await click(container.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+    const warning=container.querySelector('.builder-turn-warning');
+    if (kind==='other'||kind==='swapped-other') expect(warning?.textContent).toBe("Current turn: Sean. You're not Sean. If you need to swap turns, ask the Troy of your household.");
+    else { expect(warning).toBeNull(); expect(container.textContent).toContain(kind==='classics'?'Actual host: CLSC · hostless':'Actual host: MEMBER 2'); }
+    expect(api.swapRotation).not.toHaveBeenCalled();
+  });
+  it('Use Set keeps the ordered repeated IDs and original publish API payload',async () => {
+    await openBuilder(); for (const index of [2,0,2]) { await builderSearch(); await click(container.querySelector<HTMLElement>(`button[aria-label="Add Film ${index}"]`)!); }
+    await click(button('Use Set')); expect(container.textContent).toContain('3 films in the saved order. This will move these films into a Book Club event as the ones you brought.');
+    let resolve!: (value: Awaited<ReturnType<typeof api.publishBuilder>>) => void;
+    vi.mocked(api.publishBuilder).mockImplementationOnce(() => new Promise(done => { resolve=done; }));
+    await click(button('Use Set')); expect(button('Using Set…').disabled).toBe(true); expect(container.textContent).not.toContain('Publishing');
+    expect(api.saveBuilder).toHaveBeenLastCalledWith({title:'',notes:'',movie_ids:['saved-2','saved-0','saved-2']},undefined);
+    expect(api.publishBuilder).toHaveBeenCalledWith('new-set',expect.objectContaining({revision:1,cycle_slot:2,complete_turn:true,turn_version:0}));
+    await act(async () => resolve({} as Awaited<ReturnType<typeof api.publishBuilder>>)); await flush(); expect(window.location.hash).toBe('#/history');
+  });
 });

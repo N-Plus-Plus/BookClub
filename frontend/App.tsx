@@ -37,6 +37,7 @@ export function App() {
   const [inspectionError,setInspectionError] = useState('');
   const [confirming,setConfirming] = useState(false);
   const confirmInFlight = useRef(false);
+  const confirmedReturn = useRef<string | null>(null);
   const [eventPrefill,setEventPrefill] = useState<string[] | null>(null);
   const consumeEventPrefill = useCallback(() => setEventPrefill(null),[]);
   const [navigationExpanded,setNavigationExpanded] = useState(true);
@@ -56,7 +57,7 @@ export function App() {
   const [refreshing,setRefreshing] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const resetAuth = useCallback(() => {
-    generation.current++; inspectionRef.current = null; setInspection(null); setConfirmedMovie(null); setEventPrefill(null); setRotation(null); setCatalog(null); setViewer(null); setNotice(''); setLoadError(''); setActionError(''); setLoading(false);
+    generation.current++; confirmedReturn.current = null; inspectionRef.current = null; setInspection(null); setConfirmedMovie(null); setEventPrefill(null); setRotation(null); setCatalog(null); setViewer(null); setNotice(''); setLoadError(''); setActionError(''); setLoading(false);
   },[]);
   const load = useCallback(async () => {
     const current = ++generation.current;
@@ -138,7 +139,10 @@ export function App() {
         const context: Inspection = {source:'seen',target:next,candidate:{kind:'local',movie:{id:next.slice(6),title:'',year:null,tmdbId:null,poster:null}}};
         inspectionRef.current = context; setInspection(context);
       }
-      pageRef.current = next; setPage(next); window.scrollTo(0,0); requestAnimationFrame(() => heading.current?.focus()); };
+      const acceptedReturn = confirmedReturn.current === next;
+      if (confirmedReturn.current) { confirmInFlight.current = false; setConfirming(false); }
+      confirmedReturn.current = null;
+      pageRef.current = next; setPage(next); window.scrollTo(0,0); if (!acceptedReturn) requestAnimationFrame(() => heading.current?.focus()); };
     window.addEventListener('hashchange',update); return () => window.removeEventListener('hashchange',update);
   },[]);
   const applyMovie = (movie: MovieDetail | Movie) => setCatalog(current => current
@@ -153,16 +157,17 @@ export function App() {
     const context = inspectionRef.current;
     if (!context || confirmInFlight.current) return;
     confirmInFlight.current = true; setConfirming(true); setInspectionError('');
+    let accepted = false;
     try {
       const candidate = context.candidate;
       const movie = candidate.kind === 'local'
         ? catalog?.movies.find(movie => movie.id === candidate.movie.id) ?? await api.detail(candidate.movie.id)
         : await api.importMovie(candidate.movie.externalId);
       if (inspectionRef.current !== context) return;
-      applyMovie(movie); setConfirmedMovie(movie); window.location.hash = `/${context.source}`;
+      accepted = true; applyMovie(movie); confirmedReturn.current = context.source; setConfirmedMovie(movie); window.location.hash = `/${context.source}`;
     } catch (error) {
       if (inspectionRef.current === context) setInspectionError(error instanceof Error ? error.message : 'Could not add this film. Try again.');
-    } finally { confirmInFlight.current = false; setConfirming(false); }
+    } finally { if (!accepted) { confirmInFlight.current = false; setConfirming(false); } }
   };
 
   const classics = catalog ? sortClassics(catalog.movies.filter(m => m.classic)) : [];
@@ -173,7 +178,8 @@ export function App() {
   const isDetail = page.startsWith('movie/') || isPreview;
   const detailContext = inspection && page === inspection.target;
   const inspecting = detailContext && inspection.source !== 'seen';
-  const eventRoute = page === 'event' || page.startsWith('event/') ? page : inspecting ? inspection.source : null;
+  const builderInspection = detailContext && inspection.source === 'builder';
+  const eventRoute = page === 'event' || page.startsWith('event/') ? page : inspecting && inspection.source !== 'builder' ? inspection.source : null;
   const localDevelopment = localLogin && health?.environment === 'local' && !health.authenticationRequired;
   const isAdminPage = page === 'admin' && viewer?.role === 'admin';
   const title = (page === 'event' || page.startsWith('event/')) ? 'Event' : isDetail ? 'Film detail' : isAdminPage ? 'Admin' : destinations.find(d => d.path === page)?.label ?? 'Page not found';
@@ -181,7 +187,7 @@ export function App() {
   if ((localLogin || health?.authenticationRequired) && health && !viewer && !loading) return <SignInScreen configured={health.googleAuthConfigured} error={actionError || loadError} busy={authBusy} onCredential={signIn} onLocalLogin={localLogin ? signInAsTroy : undefined} onRetry={() => void load()} />;
   if (needsAvatar(viewer) && viewer) return <AvatarScreen viewer={viewer} externalError={actionError || loadError} onClaimed={claimed => { setViewer(claimed); void load(); }} onLogout={() => void logout()} />;
   return <div className={`app-layout ${navigationExpanded ? 'navigation-expanded' : 'navigation-collapsed'}`}>{localDevelopment && health?.demo && <p className="demo-label"><Info size={12} aria-hidden="true" />Local disposable database</p>}<Navigation page={page} expanded={navigationExpanded} onToggle={() => setNavigationExpanded(value => !value)} /><div className="bookclub-shell"><header className="site-header"><a className="brand" href="#/home"><Clapperboard aria-hidden="true" /><span>BookClub<small>HAVE YOU UPDATED THE SPREADSH... WEB APP?</small></span></a><div className="viewer-controls">{viewer ? <AccountMenu viewer={viewer} busy={authBusy} onLogout={() => void logout()} /> : <span className="header-tag">{health?.demo ? 'LOCAL DEMO' : 'FILM CLUB'}</span>}</div></header>
-    <main id="main"><div className="page-heading"><div className="page-title-region"><h1 ref={heading} tabIndex={-1}>{title}</h1>{page.startsWith('event/') && <p className="subtitle">Correct the event details and film lineup.</p>}</div>{page === 'classics' && viewer && writesEnabled && catalog && <div className="page-heading-actions"><Action icon={Plus} variant="primary" onClick={() => setAddingClassic(true)}>Add Classic</Action></div>}{detailContext && inspection.source === 'seen' && <Action icon={ArrowLeft} onClick={() => { window.location.hash = '/seen'; }}>Back</Action>}{inspecting && <div className="button-set inspection-actions"><Action icon={X} disabled={confirming} onClick={() => { window.location.hash = `/${inspection.source}`; }}>Nope, this isn't it</Action><Action icon={Check} variant="primary" disabled={confirming || !writesEnabled} onClick={() => void confirmFilm()}>{confirming ? 'Adding…' : 'Yes, this one!'}</Action></div>}</div>
+    <main id="main"><div className="page-heading"><div className="page-title-region"><h1 ref={heading} tabIndex={-1}>{title}</h1>{page.startsWith('event/') && <p className="subtitle">Correct the event details and film lineup.</p>}</div>{page === 'classics' && viewer && writesEnabled && catalog && <div className="page-heading-actions"><Action icon={Plus} variant="primary" onClick={() => setAddingClassic(true)}>Add Classic</Action></div>}{detailContext && inspection.source === 'seen' && <Action icon={ArrowLeft} onClick={() => { window.location.hash = '/seen'; }}>Back</Action>}{builderInspection && <div className="page-heading-actions"><Action icon={Plus} variant="primary" disabled={confirming || !writesEnabled} onClick={() => void confirmFilm()}>{confirming ? 'Adding…' : 'Add to Set'}</Action></div>}{inspecting && !builderInspection && <div className="button-set inspection-actions"><Action icon={X} disabled={confirming} onClick={() => { window.location.hash = `/${inspection.source}`; }}>Nope, this isn't it</Action><Action icon={Check} variant="primary" disabled={confirming || !writesEnabled} onClick={() => void confirmFilm()}>{confirming ? 'Adding…' : 'Yes, this one!'}</Action></div>}</div>
     {page === 'classics' && addingClassic && viewer && writesEnabled && catalog && <AddClassicModal catalog={catalog} onMovie={applyMovie} onClose={() => setAddingClassic(false)} />}{inspectionError && inspecting && <p className="error-message" role="alert">{inspectionError}</p>}
     {notice && <div className="notice" role="status"><Check size={20} aria-hidden="true" /><span>{notice}</span><Action icon={X} aria-label="Dismiss message" onClick={() => setNotice('')} /></div>}
     {isAdminPage && DevTools && localDevelopment && catalog && <Suspense fallback={null}><DevTools members={catalog.members} onChanged={load} /></Suspense>}
@@ -197,8 +203,8 @@ export function App() {
       {page === 'history' && <HistoryScreen viewer={viewer} catalog={catalog} onChanged={() => void refreshData()} />}
       {isAdminPage && <AdminScreen catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onUpdated={refreshData} />}
       {page === 'metrics' && <MetricsScreen catalog={catalog} viewer={viewer} onUpdated={refreshData} />}
-      {page === 'builder' && <BuilderScreen key={viewer?.id} catalog={catalog} viewer={viewer} rotation={rotation} onMovie={applyMovie} onPublished={() => { void refreshData(); setNotice('Published to History.'); window.location.hash = '/history'; }} />}
-      {eventRoute && (eventRoute === 'event' || catalog.sessions.some(s => s.id === eventRoute.slice(6))) && <div hidden={Boolean(inspecting)} key={eventRoute}><EventScreen onInspect={inspect} confirmedMovie={confirmedMovie} onConfirmedConsumed={consumeConfirmedMovie} prefillMovieIds={eventRoute === 'event' ? eventPrefill : null} onPrefillConsumed={consumeEventPrefill} initial={eventRoute === 'event' ? undefined : catalog.sessions.find(s => s.id === eventRoute.slice(6))} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={() => {
+      {(page === 'builder' || builderInspection) && <div hidden={Boolean(builderInspection)}><BuilderScreen onInspect={inspect} confirmedMovie={page === 'builder' ? confirmedMovie : null} onConfirmedConsumed={consumeConfirmedMovie} key={viewer?.id} catalog={catalog} viewer={viewer} rotation={rotation} onMovie={applyMovie} onPublished={() => { void refreshData(); setNotice('Set added to History.'); window.location.hash = '/history'; }} /></div>}
+      {eventRoute && (eventRoute === 'event' || catalog.sessions.some(s => s.id === eventRoute.slice(6))) && <div hidden={Boolean(inspecting)} key={eventRoute}><EventScreen onInspect={inspect} confirmedMovie={page === eventRoute ? confirmedMovie : null} onConfirmedConsumed={consumeConfirmedMovie} prefillMovieIds={eventRoute === 'event' ? eventPrefill : null} onPrefillConsumed={consumeEventPrefill} initial={eventRoute === 'event' ? undefined : catalog.sessions.find(s => s.id === eventRoute.slice(6))} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={() => {
         void refreshData(); setNotice('Event saved to the film journal.'); window.location.hash = '/history';
       }} /></div>}
       {page.startsWith('event/') && !catalog.sessions.some(s => s.id === page.slice(6)) && <Empty title="Event not found">The event may have been deleted. Return to History to review available events.</Empty>}

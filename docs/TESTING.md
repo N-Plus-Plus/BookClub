@@ -232,6 +232,8 @@ Artwork: `corepack pnpm exec tsx tests/artwork-snapshot.ts`, then `node tests/ar
 
 Historical UI audits are [reference evidence](UI_AUDIT_POST_ALIGNMENT.md), not assertions that their findings persist in current source. Reverify before adopting an old diagnosis.
 
+`tests/event-inspection.test.ts` covers mounted Event/Builder drafts, inspection confirmation and retry, shared selection reset, Save set list navigation and Use Set effective-turn feedback alongside existing route regressions. `tests/film-selection.test.ts` covers direct selection, Add Classic and shared known-only search director metadata. `node tests/builder-search.browser.mjs` uses synthetic App/API fixtures with Vite and optional Playwright, blocking all API/provider requests; it checks Builder, inspection actions, real-browser focus, Save/Use Set, Event and Add Classic at 320/390/720/1440px. Screenshots stay in ignored `.verification/builder-search/`.
+
 ## Reporting and maintenance
 
 Report exact commands/results, full-suite run or omission, blocked/skipped checks and manual checks still required. No passing claim for an unavailable environment. Keep this policy aligned with actual tests and fixtures. A skipped test is not a Priority 0.5 finding; that section requires an observed failure and evidence-based diagnosis. Documentation adoption itself does not require a Vitest run.
