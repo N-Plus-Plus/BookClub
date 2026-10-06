@@ -28,8 +28,45 @@ describe('rating providers',()=>{
     expect(()=>parseOmdb({Response:'False',Error:'secret-key'})).toThrow('could not supply');
   });
   it('uses one documented batch request with ID mapping',async()=>{
-    const fetch=vi.fn().mockResolvedValue(Response.json([{id:1,imdb_id:'tt0000001',ratings:[{source:'imdb',value:8}]}]));vi.stubGlobal('fetch',fetch);
+    const fetch=vi.fn().mockResolvedValue(Response.json([{id:360,ids:{imdb:'tt0000001',tmdb:278},ratings:[{source:'imdb',value:8}]}]));vi.stubGlobal('fetch',fetch);
     const scores=await new MdbListProvider('key').batch('imdb',['tt0000001']);expect(scores.get('tt0000001')).toHaveLength(1);expect(fetch.mock.calls[0][1].method).toBe('POST');
     await expect(new MdbListProvider('key').batch('imdb',Array(11).fill('tt0000001'))).rejects.toThrow('1–10');
+  });
+  it.each(['imdb','tmdb'])('correlates reordered %s entries using provider-scoped IDs and ignores unrelated entries',async(provider)=>{
+    const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+    try {
+      const ids=provider==='imdb'?['tt0111161','tt0133093']:['278','603'];
+      const fetch=vi.fn().mockResolvedValue(Response.json([
+        {id:469990,ids:{imdb:'tt0133093',tmdb:'603'},ratings:[{source:'imdb',value:8}]},
+        {id:360,ids:{imdb:'tt0111161',tmdb:278},ratings:[]},
+        {id:278,ids:{imdb:'tt9999999',tmdb:999},ratings:'invalid unrelated ratings'},
+        {id:603,ratings:'invalid unrelated ratings'},null,
+      ]));vi.stubGlobal('fetch',fetch);
+      const result=await new MdbListProvider('secret-key').batch(provider,ids);
+      expect([...result.keys()]).toEqual([ids[1],ids[0]]);
+      expect(result.get(ids[0])).toEqual([]);expect(result.get(ids[1])?.[0]).toMatchObject({normalized_value:80});
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ids:provider==='tmdb'?[278,603]:ids});
+      expect(warn).not.toHaveBeenCalled();
+    } finally {warn.mockRestore();}
+  });
+  it('retains the documented imdb_id fallback',async()=>{
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json([{imdb_id:'tt0111161',ratings:[]}])));
+    expect((await new MdbListProvider('key').batch('imdb',['tt0111161'])).get('tt0111161')).toEqual([]);
+  });
+  it('leaves omitted IDs absent and logs only safe aggregate correlation diagnostics',async()=>{
+    const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+    try {
+      vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json([{id:360,ids:{imdb:'tt0111161',tmdb:278},private:'private payload',ratings:[]}])));
+      const result=await new MdbListProvider('secret-key').batch('imdb',['tt0111161','tt0133093']);
+      expect(result.has('tt0133093')).toBe(false);
+      expect(warn).toHaveBeenCalledWith('MDBList batch correlation incomplete',{provider:'imdb',requested:2,returned:1,matched:1,nestedImdb:1,nestedTmdb:1,legacyImdb:0});
+      expect(JSON.stringify(warn.mock.calls)).not.toMatch(/secret-key|private payload|tt0111161/);
+    } finally {warn.mockRestore();}
+  });
+  it('still rejects malformed ratings for a matched entry and non-array batch responses',async()=>{
+    const fetch=vi.fn().mockResolvedValue(Response.json([{ids:{tmdb:278},ratings:'invalid'}]));vi.stubGlobal('fetch',fetch);
+    await expect(new MdbListProvider('key').batch('tmdb',['278'])).rejects.toThrow('unrecognised ratings response');
+    fetch.mockResolvedValue(Response.json({private:'upstream payload'}));
+    await expect(new MdbListProvider('key').batch('imdb',['tt0111161'])).rejects.toThrow('unrecognised batch response');
   });
 });

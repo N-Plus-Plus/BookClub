@@ -28,7 +28,7 @@ it('guards all modes as admin only and rejects bounds or films outside Classics/
 });
 it('batches History and Classics together, deduplicates shared films, preserves Seen/History and recalculates rankings',async() => {
  const repo=new Repository(local.db), before=await repo.catalog();const candidate=await add('tt0000001');
- const fetch=vi.fn(async(_url:string,init:RequestInit) => Response.json(JSON.parse(init.body as string).ids.map((imdb_id:string) => ({imdb_id,ratings}))));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn(async(_url:string,init:RequestInit) => Response.json(JSON.parse(init.body as string).ids.map((imdbid:string) => ({ids:{imdb:imdbid},ratings}))));vi.stubGlobal('fetch',fetch);
  const result=await data(await call('refresh',['arrival',candidate,'arrival']));
  expect(result.results.map(r=>r.movie.id)).toEqual(['arrival',candidate]);expect(fetch).toHaveBeenCalledTimes(1);
  expect(result.results[0].movie.appearances.length).toBeGreaterThan(0);
@@ -39,7 +39,7 @@ it('batches History and Classics together, deduplicates shared films, preserves 
 it('populates all returned MDBList inputs and does not fetch films merely missing Seen answers',async() => {
  const film=await add('tt0000002'),repo=new Repository(local.db);
  await repo.appendScores(film,[{provider:'imdb',metric:'rating',raw_value:7,raw_scale:10,normalized_value:70,vote_count:null,fetched_at:'2026-01-01',retrieved_via:'mdblist'}]);
- const fetch=vi.fn(async(_url:string,init:RequestInit)=>Response.json(JSON.parse(init.body as string).ids.map((imdb_id:string)=>({imdb_id,ratings}))));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn(async(_url:string,init:RequestInit)=>Response.json(JSON.parse(init.body as string).ids.map((imdbid:string)=>({ids:{imdb:imdbid},ratings}))));vi.stubGlobal('fetch',fetch);
  const result=await data(await call('missing',[film]));expect(result.results[0].movie.scores.filter(s=>s.provider==='imdb')).toHaveLength(2);
  expect(result.results[0].movie.ranking?.rankable).toBe(false);
  expect((await data(await call('missing',[film]))).results).toHaveLength(0);expect(fetch).toHaveBeenCalledTimes(1);
@@ -62,7 +62,7 @@ it('honours Retry-After and suppresses calls after a provider failure across sub
 });
 it('stops upstream requests proactively when a successful response reports quota exhaustion',async()=>{
  const film=await add('tt0000006');env.OMDB_API_KEY=undefined;
- const fetch=vi.fn().mockResolvedValue(Response.json([{imdb_id:'tt0000006',ratings}],{headers:{'X-RateLimit-Remaining':'0','X-RateLimit-Reset':String(Math.ceil(Date.now()/1000)+120)}}));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn().mockResolvedValue(Response.json([{ids:{imdb:'tt0000006'},ratings}],{headers:{'X-RateLimit-Remaining':'0','X-RateLimit-Reset':String(Math.ceil(Date.now()/1000)+120)}}));vi.stubGlobal('fetch',fetch);
  await data(await call('refresh',[film]));await data(await call('refresh',[film]));expect(fetch).toHaveBeenCalledTimes(1);
 });
 it('recognises OMDb body-level quota limits, retains saved data and avoids repeated requests',async()=>{
@@ -76,7 +76,7 @@ it('captures six MDBList signals even when the original three are present, witho
  const film=await add('tt0000010'),repo=new Repository(local.db);env.TMDB_READ_TOKEN='fictional';
  local.sqlite.prepare('INSERT INTO movie_external_ids VALUES(?,?,?)').run(film,'tmdb','10');
  await repo.appendScores(film,ratings.slice(0,3).map(r=>({provider:r.source==='imdb'?'imdb':'rottentomatoes',metric:r.source==='imdb'?'rating':r.source==='tomatoes'?'critic':'audience',raw_value:r.value,raw_scale:r.source==='imdb'?10:100,normalized_value:null,vote_count:null,fetched_at:'2026-01-01',retrieved_via:'mdblist'})));
- const fetch=vi.fn().mockResolvedValue(Response.json([{imdb_id:'tt0000010',ratings}]));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn().mockResolvedValue(Response.json([{ids:{imdb:'tt0000010'},ratings}]));vi.stubGlobal('fetch',fetch);
  const result=await data(await call('missing',[film]));expect(fetch).toHaveBeenCalledTimes(1);
  const movie=result.results[0].movie;
  expect(movie.ranking!.sources.map(s=>s.provider)).toContain('letterboxd');
@@ -86,7 +86,7 @@ it('captures six MDBList signals even when the original three are present, witho
 it('uses direct TMDB only when its score is missing and reuses its stored result on Populate',async()=>{
  const film=await add('tt0000011'),repo=new Repository(local.db);env.TMDB_READ_TOKEN='fictional';env.OMDB_API_KEY=undefined;
  local.sqlite.prepare('INSERT INTO movie_external_ids VALUES(?,?,?)').run(film,'tmdb','11');
- const fetch=vi.fn(async(url:string)=>String(url).includes('mdblist')?Response.json([{imdb_id:'tt0000011',ratings:[]}]) : Response.json({id:11,title:'Film',vote_average:8.4,vote_count:100}));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn(async(url:string)=>String(url).includes('mdblist')?Response.json([{ids:{imdb:'tt0000011'},ratings:[]}]) : Response.json({id:11,title:'Film',vote_average:8.4,vote_count:100}));vi.stubGlobal('fetch',fetch);
  const result=await data(await call('missing',[film]));
  expect(fetch).toHaveBeenCalledTimes(2);expect(result.results[0].movie.ranking!.sources).toHaveLength(1);
  expect(result.results[0].movie.ranking!.imputedScores).toHaveLength(5);
@@ -98,7 +98,7 @@ it('uses direct TMDB only when its score is missing and reuses its stored result
 });
 it('requests OMDb for missing Metacritic and retains MDBList precedence for duplicate IMDb/RT values',async()=>{
  const film=await add('tt0000012');
- const fetch=vi.fn(async(url:string)=>String(url).includes('mdblist')?Response.json([{imdb_id:'tt0000012',ratings:ratings.filter(r=>r.source!=='metacritic')}]) : Response.json({Response:'True',imdbRating:'5',Metascore:'77',Ratings:[{Source:'Rotten Tomatoes',Value:'50%'}]}));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn(async(url:string)=>String(url).includes('mdblist')?Response.json([{ids:{imdb:'tt0000012'},ratings:ratings.filter(r=>r.source!=='metacritic')}]) : Response.json({Response:'True',imdbRating:'5',Metascore:'77',Ratings:[{Source:'Rotten Tomatoes',Value:'50%'}]}));vi.stubGlobal('fetch',fetch);
  const result=await data(await call('refresh',[film]));expect(fetch).toHaveBeenCalledTimes(2);
  expect(result.results[0].movie.ranking!.sources.find(s=>s.provider==='imdb')).toMatchObject({value:90,retrieved_via:'mdblist'});
  expect(result.results[0].movie.ranking!.sources.find(s=>s.provider==='metacritic')).toMatchObject({value:77,retrieved_via:'omdb'});
@@ -150,7 +150,7 @@ it('serves ordinary auth and catalogue reads while a maintenance provider respon
    const response=await worker.fetch(new Request('http://api/api/v1'+path,{headers:{'X-BookClub-Dev-Member':'member-1'}}),env);
    expect(response.status).toBe(200);
   }
- } finally {release(Response.json([{imdb_id:'tt0000020',ratings}]));await pending;}
+ } finally {release(Response.json([{ids:{imdb:'tt0000020'},ratings}]));await pending;}
 });
 
 it('keeps ten IMDb films in one MDBList provider request without catalogue reads',async()=>{
@@ -158,7 +158,7 @@ it('keeps ten IMDb films in one MDBList provider request without catalogue reads
  try {
   const films=[];
   for(let i=30;i<40;i++) films.push(await add(`tt00000${i}`));
-  const fetch=vi.fn(async(_url:string,init:RequestInit)=>Response.json(JSON.parse(init.body as string).ids.map((imdb_id:string)=>({imdb_id,ratings}))));
+  const fetch=vi.fn(async(_url:string,init:RequestInit)=>Response.json(JSON.parse(init.body as string).ids.map((imdbid:string)=>({ids:{imdb:imdbid},ratings}))));
   vi.stubGlobal('fetch',fetch);
   const catalog=vi.spyOn(Repository.prototype,'catalog').mockRejectedValue(new Error('Full catalogue forbidden'));
   const pending=call('refresh',films);
@@ -173,7 +173,7 @@ it('keeps ten IMDb films in one MDBList provider request without catalogue reads
 
 it('persists conclusive absence, skips Populate, and reconsiders it on Refresh without changing ranking inputs',async()=>{
  const film=await add('tt0000901');env.TMDB_READ_TOKEN=undefined;
- const fetch=vi.fn(async(url:string,init:RequestInit)=>url.includes('mdblist') ? Response.json([{imdb_id:'tt0000901',ratings:[]}]) : Response.json({Response:'True',Ratings:[]}));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn(async(url:string,init:RequestInit)=>url.includes('mdblist') ? Response.json([{ids:{imdb:'tt0000901'},ratings:[]}]) : Response.json({Response:'True',Ratings:[]}));vi.stubGlobal('fetch',fetch);
  const repo=new Repository(local.db);
  expect((await repo.scoreMaintenanceStatus()).candidateIds).toContain(film);
  await data(await call('missing',[film]));
@@ -183,7 +183,7 @@ it('persists conclusive absence, skips Populate, and reconsiders it on Refresh w
  expect((await data(await call('missing',[film]))).results).toHaveLength(0);
  expect(fetch).toHaveBeenCalledTimes(2);
  await data(await call('refresh',[film]));expect(fetch).toHaveBeenCalledTimes(4);
- fetch.mockImplementation(async(url:string)=>url.includes('mdblist') ? Response.json([{imdb_id:'tt0000901',ratings:[{source:'imdb',value:8}]}]) : Response.json({Response:'True',Ratings:[]}));
+ fetch.mockImplementation(async(url:string)=>url.includes('mdblist') ? Response.json([{ids:{imdb:'tt0000901'},ratings:[{source:'imdb',value:8}]}]) : Response.json({Response:'True',Ratings:[]}));
  const result=await data(await call('refresh',[film]));
  expect((await repo.scoreChecks([film])).find(c=>c.score_key==='imdb:rating')?.available).toBe(1);
  expect(result.results[0].movie.ranking?.sources).toHaveLength(1);
@@ -200,7 +200,7 @@ it.each(['outage','network','cooldown','credentials'])('does not persist negativ
 it('exhausts fallback before a negative check and leaves failed fallback dimensions unchanged',async()=>{
  const film=await add('tt0000903');
  const fetch=vi.fn(async(url:string)=>{
-   if(url.includes('mdblist')) return Response.json([{imdb_id:'tt0000903',ratings:[]}]);
+   if(url.includes('mdblist')) return Response.json([{ids:{imdb:'tt0000903'},ratings:[]}]);
    expect((await new Repository(local.db).scoreChecks([film])).find(c=>c.score_key==='imdb:rating')).toBeUndefined();
    return new Response(null,{status:503});
  });vi.stubGlobal('fetch',fetch);
@@ -212,10 +212,26 @@ it('exhausts fallback before a negative check and leaves failed fallback dimensi
 it('only unresolved dimensions drive provider fallback and incomplete batch entries are inconclusive',async()=>{
  const film=await add('tt0000904'),repo=new Repository(local.db);
  await repo.saveScoreChecks(film,['imdb:rating','rottentomatoes:critic','metacritic:critic','tmdb:rating','rottentomatoes:audience'].map(key=>({key,available:false})));
- const fetch=vi.fn(async()=>Response.json([{imdb_id:'tt0000904',ratings:[]}]));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn(async()=>Response.json([{ids:{imdb:'tt0000904'},ratings:[]}]));vi.stubGlobal('fetch',fetch);
  await data(await call('missing',[film]));expect(fetch).toHaveBeenCalledTimes(1);expect((await repo.scoreChecks([film])).find(c=>c.score_key==='letterboxd:rating')?.available).toBe(0);
  const other=await add('tt0000905');env.OMDB_API_KEY=undefined;fetch.mockResolvedValue(Response.json([]));
  await data(await call('missing',[other]));expect(await repo.scoreChecks([other])).toEqual([]);
+});
+it.each(['imdb','tmdb'])('captures a partial %s batch but keeps the omitted film incomplete and eligible',async(provider)=>{
+ const a=await add('tt0000951',provider),repo=new Repository(local.db);
+ if(provider==='tmdb') local.sqlite.prepare("UPDATE movie_external_ids SET external_id='124' WHERE movie_id=? AND provider='tmdb'").run(a);
+ const b=await add('tt0000952',provider);
+ env.OMDB_API_KEY=undefined;
+ const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+ const fetch=vi.fn().mockResolvedValue(Response.json([{id:999,ids:provider==='imdb'?{imdb:'tt0000951'}:{tmdb:124},ratings}]));vi.stubGlobal('fetch',fetch);
+ const result=await data(await call('missing',[a,b]));
+ expect(fetch).toHaveBeenCalledTimes(1);
+ expect(result.results[0].providers.find(p=>p.provider==='mdblist')).toMatchObject({status:'success',count:6});
+ expect(result.results[0].movie.scores).toHaveLength(6);
+ expect(result.results[1].providers.find(p=>p.provider==='mdblist')).toMatchObject({status:'failed',count:0,message:'Incomplete batch response. Try later.'});
+ expect(result.results[1].movie.scores).toEqual([]);expect(await repo.scoreChecks([b])).toEqual([]);
+ expect((await repo.scoreMaintenanceStatus()).candidateIds).toContain(b);
+ expect(warn).toHaveBeenCalledTimes(1);
 });
 it('legacy-only ratings remain unresolved and the third live capture immediately retires all legacy',async()=>{
  const film=await add('tt0000910'),repo=new Repository(local.db);
@@ -223,7 +239,7 @@ it('legacy-only ratings remain unresolved and the third live capture immediately
  await repo.appendScores(film,requiredScores.map(key=>{const [provider,metric]=key.split(':');return {provider,metric,raw_value:70,raw_scale:100,normalized_value:null,vote_count:null,fetched_at:'2026-01-01',retrieved_via:'legacy-spreadsheet'};}));
  expect((await repo.scoreMaintenanceStatus()).candidateIds).toContain(film);
  await repo.appendScores(film,ratings.slice(0,2).map(r=>({provider:r.source==='imdb'?'imdb':'rottentomatoes',metric:r.source==='imdb'?'rating':'critic',raw_value:r.value,raw_scale:r.source==='imdb'?10:100,normalized_value:null,vote_count:null,fetched_at:'2026-01-01',retrieved_via:'mdblist'})));
- const fetch=vi.fn(async(url:string)=>url.includes('mdblist')?Response.json([{imdb_id:'tt0000910',ratings:[{source:'letterboxd',value:4}]}]):Response.json({Response:'True',Ratings:[]}));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn(async(url:string)=>url.includes('mdblist')?Response.json([{ids:{imdb:'tt0000910'},ratings:[{source:'letterboxd',value:4}]}]):Response.json({Response:'True',Ratings:[]}));vi.stubGlobal('fetch',fetch);
  const result=await data(await call('missing',[film]));
  expect(result.results[0].movie.ranking!.sources).toHaveLength(3);
  expect(result.results[0].movie.ranking!.sources.every(s=>s.retrieved_via!=='legacy-spreadsheet')).toBe(true);

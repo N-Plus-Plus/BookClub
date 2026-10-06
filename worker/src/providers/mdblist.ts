@@ -35,9 +35,17 @@ export class MdbListProvider {
     if (!Array.isArray(data)) throw new RatingError('MDBList returned an unrecognised batch response.');
     const result = new Map<string,Score[]>(), at = new Date().toISOString();
     for (const entry of data) {
-      const id = provider === 'imdb' ? entry?.imdb_id : entry?.id;
-      if (ids.includes(String(id))) result.set(String(id),parseMdbList(entry,at));
+      // Live Media Info uses provider-scoped IDs; top-level id is MDBList's own ID.
+      // imdb_id is also documented by the official single-item Media Info schema.
+      const id = provider === 'imdb' ? entry?.ids?.imdb ?? entry?.imdb_id : entry?.ids?.tmdb;
+      if ((typeof id === 'string' || typeof id === 'number' && Number.isSafeInteger(id)) && ids.includes(String(id))) result.set(String(id),parseMdbList(entry,at));
     }
+    if (result.size < new Set(ids).size) console.warn('MDBList batch correlation incomplete',{
+      provider, requested: new Set(ids).size, returned: data.length, matched: result.size,
+      nestedImdb: data.filter(entry => typeof entry?.ids?.imdb === 'string').length,
+      nestedTmdb: data.filter(entry => typeof entry?.ids?.tmdb === 'number' || typeof entry?.ids?.tmdb === 'string').length,
+      legacyImdb: data.filter(entry => typeof entry?.imdb_id === 'string').length,
+    });
     return result;
   }
 }
