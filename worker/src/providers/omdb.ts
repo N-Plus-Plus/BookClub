@@ -21,7 +21,7 @@ export function parseOmdbMetadata(data: unknown): OmdbMetadata {
   const d = data as Record<string,unknown>;
   const year = typeof d.Year === 'string' && /^\d{4}$/.test(d.Year) ? Number(d.Year) : null;
   const runtime = typeof d.Runtime === 'string' && /^\d+ min$/.test(d.Runtime) ? Number(d.Runtime.split(' ')[0]) : null;
-  const text = (value: unknown) => typeof value === 'string' && value.trim() && value !== 'N/A' ? value.trim() : null;
+  const text = (value: unknown) => typeof value === 'string' && value.trim() && value.trim() !== 'N/A' ? value.trim() : null;
   return {year:year && year >= 1870 && year <= 2200 ? year : null,runtime:runtime && runtime <= 10000 ? runtime : null,
     director:text(d.Director),genres:text(d.Genre)?.split(',').map(g => g.trim()).filter(Boolean) ?? []};
 }

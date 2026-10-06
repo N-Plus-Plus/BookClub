@@ -1,4 +1,5 @@
 import type { Asset, Catalog, CompactCatalog, Cycle, ExternalId, Member, Movie, Score, SeenAnswer, Session, SessionInput, ManualMovieInput, SavedSearchResult } from '../../shared/types';
+import { normalizeGenre } from '../../shared/genres';
 import { normalizeTitle } from '../../shared/search';
 import { type MetadataMovie } from '../../shared/metadata';
 import { requiredScores } from '../../shared/ranking';
@@ -139,7 +140,7 @@ export class Repository {
     return ids.map(id => {
       const movie = byId.get(id);
       if (validateScope && (!movie || (!movie.classic && !movie.appearances.length)))
-        throw new ApiError(422,'INVALID_SCOPE','Maintenance only covers Classics and History films.');
+        throw new ApiError(422,'INVALID_SCOPE','A queued film was deleted or is no longer in Classics or History. Refresh BookClub before resuming.');
       if (!movie) throw new ApiError(404,'NOT_FOUND','Film not found.');
       return movie;
     });
@@ -295,13 +296,36 @@ export class Repository {
     const director = await this.hasDirector();
     const owner = await this.findExternal('imdb',imdbId);
     if (owner !== id) throw new ApiError(409,'IDENTITY_CONFLICT','Stored IMDb identity changed. Refresh before retrying.');
-    const statements = [this.db.prepare(`UPDATE movies SET year=COALESCE(?,year),runtime=COALESCE(?,runtime),${director ? 'director=COALESCE(?,director),' : ''}updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND EXISTS(SELECT 1 FROM movie_external_ids WHERE movie_id=? AND provider='imdb' AND external_id=?)`)
-      .bind(metadata.year,metadata.runtime,...(director ? [metadata.director] : []),id,id,imdbId)];
-    if (metadata.genres.length) {
-      statements.push(this.db.prepare('DELETE FROM movie_genres WHERE movie_id=?').bind(id));
-      for (const genre of new Set(metadata.genres)) statements.push(this.db.prepare('INSERT INTO movie_genres(movie_id,genre) VALUES(?,?)').bind(id,genre));
+    const current = await this.db.prepare(`SELECT year,runtime,${director ? 'director' : 'NULL AS director'} FROM movies WHERE id=?`).bind(id).first<{year:number | null;runtime:number | null;director:string | null}>();
+    if (!current) throw new ApiError(404,'NOT_FOUND','Queued film was deleted. Refresh before resuming.');
+    const stored = (await this.db.prepare('SELECT genre FROM movie_genres WHERE movie_id=?').bind(id).all<{genre:string}>()).results.map(r => r.genre);
+    // Known aliases share the presentation vocabulary; unknown IMDb genres remain meaningful.
+    const canonical = (genre: string) => normalizeGenre(genre) ?? genre;
+    const desired = new Set(metadata.genres.map(canonical)), existing = new Set(stored.map(canonical));
+    const fields = (['year','runtime',...(director ? ['director'] as const : [])] as const)
+      .filter(field => metadata[field] !== null && metadata[field] !== current[field]);
+    const guard = "EXISTS(SELECT 1 FROM movie_external_ids WHERE movie_id=? AND provider='imdb' AND external_id=?)";
+    const statements: D1PreparedStatement[] = [];
+    if (fields.length) statements.push(this.db.prepare(`UPDATE movies SET ${fields.map(field => `${field}=?`).join(',')},updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND ${guard} AND (${fields.map(field => `${field} IS NOT ?`).join(' OR ')}) RETURNING id`)
+      .bind(...fields.map(field => metadata[field]),id,id,imdbId,...fields.map(field => metadata[field])));
+    if (desired.size) {
+      for (const genre of stored.filter(g => !desired.has(canonical(g))))
+        statements.push(this.db.prepare(`DELETE FROM movie_genres WHERE movie_id=? AND genre=? AND ${guard} RETURNING movie_id`).bind(id,genre,id,imdbId));
+      for (const genre of [...desired].filter(g => !existing.has(g)))
+        statements.push(this.db.prepare(`INSERT INTO movie_genres(movie_id,genre) SELECT ?,? WHERE ${guard} ON CONFLICT(movie_id,genre) DO NOTHING RETURNING movie_id`).bind(id,genre,id,imdbId));
     }
-    await this.db.batch(statements);
+    // Each write is identity-guarded inside the atomic batch. The final read detects a
+    // reassignment between preflight and execution without writing an identity marker.
+    const ownership = this.db.prepare("SELECT movie_id FROM movie_external_ids WHERE provider='imdb' AND external_id=?").bind(imdbId);
+    if (!statements.length) {
+      if ((await ownership.first<{movie_id:string}>())?.movie_id !== id)
+        throw new ApiError(409,'IDENTITY_CONFLICT','Stored IMDb identity changed. Refresh before retrying.');
+      return false;
+    }
+    const result = await this.db.batch([...statements,ownership]);
+    if ((result[result.length-1].results[0] as {movie_id:string} | undefined)?.movie_id !== id)
+      throw new ApiError(409,'IDENTITY_CONFLICT','Stored IMDb identity changed. Refresh before retrying.');
+    return result.slice(0,-1).some(r => r.results.length > 0);
   }
   async enrichMetadata(id: string, tmdbId: string, m: ProviderMovie, attachment?: {import_source: string; source_refs: string[]}, captureScores = false) {
     await this.assertMovie(id);

@@ -116,8 +116,8 @@ export class ScoreService {
       else if (!this.env.OMDB_API_KEY || !imdb) result = {provider:'omdb',status:'skipped',count:0,message:!imdb ? 'A valid IMDb identity is required.' : 'Not configured.'};
       else try {
         const detail = await this.providerCall('omdb',() => new OmdbProvider(this.env.OMDB_API_KEY!,this.limits('omdb')).details(imdb.external_id));
-        await this.repo.enrichOmdbMetadata(movie.id,imdb.external_id,detail.metadata);
-        result = {provider:'omdb',status:'success',count:[detail.metadata.year,detail.metadata.runtime,detail.metadata.director,detail.metadata.genres.length || null].filter(v => v !== null).length,message:'Available IMDb metadata refreshed.'};
+        const changed = await this.repo.enrichOmdbMetadata(movie.id,imdb.external_id,detail.metadata);
+        result = {provider:'omdb',status:'success',count:changed ? 1 : 0,message:changed ? 'Available IMDb metadata refreshed.' : 'IMDb metadata is unchanged.'};
       } catch (error) { if (this.providerWide(error)) failures.set('omdb',error); result = failure('omdb',error); }
       results.push({id:movie.id,providers:[result]});
     }

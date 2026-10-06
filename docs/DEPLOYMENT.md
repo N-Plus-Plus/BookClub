@@ -238,6 +238,8 @@ Confirm the intended release has no unexpected pending migrations.
 
 If migration output is ambiguous or reports failure, stop. Do not automatically retry a potentially partially-completed production mutation. Inspect the resulting immutable state and follow [DATA](DATA.md).
 
+OMDb metadata idempotency requires the API Worker; browser-local resume requires the frontend. Release both for the complete behaviour, with Worker first under the normal schema/API compatibility gates. This feature requires no schema migration; independently pending migrations retain their own release gates.
+
 ## Deploying the production API Worker
 
 The top-level `worker/wrangler.jsonc` is the production configuration:
