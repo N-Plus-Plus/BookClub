@@ -1,9 +1,10 @@
 import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Eye, Film, RefreshCw, type LucideIcon } from 'lucide-react';
+import { latestScores, requiredScores, scoreValue } from '../shared/ranking';
 import { posterReference } from '../shared/artwork';
 import { formatScore100, possessiveName, ratingLabel } from './presentation';
 import { ClubIdentity } from './ClubIdentity';
-import type { Member, Movie, Ranking, Session } from '../shared/types';
+import type { Member, Movie, Ranking, Score, Session } from '../shared/types';
 
 const ACTION_ICON_SIZE = 18;
 
@@ -63,14 +64,22 @@ export function SessionCard({session,members,actions,dateHeading,variant}: {sess
 // Genuine source scores share compact labels and canonical presentation order.
 const sourceRatings = [
   ['imdb','rating','IMDb','IMDb Rating'], ['letterboxd','rating','LB','Letterboxd Rating'], ['metacritic','critic','MC','Metacritic Critic Score'],
+  ['metacritic','user','MC-U','Metacritic User Score'],
   ['rottentomatoes','audience','RT-A','Rotten Tomatoes Audience Score'], ['rottentomatoes','critic','RT-C','Rotten Tomatoes Critic Score'], ['tmdb','rating','TMDB','TMDB Rating'],
+  ['trakt','rating','Trakt','Trakt Rating'], ['rogerebert','rating','Ebert','Roger Ebert Rating'],
 ] as const;
-export function SourceScores({ranking}: {ranking?: Ranking | null}) {
+export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; scores?: Score[]}) {
+  const stored = latestScores(scores);
   const items = sourceRatings.flatMap(([provider,metric,label,description]) => {
-    const source = ranking?.sources.find(s => s.provider === provider && s.metric === metric);
-    return source ? [<span key={`${provider}:${metric}`} title={description} aria-label={`${description}: ${formatScore100(source.value)}`}>{label} {formatScore100(source.value)}</span>] : [];
+    const source = stored.find(s => s.provider === provider && s.metric === metric);
+    const rankingInput = requiredScores.some(key => key === `${provider}:${metric}`);
+    const value = rankingInput && ranking ? ranking.sources.find(s => s.provider === provider && s.metric === metric)?.value : source ? scoreValue(source) : undefined;
+    return value != null ? [{provider,metric,label,description,value}] : [];
   });
-  return items.length ? <p className="meta ranking-source-scores">{items}</p> : null;
+  const stacked = items.length > 6;
+  return items.length ? <p className={`meta ranking-source-scores${stacked ? ' ranking-source-scores-stacked' : ''}`}>{items.map(({provider,metric,label,description,value}) =>
+    <span key={`${provider}:${metric}`} title={description} aria-label={`${description}: ${formatScore100(value)}`}><span>{label}</span>{' '}<span>{formatScore100(value)}</span></span>
+  )}</p> : null;
 }
 export function RankingScore({movie,compact = false,variant}: {movie: Movie; compact?: boolean; variant?: 'home' | 'classics'}) {
   const r = movie.ranking!;
@@ -78,7 +87,7 @@ export function RankingScore({movie,compact = false,variant}: {movie: Movie; com
     <span className="badge" data-intent={r.eligible ? 'constructive' : 'destructive'}>{!r.eligible ? 'Disqualified' : r.rankable ? 'Ranked' : 'Needs Data'}</span>
     <strong className="score numeric">{r.finalScore?.toFixed(2) ?? '—'}<small>residual score</small></strong></div>}
     <p className="meta">{r.seenCount} Seen · {r.unseenCount} No{variant !== 'home' && <> · {r.unknownCount} Unknown</>}</p>
-    {(!compact || variant === 'classics') && <SourceScores ranking={r} />}
+    {(!compact || variant === 'classics') && <SourceScores ranking={r} scores={movie.scores} />}
     {variant !== 'classics' && r.missingRequiredScores.length > 0 && <p className="meta">Missing: {r.missingRequiredScores.map(key => { const [provider,metric] = key.split(':'); return ratingLabel(provider,metric); }).join(', ')}{r.imputedScores.length > 0 && ' · using available-score average'}</p>}
     {!variant && <details><summary><Eye size={17} aria-hidden="true" />Score breakdown</summary><div className="breakdown">
       <p>Sum of squares <strong>{r.rawScore?.toFixed(2) ?? 'Incomplete'}</strong></p><p>Unseen multiplier <strong>{r.unseenMultiplier.toFixed(6)}</strong></p>
