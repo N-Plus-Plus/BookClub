@@ -1,5 +1,4 @@
 export const metricsTabs = [
-  {id:'overview',label:'Overview',metrics:['A']},
   {id:'top-bottom',label:'Top / Bottom',metrics:['E','U','V','W']},
   {id:'fingerprints',label:'Fingerprints',metrics:['C','F','G','J']},
   {id:'general',label:'General Interest',metrics:['B','D','K','Y']},

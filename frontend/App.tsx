@@ -1,6 +1,7 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { ArrowLeft, ChartNoAxesColumn, CalendarPlus, ListPlus, Check, ChevronRight, Clapperboard, Eye, History, Home, Info, Library, Plus, RefreshCw, X } from 'lucide-react';
 import type { Catalog, FilmCandidate, Movie, MovieDetail, TmdbPreview, Viewer, Rotation } from '../shared/types';
+import { calculateMetrics } from '../shared/metrics';
 import { missingAnswers, sortClassics } from '../shared/ranking';
 import { SignInScreen } from './SignInScreen';
 import { api, ApiClientError, clearSession, hasSession, setDevMember, setUnauthorizedHandler, storeSession, type Health } from './api';
@@ -178,6 +179,7 @@ export function App() {
     } finally { if (!accepted) { confirmInFlight.current = false; setConfirming(false); } }
   };
 
+  const quickFacts = useMemo(() => page === 'home' && catalog ? calculateMetrics(catalog,{kind:'all'}) : null,[page,catalog]);
   const classics = catalog ? sortClassics(catalog.movies.filter(m => m.classic)) : [];
   const eligible = classics.filter(m => m.ranking?.eligible && m.ranking.rankable);
   const excluded = classics.filter(m => !m.ranking?.eligible);
@@ -207,7 +209,7 @@ export function App() {
       {page === 'home' && <div className="stack home-dashboard"><RotationCard catalog={catalog} rotation={rotation} viewer={viewer} onUpdated={turn => { rotationRevision.current++; setRotation(turn); }} onUseBuilder={movieIds => { setEventPrefill(movieIds); window.location.hash = '/event'; }} />
 
       <div className="dashboard-grid"><section className="stack"><div className="section-title"><h2>Last turn</h2><RouteLink to="history" icon={History} variant="tertiary">History</RouteLink></div>{catalog.sessions[0] ? <SessionCard variant="home" session={catalog.sessions[0]} members={catalog.members} /> : <Empty title="Your first night is waiting">Create an event to begin your shared history.</Empty>}</section>
-      <section className="stack"><div className="section-title"><h2>Next Classics</h2><RouteLink to="classics" icon={ChevronRight} variant="tertiary">View all</RouteLink></div>{eligible.slice(0,2).map((m,i) => <RankingCard variant="home" key={m.id} movie={m} rank={i+1} />)}{!eligible.length && <Empty title="No eligible Classics">Open Classics to inspect the candidate pool.</Empty>}</section></div><section className="stack"><div className="section-title"><h2>Classics Snapshot</h2><RouteLink to="classics" icon={ChevronRight} variant="tertiary">View all</RouteLink></div><div className="stats-grid"><div className="card stat"><strong>{eligible.length}</strong><span>Eligible Classics</span></div><div className="card stat"><strong>{excluded.length}</strong><span>Already seen by all</span></div><a className="card stat stat-link" href="#/seen"><strong>{missing}</strong><span><Eye size={16} aria-hidden="true" />Missing answers</span></a></div></section></div>}
+      <section className="stack"><div className="section-title"><h2>Next Classics</h2><RouteLink to="classics" icon={ChevronRight} variant="tertiary">View all</RouteLink></div>{eligible.slice(0,2).map((m,i) => <RankingCard variant="home" key={m.id} movie={m} rank={i+1} />)}{!eligible.length && <Empty title="No eligible Classics">Open Classics to inspect the candidate pool.</Empty>}</section></div><section className="stack"><div className="section-title"><h2>Classics Snapshot</h2><RouteLink to="classics" icon={ChevronRight} variant="tertiary">View all</RouteLink></div><div className="stats-grid"><div className="card stat"><strong>{eligible.length}</strong><span>Eligible Classics</span></div><div className="card stat"><strong>{excluded.length}</strong><span>Already seen by all</span></div><a className="card stat stat-link" href="#/seen"><strong>{missing}</strong><span>Missing answers</span></a></div></section>{quickFacts && <section className="stack home-quick-facts"><div className="section-title"><h2>Quick Facts</h2></div><div className="stats-grid quick-facts-grid">{[['Events',quickFacts.events],['Films brought',quickFacts.appearances],['Unique films',quickFacts.uniqueFilms],['Average IMDb / 10',quickFacts.imdbAverage === null ? '—' : quickFacts.imdbAverage.toFixed(2)]].map(([label,value]) => <div className="card stat" key={label}><strong>{value}</strong><span>{label}</span></div>)}</div></section>}</div>}
       {page === 'history' && <HistoryScreen oldestFirst={historyOldestFirst} onSortChange={setHistoryOldestFirst} viewer={viewer} catalog={catalog} onChanged={() => void refreshData()} />}
       {isAdminPage && <AdminScreen catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onUpdated={refreshData} />}
       {page === 'metrics' && <MetricsScreen catalog={catalog} viewer={viewer} onUpdated={refreshData} />}

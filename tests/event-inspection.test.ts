@@ -297,10 +297,12 @@ it('Home shows only the top two eligible rankable Classics with summary scores',
   await act(async()=>root.unmount());root=createRoot(container);
   vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:pool,sessions:[{id:'last',event_date:'2026-01-01',date_precision:'exact',host_member_id:'member-2',kind:'hosted',cycle_id:null,cycle_slot:2,legacy_cycle_label:null,movies:pool.slice(0,2)}]});
   window.location.hash='/home';await act(async()=>root.render(createElement(App)));await flush();
-  expect([...container.querySelectorAll('.section-title h2')].map(e=>e.textContent)).toEqual(['Last turn','Next Classics','Classics Snapshot']);
+  expect([...container.querySelectorAll('.section-title h2')].map(e=>e.textContent)).toEqual(['Last turn','Next Classics','Classics Snapshot','Quick Facts']);
   const home=container.querySelector('.home-dashboard')!;
-  expect([...home.children].map(e=>e.className)).toEqual(['turn-card-area turn-card-area-personal','dashboard-grid','stack']);
-  const snapshot=home.lastElementChild!;
+  expect([...home.children].map(e=>e.className)).toEqual(['turn-card-area turn-card-area-personal','dashboard-grid','stack','stack home-quick-facts']);
+  const snapshot=home.children[2];
+  expect(snapshot.querySelector('.stat-link svg')).toBeNull();
+  expect([...home.querySelectorAll('.home-quick-facts .stat strong')].map(e=>e.textContent)).toEqual(['1','2','2','8.00']);
   expect(snapshot.querySelector('.section-title a')?.getAttribute('href')).toBe('#/classics');
   expect([...snapshot.querySelectorAll('.stat strong')].map(e=>e.textContent)).toEqual(['3','1','0']);
   expect([...snapshot.querySelectorAll('.stat > span')].map(e=>e.textContent)).toEqual(['Eligible Classics','Already seen by all','Missing answers']);

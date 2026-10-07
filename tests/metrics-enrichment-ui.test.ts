@@ -31,7 +31,7 @@ it('loads once in StrictMode, updates every identity/role locally and exposes tr
       await tab('General Interest');
       expect(container.querySelectorAll('.metrics-classifications .metrics-stacked-profile')).toHaveLength(2);
       await tab('Averages');
-      expect(container.querySelectorAll('.metrics-median-budget .metrics-distribution-row')).toHaveLength(2);
+      expect(container.querySelectorAll('.metrics-median-budget')).toHaveLength(2);
       await tab('Taste Diversity');
       expect(container.querySelectorAll('.metrics-diversity section')).toHaveLength(5);
       expect(container.textContent).not.toMatch(/NaN|Infinity|undefined|0 \/ 0/);
@@ -58,7 +58,7 @@ it('failed/partial loading preserves existing reports, supports explicit retry a
   try {
     await act(async() => root.render(createElement(MetricsScreen,{catalog:metricsFixture(),viewer:null,onUpdated:async()=>{}})));
     const tab = (name:string) => act(async() => [...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b => b.textContent === name)!.click());
-    expect(container.querySelector('.metrics-summary')?.textContent).toContain('14');
+    expect(container.querySelector('.metrics-rankings')).not.toBeNull();
     await tab('Fingerprints');
     expect(container.textContent).toContain('Existing Metrics remains available.');
     await act(async() => [...container.querySelectorAll('button')].find(b => b.textContent === 'Retry enriched Metrics')!.click());

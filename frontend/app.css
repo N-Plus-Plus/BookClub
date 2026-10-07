@@ -399,12 +399,12 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 @media (max-width: 719px) {
   .classics-ranking-row .movie-title { font-size: calc(var(--text-movie-title) * .75); }
 }
-.classics-filters { display: flex; flex-wrap: nowrap; gap: var(--space-4); }
-.classics-filters .button { position: relative; flex: 1 1 0; min-width: 0; min-height: var(--target-min); gap: var(--space-4); padding: var(--space-8) 0 var(--space-12); font-size: var(--text-body); white-space: nowrap; border: 0; border-radius: 0; background: transparent; color: var(--text-secondary); box-shadow: none; }
+.classics-filters,.metrics-category-tabs { display: flex; flex-wrap: nowrap; gap: var(--space-4); }
+.classics-filters .button,.metrics-category-tabs [role=tab] { position: relative; flex: 1 1 0; min-width: 0; min-height: var(--target-min); gap: var(--space-4); padding: var(--space-8) 0 var(--space-12); font-size: var(--text-body); white-space: nowrap; border: 0; border-radius: 0; background: transparent; color: var(--text-secondary); box-shadow: none; }
 .classics-filters .button svg { width: 14.4px; height: 14.4px; }
-.classics-filters .button:enabled:hover { background: transparent; color: var(--text-primary); }
-.classics-filters .button[aria-pressed="true"] { background: transparent; color: var(--text-primary); }
-.classics-filters .button[aria-pressed="true"]::after { content: ''; position: absolute; left: var(--space-8); right: var(--space-8); bottom: 0; height: 3px; background: var(--focus-outline); }
+.classics-filters .button:enabled:hover,.metrics-category-tabs [role=tab]:enabled:hover { background: transparent; color: var(--text-primary); }
+.classics-filters .button[aria-pressed="true"],.metrics-category-tabs [aria-selected=true] { background: transparent; color: var(--text-primary); }
+.classics-filters .button[aria-pressed="true"]::after,.metrics-category-tabs [aria-selected=true]::after { content: ''; position: absolute; left: var(--space-8); right: var(--space-8); bottom: 0; height: 3px; background: var(--focus-outline); }
 .classics-count { flex-shrink: 0; }
 .classics-count { display: inline-flex; align-items: center; justify-content: center; padding: 0 var(--space-4); border-radius: var(--radius-pill); font-size: var(--text-eyebrow); line-height: 1.5; font-weight: 600; color: var(--surface-base); }
 .classics-count-ranked { background: var(--grass); }
@@ -432,9 +432,8 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 
 .metrics-content { gap: calc(var(--space-16) + 1rem); }
 .metrics-panel { min-width: 0; gap: calc(var(--space-16) + 1rem); }
-.metrics-category-tabs { display: flex; flex-wrap: nowrap; min-width: 0; max-width: 100%; overflow-x: auto; gap: var(--space-8); padding: var(--space-4); scrollbar-width: thin; }
-.metrics-category-tabs [role=tab] { flex: 0 0 auto; min-height: 44px; padding: var(--space-8) var(--space-12); white-space: nowrap; border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; color: var(--text-secondary); font: inherit; cursor: pointer; }
-.metrics-category-tabs [aria-selected=true] { color: var(--text-primary); border-bottom-color: var(--focus-outline); }
+.metrics-category-tabs { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+.metrics-category-tabs [role=tab] { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; height: var(--button-height); line-height: 1; padding-inline: var(--space-8); font-family: inherit; font-weight: var(--button-font-weight); cursor: pointer; }
 .metrics-category-tabs [role=tab]:focus-visible,.metrics-panel:focus-visible { outline: 2px solid var(--focus-outline); outline-offset: -2px; }
 .metrics-section { border-top: 1px solid var(--asphalt); padding-top: var(--space-24); }
 .metrics-taste-grid,.metrics-paired,.metrics-extremes { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-24); }
@@ -520,8 +519,8 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 
 /* Focused Home, History and private Builder presentation. */
 .home-dashboard .turn-card,.home-dashboard .home-rank-card { border-color: var(--asphalt-dark); }
-.builder-poster-strip { display: flex; justify-content: space-evenly; gap: var(--space-8); min-width: 0; }
-.builder-poster-strip .poster { width: min(56px,22%); height: auto; aspect-ratio: 2/3; }
+.builder-poster-strip { display: flex; flex-wrap: wrap; justify-content: space-evenly; gap: var(--space-8); min-width: 0; }
+.builder-poster-strip .poster { width: 84px; max-width: 100%; flex-shrink: 0; height: auto; aspect-ratio: 2/3; }
 .button.builder-result-add { background: var(--emerald); color: #000; border-color: var(--emerald); }
 .button.builder-result-add:hover:not(:disabled) { background: var(--emerald-dark); border-color: var(--emerald-dark); }
 .builder-lineup li { grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: var(--space-8); }
@@ -550,3 +549,20 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .metrics-ratio-list { padding-left: var(--space-24); display: grid; gap: var(--space-16); }
 .metrics-ratio-list li { min-width: 0; overflow-wrap: anywhere; }
 .metrics-directors .metrics-distribution-label { flex-wrap: wrap; }
+
+.metrics-theme-cloud { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-12); }
+.metrics-theme-cloud li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-8) var(--space-16); overflow-wrap: anywhere; }
+.metrics-theme-cloud strong { font-size: var(--text-helper); font-weight: 400; white-space: nowrap; }
+.metrics-touching-bars .metrics-distribution-track { height: var(--space-12); }
+.metrics-touching-bars p { margin-block: var(--space-8); }
+.metrics-extremes h3 { color: var(--extreme-colour); font-size: var(--text-body); font-weight: 600; }
+
+.home-dashboard { container: home-dashboard / inline-size; }
+.quick-facts-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.quick-facts-grid .stat:nth-child(3) { border-left: 0; }
+.quick-facts-grid .stat:nth-child(n+3) { border-top: 1px solid var(--asphalt-dark); }
+@container home-dashboard (min-width: 540px) {
+  .quick-facts-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .quick-facts-grid .stat:nth-child(3) { border-left: 1px solid var(--asphalt-dark); }
+  .quick-facts-grid .stat:nth-child(n+3) { border-top: 0; }
+}

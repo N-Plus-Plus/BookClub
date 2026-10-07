@@ -140,8 +140,12 @@ export function stackedProfile(rows: Appearance[],data: MetricsEnrichment,dimens
   }
   return {counts,covered,total:rows.length,headline:covered ? percent(headline,covered) : null};
 }
+const languageNames = new Intl.DisplayNames(['en'],{type:'language',fallback:'none'});
+function languageLabel(code:string,fallback:string) {
+  try { return languageNames.of(code) || fallback; } catch { return fallback; }
+}
 export function languageCategories(all: Appearance[],data: MetricsEnrichment): Fact[] {
-  return [...frequency(all,row => facts(row,data,'languages')).values.slice(0,6).map(v => ({id:v.id,label:v.label})),{id:'Other',label:'Other'},{id:'Unknown',label:'Unknown'}];
+  return [...frequency(all,row => facts(row,data,'languages')).values.slice(0,6).map(v => ({id:v.id,label:languageLabel(v.id,v.label)})),{id:'Other',label:'Other'},{id:'Unknown',label:'Unknown'}];
 }
 export const positiveMoney = (value: number | null | undefined): number | null => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
 export function filmEconomics(rows: Appearance[],data: MetricsEnrichment) {

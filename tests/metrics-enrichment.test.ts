@@ -66,7 +66,7 @@ describe('talent and multi-valued profiles',() => {
   it('non-English excludes Unknown and uses en, not friendly label or spoken languages',() => {
     const report = stackedProfile(rows,data,'language');
     expect([...report.counts]).toEqual([['ja',2],['en',1],['Unknown',1]]);expect(report.covered).toBe(3);expect(report.headline).toBeCloseTo(200/3);
-    expect(languageCategories(rows,data)).toEqual([{id:'ja',label:'Japanese'},{id:'en',label:'EN'},{id:'Other',label:'Other'},{id:'Unknown',label:'Unknown'}]);
+    expect(languageCategories(rows,data)).toEqual([{id:'ja',label:'Japanese'},{id:'en',label:'English'},{id:'Other',label:'Other'},{id:'Unknown',label:'Unknown'}]);
   });
 });
 describe('AU classification resolver',() => {

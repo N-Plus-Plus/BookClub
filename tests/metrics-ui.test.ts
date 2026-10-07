@@ -41,9 +41,6 @@ it('defaults on each mount, keeps nine selectors independent, displays full head
   expect(section.querySelector('button[aria-pressed=true]')?.textContent).toBe('IMDb');
  }
  await act(async()=>container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[1].click());
- await tab('Overview');
- const summary=container.querySelector('.metrics-summary')!.textContent;
- const coverage=container.querySelector('.metrics-summary + p')!.textContent;
  await tab('General Interest');
  const genres=container.querySelector('.metrics-table')!.textContent;
  await tab('Top / Bottom');
@@ -61,9 +58,6 @@ it('defaults on each mount, keeps nine selectors independent, displays full head
   expect(sections()[1].querySelector('.metrics-film-footer > strong')?.textContent).toBe(display);
   expect(sections()[0].querySelector('h2')?.textContent).toBe('Top 5 by Letterboxd');
  }
- await tab('Overview');
- expect(container.querySelector('.metrics-summary')!.textContent).toBe(summary);
- expect(container.querySelector('.metrics-summary + p')!.textContent).toBe(coverage);
  await tab('General Interest');
  expect(container.querySelector('.metrics-table')!.textContent).toBe(genres);
  await tab('Top / Bottom');
@@ -79,7 +73,7 @@ it('empty identities preserve report axes and restrained missing states without 
  const container=document.createElement('div');const root=createRoot(container);
  try {
   await act(async()=>root.render(createElement(MetricsScreen,{catalog:{...catalog,sessions:[]},viewer:null,onUpdated:async()=>{}})));
-  expect(container.textContent).toContain('No events for this identity');
+  expect(container.textContent).toContain('No appearances with IMDb scores yet.');
   const tab=(label:string)=>act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===label)!.click());
   await tab('Averages');expect(container.querySelectorAll('.metrics-rating-profile > div')).toHaveLength(9);
   await tab('Extremes');expect(container.querySelectorAll('.metrics-extremes section')).toHaveLength(12);
