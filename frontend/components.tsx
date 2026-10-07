@@ -9,8 +9,8 @@ import type { Member, Movie, Ranking, Score, Session } from '../shared/types';
 const ACTION_ICON_SIZE = 18;
 
 export type ActionVariant = 'primary' | 'secondary' | 'tertiary' | 'danger';
-export function Action({ icon: Icon,children,intent,variant,...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon: LucideIcon | string; intent?: string; variant?: ActionVariant }) {
-  return <button type="button" className={children == null ? 'button button--icon' : 'button'} data-intent={intent ?? (variant === 'primary' ? 'constructive' : undefined)} data-variant={variant ?? (intent ? undefined : 'secondary')} {...props}>{typeof Icon === 'string' ? <img className="action-icon" src={`${import.meta.env.BASE_URL}buttons/${Icon}`} width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} alt="" /> : <Icon size={ACTION_ICON_SIZE} aria-hidden="true" />}{children}</button>;
+export function Action({ icon: Icon,children,intent,variant,...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon?: LucideIcon | string; intent?: string; variant?: ActionVariant }) {
+  return <button type="button" className={children == null ? 'button button--icon' : 'button'} data-intent={intent ?? (variant === 'primary' ? 'constructive' : undefined)} data-variant={variant ?? (intent ? undefined : 'secondary')} {...props}>{Icon && (typeof Icon === 'string' ? <img className="action-icon" src={`${import.meta.env.BASE_URL}buttons/${Icon}`} width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} alt="" /> : <Icon size={ACTION_ICON_SIZE} aria-hidden="true" />)}{children}</button>;
 }
 export function RouteLink({ to,icon: Icon,children,variant = 'secondary' }: {to: string; icon: LucideIcon; children: ReactNode; variant?: ActionVariant}) {
   return <a className="button" data-variant={variant} data-intent={variant === 'primary' ? 'constructive' : undefined} href={`#/${to}`}><Icon size={ACTION_ICON_SIZE} aria-hidden="true" />{children}</a>;

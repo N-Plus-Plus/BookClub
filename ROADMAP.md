@@ -101,11 +101,9 @@ Periodically prune completed history when it no longer helps future work, but do
 ## Current roadmap
 
 ### Priority 0.5 - Stale/failing tests
-
 Status: Incomplete
 
-- `tests/event-inspection.test.ts`, “renders all four maintenance sections only on Admin and keeps them out of navigation and member screens”: expects a swap selector with a one-member fixture, but `RotationSwapCard` correctly shows no eligible future turns. Use a multi-member fixture or assert the unavailable state; recheck against ongoing swap UI changes.
-- The same file’s two App rotation-swap tests access `.value` on untyped `querySelector` results (TS2339). Use `querySelector<HTMLSelectElement>` for those controls; runtime behaviour is not implicated.
+- `tests/event-inspection.test.ts`, “navigates from the admin Account link and closes the dropdown”: hash becomes `#/admin` but the immediate heading assertion intermittently sees Home. Existing browser verification confirms navigation and menu dismissal; the jsdom helper waits only one timer tick after a native link click. Wait explicitly for the hashchange/render before asserting. Recheck timing versus a genuine navigation regression during maintenance.
 
 ### Priority 3 - Non-movie screen works
 Status: Incomplete
@@ -113,10 +111,6 @@ Status: Incomplete
 Support non-movie screen works such as television series, miniseries and anthology episodes, including provider identity modelling and UI behaviour.
 
 Depends on: None
-
-## Priority 0.5 - stale/failing tests
-
-No outstanding items.
 
 <!--
 Ordinary item format:

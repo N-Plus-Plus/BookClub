@@ -27,7 +27,7 @@ it('paginates each Classics view, retains global ranks, resets tabs and clamps s
  await render();expect(container.querySelectorAll('.ranking-row')).toHaveLength(20);
  expect(container.querySelector('.rank-number')?.textContent).toBe('#1');expect(container.querySelectorAll('.candidate-director')).toHaveLength(1);
  expect(container.querySelector('.ranking-row .score,.ranking-row .badge,.ranking-row details')).toBeNull();expect(container.querySelector('.ranking-row')?.textContent).toContain('IMDb 80');
- expect([...container.querySelectorAll('.classics-filters img')].map(icon=>icon.getAttribute('src'))).toEqual(['/buttons/ranked.png','/buttons/unranked.png','/buttons/dq.png']);
+ expect(container.querySelectorAll('.classics-filters img,.classics-filters svg')).toHaveLength(0);
  await click('Next');expect(container.querySelector('.rank-number')?.textContent).toBe('#21');
  await click('Unranked');expect(container.querySelector('.movie-title')?.textContent).toBe('Film 100');expect(container.querySelectorAll('.ranking-row')).toHaveLength(10);expect(container.textContent).toContain('Page 1 of 2');expect(container.textContent).not.toContain('Missing:');
  await click('Next');expect(container.querySelectorAll('.ranking-row')).toHaveLength(1);

@@ -682,7 +682,7 @@ it('History preserves stored film order while reversing cycles, events, jump and
  const storedFilms=[[['#1','Film 0'],['#2','Film 1']],[['#1','Film 0'],['#2','Film 1']]];expect(filmOrder('cycle-c12')).toEqual(storedFilms);
  expect(container.querySelector('#cycle-c12 .session-card [href^="#/event/"]')?.getAttribute('href')).toBe('#/event/e12-1');
  const metas=container.querySelectorAll('.history-event .film-list .movie-copy > .meta:first-of-type');expect(metas[0].textContent).toBe('1998 · 100 min · MA15+');expect(metas[1].textContent).toBe('1998 · 100 min');
- await click(button('Resort'));expect(cycles()).toEqual(['cycle-c1','cycle-c2','cycle-c3','cycle-c4','cycle-c5']);
+ await click(button('Re-sort'));expect(cycles()).toEqual(['cycle-c1','cycle-c2','cycle-c3','cycle-c4','cycle-c5']);
  expect(filmOrder('cycle-c1')).toEqual(storedFilms);
  expect(container.querySelectorAll('#cycle-c1 .film-list .movie-title')[0].textContent).toBe('Film 0');
  expect(container.querySelectorAll('#cycle-c1 .session-card [href^="#/event/"]')[0].getAttribute('href')).toBe('#/event/e1-2');
@@ -693,8 +693,8 @@ it('History preserves stored film order while reversing cycles, events, jump and
  const host=container.querySelectorAll('.archive-tools select')[1] as unknown as HTMLSelectElement;await act(async()=>{host.value='member-2';host.dispatchEvent(new Event('change',{bubbles:true}));});expect(cycles()[0]).toBe('cycle-c1');
  await click(container.querySelector<HTMLAnchorElement>('.film-list .movie-link')!);await navigate('history');expect(cycles()[0]).toBe('cycle-c1');
  await navigate('home');await navigate('history');expect(cycles()[0]).toBe('cycle-c12');
- await click(button('Resort'));await click(button('Resort'));expect(cycles()[0]).toBe('cycle-c12');
- await click(button('Resort'));await act(async()=>root.unmount());root=createRoot(container);await act(async()=>root.render(createElement(App)));await flush();expect(cycles()[0]).toBe('cycle-c12');
+ await click(button('Re-sort'));await click(button('Re-sort'));expect(cycles()[0]).toBe('cycle-c12');
+ await click(button('Re-sort'));await act(async()=>root.unmount());root=createRoot(container);await act(async()=>root.render(createElement(App)));await flush();expect(cycles()[0]).toBe('cycle-c12');
 });
 it('Builder queues optimistic changes, preserves newest text and draft on failure, and never reloads the list per save',async()=>{
  await navigate('builder');expect(container.querySelector('.page-heading-actions button')?.textContent).toBe('New set');expect(container.querySelector('.builder-workflow button')?.textContent).not.toBe('New set');await click(button('New set'));expect(api.saveBuilder).not.toHaveBeenCalled();

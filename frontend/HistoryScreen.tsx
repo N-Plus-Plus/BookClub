@@ -1,6 +1,6 @@
 import { HistoryEvidence } from './HistoryEvidence';
 import { useEffect, useState } from 'react';
-import { ArrowRight, History, Pencil, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowUpDown, ArrowRight, History, Pencil, Trash2 } from 'lucide-react';
 import { api } from './api';
 import type { Session, HistoryAudit, Catalog, Viewer } from '../shared/types';
 import { Action, dateLabel, Empty, SessionCard } from './components';
@@ -9,13 +9,13 @@ export function HistoryScreen({catalog,viewer,onChanged,oldestFirst = false,onSo
   const [page,setPage] = useState(1), [jump,setJump] = useState<string | null>(null);
   const visible = catalog.sessions.filter(s => host === 'all' || (host === 'classics' ? s.kind === 'classics' : s.host_member_id === host));
   const cycles = catalog.cycles.filter(c => visible.some(s => s.cycle_id === c.id)).sort((a,b) => (b.ordinal-a.ordinal || a.id.localeCompare(b.id)) * (oldestFirst ? -1 : 1));
-  const resort = <Action icon="resort.png" aria-label={`Resort History ${oldestFirst ? 'newest' : 'oldest'} first`} title={`Resort History ${oldestFirst ? 'newest' : 'oldest'} first`} onClick={() => { onSortChange?.(!oldestFirst); setPage(1); setJump(null); }}>Resort</Action>;
+  const resort = <Action icon={ArrowUpDown} aria-label={`Re-sort History ${oldestFirst ? 'newest' : 'oldest'} first`} title={`Re-sort History ${oldestFirst ? 'newest' : 'oldest'} first`} onClick={() => { onSortChange?.(!oldestFirst); setPage(1); setJump(null); }}>Re-sort</Action>;
   const pageCount = Math.max(1,Math.ceil(cycles.length / 5));
   const currentPage = Math.min(page,pageCount);
   useEffect(() => {
     if (jump) { document.getElementById(`cycle-${jump}`)?.scrollIntoView(); setJump(null); }
   },[jump,currentPage]);
-  const pagination = cycles.length > 0 && <div className="button-set history-pagination" role="group" aria-label="History pagination"><Action icon="prev.png" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</Action><span className="meta">Page {currentPage} of {pageCount}</span><Action icon="next.png" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Next</Action></div>;
+  const pagination = cycles.length > 0 && <div className="button-set history-pagination" role="group" aria-label="History pagination"><Action icon={ChevronLeft} disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</Action><span className="meta">Page {currentPage} of {pageCount}</span><Action icon={ChevronRight} disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Next</Action></div>;
   return <div className="stack history-archive"><div className="archive-tools"><label className="input-label">Jump to cycle<select className="field__input" defaultValue="" onChange={e => { const index = cycles.findIndex(c => c.id === e.target.value); if (index >= 0) { setPage(Math.floor(index / 5) + 1); setJump(e.target.value); } e.target.value = ''; }}><option value="">Choose cycle</option>{cycles.map(c => <option key={c.id} value={c.id}>{c.title || `Cycle ${c.ordinal}`}</option>)}</select></label><label className="input-label">Actual host<select className="field__input" value={host} onChange={e => { setHost(e.target.value); setPage(1); setJump(null); }}><option value="all">All hosts</option>{catalog.members.map(m => <option key={m.id} value={m.id}>{m.display_name.toUpperCase()}</option>)}<option value="classics">CLSC</option></select></label></div>{pagination}{cycles.slice((currentPage - 1) * 5,currentPage * 5).map((cycle,index) => <section className="stack" key={cycle.id} id={`cycle-${cycle.id}`}>
     <div className="section-title"><h2>{cycle.title || `Cycle ${cycle.ordinal}`}</h2>{index === 0 && resort}</div><p className="meta history-cycle-context"><span>Cycle starting: {dateLabel(cycle.rough_date)}</span><span className="history-cycle-order" aria-label="Turn order: Sean, Troy, Matt, Jess, Classics">{['Sean','Troy','Matt','Jess','Classics'].map((name,i) => <span className="history-cycle-turn" key={name}>{i > 0 && <ArrowRight size={14} aria-hidden="true" />}{name}</span>)}</span></p>
     <div className="history-grid">{visible.filter(s => s.cycle_id === cycle.id).sort((a,b) => ((a.cycle_slot ?? 6)-(b.cycle_slot ?? 6) || a.id.localeCompare(b.id)) * (oldestFirst ? -1 : 1)).map(s => <HistoryEvent key={s.id} session={s} viewer={viewer} catalog={catalog} onChanged={onChanged} />)}</div>
