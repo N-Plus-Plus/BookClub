@@ -82,7 +82,7 @@ export function cleanedThemes(movie: MetricsEnrichmentMovie): Fact[] {
 }
 export function themeFingerprint(rows: Appearance[],all: Appearance[],data: MetricsEnrichment,options: {distinctive?:boolean;limit?:number} = {}) {
   const read = (row:Appearance) => cleanedThemes(data.movies[row.movie.id] ?? emptyEnrichmentMovie());
-  const supported = new Set(frequency(uniqueAppearances(rows),read).values.filter(f => f.count >= 2).map(f => f.id));
+  const supported = new Set(frequency(all,read).values.filter(f => f.count >= 3).map(f => f.id));
   const report = fingerprint(rows,all,read,{...options,limit:Number.MAX_SAFE_INTEGER});
   return {...report,values:report.values.filter(f => supported.has(f.id)).slice(0,options.limit ?? 10)};
 }

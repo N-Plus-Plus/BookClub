@@ -27,7 +27,7 @@ it('paginates each Classics view, retains global ranks, resets tabs and clamps s
  await render();expect(container.querySelectorAll('.ranking-row')).toHaveLength(20);
  expect(container.querySelector('.rank-number')?.textContent).toBe('#1');expect(container.querySelectorAll('.candidate-director')).toHaveLength(1);
  expect(container.querySelector('.ranking-row .score,.ranking-row .badge,.ranking-row details')).toBeNull();expect(container.querySelector('.ranking-row')?.textContent).toContain('IMDb 80');
- expect(container.querySelector('.lucide-list-sort-descending')).toBeTruthy();expect(container.querySelector('.lucide-rows-3')).toBeTruthy();
+ expect([...container.querySelectorAll('.classics-filters img')].map(icon=>icon.getAttribute('src'))).toEqual(['/buttons/ranked.png','/buttons/unranked.png','/buttons/dq.png']);
  await click('Next');expect(container.querySelector('.rank-number')?.textContent).toBe('#21');
  await click('Unranked');expect(container.querySelector('.movie-title')?.textContent).toBe('Film 100');expect(container.querySelectorAll('.ranking-row')).toHaveLength(10);expect(container.textContent).toContain('Page 1 of 2');expect(container.textContent).not.toContain('Missing:');
  await click('Next');expect(container.querySelectorAll('.ranking-row')).toHaveLength(1);
@@ -124,7 +124,7 @@ it('scopes smaller mobile titles to Classics and keeps tabs in one flexible touc
  expect(css).toContain('.classics-filters,.metrics-category-tabs { display: flex; flex-wrap: nowrap;');
  expect(css).toContain('flex: 1 1 0; min-width: 0; min-height: var(--target-min)');
  expect(css).toContain('font-size: var(--text-body); white-space: nowrap;');
- expect(css).toContain('.classics-filters .button svg { width: 14.4px; height: 14.4px; }');
+ expect(css).toContain('.classics-filters .button svg,.classics-filters .button .action-icon { width: 14.4px; height: 14.4px; }');
  expect(css).toContain('.classics-filters .button[aria-pressed="true"]::after');
  expect(css).toContain('bottom: 0; height: 3px; background: var(--focus-outline)');
  expect(css).toContain('padding: 0 var(--space-4); border-radius: var(--radius-pill); font-size: var(--text-eyebrow); line-height: 1.5;');

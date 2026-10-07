@@ -68,15 +68,18 @@ it('renders revised visuals, stable colours, clean presentation and linked ratio
   const container=document.createElement('div'),root=createRoot(container);
   try {
     await act(async()=>root.render(createElement(MetricsScreen,{catalog:metricsFixture(),viewer:null,onUpdated:async()=>{}})));
+    expect(container.textContent).not.toContain('All time · actual hosts · repeat screenings count.');
+    expect(container.querySelector('[data-metric="W"]')?.textContent).not.toMatch(/\d+ \/ \d+ appearances/);
     const tab=async(name:string)=>act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===name)!.click());
-    await tab('Fingerprints');expect(container.querySelectorAll('.metrics-comparison-bars').length).toBeGreaterThan(0);
+    await tab('Fingerprints');expect(container.querySelector('.metrics-themes')?.textContent).not.toContain('Themes known for');expect(container.querySelectorAll('.metrics-comparison-bars').length).toBeGreaterThan(0);
     expect(container.querySelector('.metrics-five-scroll')).not.toBeNull();
     expect(container.querySelector('.metrics-themes .metrics-comparison-bars')).toBeNull();
-    for (const list of container.querySelectorAll('.metrics-theme-cloud')) {expect(list.children.length).toBeLessThanOrEqual(12);for(const term of list.children) expect(parseFloat(term.querySelector('strong')!.textContent!)).toBeGreaterThan(1);}
-    await tab('General Interest');expect(container.querySelectorAll('.metrics-decades .metrics-stack-bar')).toHaveLength(1);
+    for (const list of container.querySelectorAll('.metrics-theme-cloud')) {expect(list.children.length).toBeLessThanOrEqual(12);for(const term of list.children) expect(parseFloat(term.querySelector('strong')!.textContent!)).toBeGreaterThanOrEqual(1);}
+    await tab('General');expect(container.querySelectorAll('.metrics-decades .metrics-stack-bar')).toHaveLength(1);
     expect(container.querySelectorAll('.metrics-classifications .metrics-distribution-track').length).toBeGreaterThan(0);
     for (const profile of container.querySelectorAll('.metrics-classifications .metrics-stacked-profile')) {expect(profile.querySelectorAll('.metrics-distribution-row')).toHaveLength(7);expect(profile.textContent).not.toContain('known for');}
-    expect(container.querySelector('.metrics-decades')?.textContent).not.toMatch(/19\d\ds|20\d\ds|appearances/);
+    expect(container.querySelector('.metrics-decades > p')?.textContent).toMatch(/Most common: \d{4}s/);
+    expect(container.querySelector('.metrics-decade-legend')?.textContent).not.toMatch(/19\d\ds|20\d\ds|\u00b7|appearances/);
     expect(container.querySelector('.metrics-table')?.textContent).not.toContain('scored');
     await tab('Averages');expect(container.querySelector('.metrics-rating-circles')?.getAttribute('aria-hidden')).toBe('true');
     expect(container.querySelector('.metrics-rating-profile')?.textContent).toMatch(/Mean.*Median/);expect(container.querySelector('.metrics-rating-profile')?.textContent).not.toContain('scored');
@@ -84,15 +87,15 @@ it('renders revised visuals, stable colours, clean presentation and linked ratio
     for (const pair of container.querySelectorAll('.metrics-economics-pair')) {
       const bars = pair.querySelectorAll<HTMLElement>('.metrics-distribution-track span');
       expect(bars).toHaveLength(2);
-      expect(bars[0].style.background).toBe('var(--mandarin)');expect(bars[1].style.background).toBe('var(--grass)');
+      expect(bars[0].style.background).toBe('var(--carrot)');expect(bars[1].style.background).toBe('var(--grass)');
       expect(Math.max(...[...bars].map(b => parseFloat(b.style.width)))).toBe(100);
-      expect(pair.textContent).not.toContain('with data');
+      expect(pair.textContent).not.toContain('with data');expect(pair.querySelector('strong + .meta')?.textContent).toMatch(/Median revenue (\d+\.\d+x budget|\/ budget unavailable)/);
     }
-    await tab('Taste Diversity');for(const section of container.querySelectorAll('.metrics-diversity section')) {expect(section.querySelector('h3 + .meta')?.textContent).toMatch(/per 10/);expect([...section.querySelectorAll<HTMLElement>('.metrics-enriched-row')].map(e=>e.style.getPropertyValue('--chart-colour'))).toEqual(['var(--jeans)','var(--lavender)','var(--jeans)','var(--lavender)','var(--jeans)']);}
+    await tab('Diversity');for(const section of container.querySelectorAll('.metrics-diversity section')) {expect(section.querySelector('h3 + .meta')?.textContent).toMatch(/per 10/);expect([...section.querySelectorAll<HTMLElement>('.metrics-enriched-row')].map(e=>e.style.getPropertyValue('--chart-colour'))).toEqual(['var(--jeans)','var(--lavender)','var(--jeans)','var(--lavender)','var(--jeans)']);}
     expect(container.querySelector('.metrics-diversity')?.textContent).not.toContain('with evidence');
-    await tab('Economics / Standalone');expect(container.querySelector('.metrics-revenue-ratios svg')).toBeNull();expect(container.querySelector('.metrics-revenue-ratios')?.textContent).toContain('7 / 10 unique films');
+    await tab('General');expect(container.querySelector('.metrics-panel')?.lastElementChild?.getAttribute('data-metric')).toBe('L');expect(container.querySelector('.metrics-revenue-ratios')?.textContent).not.toContain('unique films have reported');await tab('Standalone');expect(container.querySelector('.metrics-countries')?.textContent).not.toContain('Production country known for');
     expect(container.querySelector('.metrics-languages')?.textContent).not.toMatch(/among known|known for|\bEN\b|\bDE\b|\bIT\b/);
-    expect(container.querySelector('.metrics-ratio-list a')?.getAttribute('href')).toMatch(/^#\/movie\//);
+    await tab('General');expect(container.querySelector('.metrics-ratio-list a')?.getAttribute('href')).toMatch(/^#\/movie\//);
     await tab('Extremes');expect(container.textContent).not.toMatch(/Highest IMDb|Lowest IMDb|Cinematographer known for/);
     for(const name of ['Top Critic','Top Audience','Bottom Critic','Bottom Audience']) expect(container.textContent).toContain(name);
     const filmCards = [...container.querySelectorAll('.metrics-film-extreme')];

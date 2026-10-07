@@ -68,10 +68,16 @@ export function rankMovie(scores: Score[], answers: SeenAnswer[], members: Membe
     ...(unknownCount ? [`${unknownCount} seen answers unknown`] : []), ...(active.length ? [] : ['No active members'])];
   return {rawScore,seenCount,unseenCount,unknownCount,unseenMultiplier,tieBreak,residualScore,finalScore,availableScoreAverage,imputedScores,rankable,eligible,missingRequiredScores,warnings,sources};
 }
+/** Incomplete Seen answers never boost the Unranked ordering. */
+function classicsSortScore(movie: Movie): number {
+  const ranking = movie.ranking;
+  if (ranking?.eligible && !ranking.rankable) return ranking.rawScore === null ? -Infinity : ranking.rawScore + ranking.tieBreak;
+  return ranking?.finalScore ?? -Infinity;
+}
 export function sortClassics(movies: Movie[]): Movie[] {
   return [...movies].sort((a,b) => Number(Boolean(b.ranking?.eligible && b.ranking.rankable))-Number(Boolean(a.ranking?.eligible && a.ranking.rankable))
     || Number(b.ranking?.eligible)-Number(a.ranking?.eligible)
-    || (b.ranking?.finalScore ?? -Infinity)-(a.ranking?.finalScore ?? -Infinity)
+    || classicsSortScore(b)-classicsSortScore(a)
     || a.title.localeCompare(b.title,'en',{sensitivity: 'base'}) || (a.year ?? 0)-(b.year ?? 0) || a.id.localeCompare(b.id,'en'));
 }
 export function missingAnswers(movies: Movie[], members: Member[], viewerId: string, historyMovieIds: ReadonlySet<string> = new Set()) {

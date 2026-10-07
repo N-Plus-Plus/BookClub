@@ -9,8 +9,8 @@ import type { Member, Movie, Ranking, Score, Session } from '../shared/types';
 const ACTION_ICON_SIZE = 18;
 
 export type ActionVariant = 'primary' | 'secondary' | 'tertiary' | 'danger';
-export function Action({ icon: Icon,children,intent,variant,...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon: LucideIcon; intent?: string; variant?: ActionVariant }) {
-  return <button type="button" className={children == null ? 'button button--icon' : 'button'} data-intent={intent ?? (variant === 'primary' ? 'constructive' : undefined)} data-variant={variant ?? (intent ? undefined : 'secondary')} {...props}><Icon size={ACTION_ICON_SIZE} aria-hidden="true" />{children}</button>;
+export function Action({ icon: Icon,children,intent,variant,...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon: LucideIcon | string; intent?: string; variant?: ActionVariant }) {
+  return <button type="button" className={children == null ? 'button button--icon' : 'button'} data-intent={intent ?? (variant === 'primary' ? 'constructive' : undefined)} data-variant={variant ?? (intent ? undefined : 'secondary')} {...props}>{typeof Icon === 'string' ? <img className="action-icon" src={`${import.meta.env.BASE_URL}buttons/${Icon}`} width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} alt="" /> : <Icon size={ACTION_ICON_SIZE} aria-hidden="true" />}{children}</button>;
 }
 export function RouteLink({ to,icon: Icon,children,variant = 'secondary' }: {to: string; icon: LucideIcon; children: ReactNode; variant?: ActionVariant}) {
   return <a className="button" data-variant={variant} data-intent={variant === 'primary' ? 'constructive' : undefined} href={`#/${to}`}><Icon size={ACTION_ICON_SIZE} aria-hidden="true" />{children}</a>;
@@ -62,7 +62,7 @@ export function SessionCard({session,members,actions,dateHeading,variant}: {sess
   </article>;
 }
 // Genuine source scores share compact labels and canonical presentation order.
-const sourceRatings = [
+export const sourceRatings = [
   ['imdb','rating','IMDb','IMDb Rating'], ['letterboxd','rating','LB','Letterboxd Rating'],
   ['metacritic','user','MC-U','Metacritic User Score'], ['rottentomatoes','audience','RT-A','Rotten Tomatoes Audience Score'],
   ['tmdb','rating','TMDB','TMDB Rating'], ['trakt','rating','Trakt','Trakt Rating'],

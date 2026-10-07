@@ -12,8 +12,8 @@ Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
 afterEach(() => vi.resetAllMocks());
 const assignments = {
   'Top / Bottom':['E','U','V','W'],Fingerprints:['C','F','G','J'],
-  'General Interest':['B','D','K','Y'],Averages:['M','N','T'],'Taste Diversity':['O','P','Q','R','S'],
-  'Economics / Standalone':['L','H','I'],Extremes:['X'],
+  'General':['B','D','K','Y','L'],Averages:['M','N','T'],'Diversity':['O','P','Q','R','S'],
+  'Standalone':['H','I'],Extremes:['X'],
 };
 it('renders every metric in exactly one associated active panel, keeps global filters and cached enrichment',async() => {
   vi.mocked(api.metricsEnrichment).mockResolvedValue(metricsEnrichmentFixture());
@@ -47,7 +47,7 @@ it('renders every metric in exactly one associated active panel, keeps global fi
     expect(container.querySelector('.metrics-fingerprint')!.textContent).not.toBe(all);
     expect(container.querySelector('.metrics-theme-signature')).toBeNull();
     await act(async() => container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[4].click());
-    expect(container.querySelector('.metrics-themes')!.textContent).toContain('No positive theme outliers');
+    expect(container.querySelector('.metrics-themes')!.textContent).toContain('Murder1.3x club');
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(1);
   } finally {await act(async()=>root.unmount());container.remove();}
 });

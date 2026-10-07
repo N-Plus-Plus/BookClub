@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { LogOut } from 'lucide-react';
+import { LogOut, Settings } from 'lucide-react';
 import type { Viewer } from '../shared/types';
 import { ClubIdentity } from './ClubIdentity';
 
@@ -27,6 +27,7 @@ export function AccountMenu({viewer,busy,onLogout}: {viewer: Viewer; busy: boole
       <ClubIdentity identity={{kind: 'member',member: viewer}} />
     </button>
     {open && <div id={dropdownId} className="select__menu account-menu-dropdown">
+      {viewer.role === 'admin' && <a className="select__option" href="#/admin" onClick={() => { setOpen(false); trigger.current?.focus(); }}><Settings size={18} aria-hidden="true" />Admin</a>}
       <button type="button" className="select__option" disabled={busy} onClick={() => { setOpen(false); trigger.current?.focus(); onLogout(); }}><LogOut size={18} aria-hidden="true" />Logout</button>
     </div>}
   </div>;

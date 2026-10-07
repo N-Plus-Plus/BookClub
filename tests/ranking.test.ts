@@ -51,6 +51,17 @@ describe('historical ranking',() => {
   });
   it('sorts equal source scores by stable seed and preserves input',() => { const films=[movie('a',2),movie('b',4)];expect(sortClassics(films).map(m => m.id)).toEqual(['b','a']);expect(films[0].id).toBe('a'); });
   it('ranked entries precede missing and disqualified',() => {const needs=movie('needs');needs.ranking=rankMovie([],[],members); expect(sortClassics([movie('dq',10,answers(4)),needs,movie('ok')]).map(m => m.id)).toEqual(['ok','needs','dq']);});
+  it('sorts Unranked without partial No boosts, retaining seed ties and unrated films last',() => {
+    const high=movie('high',0,answers(0,0)), low=movie('low',0,answers(0,3));
+    high.scores=[score('imdb','rating',81)];low.scores=[score('imdb','rating',80)];
+    high.ranking=rankMovie(high.scores,high.seen,members);low.ranking=rankMovie(low.scores,low.seen,members);
+    const tied=movie('tied',4,answers(0,2));tied.scores=high.scores;tied.ranking=rankMovie(tied.scores,tied.seen,members,4);
+    const unrated=movie('unrated');unrated.ranking=rankMovie([],[],members);
+    const films=[low,unrated,high,tied],before=structuredClone(films);
+    expect(low.ranking.finalScore).toBeGreaterThan(high.ranking.finalScore!);
+    expect(sortClassics(films).map(m=>m.id)).toEqual(['tied','high','low','unrated']);
+    expect(films).toEqual(before);
+  });
   it('queues only Unknown answers',() => expect(missingAnswers([movie('film',0,answers(1,1))],members,'m2').map(q=>q.member.id)).toEqual(['m2']));
 });
 

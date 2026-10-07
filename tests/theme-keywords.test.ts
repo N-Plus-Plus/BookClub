@@ -6,7 +6,7 @@ import { metricsFilm,metricsEvent } from './metrics-fixture';
 
 describe('derived theme identity and presentation preserve raw evidence',() => {
   it.each([
-    ['escape-plan','Escape plan'],['hbo-max-original','HBO Max original'],['bmw','BMW'],
+    ['infanticide','Infanticide'],['jumping','Jumping'],['loser','Loser'],['path','Path'],['shaking','Shaking'],['escape-plan','Escape plan'],['hbo-max-original','HBO Max original'],['bmw','BMW'],
     ['hiding-in-the-basement','Hiding in the basement'],['  escape-plan  ','Escape plan'],
     ['Escape Plan','Escape Plan'],[' Hiding in the basement ','Hiding in the basement'],
     ['FBI investigation','FBI investigation'],['fbi-investigation','FBI investigation'],
@@ -35,12 +35,21 @@ describe('shared clean theme eligibility and Fingerprint-only support',() => {
   const rows = selectedAppearances({movies:[a,b],members:[],cycles:[],sessions:[metricsEvent('repeat',[a,a,b])]});
   const keywords = [{provider:'tmdb',name:'escape-plan'},{provider:'mdblist',name:' ESCAPE-PLAN '},{provider:'mdblist',name:'bmw'},{provider:'tmdb',name:'grief'}];
   const data:MetricsEnrichment = {movies:{a:{...emptyEnrichmentMovie(),keywords},b:{...emptyEnrichmentMovie(),keywords}}};
-  it('requires two distinct canonical films, then counts appearances including repeats and provider duplicates once',() => {
-    expect(themeFingerprint(rows.slice(0,2),rows,data,{distinctive:true}).values).toEqual([]);
+  it('requires three club appearances across identities, counting repeats and provider duplicates once',() => {
+    expect(themeFingerprint(rows,rows.slice(0,2),data,{distinctive:true}).values).toEqual([]);
+    expect(themeFingerprint(rows.slice(0,1),rows,data).values).toEqual(expect.arrayContaining([expect.objectContaining({id:'escape plan',count:1})]));
     const report = themeFingerprint([rows[0],rows[2]],rows,data,{distinctive:true});
     expect(report.values.map(v => v.id)).toEqual(['escape plan','grief']);
     expect(report.values.every(v => v.count === 2)).toBe(true);
     expect(themeFingerprint(rows,rows,data).values).toEqual(expect.arrayContaining([expect.objectContaining({id:'escape plan',label:'Escape plan',count:3,percentage:100})]));
+  });
+  it('shares the three-appearance threshold across members and Classics without requiring selected repeats',() => {
+    const c = metricsFilm('c');
+    const all = selectedAppearances({movies:[a,b,c],members:[],cycles:[],sessions:[metricsEvent('one',[a],'m1'),metricsEvent('two',[b],'m2'),metricsEvent('classic',[c],null)]});
+    const enriched:MetricsEnrichment = {movies:{...data.movies,c:{...emptyEnrichmentMovie(),keywords}}};
+    expect(themeFingerprint([all[0]],all.slice(0,2),enriched).values).toEqual([]);
+    const report = themeFingerprint([all[0]],all,enriched);
+    expect(report.values).toEqual(expect.arrayContaining([expect.objectContaining({id:'escape plan',count:1,percentage:100,ratio:1})]));
   });
   it('preserves raw evidence and counts cleaned diversity without the signature support gate',() => {
     const original = structuredClone(data);
@@ -48,12 +57,12 @@ describe('shared clean theme eligibility and Fingerprint-only support',() => {
     expect(facts(rows[0],data,'themes').map(f => f.id)).toContain('bmw');
     expect(tasteDiversity(rows,data,'themes').distinct).toBe(2);
     expect(tasteDiversity(rows.slice(0,1),data,'themes')).toMatchObject({distinct:2,covered:1,perTen:20});
-    expect(themeFingerprint(rows.slice(0,1),rows,data).values).toEqual([]);
+    expect(themeFingerprint(rows.slice(0,1),rows,data).values).toHaveLength(2);
     expect(data).toEqual(original);
   });
   it('reports raw/normalised counts, included/excluded film counts and eligible fingerprints',() => {
     expect(themeKeywordAudit(data,rows)).toMatchObject({rawLabels:4,normalisedIdentities:3,excludedIdentities:1,includedIdentities:2,
-      topExcluded:[{label:'bmw',films:2}],fingerprint:[{label:'Escape plan',count:3},{label:'grief',count:3}]});
+      topExcluded:[{label:'bmw',films:2}],fingerprint:[{label:'Escape plan',count:3},{label:'Grief',count:3}]});
   });
 });
 
@@ -69,7 +78,7 @@ describe('conservative theme identity',() => {
     const data:MetricsEnrichment={movies:{a:{...emptyEnrichmentMovie(),keywords:[{provider:'tmdb',name:'escape-plan'},{provider:'mdblist',name:'Escape Plan'},{provider:'mdblist',name:'escape   plan'},{provider:'tmdb',name:'grief'},{provider:'mdblist',name}]},b:{...emptyEnrichmentMovie(),keywords:[{provider:'mdblist',name:'ESCAPE-PLAN'},{provider:'mdblist',name}]}}};
     const original=structuredClone(data);
     expect(tasteDiversity(rows,data,'themes')).toEqual({distinct:2,covered:2,total:2,perTen:10});
-    expect(themeFingerprint(rows,rows,data).values).toEqual([expect.objectContaining({id:'escape plan',count:2})]);
+    expect(themeFingerprint(rows,rows,data).values).toEqual([]);
     const cruftOnly:MetricsEnrichment={movies:{a:{...emptyEnrichmentMovie(),keywords:[{provider:'mdblist',name}]}}};
     expect(tasteDiversity(rows.slice(0,1),cruftOnly,'themes')).toEqual({distinct:0,covered:0,total:1,perTen:null});
     expect(data).toEqual(original);

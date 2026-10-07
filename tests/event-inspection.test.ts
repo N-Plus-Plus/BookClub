@@ -327,13 +327,16 @@ it('History hides other-host edits and member admin actions without fetching aud
 });
 
 
-describe('URL-only Admin screen',() => {
+describe('Admin screen and Account navigation',() => {
   const asAdmin = async () => {
     vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'admin'}});
     await act(async()=>root.unmount()); root=createRoot(container);
     await act(async()=>root.render(createElement(App))); await flush();
   };
   it('uses ordinary not-found treatment for a member',async()=>{
+    await click(container.querySelector<HTMLButtonElement>('.account-menu-trigger')!);
+    expect(container.querySelector('.account-menu-dropdown')?.textContent).toBe('Logout');
+    expect(container.querySelector('a[href="#/admin"]')).toBeNull();
     await navigate('admin');
     expect(container.querySelector('h1')?.textContent).toBe('Page not found');
     expect(button('Fill missing metadata')).toBeUndefined();
@@ -343,15 +346,15 @@ describe('URL-only Admin screen',() => {
   it('renders all four maintenance sections only on Admin and keeps them out of navigation and member screens',async()=>{
     await asAdmin(); await navigate('admin');
     expect(container.querySelector('h1')?.textContent).toBe('Admin');
-    expect(container.querySelectorAll('main section.card h2')).toHaveLength(4);
+    expect(container.querySelectorAll('main section.card h2')).toHaveLength(5);
     for(const label of ['Populate Missing Scores','Refresh Scores','Enrich/Refresh Metadata','Fill missing metadata']) expect(button(label)).toBeTruthy();
     expect(container.textContent).toContain('Scores and OMDb metadata');
     expect(container.textContent).toContain('TMDB metadata and artwork');
     expect(container.textContent).toContain('TMDB enrichment cache');
     expect(container.textContent).toContain('MDBList enrichment cache');
     await click(container.querySelector<HTMLButtonElement>('.account-menu-trigger')!);
-    expect(container.querySelector('.account-menu-dropdown')?.textContent).toBe('Logout');
-    expect(container.querySelector('a[href="#/admin"]')).toBeNull();
+    expect(container.querySelector('.account-menu-dropdown')?.textContent).toBe('AdminLogout');
+    expect(container.querySelector('.account-menu-dropdown a[href="#/admin"]')).not.toBeNull();
     for(const nav of container.querySelectorAll('nav')) expect(nav.textContent).not.toContain('Admin');
     await navigate('classics');
     for(const tab of ['Ranked0','Unranked0','Seen0']) {
@@ -359,9 +362,19 @@ describe('URL-only Admin screen',() => {
       expect(container.querySelector('.classics-maintenance')).toBeNull();
     }
     await navigate('metrics'); expect(button('Fill missing metadata')).toBeUndefined();
-    await navigate('home'); expect(container.textContent).toContain('Admin · swap current turn');
+    await navigate('home'); expect(container.textContent).not.toContain('Admin · swap current turn');
+    await navigate('admin'); expect(container.querySelector('main .card h2')?.textContent).toBe('Admin · swap current turn'); expect(container.querySelector('main .card details')).toBeNull();
     await navigate('movie/saved-7'); expect(container.textContent).not.toContain('Admin · score maintenance');
     expect(button('Refresh scores')).toBeUndefined();
+  });
+  it('navigates from the admin Account link and closes the dropdown',async()=>{
+    await asAdmin(); await navigate('home');
+    await click(container.querySelector<HTMLButtonElement>('.account-menu-trigger')!);
+    expect([...container.querySelectorAll('.account-menu-dropdown .select__option')].map(item=>item.textContent)).toEqual(['Admin','Logout']);
+    await click(container.querySelector<HTMLAnchorElement>('.account-menu-dropdown a[href="#/admin"]')!);
+    expect(window.location.hash).toBe('#/admin');
+    expect(container.querySelector('h1')?.textContent).toBe('Admin');
+    expect(container.querySelector('.account-menu-dropdown')).toBeNull();
   });
   it('runs both moved maintenance actions and retains their live feedback',async()=>{
     const movie=movies[7];
@@ -453,13 +466,13 @@ it('Event save performs one shared-data reconciliation without repeating bootstr
 it('App applies the returned rotation swap without catalogue, rotation, health or auth reloads',async()=>{
  vi.mocked(api.catalog).mockResolvedValue({...catalog,members:[...catalog.members,{id:'member-3',display_name:'Member 3',sort_order:3,active:1,avatar:3}]});
  vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'admin'}});
- await act(async()=>root.unmount());root=createRoot(container);window.location.hash='/home';await act(async()=>root.render(createElement(App)));await flush();
+ await act(async()=>root.unmount());root=createRoot(container);window.location.hash='/admin';await act(async()=>root.render(createElement(App)));await flush();
  vi.clearAllMocks();
  const turn={id:1,nominal_slot:2,cycle_id:null,version:1,updated_at:'saved',human_order:{'2':'member-3','3':'member-2'}};
  vi.mocked(api.swapRotation).mockResolvedValue(turn);
- await act(async()=>{const select=container.querySelector('.turn-card')!.querySelector('select')!;select.value='member-3';select.dispatchEvent(new Event('change',{bubbles:true}));});
- await act(async()=>container.querySelector('.turn-card form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));await flush();
- expect(api.swapRotation).toHaveBeenCalledOnce();expect(container.querySelector('.turn-identity')?.textContent).toContain('MEMBER 3');
+ await act(async()=>{const select=container.querySelector('main .card')!.querySelector('select')!;select.value='member-3';select.dispatchEvent(new Event('change',{bubbles:true}));});
+ await act(async()=>container.querySelector('main .card form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));await flush();
+ expect(api.swapRotation).toHaveBeenCalledOnce();await navigate('home');expect(container.querySelector('.turn-identity')?.textContent).toContain('MEMBER 3');
  expect(api.catalog).not.toHaveBeenCalled();expect(api.rotation).not.toHaveBeenCalled();expect(api.health).not.toHaveBeenCalled();expect(api.me).not.toHaveBeenCalled();
 });
 
@@ -470,12 +483,12 @@ it('a returned swap does not discard an in-flight broad catalogue refresh or get
  let release!:(catalog:Catalog)=>void;vi.mocked(api.catalog).mockReturnValueOnce(new Promise(resolve=>{release=resolve;}));
  vi.mocked(api.enrichMetadataSelected).mockResolvedValue({results:[{movieId:'saved-7',title:'Fixture',provider:'tmdb',status:'success',message:'Saved'}]});
  await click(button('Fill missing metadata'));expect(api.catalog).toHaveBeenCalledOnce();
- await navigate('home');vi.mocked(api.swapRotation).mockResolvedValue({id:1,nominal_slot:2,cycle_id:null,version:1,updated_at:'saved',human_order:{'2':'member-3','3':'member-2'}});
- await act(async()=>{const select=container.querySelector('.turn-card')!.querySelector('select')!;select.value='member-3';select.dispatchEvent(new Event('change',{bubbles:true}));});
- await act(async()=>container.querySelector('.turn-card form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));await flush();
+ await navigate('admin');vi.mocked(api.swapRotation).mockResolvedValue({id:1,nominal_slot:2,cycle_id:null,version:1,updated_at:'saved',human_order:{'2':'member-3','3':'member-2'}});
+ await act(async()=>{const select=container.querySelector('main .card')!.querySelector('select')!;select.value='member-3';select.dispatchEvent(new Event('change',{bubbles:true}));});
+ await act(async()=>container.querySelector('main .card form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));await flush();
  const fresh={...movies[0],title:'Metadata reconciled'};
  await act(async()=>release({...club,movies:[fresh,...movies.slice(1)],sessions:[{id:'fresh',movies:[fresh],event_date:'2030-01-01',host_member_id:'member-2',kind:'hosted',date_precision:'exact',cycle_id:null,cycle_slot:null,legacy_cycle_label:null}]}));await flush();
- expect(container.querySelector('.turn-identity')?.textContent).toContain('MEMBER 3');expect(container.textContent).toContain('Metadata reconciled');
+ await navigate('home');expect(container.querySelector('.turn-identity')?.textContent).toContain('MEMBER 3');expect(container.textContent).toContain('Metadata reconciled');
  expect(api.catalog).toHaveBeenCalledOnce();expect(api.health).not.toHaveBeenCalled();expect(api.me).not.toHaveBeenCalled();
 });
 
@@ -503,7 +516,7 @@ it.each(['production','import-preview'])('hides the local indicator and dev tool
  expect(container.querySelector('.demo-label,.developer-tools')).toBeNull();expect(button('Populate Missing Scores')).toBeTruthy();
 });
 
-describe('Builder inspection and Use Set',() => {
+describe('Builder inspection and Use set',() => {
   const openBuilder = async () => { await navigate('builder'); await click(button('New set')); };
   const builderSearch = async () => {
     await input(container.querySelector<HTMLInputElement>('input[maxlength="150"]')!,'film');
@@ -513,14 +526,13 @@ describe('Builder inspection and Use Set',() => {
     await openBuilder();
     const editor = container.querySelector('.builder-workflow');
     await input(container.querySelector<HTMLInputElement>('input[maxlength="300"]')!,'Private draft');
-    const note = container.querySelector('textarea')!;
-    await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')!.set!.call(note,'Private notes'); note.dispatchEvent(new Event('input',{bubbles:true})); });
+    expect(container.querySelector('textarea')).toBeNull();
     await builderSearch(); await click(button('Next'));
     await click(container.querySelector<HTMLAnchorElement>('.search-row a')!);
     expect(lineup()).toEqual([]); expect(button('Add to Set')).toBeTruthy(); expect(button('Yes, this one!')).toBeUndefined();
     expect(container.querySelector('.builder-workflow')).toBe(editor); expect(editor?.parentElement?.hidden).toBe(true);
     await navigate('builder');
-    expect(container.querySelector('.builder-workflow')).toBe(editor); expect(note.value).toBe('Private notes');
+    expect(container.querySelector('.builder-workflow')).toBe(editor);
     expect(container.querySelector<HTMLInputElement>('input[maxlength="300"]')!.value).toBe('Private draft');
     expect(container.querySelector<HTMLInputElement>('input[maxlength="150"]')!.value).toBe('film');
     expect(container.querySelector('.search-pagination')?.textContent).toContain('Page 2 of 2');
@@ -571,13 +583,12 @@ describe('Builder inspection and Use Set',() => {
     vi.mocked(api.builders).mockResolvedValue(existing ? [set] : []);
     await navigate('builder'); await click(button(existing ? 'Open set' : 'New set'));
     await input(container.querySelector<HTMLInputElement>('input[maxlength="300"]')!,'Saved title');
-    const note=container.querySelector('textarea')!;
-    await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')!.set!.call(note,'Saved note'); note.dispatchEvent(new Event('input',{bubbles:true})); });
-    vi.mocked(api.builders).mockResolvedValue([{...set,id:existing ? 'existing':'new-set',title:'Saved title',notes:'Saved note',movie_ids:existing ? set.movie_ids : []}]);
+    expect(container.querySelector('textarea')).toBeNull();
+    vi.mocked(api.builders).mockResolvedValue([{...set,id:existing ? 'existing':'new-set',title:'Saved title',notes:existing ? 'Old note' : '',movie_ids:existing ? set.movie_ids : []}]);
     await click(button('Save set'));
-    expect(button('Save set')).toBeUndefined(); expect(button('New set')).toBeTruthy(); expect(container.textContent).toContain('Saved title'); expect(container.textContent).toContain('Saved note');
+    expect(button('Save set')).toBeUndefined(); expect(button('New set')).toBeTruthy(); expect(container.textContent).toContain('Saved title'); if (existing) expect(container.textContent).toContain('Old note');
     expect(container.textContent).not.toContain('Private set saved.');
-    expect(api.saveBuilder).toHaveBeenCalledWith({title:'Saved title',notes:'Saved note',movie_ids:existing ? set.movie_ids:[],...(existing ? {revision:3}: {})},existing ? 'existing':undefined);
+    expect(api.saveBuilder).toHaveBeenCalledWith({title:'Saved title',notes:existing ? 'Old note' : '',movie_ids:existing ? set.movie_ids:[],...(existing ? {revision:3}: {})},existing ? 'existing':undefined);
     await click(button('Open set')); expect(lineup()).toEqual(existing ? ['Film 2','Film 0','Film 2']:[]);
   });
   it('save rejection preserves editor and draft for retry',async () => {
@@ -588,27 +599,30 @@ describe('Builder inspection and Use Set',() => {
     expect(button('Save set')).toBeTruthy(); expect(container.querySelector<HTMLInputElement>('input[maxlength="300"]')!.value).toBe('Unsaved'); expect(lineup()).toEqual(['Film 0']); expect(container.textContent).toContain('Save unavailable.');
     await click(button('Save set')); expect(button('New set')).toBeTruthy();
   });
-  it.each(['own','swapped-own','other','swapped-other','classics','historical'])('uses effective current-turn identity (%s)',async kind => {
+  it.each(['own','swapped-own','other','swapped-other','classics','historical','missing','inactive'])('uses effective current-turn identity (%s)',async kind => {
     const other={id:'sean',display_name:'Sean',sort_order:1,active:1,avatar:1};
     const turn: Rotation={id:1,nominal_slot:kind==='classics'?5:kind.startsWith('swapped')?1:2,cycle_id:null,version:9,updated_at:'',human_order:kind==='swapped-own'?{'1':'member-2'}:kind==='swapped-other'?{'1':'sean'}:kind==='other'||kind==='historical'?{'2':'sean'}:undefined};
-    vi.mocked(api.catalog).mockResolvedValue({...catalog,members:[...catalog.members,other]}); vi.mocked(api.rotation).mockResolvedValue(turn);
+    vi.mocked(api.catalog).mockResolvedValue({...catalog,members:[...catalog.members.map(m=>kind==='inactive'?{...m,active:0}:m),other]}); vi.mocked(api.rotation).mockResolvedValue(kind==='missing'?null:turn);
     await act(async () => root.unmount()); root=createRoot(container); window.location.hash='/builder'; await act(async () => root.render(createElement(App))); await flush();
-    await click(button('New set')); await builderSearch(); await click(container.querySelector<HTMLElement>('button[aria-label="Add Film 0"]')!); await click(button('Use Set'));
+    await click(button('New set')); await builderSearch(); await click(container.querySelector<HTMLElement>('button[aria-label="Add Film 0"]')!);
+    expect([...container.querySelectorAll('.builder-editor-actions button')].map(b=>b.textContent)).toEqual(['All sets','Use set','Save set']);
+    const eligible=kind==='own'||kind==='swapped-own';
+    expect(button('Use set').disabled).toBe(!eligible);
+    if (!eligible) { await click(button('Use set')); expect(container.querySelector('#publish-heading')).toBeNull(); expect(api.publishBuilder).not.toHaveBeenCalled(); return; }
+    await click(button('Use set'));
     expect(container.querySelector('h2#publish-heading')?.textContent).toBe('Use this set?');
     expect(container.textContent).toContain('1 film in the saved order. This will move this film into a Book Club event as the one you brought.');
-    expect(button('Use Set')).toBeTruthy(); expect(container.textContent).not.toMatch(/Review publication|Confirm publication|Publishing…/);
-    if (kind==='historical') await click(container.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
-    const warning=container.querySelector('.builder-turn-warning');
-    if (kind==='other'||kind==='swapped-other') expect(warning?.textContent).toBe("Current turn: Sean. You're not Sean. If you need to swap turns, ask the Troy of your household.");
-    else { expect(warning).toBeNull(); expect(container.textContent).toContain(kind==='classics'?'Actual host: CLSC · hostless':'Actual host: MEMBER 2'); }
+    expect(button('Use set')).toBeTruthy(); expect(container.textContent).not.toMatch(/Review publication|Confirm publication|Publishing…/);
+    expect(container.querySelector('.builder-turn-warning')).toBeNull();
+    expect(container.textContent).toContain('Actual host: MEMBER 2');
     expect(api.swapRotation).not.toHaveBeenCalled();
   });
-  it('Use Set keeps the ordered repeated IDs and original publish API payload',async () => {
+  it('Use set keeps the ordered repeated IDs and original publish API payload',async () => {
     await openBuilder(); for (const index of [2,0,2]) { await builderSearch(); await click(container.querySelector<HTMLElement>(`button[aria-label="Add Film ${index}"]`)!); }
-    await click(button('Use Set')); expect(container.textContent).toContain('3 films in the saved order. This will move these films into a Book Club event as the ones you brought.');
+    await click(button('Use set')); expect(container.textContent).toContain('3 films in the saved order. This will move these films into a Book Club event as the ones you brought.');
     let resolve!: (value: Awaited<ReturnType<typeof api.publishBuilder>>) => void;
     vi.mocked(api.publishBuilder).mockImplementationOnce(() => new Promise(done => { resolve=done; }));
-    await click(button('Use Set')); expect(button('Using Set…').disabled).toBe(true); expect(container.textContent).not.toContain('Publishing');
+    await click(button('Use set')); expect(button('Using set…').disabled).toBe(true); expect(container.textContent).not.toContain('Publishing');
     expect(api.saveBuilder).toHaveBeenLastCalledWith({title:'',notes:'',movie_ids:['saved-2','saved-0','saved-2'],revision:1},'new-set');
     expect(api.publishBuilder).toHaveBeenCalledWith('new-set',expect.objectContaining({revision:1,cycle_slot:2,complete_turn:true,turn_version:0}));
     await act(async () => resolve({} as Awaited<ReturnType<typeof api.publishBuilder>>)); await flush(); expect(window.location.hash).toBe('#/history');
@@ -705,22 +719,22 @@ it('All sets stays in the list when a newly queued draft finishes, and can reope
 it.each([1,2,3,9])('Builder displays only the first four shared poster previews (%i films)',async count=>{
  vi.mocked(api.builders).mockResolvedValue([{id:'posters',owner_member_id:'member-2',title:'Posters',notes:null,movie_ids:Array.from({length:count},(_,i)=>movies[i%movies.length].id),revision:1,created_at:'2026-01-01',updated_at:''}]);await navigate('builder');expect(container.querySelectorAll('.builder-poster-strip .poster')).toHaveLength(Math.min(4,count));expect(container.querySelector('.builder-poster-strip a')).toBeNull();expect(container.querySelector('.poster-empty')).toBeTruthy();
 });
-it.each(['title','note'])('Builder %s blur creates a new draft while typing stays local',async field=>{
- await navigate('builder');await click(button('New set'));const control=field==='title'?container.querySelector('input[maxlength="300"]')!:container.querySelector('textarea')!;
- await act(async()=>{Object.getOwnPropertyDescriptor(field==='title'?HTMLInputElement.prototype:HTMLTextAreaElement.prototype,'value')!.set!.call(control,'Blur value');control.dispatchEvent(new Event('input',{bubbles:true}));});expect(api.saveBuilder).not.toHaveBeenCalled();
- await act(async()=>control.dispatchEvent(new FocusEvent('focusout',{bubbles:true})));await flush();expect(api.saveBuilder).toHaveBeenCalledExactlyOnceWith({title:field==='title'?'Blur value':'',notes:field==='note'?'Blur value':'',movie_ids:[]},undefined);
+it('Builder title blur creates a new draft while typing stays local',async()=>{
+ await navigate('builder');await click(button('New set'));const control=container.querySelector('input[maxlength="300"]')!;
+ await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(control,'Blur value');control.dispatchEvent(new Event('input',{bubbles:true}));});expect(api.saveBuilder).not.toHaveBeenCalled();
+ await act(async()=>control.dispatchEvent(new FocusEvent('focusout',{bubbles:true})));await flush();expect(api.saveBuilder).toHaveBeenCalledExactlyOnceWith({title:'Blur value',notes:'',movie_ids:[]},undefined);
 });
 
-it('Builder applies additions, move and removal before saving and Use Set publishes the final revision',async()=>{
+it('Builder applies additions, move and removal before saving and Use set publishes the final revision',async()=>{
  await navigate('builder');await click(button('New set'));
  let first!:(set:BuilderSet)=>void,second!:(set:BuilderSet)=>void;
  vi.mocked(api.saveBuilder).mockImplementationOnce(()=>new Promise(done=>{first=done;})).mockImplementationOnce(()=>new Promise(done=>{second=done;}));
  const searchBuilder=async()=>{await input(container.querySelector('input[maxlength="150"]')!,'film');await act(async()=>container.querySelector('.builder-workflow form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));await flush();};
  await searchBuilder();await click(container.querySelector('button[aria-label="Add Film 0"]')!);expect(lineup()).toEqual(['Film 0']);expect(api.saveBuilder).toHaveBeenCalledTimes(1);
  await searchBuilder();await click(container.querySelector('button[aria-label="Add Film 1"]')!);await click(container.querySelector('button[aria-label="Move Film 1 earlier"]')!);expect(lineup()).toEqual(['Film 1','Film 0']);await click(container.querySelector('button[aria-label="Remove Film 0"]')!);expect(lineup()).toEqual(['Film 1']);expect(api.saveBuilder).toHaveBeenCalledTimes(1);
- await act(async()=>button('Use Set').click());expect(button('Use Set').disabled).toBe(true);expect(api.publishBuilder).not.toHaveBeenCalled();
+ await act(async()=>button('Use set').click());expect(button('Use set').disabled).toBe(true);expect(api.publishBuilder).not.toHaveBeenCalled();
  const set:BuilderSet={id:'race',owner_member_id:'member-2',title:null,notes:null,movie_ids:['saved-0'],revision:9,created_at:'2026-01-01',updated_at:''};
  await act(async()=>first(set));await flush();expect(api.saveBuilder).toHaveBeenLastCalledWith({title:'',notes:'',movie_ids:['saved-1'],revision:9},'race');expect(container.querySelector('#publish-heading')).toBeNull();expect(lineup()).toEqual(['Film 1']);
  await act(async()=>second({...set,movie_ids:['saved-1'],revision:10}));await flush();expect(container.querySelector('#publish-heading')).toBeTruthy();
- vi.mocked(api.publishBuilder).mockResolvedValue({} as Awaited<ReturnType<typeof api.publishBuilder>>);await click(button('Use Set'));expect(api.publishBuilder).toHaveBeenCalledWith('race',expect.objectContaining({revision:10}));expect(api.builders).toHaveBeenCalledTimes(1);
+ vi.mocked(api.publishBuilder).mockResolvedValue({} as Awaited<ReturnType<typeof api.publishBuilder>>);await click(button('Use set'));expect(api.publishBuilder).toHaveBeenCalledWith('race',expect.objectContaining({revision:10}));expect(api.builders).toHaveBeenCalledTimes(1);
 });

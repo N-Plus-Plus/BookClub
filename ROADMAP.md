@@ -100,6 +100,13 @@ Periodically prune completed history when it no longer helps future work, but do
 
 ## Current roadmap
 
+### Priority 0.5 - Stale/failing tests
+
+Status: Incomplete
+
+- `tests/event-inspection.test.ts`, “renders all four maintenance sections only on Admin and keeps them out of navigation and member screens”: expects a swap selector with a one-member fixture, but `RotationSwapCard` correctly shows no eligible future turns. Use a multi-member fixture or assert the unavailable state; recheck against ongoing swap UI changes.
+- The same file’s two App rotation-swap tests access `.value` on untyped `querySelector` results (TS2339). Use `querySelector<HTMLSelectElement>` for those controls; runtime behaviour is not implicated.
+
 ### Priority 3 - Non-movie screen works
 Status: Incomplete
 

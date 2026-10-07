@@ -37,8 +37,8 @@ await fs.mkdir('.verification/metrics',{recursive:true});
 const columns = locator => locator.evaluate(e => getComputedStyle(e).gridTemplateColumns.split(' ').length);
 const overflow = () => page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
 const results = [];
-const tabs = ['Top / Bottom','Fingerprints','General Interest','Averages','Taste Diversity','Economics / Standalone','Extremes'];
-const assignments = [['E','U','V','W'],['C','F','G','J'],['B','D','K','Y'],['M','N','T'],['O','P','Q','R','S'],['L','H','I'],['X']];
+const tabs = ['Top / Bottom','Fingerprints','General','Averages','Diversity','Standalone','Extremes'];
+const assignments = [['E','U','V','W'],['C','F','G','J'],['B','D','K','Y','L'],['M','N','T'],['O','P','Q','R','S'],['H','I'],['X']];
 const tab = name => page.getByRole('tab',{name,exact:true}).click();
 const active = () => page.locator('[role=tab][aria-selected=true]').textContent();
 const check = async(width,label) => {
@@ -77,7 +77,7 @@ try {
       assert(style.height>=44 && parseFloat(style.border)>0,'touch target/active underline');
       assert.equal(await page.locator('.metrics-category-tabs svg').count(),0);assert(await selected.evaluate(e=>{const style=getComputedStyle(e,'::after');return style.left==='8px' && style.right==='8px' && getComputedStyle(e).borderRadius==='0px';}),'Classics inset underline without icons');
       assert(style.rect.x>=style.strip.x-1 && style.rect.right<=style.strip.right+1,'active tab fully visible');
-      if(tabs[index]==='Economics / Standalone') assert(await selected.evaluate(e=>e.scrollWidth<=e.clientWidth),'long tab label readable');
+      if(tabs[index]==='Standalone') assert(await selected.evaluate(e=>e.scrollWidth<=e.clientWidth),'long tab label readable');
       await check(width,tabs[index]);
       await page.screenshot({path:`.verification/metrics/tab-${index}-${width}.png`,fullPage:true});
       // Scroll every populated panel to review its last report as well.
@@ -98,7 +98,7 @@ try {
       const g=await footer.evaluate(e=>({score:e.querySelector('strong').getBoundingClientRect().toJSON(),identity:e.lastElementChild.getBoundingClientRect().toJSON()}));
       assert(g.score.x<g.identity.x && g.score.y<g.identity.bottom && g.identity.y<g.score.bottom);
     }
-    await tab('General Interest');
+    await tab('General');
     assert.match(await page.locator('.metrics-decades').textContent(),/Unknown.*14.3%/s);
     assert.equal(await page.locator('.metrics-classifications .metrics-stacked-profile').count(),5);
     assert.match(await page.locator('.metrics-classifications').textContent(),/MA15\+.*100.0%/s);
@@ -125,27 +125,27 @@ try {
       assert.equal(await active(),'Fingerprints');assert.equal(await page.locator('.metrics-theme-signature').count(),0);assert.equal(await page.locator('.metrics-signature').count(),0);
       assert(await page.locator('.metrics-fingerprint .metrics-distribution-row').count()<=5);
       for(const name of tabs) {await tab(name);await check(width,`${name} identity ${i}`);}
-      await tab('Economics / Standalone');assert.equal(await page.locator('.metrics-languages .metrics-stacked-profile').count(),2);
-      await tab('General Interest');assert.equal(await page.locator('.metrics-classifications .metrics-stacked-profile').count(),2);
+      await tab('Standalone');assert.equal(await page.locator('.metrics-languages .metrics-stacked-profile').count(),2);
+      await tab('General');assert.equal(await page.locator('.metrics-classifications .metrics-stacked-profile').count(),2);
       await tab('Averages');
     for(const glyphs of await page.locator('.metrics-rating-circles').all()) assert.equal(await glyphs.getAttribute('aria-hidden'),'true');
     assert.equal(await page.locator('.metrics-median-budget').count(),2);
-      await tab('Taste Diversity');assert.equal(await page.locator('.metrics-diversity section').count(),5);
+      await tab('Diversity');assert.equal(await page.locator('.metrics-diversity section').count(),5);
     }
     await tab('Fingerprints');await page.locator('.metrics-filters button').nth(1).click();
-    for(const role of ['Cast','Director','Writer','Cinematographer','Composer','Editor','Producer']) {await page.locator('.metrics-talent select').selectOption(role);assert.match(await page.locator('.metrics-talent').textContent(),new RegExp(`${role} known for 2 / 3 appearances`));}
+    for(const role of ['Cast','Director','Writer','Cinematographer','Composer','Editor','Producer']) {await page.locator('.metrics-talent select').selectOption(role);assert.doesNotMatch(await page.locator('.metrics-talent').textContent(),/known for/);}
     assert(await page.locator('.metrics-talent select').evaluate(e=>e.getBoundingClientRect().height)>=44);
     await tab('Fingerprints');await page.locator('.metrics-filters button').first().click();
     const studios=page.locator('.metrics-companies .metrics-five-scroll');
     assert(await studios.locator('.metrics-enriched-row').count()>12);assert.equal(await studios.locator('.metrics-enriched-row').count(),20);
     assert(await studios.evaluate(e=>e.scrollHeight>e.clientHeight));
     await studios.evaluate(e=>e.scrollTop=e.scrollHeight);assert(await studios.evaluate(e=>e.scrollTop>0));
-    await tab('Economics / Standalone');
+    await tab('Standalone');
     const countries=page.locator('.metrics-countries .metrics-five-scroll');
     assert(await countries.locator('.metrics-enriched-row').count()>12);
     assert(await countries.evaluate(e=>e.scrollHeight>e.clientHeight));
     await countries.evaluate(e=>e.scrollTop=e.scrollHeight);assert(await countries.evaluate(e=>e.scrollTop>0));
-    assert.equal(await page.locator('.metrics-scatter').count(),0);assert.match(await page.locator('.metrics-revenue-ratios').textContent(),/7 \/ 10 unique films/);
+    await tab('General');assert.equal(await page.locator('.metrics-scatter').count(),0);assert.doesNotMatch(await page.locator('.metrics-revenue-ratios').textContent(),/unique films have reported/);
     assert.match(await page.locator('.metrics-revenue-ratios a').first().getAttribute('href'),/^#\/movie\//);
     await tab('Top / Bottom');
     const modes=page.locator('.metrics-score-filters').first();
@@ -154,7 +154,7 @@ try {
     await page.getByRole('group',{name:'Top 5 score filter'}).getByRole('button',{name:'Roger Ebert',exact:true}).click();assert.match(await page.locator('.metrics-rankings section').first().textContent(),/3.5 \/ 4/);
     await page.evaluate(()=>scrollTo(0,0));
     const before=await page.evaluate(()=>scrollY);await tab('Fingerprints');assert.equal(await page.evaluate(()=>scrollY),before,'tab click does not move page');
-    const selected=page.getByRole('tab',{name:'Fingerprints',exact:true});await selected.focus();await page.keyboard.press('ArrowRight');assert.equal(await active(),'General Interest');
+    const selected=page.getByRole('tab',{name:'Fingerprints',exact:true});await selected.focus();await page.keyboard.press('ArrowRight');assert.equal(await active(),'General');
     assert(await page.locator('[role=tab][aria-selected=true]').evaluate(e=>e===document.activeElement && getComputedStyle(e).outlineStyle!=='none'),'visible keyboard focus');
     await page.keyboard.press('End');assert.equal(await active(),'Extremes');await page.keyboard.press('Home');assert.equal(await active(),'Top / Bottom');
     assert.equal(requests.length,baseline,'tab/identity/role/score changes generate no API reads');assert.equal(requests.filter(p=>p.endsWith('/metrics/enrichment')).length,1);
@@ -162,6 +162,6 @@ try {
   }
   sparse=true;await page.setViewportSize({width:390,height:900});await page.reload();await page.getByRole('heading',{name:'Top Directors',exact:true}).waitFor();assert.equal(await active(),'Top / Bottom');await page.locator('.metrics-filters button').nth(1).click();
   for(const name of tabs) {await tab(name);await page.getByText('Loading enriched Metrics…',{exact:true}).waitFor({state:'hidden'});await check(390,name+' sparse');await page.screenshot({path:`.verification/metrics/sparse-${tabs.indexOf(name)}-390.png`,fullPage:true});}
-  await tab('Economics / Standalone');assert.match(await page.locator('.metrics-languages').textContent(),/Unknown.*100.0%/s);
+  await tab('Standalone');assert.match(await page.locator('.metrics-languages').textContent(),/Unknown.*100.0%/s);
   assert.deepEqual(errors,[]);await fs.writeFile('.verification/metrics/results.json',JSON.stringify({results,partialData:true,errors},null,2));console.log(JSON.stringify({results,partialData:true,errors}));
 } finally {await browser.close();}

@@ -20,7 +20,7 @@ it('uses square popularity dividers and insets only the outer table columns',asy
   await tab('Top / Bottom');
   expect(container.querySelectorAll('.metrics-popularity-list')).toHaveLength(2);
   for(const list of container.querySelectorAll('.metrics-popularity-list')) expect(getComputedStyle(list.querySelector('a')!).borderRadius).toBe('0');
-  await tab('General Interest');
+  await tab('General');
   for(const cell of container.querySelectorAll('.metrics-table tr > :first-child')) expect(getComputedStyle(cell).paddingLeft).toBe('1rem');
   for(const cell of container.querySelectorAll('.metrics-table tr > :last-child')) expect(getComputedStyle(cell).paddingRight).toBe('1rem');
   expect(getComputedStyle(container.querySelector('thead')!).position).toBe('sticky');
@@ -37,11 +37,11 @@ it('defaults on each mount, keeps nine selectors independent, displays full head
  await mount();
  await tab('Top / Bottom');
  for(const section of sections()) {
-  expect([...section.querySelectorAll('button')].map(b=>b.textContent)).toEqual(['IMDb','LB','MC','MC-U','RT-A','RT-C','TMDB','Trakt','Ebert']);
+  expect([...section.querySelectorAll('button')].map(b=>b.textContent)).toEqual(['IMDb','LB','MC-U','RT-A','TMDB','Trakt','Ebert','MC','RT-C']);
   expect(section.querySelector('button[aria-pressed=true]')?.textContent).toBe('IMDb');
  }
  await act(async()=>container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[1].click());
- await tab('General Interest');
+ await tab('General');
  const genres=container.querySelector('.metrics-table')!.textContent;
  await tab('Top / Bottom');
  for(const [label,name,,,,,display] of dimensions) {
@@ -58,7 +58,7 @@ it('defaults on each mount, keeps nine selectors independent, displays full head
   expect(sections()[1].querySelector('.metrics-film-footer > strong')?.textContent).toBe(display);
   expect(sections()[0].querySelector('h2')?.textContent).toBe('Top 5 by Letterboxd');
  }
- await tab('General Interest');
+ await tab('General');
  expect(container.querySelector('.metrics-table')!.textContent).toBe(genres);
  await tab('Top / Bottom');
  await act(async()=>root.render(createElement(MetricsScreen,{catalog:{...catalog,movies:[{...movie,scores:movie.scores.filter(s=>s.provider!=='letterboxd')}]},viewer:null,onUpdated:async()=>{}})));

@@ -4,7 +4,7 @@
 
 There is no routine member-facing manual freshness control. Conditional load-error Retry/Try again and explicit admin/provider maintenance remain. A failed refresh preserves the last loaded journal; load failures remain separate from action failures, including logout. Connection recovery may bootstrap again. No polling, focus/visibility refresh, service worker or route-entry global reload exists.
 
-Admin maintenance lives on the URL-only authenticated admin route. Score work applies returned Movie patches during a run and performs one final shared-data reconciliation. TMDB metadata maintenance uses a fixed candidate queue from the loaded catalogue, selected two-ID requests with local queue progress, Stop after this batch and one final shared-data read after completion, stop or failure. Local developer snapshot replacement remains separately guarded and explicitly confirmed.
+Admin maintenance lives on the authenticated admin route accessible from admin viewers’ Account dropdown. Score work applies returned Movie patches during a run and performs one final shared-data reconciliation. TMDB metadata maintenance uses a fixed candidate queue from the loaded catalogue, selected two-ID requests with local queue progress, Stop after this batch and one final shared-data read after completion, stop or failure. Local developer snapshot replacement remains separately guarded and explicitly confirmed.
 
 ## Loading and mutation reconciliation
 
