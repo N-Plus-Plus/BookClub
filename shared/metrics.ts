@@ -113,11 +113,14 @@ export function uniqueAppearances(rows: Appearance[]): Appearance[] {
   return [...unique.values()];
 }
 export interface PopularAppearance extends Appearance { votes: number }
+function imdbVotes(movie: Movie): number | null {
+  const votes = latestScores(movie.scores).find(s => s.provider === 'imdb' && s.metric === 'rating')?.vote_count;
+  return typeof votes === 'number' && Number.isFinite(votes) && votes > 0 ? votes : null;
+}
 export function popularityMetrics(rows: Appearance[]) {
   const qualifying: PopularAppearance[] = rows.flatMap(row => {
-    const observation = latestScores(row.movie.scores).find(s => s.provider === 'imdb' && s.metric === 'rating');
-    const votes = observation?.vote_count;
-    return typeof votes === 'number' && Number.isFinite(votes) && votes > 0 ? [{...row,votes}] : [];
+    const votes = imdbVotes(row.movie);
+    return votes !== null ? [{...row,votes}] : [];
   });
   const unique = uniqueAppearances(qualifying) as PopularAppearance[];
   return {coverage:qualifying.length,median:median(qualifying.map(row => row.votes)),
@@ -130,7 +133,9 @@ export function extremesCabinet(rows: Appearance[]) {
     topCritic:tiedExtreme(unique,row => compositeScore(row.movie,'critic')),bottomCritic:tiedExtreme(unique,row => compositeScore(row.movie,'critic'),'min'),
     topAudience:tiedExtreme(unique,row => compositeScore(row.movie,'audience')),bottomAudience:tiedExtreme(unique,row => compositeScore(row.movie,'audience'),'min'),
     oldest:tiedExtreme(unique,row => row.movie.year !== null && row.movie.year > 0 ? row.movie.year : null,'min'),
-    longest:tiedExtreme(unique,row => row.movie.runtime !== null && row.movie.runtime > 0 ? row.movie.runtime : null)};
+    longest:tiedExtreme(unique,row => row.movie.runtime !== null && row.movie.runtime > 0 ? row.movie.runtime : null),
+    mostPopular:tiedExtreme(unique,row => imdbVotes(row.movie)),
+    mostObscure:tiedExtreme(unique,row => imdbVotes(row.movie),'min')};
 }
 export function tiedExtreme<T>(items: readonly T[],value: (item:T) => number | null,direction: 'max' | 'min' = 'max'): {value:number;items:T[]} | null {
   const qualifying = items.filter(item => {const number = value(item);return number !== null && Number.isFinite(number);});

@@ -106,11 +106,26 @@ describe('Metrics dashboard',() => {
     expect(report.highest?.items.map(r => r.movie.id)).toEqual(['a']);expect(report.lowest?.items.map(r => r.movie.id)).toEqual(['b']);expect(report.oldest?.items.map(r => r.movie.id)).toEqual(['a']);expect(report.longest?.items.map(r => r.movie.id)).toEqual(['a']);
     expect(extremesCabinet([...rows].reverse())).toEqual(report);
     const ties = rowsOf([metricsFilm('z'),metricsFilm('a')]);
-    expect(Object.values(extremesCabinet(ties)).map(r => r?.items.map(item => item.movie.id))).toEqual([['a','z'],['a','z'],undefined,undefined,['a','z'],['a','z'],['a','z'],['a','z']]);
+    expect(Object.values(extremesCabinet(ties)).map(r => r?.items.map(item => item.movie.id))).toEqual([['a','z'],['a','z'],undefined,undefined,['a','z'],['a','z'],['a','z'],['a','z'],['a','z'],['a','z']]);
+  });
+  it('vote extremes retain ties, deduplicate repeats and ignore missing, invalid and non-IMDb votes',() => {
+    const films = [
+      metricsFilm('a',{scores:[observation('imdb','rating',8,10,2000)]}),
+      metricsFilm('b',{scores:[observation('imdb','rating',7,10,2000)]}),
+      metricsFilm('c',{scores:[observation('imdb','rating',9,10,12)]}),
+      metricsFilm('d',{scores:[observation('tmdb','rating',9,10,1)]}),
+      ...[null,0,-1,NaN,Infinity].map((votes,i)=>metricsFilm(`invalid-${i}`,{scores:[observation('imdb','rating',8,10,votes)]})),
+    ];
+    const rows = rowsOf(films,[...films,films[0]]), report = extremesCabinet(rows);
+    expect(report.mostPopular).toMatchObject({value:2000});
+    expect(report.mostPopular?.items.map(r=>r.movie.id)).toEqual(['a','b']);
+    expect(report.mostObscure).toMatchObject({value:12});
+    expect(report.mostObscure?.items.map(r=>r.movie.id)).toEqual(['c']);
+    expect(extremesCabinet([...rows].reverse())).toEqual(report);
   });
   it('missing extremes and empty dashboards stay safe',() => {
     const rows = rowsOf([metricsFilm('a',{scores:[],year:null,runtime:null,director:null,genres:[]})]);
-    expect(extremesCabinet(rows)).toEqual({highest:null,lowest:null,topCritic:null,bottomCritic:null,topAudience:null,bottomAudience:null,oldest:null,longest:null});
+    expect(extremesCabinet(rows)).toEqual({highest:null,lowest:null,topCritic:null,bottomCritic:null,topAudience:null,bottomAudience:null,oldest:null,longest:null,mostPopular:null,mostObscure:null});
     expect(extremesCabinet([])).toEqual(extremesCabinet(rows));
     expect(metricsDashboard([],[])).toMatchObject({fingerprint:[],decades:[],directors:{covered:0,top:[]},popularity:{coverage:0,median:null}});
     expect(metricsScoreDimensions).toHaveLength(9);

@@ -95,6 +95,13 @@ it('renders revised visuals, stable colours, clean presentation and linked ratio
     expect(container.querySelector('.metrics-ratio-list a')?.getAttribute('href')).toMatch(/^#\/movie\//);
     await tab('Extremes');expect(container.textContent).not.toMatch(/Highest IMDb|Lowest IMDb|Cinematographer known for/);
     for(const name of ['Top Critic','Top Audience','Bottom Critic','Bottom Audience']) expect(container.textContent).toContain(name);
+    const filmCards = [...container.querySelectorAll('.metrics-film-extreme')];
+    expect(filmCards.map(card=>card.querySelector('h3')?.textContent)).toEqual(['Top Critic','Top Audience','Bottom Critic','Bottom Audience','Oldest','Longest','Most Popular','Most Obscure']);
+    expect(filmCards[6].textContent).toContain('2,000,000 IMDb votes');
+    expect(filmCards[6].querySelector('a')?.getAttribute('href')).toBe('#/movie/a');
+    expect(filmCards[7].textContent).toContain('12 IMDb votes');
+    expect(filmCards[7].querySelector('a')?.getAttribute('href')).toBe('#/movie/b');
+    expect([...container.querySelectorAll<HTMLElement>('.metrics-extremes h3')].map(h=>h.style.getPropertyValue('--extreme-colour'))).toEqual(['ruby','grapefruit','carrot','pumpkin','sunflower','avacado','grass','emerald','aqua','sapphire','jeans','indigo','lavender','rose'].map(c=>`var(--${c})`));
     expect(container.querySelector('.metrics-creator-extreme > .meta')).not.toBeNull();
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(1);
   } finally {await act(async()=>root.unmount());}

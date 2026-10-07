@@ -1,4 +1,4 @@
-import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Eye, Film, RefreshCw, type LucideIcon } from 'lucide-react';
 import { latestScores, requiredScores, scoreValue } from '../shared/ranking';
 import { posterReference } from '../shared/artwork';
@@ -77,8 +77,30 @@ export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; s
     return value != null ? [{provider,metric,label,description,value}] : [];
   });
   const firstCritic = items.findIndex(item => item.provider === 'rogerebert' || item.metric === 'critic');
+  const rowRef = useRef<HTMLParagraphElement>(null);
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const boundary = row.querySelector<HTMLElement>('.source-scores-critic-boundary');
+    const previous = boundary?.previousElementSibling;
+    if (!boundary || !previous) return;
+    const positionDivider = () => {
+      const critic = boundary.getBoundingClientRect(), audience = previous.getBoundingClientRect();
+      if (!critic.width || !audience.width) return;
+      const padding = parseFloat(getComputedStyle(boundary).paddingLeft);
+      const sameLine = audience.top < critic.bottom && audience.bottom > critic.top;
+      const offset = sameLine ? (audience.right + critic.left + padding) / 2 - critic.left : padding / 2;
+      boundary.style.setProperty('--critic-divider-offset', `${offset - .5}px`);
+    };
+    positionDivider();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(positionDivider);
+    observer.observe(row);
+    for (const item of row.children) observer.observe(item);
+    return () => observer.disconnect();
+  });
   const stacked = items.length > 6;
-  return items.length ? <p className={`meta ranking-source-scores${stacked ? ' ranking-source-scores-stacked' : ''}`}>{items.map(({provider,metric,label,description,value},index) =>
+  return items.length ? <p ref={rowRef} className={`meta ranking-source-scores${stacked ? ' ranking-source-scores-stacked' : ''}`}>{items.map(({provider,metric,label,description,value},index) =>
     <span key={`${provider}:${metric}`} className={firstCritic > 0 && index === firstCritic ? 'source-scores-critic-boundary' : undefined} title={description} aria-label={`${description}: ${formatScore100(value)}`}><span>{label}</span>{' '}<span>{formatScore100(value)}</span></span>
   )}</p> : null;
 }

@@ -22,6 +22,11 @@ it('loads once in StrictMode, updates every identity/role locally and exposes tr
     await tab('Economics / Standalone');
     expect(container.querySelector('.metrics-scatter')).toBeNull();
     expect(container.querySelector('.metrics-revenue-ratios')?.textContent).toContain('7 / 10 unique films');
+    for (const list of container.querySelectorAll('.metrics-ratio-list')) {
+      expect([...list.querySelectorAll('.metrics-ratio-rank')].map(n=>n.textContent)).toEqual(['1.','2.','3.','4.','5.','6.','7.']);
+      expect(list.querySelectorAll('li > .metrics-ratio-data')).toHaveLength(7);
+      expect(list.textContent).toMatch(/Reported budget USD\s[\d,]+,000 · Reported revenue USD\s[\d,]+,000/);
+    }
     for (let i = 1;i <= 5;i++) {
       await act(async() => container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[i].click());
       await tab('Fingerprints');

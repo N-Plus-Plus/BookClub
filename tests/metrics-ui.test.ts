@@ -76,7 +76,7 @@ it('empty identities preserve report axes and restrained missing states without 
   expect(container.textContent).toContain('No appearances with IMDb scores yet.');
   const tab=(label:string)=>act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===label)!.click());
   await tab('Averages');expect(container.querySelectorAll('.metrics-rating-profile > div')).toHaveLength(9);
-  await tab('Extremes');expect(container.querySelectorAll('.metrics-extremes section')).toHaveLength(12);
+  await tab('Extremes');expect(container.querySelectorAll('.metrics-extremes section')).toHaveLength(14);
   await tab('Top / Bottom');expect(container.textContent).toContain('No director data for this selection.');
   expect(container.textContent).not.toMatch(/NaN|Infinity|undefined|0 \/ 0/);
  } finally {await act(async()=>root.unmount());}

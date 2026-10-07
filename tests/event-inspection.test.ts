@@ -302,7 +302,7 @@ it('Home shows only the top two eligible rankable Classics with summary scores',
   expect([...home.children].map(e=>e.className)).toEqual(['turn-card-area turn-card-area-personal','dashboard-grid','stack','stack home-quick-facts']);
   const snapshot=home.children[2];
   expect(snapshot.querySelector('.stat-link svg')).toBeNull();
-  expect([...home.querySelectorAll('.home-quick-facts .stat strong')].map(e=>e.textContent)).toEqual(['1','2','2','8.00']);
+  expect([...home.querySelectorAll('.home-quick-facts .stat strong')].map(e=>e.textContent)).toEqual(['1','2','8.00']);
   expect(snapshot.querySelector('.section-title a')?.getAttribute('href')).toBe('#/classics');
   expect([...snapshot.querySelectorAll('.stat strong')].map(e=>e.textContent)).toEqual(['3','1','0']);
   expect([...snapshot.querySelectorAll('.stat > span')].map(e=>e.textContent)).toEqual(['Eligible Classics','Already seen by all','Missing answers']);

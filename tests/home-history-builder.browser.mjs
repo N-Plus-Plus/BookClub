@@ -31,7 +31,7 @@ try {
  for(const width of [320,390,720,1440]) {
   await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/home');await page.reload();await page.getByRole('heading',{name:'Classics Snapshot',exact:true}).waitFor({timeout:10000}).catch(async e=>{console.log(errors,await page.locator('body').innerText());throw e;});
   assert.deepEqual(await page.locator('.home-dashboard .section-title h2').allTextContents(),['Last turn','Next Classics','Classics Snapshot','Quick Facts']);
-  assert.equal(await page.locator('.stat-link svg').count(),0);assert.deepEqual(await page.locator('.home-quick-facts .stat strong').allTextContents(),['24','48','2','8.00']);
+  assert.equal(await page.locator('.stat-link svg').count(),0);assert.deepEqual(await page.locator('.home-quick-facts .stat strong').allTextContents(),['24','48','8.00']);
   const borders=await page.locator('.home-dashboard .turn-card,.home-session-card,.home-rank-card').evaluateAll(nodes=>nodes.map(e=>getComputedStyle(e).borderColor));assert(borders.every(c=>c===borders[0]));await shot(width,'home');
   await page.getByRole('link',{name:'History',exact:true}).first().click();await page.getByRole('button',{name:'Resort History oldest first'}).click();assert.equal(await page.locator('section[id^="cycle-"]').first().getAttribute('id'),'cycle-c1');assert.deepEqual(await page.locator('#cycle-c1 .history-event').first().locator('.movie-title').allTextContents(),['A very long film title that must wrap while lineup controls remain usable','Film 1']);
   assert.equal(await page.locator('.history-film-director').first().textContent(),'A Director');assert((await page.locator('#cycle-c1').textContent()).includes('1994 · 105 min · MA15+'));await shot(width,'history');

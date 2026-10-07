@@ -45,9 +45,20 @@ root.render(React.createElement('main',{className:'bookclub-shell'},content));
    await page.evaluate(()=>document.fonts.ready);
    const result=await page.evaluate(()=>{
     const row=document.querySelector('.ranking-source-scores');
-    return {overflow:document.documentElement.scrollWidth>innerWidth,stacked:row.classList.contains('ranking-source-scores-stacked'),warning:/Missing:|using available-score average/.test(document.body.textContent),items:[...row.children].map(el=>({direction:getComputedStyle(el).flexDirection,flex:getComputedStyle(el).flex,text:el.textContent}))};
+    const boundary=row.querySelector('.source-scores-critic-boundary');
+    let dividerError=0;
+    if(boundary){
+     const critic=boundary.getBoundingClientRect(),audience=boundary.previousElementSibling.getBoundingClientRect();
+     const padding=parseFloat(getComputedStyle(boundary).paddingLeft);
+     const divider=critic.left+parseFloat(getComputedStyle(boundary,'::before').left)+.5;
+     const sameLine=audience.top<critic.bottom&&audience.bottom>critic.top;
+     const expected=sameLine?(audience.right+critic.left+padding)/2:critic.left+padding/2;
+     dividerError=Math.abs(divider-expected);
+    }
+    return {dividerError,overflow:document.documentElement.scrollWidth>innerWidth,stacked:row.classList.contains('ranking-source-scores-stacked'),warning:/Missing:|using available-score average/.test(document.body.textContent),items:[...row.children].map(el=>({direction:getComputedStyle(el).flexDirection,flex:getComputedStyle(el).flex,text:el.textContent}))};
    });
    assert(!result.overflow,JSON.stringify({width,screen,count})+' page overflow');
+   assert(result.dividerError<1,JSON.stringify({width,screen,count,dividerError:result.dividerError}));
    assert(!result.warning);assert.equal(result.stacked,count>6);
    for(const item of result.items){assert.equal(item.flex,'0 0 auto');if(count>6)assert.equal(item.direction,'column');}
    await page.screenshot({path:'.verification/compact-scores/'+screen+'-'+width+'-'+count+'.png',fullPage:true});

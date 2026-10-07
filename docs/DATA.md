@@ -168,7 +168,7 @@ The global ALL/member/CLSC filter sits above the category tabs and applies acros
 | Averages | M Median Budget by Contributor; N Median Revenue by Contributor; T Ratings Profile |
 | Taste Diversity | O Production Countries; P Original Languages; Q Themes; R Directors; S Recurring Cast |
 | Economics / Standalone | L Revenue / Budget Ratio; H World Cinema; I Original-Language Profile |
-| Extremes | X Extremes Cabinet: Top Critic/Top Audience/Bottom Critic/Bottom Audience composites, oldest, longest and recurring Director/Writer/Cinematographer/Composer/Editor/Producer, retaining all ties |
+| Extremes | X Extremes Cabinet: Top Critic/Top Audience/Bottom Critic/Bottom Audience composites, oldest, longest, most popular/obscure by highest/lowest positive IMDb votes and recurring Director/Writer/Cinematographer/Composer/Editor/Producer, retaining all ties |
 
 Home Quick Facts reports all-time Events, Films brought, Unique films and Average IMDb beneath Classics Snapshot, using the same active-History derivations without identity filtering.
 
