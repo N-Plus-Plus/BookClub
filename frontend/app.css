@@ -486,7 +486,7 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .page-heading-actions { flex: 0 0 auto; display: flex; justify-content: flex-end; }
 .page-heading-actions .button { width: fit-content; flex: 0 0 auto; white-space: nowrap; }
 .classics-ranking-row { position: relative; }
-.classics-ranking-row .classic-remove { min-width: 32px; height: 32px; line-height: 1; position: absolute; top: 0; left: 0; width: 32px; min-height: 32px; padding: 6px; background: transparent; border-color: transparent; }
+.classics-ranking-row .classic-remove { min-width: 32px; height: 32px; line-height: 1; position: absolute; top: 0.5rem; left: 0; width: 32px; min-height: 32px; padding: 6px; background: transparent; border-color: transparent; }
 .description-disclosure { display: flex; align-items: center; gap: var(--space-10); width: 100%; min-height: 32px; padding: 0; background: transparent; border: 0; color: var(--text-muted); font: inherit; font-size: var(--text-compact); font-weight: 600; cursor: pointer; }
 .description-disclosure::before,.description-disclosure::after { content: ''; flex: 1; border-top: 1px solid var(--asphalt); }
 .description-disclosure:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
