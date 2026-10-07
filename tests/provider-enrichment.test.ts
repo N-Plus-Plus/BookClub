@@ -107,7 +107,7 @@ describe('provider cache API and durable current state',()=>{
     const result=await data(await call('tmdb',['film']));expect(result.results[0].status).toBe('updated');expect(result).not.toHaveProperty('movies');
     expect(rows('credits')).toHaveLength(21);expect(rows('content_ratings')).toHaveLength(3);expect(rows('metadata')[0]).toMatchObject({budget:1000000,provider:'tmdb'});
     const after=await repo.catalog();
-    expect(after.movies.find(m=>m.id==='film')).toEqual({...before.movies.find(m=>m.id==='film'),title:'Provider title'});
+    expect(after.movies.find(m=>m.id==='film')).toEqual({...before.movies.find(m=>m.id==='film'),title:'Provider title',au_classification:'M'});
     expect({...after,movies:after.movies.filter(m=>m.id!=='film')}).toEqual({...before,movies:before.movies.filter(m=>m.id!=='film')});
     expect(result.canonicalChanged).toBe(true);expect(local.sqlite.prepare('SELECT * FROM source_scores').all()).toEqual(scores);expect(fetch).toHaveBeenCalledTimes(1);
   });

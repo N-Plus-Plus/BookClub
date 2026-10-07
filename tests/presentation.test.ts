@@ -13,7 +13,7 @@ import { HistoryEvidence } from '../frontend/HistoryEvidence';
 import { MetricsScreen } from '../frontend/MetricsScreen';
 import { DetailScreen } from '../frontend/DetailScreen';
 import { api } from '../frontend/api';
-vi.mock('../frontend/api',() => ({api:{detail:vi.fn()}}));
+vi.mock('../frontend/api',() => ({api:{detail:vi.fn(),metricsEnrichment:vi.fn().mockResolvedValue({movies:{}})}}));
 const members = ['Sean','Troy','Matt','Jess'].map((display_name,i) => ({id:`m${i+1}`,display_name,sort_order:i+1,active:1}));
 const movie: Movie = {id:'film',title:'A Film',original_title:null,year:2001,release_date:null,runtime:100,overview:null,genres:['Drama'],assets:[],external_ids:[],seen:[],classic:true,ranking:null,scores:[
   {provider:'imdb',metric:'rating',raw_value:8.7,raw_scale:10,normalized_value:87,vote_count:null,fetched_at:'2026-01-01'},
@@ -33,10 +33,15 @@ it.each([
   ['cycle_rough',null,'Cycle 1 Film 1'],
   ['unknown',null,'Cycle 1 Film 1'],
   ['exact','legacy-spreadsheet','Cycle 1 Film 1'],
-])('Metrics ranking metadata respects %s precision and %s provenance', (precision,source,expected)=>{
+])('Metrics ranking metadata respects %s precision and %s provenance', async(precision,source,expected)=>{
   const data={...catalog,sessions:[{...session,date_precision:precision as Session['date_precision']}],cycles:[{...catalog.cycles[0],title:'Custom cycle title',import_source:source}]};
-  const element=document.createElement('div');element.innerHTML=renderToStaticMarkup(createElement(MetricsScreen,{catalog:data,viewer:null,onUpdated:async()=>{}}));
-  expect([...element.querySelectorAll('.metrics-film-item p.meta')].map(e=>e.textContent)).toEqual([expected,expected]);
+  Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
+  const element=document.createElement('div'),root=createRoot(element);
+  try {
+    await act(async()=>root.render(createElement(MetricsScreen,{catalog:data,viewer:null,onUpdated:async()=>{}})));
+    await act(async()=>[...element.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent==='Top / Bottom')!.click());
+    expect([...element.querySelectorAll('.metrics-film-item p.meta')].map(e=>e.textContent)).toEqual([expected,expected]);
+  } finally {await act(async()=>root.unmount());}
 });
 
 it('presents named historical controls without raw turn numbers or nominal terminology',() => {

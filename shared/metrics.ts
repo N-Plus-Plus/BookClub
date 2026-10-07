@@ -40,6 +40,22 @@ export function median(values: readonly number[]): number | null {
   return sorted.length ? sorted.length % 2 ? sorted[middle] : (sorted[middle-1]+sorted[middle])/2 : null;
 }
 const share = (count: number,total: number) => total ? count/total*100 : 0;
+/** Keep at least limit entries from an ordered ranking, including cutoff ties. */
+export function withCutoffTies<T>(items: readonly T[],value: (item:T) => number,limit = 5): T[] {
+  if (items.length <= limit) return [...items];
+  const cutoff = value(items[limit-1]);
+  return items.filter((item,index) => index < limit || value(item) === cutoff);
+}
+export function compositeScore(movie: Movie,kind: 'audience' | 'critic'): number | null {
+  const ids: MetricsScoreDimension[] = kind === 'audience' ? ['imdb','letterboxd','metacritic-user','rt-audience','tmdb','trakt'] : ['metacritic','rt-critic','ebert'];
+  const scores = latestScores(movie.scores);
+  const values = metricsScoreDimensions.filter(d => ids.includes(d.id)).flatMap(d => {
+    const observation = scores.find(s => s.provider === d.provider && s.metric === d.metric);
+    const value = observation ? scoreValue(observation) : null;
+    return value === null ? [] : [value];
+  });
+  return values.length ? values.reduce((sum,value) => sum+value,0)/values.length : null;
+}
 export interface FingerprintGenre { genre: string; count: number; percentage: number; ratio: number; colour: string }
 export function genreFingerprint(selected: Appearance[],all: Appearance[]): FingerprintGenre[] {
   const counts = (rows: Appearance[]) => {
@@ -79,7 +95,7 @@ export function directorFingerprint(rows: Appearance[]) {
   for (const {movie} of rows) if (movie.director?.trim()) {
     covered++; groups.set(movie.director,(groups.get(movie.director) ?? 0)+1);
   }
-  return {covered,top:[...groups].sort(([a,ac],[b,bc]) => bc-ac || textOrder(a,b)).slice(0,5).map(([name,count],index) => ({name,count,percentage:share(count,rows.length),colour:metricsPalette[index+6]}))};
+  return {covered,top:withCutoffTies([...groups].sort(([a,ac],[b,bc]) => bc-ac || textOrder(a,b)),item => item[1]).map(([name,count],index) => ({name,count,percentage:share(count,rows.length),colour:metricsPalette[(index+6)%metricsPalette.length]}))};
 }
 export function ratingsProfile(rows: Appearance[]) {
   const effective = new Map([...new Map(rows.map(row => [row.movie.id,row.movie])).values()].map(movie => [movie.id,latestScores(movie.scores)]));
@@ -111,6 +127,8 @@ export function popularityMetrics(rows: Appearance[]) {
 export function extremesCabinet(rows: Appearance[]) {
   const unique = uniqueAppearances(rows);
   return {highest:tiedExtreme(unique,row => row.imdb),lowest:tiedExtreme(unique,row => row.imdb,'min'),
+    topCritic:tiedExtreme(unique,row => compositeScore(row.movie,'critic')),bottomCritic:tiedExtreme(unique,row => compositeScore(row.movie,'critic'),'min'),
+    topAudience:tiedExtreme(unique,row => compositeScore(row.movie,'audience')),bottomAudience:tiedExtreme(unique,row => compositeScore(row.movie,'audience'),'min'),
     oldest:tiedExtreme(unique,row => row.movie.year !== null && row.movie.year > 0 ? row.movie.year : null,'min'),
     longest:tiedExtreme(unique,row => row.movie.runtime !== null && row.movie.runtime > 0 ? row.movie.runtime : null)};
 }

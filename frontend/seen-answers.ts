@@ -4,6 +4,10 @@ import { rankMovie } from '../shared/ranking';
 
 export interface SeenSave { movieId: string; memberId: string; seen: boolean | null; title: string; status: 'queued' | 'saving' | 'failed'; message?: string }
 export function patchCatalogMovie(catalog: Catalog, movie: Movie): Catalog {
+  if (movie.au_classification === undefined) {
+    const existing = catalog.movies.find(m => m.id === movie.id);
+    if (existing?.au_classification !== undefined) movie = {...movie,au_classification:existing.au_classification};
+  }
   return {...catalog,movies:catalog.movies.some(m => m.id === movie.id) ? catalog.movies.map(m => m.id === movie.id ? movie : m) : [...catalog.movies,movie],
     sessions:catalog.sessions.map(s => ({...s,movies:s.movies.map(m => m.id === movie.id ? movie : m)}))};
 }

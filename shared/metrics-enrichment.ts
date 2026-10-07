@@ -1,5 +1,6 @@
 import type { Catalog } from './types';
-import { contributorMetrics, extremesCabinet, genreColour, matchesMetricsFilter, median, tiedExtreme, uniqueAppearances, type Appearance, type MetricsFilter } from './metrics';
+import { isThemeKeyword, themeDisplayLabel } from './theme-keywords';
+import { contributorMetrics, extremesCabinet, genreColour, matchesMetricsFilter, median, tiedExtreme, uniqueAppearances, withCutoffTies, type Appearance, type MetricsFilter } from './metrics';
 export { tiedExtreme } from './metrics';
 
 /** Read-only analytical projection, deliberately separate from Movie and Catalog. */
@@ -75,6 +76,34 @@ export function fingerprint(rows: Appearance[],all: Appearance[],read: FactReade
   values.sort((a,b) => (options.distinctive ? (b.ratio ?? 0)-(a.ratio ?? 0) || b.percentage-a.percentage : 0) || b.count-a.count || order(a.label,b.label) || order(a.id,b.id));
   return {covered:selected.covered,distinct:selected.values.length,values:values.slice(0,options.limit ?? 10)};
 }
+/** Theme Fingerprint only: retain raw facts for diversity and all other consumers. */
+export function themeFingerprint(rows: Appearance[],all: Appearance[],data: MetricsEnrichment,options: {distinctive?:boolean;limit?:number} = {}) {
+  const read = (row:Appearance) => facts(row,data,'themes').filter(f => isThemeKeyword(f.id)).map(f => ({...f,label:themeDisplayLabel(f.label)}));
+  const supported = new Set(frequency(uniqueAppearances(rows),read).values.filter(f => f.count >= 2).map(f => f.id));
+  const report = fingerprint(rows,all,read,{...options,limit:Number.MAX_SAFE_INTEGER});
+  return {...report,values:report.values.filter(f => supported.has(f.id)).slice(0,options.limit ?? 10)};
+}
+
+/** Safe aggregate diagnostic; no movie IDs, titles, provenance or private rows are returned. */
+export function themeKeywordAudit(data: MetricsEnrichment,rows: Appearance[] = []) {
+  const raw = new Set<string>();
+  const identities = new Map<string,{id:string;label:string;films:number}>();
+  for (const movie of Object.values(data.movies)) {
+    for (const keyword of movie.keywords) raw.add(keyword.name);
+    for (const fact of themes(movie)) {
+      const old = identities.get(fact.id);
+      identities.set(fact.id,{...fact,films:(old?.films ?? 0)+1});
+    }
+  }
+  const values = [...identities.values()].sort((a,b) => b.films-a.films || order(a.id,b.id));
+  const excluded = values.filter(f => !isThemeKeyword(f.id));
+  const included = values.filter(f => isThemeKeyword(f.id));
+  return {rawLabels:raw.size,normalisedIdentities:values.length,excludedIdentities:excluded.length,includedIdentities:included.length,
+    topExcluded:excluded.slice(0,20).map(f => ({label:f.label,films:f.films})),
+    topIncluded:included.slice(0,20).map(f => ({label:themeDisplayLabel(f.label),films:f.films})),
+    fingerprint:themeFingerprint(rows,rows,data).values.map(f => ({label:f.label,count:f.count}))};
+}
+
 export function comparisonScopes(catalog: Catalog,all: Appearance[],filter: MetricsFilter) {
   const scopes = contributorMetrics(catalog,all).map(c => ({label:c.label,rows:all.filter(r => matchesMetricsFilter(r.session,c.filter))}));
   if (filter.kind === 'all') return scopes;
@@ -92,7 +121,7 @@ export function normaliseAu(value: string): AuCategory {
 }
 /** Limited/wide theatrical (2/3) before all other release types. Highest familiar severity wins;
  * unusual evidence is Other, below familiar labels. Empty evidence is Unknown. */
-export function australianClassification(movie: MetricsEnrichmentMovie): AuCategory {
+export function australianClassification(movie: Pick<MetricsEnrichmentMovie,'contentRatings'>): AuCategory {
   const rows = movie.contentRatings.filter(r => r.certification.trim());
   if (!rows.length) return 'Unknown';
   const theatrical = rows.filter(r => r.release_type === 2 || r.release_type === 3);
@@ -133,6 +162,15 @@ export function tasteDiversity(rows: Appearance[],data: MetricsEnrichment,dimens
   const report = frequency(rows,row => facts(row,data,dimension));
   const distinct = report.values.filter(v => dimension !== 'cast' || v.count >= 2).length;
   return {distinct,covered:report.covered,total:rows.length,perTen:report.covered ? distinct/report.covered*10 : null};
+}
+export function revenueRatioRankings(rows: Appearance[],data: MetricsEnrichment) {
+  const report = filmEconomics(rows,data);
+  const values = report.points.map(point => ({...point,ratio:point.revenue/point.budget}));
+  const order = (a:typeof values[number],b:typeof values[number]) => orderText(a.movie.title,b.movie.title) || (a.movie.year ?? 0)-(b.movie.year ?? 0) || orderText(a.movie.id,b.movie.id);
+  const orderText = (a:string,b:string) => a < b ? -1 : a > b ? 1 : 0;
+  return {covered:values.length,unique:report.unique,
+    top:withCutoffTies([...values].sort((a,b) => b.ratio-a.ratio || order(a,b)),p => p.ratio),
+    bottom:withCutoffTies([...values].sort((a,b) => a.ratio-b.ratio || order(a,b)),p => p.ratio)};
 }
 export function recurringTalent(rows: Appearance[],data: MetricsEnrichment,role: TalentRole) {
   const report = frequency(rows,row => talent(row,data.movies[row.movie.id] ?? emptyEnrichmentMovie(),role));

@@ -10,6 +10,7 @@ import { EnrichmentRepository } from './enrichment-repository';
 import { TitleRepository, providerTitleStatement, canonicalTitleStatement } from './title-repository';
 import type { EnrichmentCapture } from '../../shared/enrichment';
 
+import { australianClassification } from '../../shared/metrics-enrichment';
 import { assembleMovies, groupMovies } from './catalog-assembly';
 import { effectiveScoreSql, usableScoreSql, liveScoreSql } from './score-sql';
 import { metadataSql, metadataPrioritySql, validTmdbSql, validImdbSql } from './metadata-sql';
@@ -59,6 +60,7 @@ export class Repository {
   }
   private async catalogSnapshot(compact = false): Promise<Catalog> {
     const director = await this.hasDirector();
+    const enrichment = await this.enrichmentSupported();
     // D1 batch gives one consistent transactional read for the derived rankings.
     const result = await this.db.batch([
       this.db.prepare('SELECT id,display_name,sort_order,active,avatar FROM members ORDER BY sort_order,id'),
@@ -72,10 +74,16 @@ export class Repository {
       this.db.prepare('SELECT id,event_date,host_member_id,legacy_cycle_label,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,completed_turn_version,EXISTS(SELECT 1 FROM history_audit WHERE session_id=sessions.id) AS has_audit FROM sessions WHERE deleted_at IS NULL ORDER BY event_date DESC,created_at DESC,id'),
       this.db.prepare('SELECT sm.session_id,sm.movie_id,sm.position FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE s.deleted_at IS NULL ORDER BY sm.position'),
       this.db.prepare('SELECT * FROM cycles ORDER BY ordinal DESC,id'),
+      this.db.prepare(enrichment ? "SELECT movie_id,certification,release_type FROM movie_provider_content_ratings WHERE provider='tmdb' AND country='AU'" : 'SELECT NULL AS movie_id,NULL AS certification,NULL AS release_type WHERE 0'),
     ]);
     const rows = <T>(i: number) => result[i].results as T[];
     const members = rows<Member>(0);
     const movies = assembleMovies(result,compact);
+    const ratings = groupMovies(rows<{movie_id:string;certification:string;release_type:number | null}>(11));
+    for (const movie of movies) {
+      const value = australianClassification({contentRatings:ratings.get(movie.id) ?? []});
+      if (value !== 'Unknown') movie.au_classification = value;
+    }
     const movieMap = new Map(movies.map(m => [m.id,m]));
     const lineups = new Map<string,string[]>();
     for (const row of rows<{session_id:string;movie_id:string}>(9)) {

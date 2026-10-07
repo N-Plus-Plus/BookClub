@@ -16,18 +16,27 @@ it('loads once in StrictMode, updates every identity/role locally and exposes tr
   try {
     await act(async() => root.render(createElement(StrictMode,null,createElement(MetricsScreen,{catalog,viewer:null,onUpdated:async()=>{}}))));
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(1);
+    const tab = (name:string) => act(async() => [...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b => b.textContent === name)!.click());
+    await tab('Fingerprints');
     expect(container.querySelectorAll('.metrics-theme-signature')).toHaveLength(5);
-    expect(container.querySelectorAll('.metrics-scatter a')).toHaveLength(7);
-    expect(container.querySelector('.metrics-economics-scatter')?.textContent).toContain('7 / 10 unique films');
+    await tab('Economics / Standalone');
+    expect(container.querySelector('.metrics-scatter')).toBeNull();
+    expect(container.querySelector('.metrics-revenue-ratios')?.textContent).toContain('7 / 10 unique films');
     for (let i = 1;i <= 5;i++) {
       await act(async() => container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[i].click());
+      await tab('Fingerprints');
       expect(container.querySelectorAll('.metrics-theme-signature')).toHaveLength(0);
+      await tab('Economics / Standalone');
       expect(container.querySelectorAll('.metrics-languages .metrics-stacked-profile')).toHaveLength(2);
+      await tab('General Interest');
       expect(container.querySelectorAll('.metrics-classifications .metrics-stacked-profile')).toHaveLength(2);
+      await tab('Averages');
       expect(container.querySelectorAll('.metrics-median-budget .metrics-distribution-row')).toHaveLength(2);
+      await tab('Taste Diversity');
       expect(container.querySelectorAll('.metrics-diversity section')).toHaveLength(5);
       expect(container.textContent).not.toMatch(/NaN|Infinity|undefined|0 \/ 0/);
     }
+    await tab('Fingerprints');
     const select = container.querySelector('.metrics-talent select') as unknown as {value:string;dispatchEvent:(event:Event)=>boolean};
     for (const role of ['Cast','Director','Writer','Cinematographer','Composer','Editor','Producer']) {
       await act(async() => {select.value=role;select.dispatchEvent(new Event('change',{bubbles:true}));});
@@ -35,12 +44,12 @@ it('loads once in StrictMode, updates every identity/role locally and exposes tr
     }
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(1);
     await act(async() => container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[3].click());
-    expect(container.querySelectorAll('.metrics-film-extreme')[3].textContent).toContain('6-way tie');
-    expect(container.querySelectorAll('.metrics-film-extreme')[3].querySelectorAll('a')).toHaveLength(6);
-    const picker = container.querySelector('.metrics-economics-scatter select') as unknown as {value:string;dispatchEvent:(event:Event)=>boolean};
-    await act(async() => {picker.value='extra-0';picker.dispatchEvent(new Event('change',{bubbles:true}));});
-    expect(container.querySelector('.metrics-scatter-detail a')?.getAttribute('href')).toBe('#/movie/extra-0');
-    expect(container.querySelector('.metrics-scatter-detail')?.textContent).toMatch(/Budget.*Revenue.*MATT/);
+    await tab('Extremes');
+    expect(container.querySelectorAll('.metrics-film-extreme')[5].textContent).toContain('6-way tie');
+    expect(container.querySelectorAll('.metrics-film-extreme')[5].querySelectorAll('a')).toHaveLength(6);
+    await tab('Economics / Standalone');
+    expect(container.querySelector('.metrics-revenue-ratios a')?.getAttribute('href')).toMatch(/^#\/movie\//);
+    expect(container.querySelector('.metrics-revenue-ratios')?.textContent).toMatch(/Reported budget.*Reported revenue/);
   } finally {await act(async() => root.unmount());container.remove();}
 });
 it('failed/partial loading preserves existing reports, supports explicit retry and quiet missing states',async() => {
@@ -48,12 +57,15 @@ it('failed/partial loading preserves existing reports, supports explicit retry a
   const container = document.createElement('div'),root = createRoot(container);
   try {
     await act(async() => root.render(createElement(MetricsScreen,{catalog:metricsFixture(),viewer:null,onUpdated:async()=>{}})));
-    expect(container.textContent).toContain('Existing Metrics remains available.');
+    const tab = (name:string) => act(async() => [...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b => b.textContent === name)!.click());
     expect(container.querySelector('.metrics-summary')?.textContent).toContain('14');
+    await tab('Fingerprints');
+    expect(container.textContent).toContain('Existing Metrics remains available.');
     await act(async() => [...container.querySelectorAll('button')].find(b => b.textContent === 'Retry enriched Metrics')!.click());
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(2);expect(container.textContent).not.toContain('could not load');
-    expect(container.textContent).toContain('No qualifying evidence');expect(container.textContent).toContain('No repeat writer yet');
-    expect(container.querySelector('.metrics-languages')?.textContent).toContain('Unknown 100.0%');
+    expect(container.textContent).toContain('No qualifying evidence');await tab('Extremes');expect(container.textContent).toContain('No repeat writer yet');
+    await tab('Economics / Standalone');
+    expect(container.querySelector('.metrics-languages')?.textContent).toMatch(/Unknown.*100.0%/);
     expect(container.textContent).not.toMatch(/NaN|Infinity|undefined|0 \/ 0/);
   } finally {await act(async() => root.unmount());}
 });

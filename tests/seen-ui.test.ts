@@ -10,7 +10,7 @@ import { useSeenAnswers } from '../frontend/seen-answers';
 import { MetricsScreen } from '../frontend/MetricsScreen';
 import { api } from '../frontend/api';
 import type { Catalog, Movie, MovieDetail } from '../shared/types';
-vi.mock('../frontend/api',()=>({api:{detail:vi.fn()}}));
+vi.mock('../frontend/api',()=>({api:{detail:vi.fn(),metricsEnrichment:vi.fn().mockResolvedValue({movies:{}})}}));
 const member={id:'m',display_name:'Member',active:1,sort_order:1,avatar:1};
 const films:Movie[]=Array.from({length:25},(_,i)=>({id:'f'+i,title:'Film '+String(i).padStart(2,'0'),year:2001,runtime:100,director:'Catalogue Director '+i,original_title:null,release_date:null,overview:null,genres:[],assets:[{provider:'tmdb',asset_type:'poster',reference:'https://image.tmdb.org/t/p/w500/f'+i+'.jpg',width:null,height:null,preferred:1}],external_ids:[],classic:true,scores:[],seen:[],ranking:null}));
 const catalog:Catalog={members:[member],movies:films,cycles:[],sessions:[]};
@@ -125,8 +125,9 @@ it('clamps the plot to three fixed lines and toggles More/Less outside the film 
 it('omits the summary block and disclosure when overview is absent',async()=>{
  await mount();expect(container.querySelector('.seen-plot')).toBeNull();expect(container.querySelector('.seen-plot-toggle')).toBeNull();
 });
-it('shows only Films brought contribution bars with alternating palette classes',()=>{
- container.innerHTML=renderToStaticMarkup(createElement(MetricsScreen,{catalog:{...catalog,members:[member,{...member,id:'m2',display_name:'Other',sort_order:2}]},viewer:null,onUpdated:async()=>{}}));
+it('shows only Films brought contribution bars with alternating palette classes',async()=>{
+ await act(async()=>root.render(createElement(MetricsScreen,{catalog:{...catalog,members:[member,{...member,id:'m2',display_name:'Other',sort_order:2}]},viewer:null,onUpdated:async()=>{}})));
+ await act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent==='General Interest')!.click());
  expect([...container.querySelectorAll('figcaption')].map(e=>e.textContent)).toEqual(['Films brought']);
  expect([...container.querySelectorAll('.chart-track > span')].map(e=>e.className)).toEqual(['chart-bar-jeans','chart-bar-lavender','chart-bar-jeans']);
  expect(container.textContent).not.toContain('Film appearances');
