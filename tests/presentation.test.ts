@@ -83,7 +83,7 @@ it('uses /100 formatting in ranking without changing derived precision or native
   expect(ranking).toContain('87 / 100');expect(ranking).toContain('87.5 / 100');
   expect(ranking).toContain(movie.ranking!.finalScore!.toFixed(2));expect(ranking).toContain(movie.ranking!.rawScore!.toFixed(2));expect(ranking).toContain('1.000000');
   const metrics=text(renderToStaticMarkup(createElement(MetricsScreen,{catalog,viewer:null,onUpdated:async()=>{}})));
-  expect(metrics).toContain('8.7');expect(metrics).toContain('8.70 / 10');expect(metrics).not.toMatch(/nominal|slot/i);
+  expect(metrics).toContain('8.7');expect(metrics).toContain('8.7 / 10');expect(metrics).not.toMatch(/nominal|slot/i);
 });
 
 

@@ -63,10 +63,10 @@ export function SessionCard({session,members,actions,dateHeading,variant}: {sess
 }
 // Genuine source scores share compact labels and canonical presentation order.
 const sourceRatings = [
-  ['imdb','rating','IMDb','IMDb Rating'], ['letterboxd','rating','LB','Letterboxd Rating'], ['metacritic','critic','MC','Metacritic Critic Score'],
-  ['metacritic','user','MC-U','Metacritic User Score'],
-  ['rottentomatoes','audience','RT-A','Rotten Tomatoes Audience Score'], ['rottentomatoes','critic','RT-C','Rotten Tomatoes Critic Score'], ['tmdb','rating','TMDB','TMDB Rating'],
-  ['trakt','rating','Trakt','Trakt Rating'], ['rogerebert','rating','Ebert','Roger Ebert Rating'],
+  ['imdb','rating','IMDb','IMDb Rating'], ['letterboxd','rating','LB','Letterboxd Rating'],
+  ['metacritic','user','MC-U','Metacritic User Score'], ['rottentomatoes','audience','RT-A','Rotten Tomatoes Audience Score'],
+  ['tmdb','rating','TMDB','TMDB Rating'], ['trakt','rating','Trakt','Trakt Rating'],
+  ['rogerebert','rating','Ebert','Roger Ebert Rating'], ['metacritic','critic','MC','Metacritic Critic Score'], ['rottentomatoes','critic','RT-C','Rotten Tomatoes Critic Score'],
 ] as const;
 export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; scores?: Score[]}) {
   const stored = latestScores(scores);
@@ -76,9 +76,10 @@ export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; s
     const value = rankingInput && ranking ? ranking.sources.find(s => s.provider === provider && s.metric === metric)?.value : source ? scoreValue(source) : undefined;
     return value != null ? [{provider,metric,label,description,value}] : [];
   });
+  const firstCritic = items.findIndex(item => item.provider === 'rogerebert' || item.metric === 'critic');
   const stacked = items.length > 6;
-  return items.length ? <p className={`meta ranking-source-scores${stacked ? ' ranking-source-scores-stacked' : ''}`}>{items.map(({provider,metric,label,description,value}) =>
-    <span key={`${provider}:${metric}`} title={description} aria-label={`${description}: ${formatScore100(value)}`}><span>{label}</span>{' '}<span>{formatScore100(value)}</span></span>
+  return items.length ? <p className={`meta ranking-source-scores${stacked ? ' ranking-source-scores-stacked' : ''}`}>{items.map(({provider,metric,label,description,value},index) =>
+    <span key={`${provider}:${metric}`} className={firstCritic > 0 && index === firstCritic ? 'source-scores-critic-boundary' : undefined} title={description} aria-label={`${description}: ${formatScore100(value)}`}><span>{label}</span>{' '}<span>{formatScore100(value)}</span></span>
   )}</p> : null;
 }
 export function RankingScore({movie,compact = false,variant}: {movie: Movie; compact?: boolean; variant?: 'home' | 'classics'}) {

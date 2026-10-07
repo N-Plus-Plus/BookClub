@@ -84,8 +84,8 @@ it('uses exact ordered compact Classics scores, omits missing ratings and explan
  const render=async(m:Movie)=>act(async()=>root.render(createElement(ClassicsScreen,{movies:[m],viewer:null,writesEnabled:false,onMovie:vi.fn()})));
  await render(movie);
  const items=()=>[...container.querySelectorAll('.ranking-source-scores > span')];
- expect(items().map(item=>item.textContent)).toEqual(['IMDb 80','LB 82','MC 81.5','RT-A 90','RT-C 85','TMDB 70']);
- expect(items().map(item=>item.getAttribute('title'))).toEqual(['IMDb Rating','Letterboxd Rating','Metacritic Critic Score','Rotten Tomatoes Audience Score','Rotten Tomatoes Critic Score','TMDB Rating']);
+ expect(items().map(item=>item.textContent)).toEqual(['IMDb 80','LB 82','RT-A 90','TMDB 70','MC 81.5','RT-C 85']);
+ expect(items().map(item=>item.getAttribute('title'))).toEqual(['IMDb Rating','Letterboxd Rating','Rotten Tomatoes Audience Score','TMDB Rating','Metacritic Critic Score','Rotten Tomatoes Critic Score']);
  for(const item of items()) expect(item.getAttribute('aria-label')).toBe(`${item.getAttribute('title')}: ${item.textContent?.split(' ').at(-1)}`);
  expect(container.querySelector('.ranking-source-scores')?.textContent).not.toContain('·');
  const style=document.createElement('style');style.textContent=readFileSync('frontend/app.css','utf8');document.head.appendChild(style);
@@ -121,7 +121,7 @@ it('scopes smaller mobile titles to Classics and keeps tabs in one flexible touc
  const css=readFileSync('frontend/app.css','utf8');
  expect(css).toMatch(/@media \(max-width: 719px\)\s*\{\s*\.classics-ranking-row \.movie-title \{ font-size: calc\(var\(--text-movie-title\) \* \.75\); \}\s*\}/);
  expect(css).toContain('.movie-title { display: block; font-weight: 600; font-size: var(--text-movie-title); }');
- expect(css).toContain('.classics-filters { display: flex; flex-wrap: nowrap;');
+ expect(css).toContain('.classics-filters,.metrics-category-tabs { display: flex; flex-wrap: nowrap;');
  expect(css).toContain('flex: 1 1 0; min-width: 0; min-height: var(--target-min)');
  expect(css).toContain('font-size: var(--text-body); white-space: nowrap;');
  expect(css).toContain('.classics-filters .button svg { width: 14.4px; height: 14.4px; }');

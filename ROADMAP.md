@@ -109,8 +109,7 @@ Depends on: None
 
 ## Priority 0.5 - stale/failing tests
 
-- **Static migration-count expectations** — `tests/prod-check.test.ts`, “checks tracked release safety and public variables without remote access”, expects 9 migrations but current main contains 12. Reproduces on untouched main; update both hard-coded counts or derive the count while retaining contiguous-migration coverage.
-- **Importer Watch Order fixture expectations** — `tests/importer.test.ts`, “requires regenerated exact slot-1 dates without changing Watch Order or identities”, “parses cycles, merged followers, slots and ordered appearances”, and “supports headerless rank/title Watch Order and cached formulas without evaluation”, expect `exactMatch === true` but receive false (lines 25, 35, 51). All reproduce on untouched main. The fixture includes an Unknown Seen answer while current ranking requires no Unknown answers for Watch Order inclusion; likely split the exact-match fixture from Unknown-answer coverage or assert the intentional mismatch. Confirm fixture intent before changing assertions.
+No outstanding items.
 
 <!--
 Ordinary item format:

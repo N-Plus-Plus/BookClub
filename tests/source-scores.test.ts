@@ -22,7 +22,7 @@ const render=(count:number)=>{
 it.each([6,7,8,9])('%s genuine observations choose the count-based mode and canonical order',count=>{
  const {node,scores}=render(count),row=node.querySelector('.ranking-source-scores')!;
  expect(row.classList.contains('ranking-source-scores-stacked')).toBe(count>6);
- const expected=['IMDb 90','LB 92','MC 97',...(count>6?['MC-U 92']:[]),'RT-A 97','RT-C 100','TMDB 85',...(count>7?['Trakt 89']:[]),...(count>8?['Ebert 87.5']:[])];
+ const expected=['IMDb 90','LB 92',...(count>6?['MC-U 92']:[]),'RT-A 97','TMDB 85',...(count>7?['Trakt 89']:[]),...(count>8?['Ebert 87.5']:[]),'MC 97','RT-C 100'];
  expect([...row.children].map(n=>n.textContent)).toEqual(expected);
  for(const item of row.children){expect(item.getAttribute('title')).toBeTruthy();expect(item.getAttribute('aria-label')).toBe(`${item.getAttribute('title')}: ${item.lastElementChild?.textContent}`);}
  if(count===9)expect(scores.find(s=>s.provider==='rogerebert')).toMatchObject({raw_value:3.5,raw_scale:4,normalized_value:87.5});
@@ -91,4 +91,18 @@ it('keeps inline pairs together but allows the shared row to wrap on narrow scre
  const {node}=render(6);document.body.appendChild(node);
  try{expect(getComputedStyle(node.firstElementChild!).flexWrap).toBe('wrap');for(const item of node.firstElementChild!.children)expect(getComputedStyle(item).whiteSpace).toBe('nowrap');}
  finally{node.remove();style.remove();}
+});
+
+it.each([
+ [['trakt','rogerebert'],'Ebert 87.5'],
+ [['imdb','metacritic'],'MC 97'],
+ [['tmdb','tomatoes'],'RT-C 100'],
+ [['rogerebert','metacritic','tomatoes'],null],
+ [['imdb','trakt'],null],
+])('separates available audience and critic groups for %s', (sources,boundary)=>{
+ const scores=parseMdbList({ratings:[...ratings,...optional].filter(r=>sources.includes(r.source))},'2026-10-06','batch');
+ const node=document.createElement('div');node.innerHTML=renderToStaticMarkup(createElement(SourceScores,{scores}));
+ const dividers=node.querySelectorAll('.source-scores-critic-boundary');
+ expect(dividers).toHaveLength(boundary ? 1 : 0);
+ if(boundary)expect(dividers[0].textContent).toBe(boundary);
 });

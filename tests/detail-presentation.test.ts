@@ -117,7 +117,7 @@ it.each([true,false])('places genuine scores directly before overview regardless
  await render({...movie,classic});
  const row=container.querySelector('.ranking-source-scores')!;
  expect(row.nextElementSibling?.className).toBe('detail-overview');
- expect([...row.children].map(n=>n.textContent)).toEqual(['IMDb 81.4','LB 98.7','MC 93','RT-A 92','RT-C 99']);
+ expect([...row.children].map(n=>n.textContent)).toEqual(['IMDb 81.4','LB 98.7','RT-A 92','MC 93','RT-C 99']);
  expect(row.textContent).not.toContain('TMDB');
  expect(Boolean(container.querySelector('.detail-classics-score'))).toBe(classic);
  await render({...movie,id:'empty',classic,ranking:rankMovie([],[],members)});
