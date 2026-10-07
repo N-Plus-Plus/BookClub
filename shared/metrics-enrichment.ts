@@ -1,6 +1,6 @@
 import type { Catalog } from './types';
 import { isThemeKeyword, themeDisplayLabel, themeKeyIdentity } from './theme-keywords';
-import { contributorMetrics, extremesCabinet, genreColour, matchesMetricsFilter, median, tiedExtreme, uniqueAppearances, withCutoffTies, type Appearance, type MetricsFilter } from './metrics';
+import { extremesCabinet, genreColour, matchesMetricsFilter, median, tiedExtreme, uniqueAppearances, withCutoffTies, type Appearance, type MetricsFilter } from './metrics';
 export { tiedExtreme } from './metrics';
 
 /** Read-only analytical projection, deliberately separate from Movie and Catalog. */
@@ -52,17 +52,51 @@ export function facts(row: Appearance,data: MetricsEnrichment,dimension: Dimensi
   const names = movie.languages.filter(l => l.code.toLowerCase() === code).map(l => l.english_name?.trim() || l.name?.trim()).filter((n): n is string => Boolean(n)).sort(order);
   return [{id:code,label:names[0] || code.toUpperCase()}];
 }
+/** Opt-in immutable projection; caches are released with this snapshot, never persisted. */
+const prepared = new WeakMap<MetricsEnrichment,Map<string,FactReader>>();
+const projections = new WeakMap<MetricsEnrichment,MetricsEnrichment>();
+type FrequencyReport={covered:number;values:(Fact & {count:number})[]};
+const cachedFrequencies = new WeakMap<FactReader,WeakMap<Appearance[],FrequencyReport>>();
+export function prepareMetricsEnrichment(source: MetricsEnrichment): MetricsEnrichment {
+  const old=projections.get(source);if(old)return old;
+  const data={movies:source.movies};prepared.set(data,new Map());projections.set(source,data);return data;
+}
+function readerFor(data:MetricsEnrichment,key:string,read:(row:Appearance)=>Fact[]):FactReader {
+  const readers=prepared.get(data);if(!readers)return read;
+  const old=readers.get(key);if(old)return old;
+  const films=new Map<string,Fact[]>();
+  const reader:FactReader=row=>{
+    const identity=key === 'talent:Director' || key === 'directors' ? `${row.movie.id}:${row.movie.director ?? ''}` : row.movie.id;
+    let values=films.get(identity);if(!values){values=dedupe(read(row));films.set(identity,values);}return values;
+  };
+  readers.set(key,reader);cachedFrequencies.set(reader,new WeakMap());return reader;
+}
+export function metricsFactReader(data:MetricsEnrichment,dimension:Dimension):FactReader {
+  return readerFor(data,dimension,row=>facts(row,data,dimension));
+}
+export function metricsTalentReader(data:MetricsEnrichment,role:TalentRole):FactReader {
+  return readerFor(data,`talent:${role}`,row=>talent(row,data.movies[row.movie.id] ?? emptyEnrichmentMovie(),role));
+}
+function themeReader(data:MetricsEnrichment):FactReader {
+  if (!prepared.has(data)) return row=>cleanedThemes(data.movies[row.movie.id] ?? emptyEnrichmentMovie());
+  const labels=new Map<string,string>();
+  return readerFor(data,'cleanedThemes',row=>themes(data.movies[row.movie.id] ?? emptyEnrichmentMovie()).filter(f=>isThemeKeyword(f.id)).map(f=>{
+    let label=labels.get(f.label);if(label === undefined){label=themeDisplayLabel(f.label);labels.set(f.label,label);}return {...f,label};
+  }));
+}
 export type FactReader = (row: Appearance) => Fact[];
-export function frequency(rows: Appearance[],read: FactReader) {
+export function frequency(rows: Appearance[],read: FactReader):FrequencyReport {
+  const cache=cachedFrequencies.get(read), previous=cache?.get(rows);if(previous)return previous;
   let covered = 0; const counts = new Map<string,Fact & {count:number}>();
   for (const row of rows) {
-    const values = dedupe(read(row)); if (values.length) covered++;
+    const values = cache ? read(row) : dedupe(read(row)); if (values.length) covered++;
     for (const fact of values) {
       const old = counts.get(fact.id);
       counts.set(fact.id,{...fact,label:old && order(old.label,fact.label) < 0 ? old.label : fact.label,count:(old?.count ?? 0)+1});
     }
   }
-  return {covered,values:[...counts.values()].sort((a,b) => b.count-a.count || order(a.label,b.label) || order(a.id,b.id))};
+  const report={covered,values:[...counts.values()].sort((a,b) => b.count-a.count || order(a.label,b.label) || order(a.id,b.id))};
+  cache?.set(rows,report);return report;
 }
 export function fingerprint(rows: Appearance[],all: Appearance[],read: FactReader,options: {distinctive?:boolean; minimum?:number; limit?:number; qualifyingShare?:boolean} = {}) {
   const selected = frequency(rows,read), baseline = frequency(all,read);
@@ -81,7 +115,7 @@ export function cleanedThemes(movie: MetricsEnrichmentMovie): Fact[] {
   return themes(movie).filter(f => isThemeKeyword(f.id)).map(f => ({...f,label:themeDisplayLabel(f.label)}));
 }
 export function themeFingerprint(rows: Appearance[],all: Appearance[],data: MetricsEnrichment,options: {distinctive?:boolean;limit?:number} = {}) {
-  const read = (row:Appearance) => cleanedThemes(data.movies[row.movie.id] ?? emptyEnrichmentMovie());
+  const read = themeReader(data);
   const supported = new Set(frequency(all,read).values.filter(f => f.count >= 3).map(f => f.id));
   const report = fingerprint(rows,all,read,{...options,limit:Number.MAX_SAFE_INTEGER});
   return {...report,values:report.values.filter(f => supported.has(f.id)).slice(0,options.limit ?? 10)};
@@ -108,8 +142,7 @@ export function themeKeywordAudit(data: MetricsEnrichment,rows: Appearance[] = [
 }
 
 export function comparisonScopes(catalog: Catalog,all: Appearance[],filter: MetricsFilter) {
-  const scopes = contributorMetrics(catalog,all).map(c => ({label:c.label,rows:all.filter(r => matchesMetricsFilter(r.session,c.filter))}));
-  if (filter.kind === 'all') return scopes;
+  if (filter.kind === 'all') return [...catalog.members.filter(m=>m.sort_order>=1 && m.sort_order<=4).sort((a,b)=>a.sort_order-b.sort_order || order(a.id,b.id)).map(m=>({label:m.display_name.toUpperCase(),rows:all.filter(r=>matchesMetricsFilter(r.session,{kind:'member',memberId:m.id}))})),{label:'CLSC',rows:all.filter(r=>matchesMetricsFilter(r.session,{kind:'classics'}))}];
   const selected = filter.kind === 'classics' ? 'CLSC' : catalog.members.find(m => m.id === filter.memberId)?.display_name.toUpperCase() || 'Selected';
   return [{label:selected,rows:all.filter(r => matchesMetricsFilter(r.session,filter))},{label:'CLUB',rows:all}];
 }
@@ -145,7 +178,7 @@ function languageLabel(code:string,fallback:string) {
   try { return languageNames.of(code) || fallback; } catch { return fallback; }
 }
 export function languageCategories(all: Appearance[],data: MetricsEnrichment): Fact[] {
-  return [...frequency(all,row => facts(row,data,'languages')).values.slice(0,6).map(v => ({id:v.id,label:languageLabel(v.id,v.label)})),{id:'Other',label:'Other'},{id:'Unknown',label:'Unknown'}];
+  return [...frequency(all,metricsFactReader(data,'languages')).values.slice(0,6).map(v => ({id:v.id,label:languageLabel(v.id,v.label)})),{id:'Other',label:'Other'},{id:'Unknown',label:'Unknown'}];
 }
 export const positiveMoney = (value: number | null | undefined): number | null => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
 export function filmEconomics(rows: Appearance[],data: MetricsEnrichment) {
@@ -166,7 +199,7 @@ export function filmEconomics(rows: Appearance[],data: MetricsEnrichment) {
   return {points,unique:unique.length,budget:{median:median(budgets),covered:budgets.length},revenue:{median:median(revenues),covered:revenues.length}};
 }
 export function tasteDiversity(rows: Appearance[],data: MetricsEnrichment,dimension: Dimension) {
-  const report = frequency(rows,row => dimension === 'themes' ? cleanedThemes(data.movies[row.movie.id] ?? emptyEnrichmentMovie()) : facts(row,data,dimension));
+  const report = frequency(rows,dimension === 'themes' ? themeReader(data) : metricsFactReader(data,dimension));
   const distinct = report.values.filter(v => dimension !== 'cast' || v.count >= 2).length;
   return {distinct,covered:report.covered,total:rows.length,perTen:report.covered ? distinct/report.covered*10 : null};
 }
@@ -180,7 +213,7 @@ export function revenueRatioRankings(rows: Appearance[],data: MetricsEnrichment)
     bottom:withCutoffTies([...values].sort((a,b) => a.ratio-b.ratio || order(a,b)),p => p.ratio)};
 }
 export function recurringTalent(rows: Appearance[],data: MetricsEnrichment,role: TalentRole) {
-  const report = frequency(rows,row => talent(row,data.movies[row.movie.id] ?? emptyEnrichmentMovie(),role));
+  const report = frequency(rows,metricsTalentReader(data,role));
   return {covered:report.covered,extreme:tiedExtreme(report.values.filter(v => v.count >= 2),v => v.count)};
 }
 export const filmExtremes = extremesCabinet;

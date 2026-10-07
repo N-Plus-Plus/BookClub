@@ -576,3 +576,7 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
   .builder-editor-actions .button { padding-inline: var(--space-8); gap: var(--space-4); font-size: var(--text-compact); }
   .builder-editor-actions .button svg { width: 16px; height: 16px; }
 }
+
+.metrics-result-pages { flex-wrap: wrap; align-items: center; list-style: none; grid-column: 1 / -1; }
+
+.metrics-five-scroll > * { flex-shrink: 0; }

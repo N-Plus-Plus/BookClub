@@ -1,6 +1,21 @@
-import type { Catalog, Movie, Session } from './types';
+import type { Catalog, Movie, Session, Score } from './types';
 import { latestScores, scoreValue } from './ranking';
 import { normalizedGenres } from './genres';
+
+// Only immutable analytical snapshots opt into score caching; ordinary mutable fixtures remain uncached.
+const resolvedScores = new WeakMap<Movie,Score[]>();
+const snapshots = new WeakMap<Catalog,Catalog>();
+export function metricsCatalog(source: Catalog): Catalog {
+  const existing = snapshots.get(source); if (existing) return existing;
+  const movies = source.movies.map(movie => {
+    const snapshot = {...movie}; resolvedScores.set(snapshot,latestScores(movie.scores)); return snapshot;
+  });
+  const byId = new Map(movies.map(movie => [movie.id,movie]));
+  const catalog = {...source,movies,sessions:source.sessions.map(session => ({...session,movies:session.movies.map(movie => byId.get(movie.id) ?? movie)}))};
+  snapshots.set(source,catalog); return catalog;
+}
+const scoresFor = (movie: Movie) => resolvedScores.get(movie) ?? latestScores(movie.scores);
+const once = <T>(calculate: () => T) => { let ready = false, value: T; return () => {if (!ready) {value=calculate();ready=true;} return value;}; };
 
 export const metricsScoreDimensions = [
   {id: 'imdb', label: 'IMDb', name: 'IMDb', provider: 'imdb', metric: 'rating', scale: 10},
@@ -48,7 +63,7 @@ export function withCutoffTies<T>(items: readonly T[],value: (item:T) => number,
 }
 export function compositeScore(movie: Movie,kind: 'audience' | 'critic'): number | null {
   const ids: MetricsScoreDimension[] = kind === 'audience' ? ['imdb','letterboxd','metacritic-user','rt-audience','tmdb','trakt'] : ['metacritic','rt-critic','ebert'];
-  const scores = latestScores(movie.scores);
+  const scores = scoresFor(movie);
   const values = metricsScoreDimensions.filter(d => ids.includes(d.id)).flatMap(d => {
     const observation = scores.find(s => s.provider === d.provider && s.metric === d.metric);
     const value = observation ? scoreValue(observation) : null;
@@ -98,7 +113,7 @@ export function directorFingerprint(rows: Appearance[]) {
   return {covered,top:withCutoffTies([...groups].sort(([a,ac],[b,bc]) => bc-ac || textOrder(a,b)),item => item[1]).map(([name,count],index) => ({name,count,percentage:share(count,rows.length),colour:metricsPalette[(index+6)%metricsPalette.length]}))};
 }
 export function ratingsProfile(rows: Appearance[]) {
-  const effective = new Map([...new Map(rows.map(row => [row.movie.id,row.movie])).values()].map(movie => [movie.id,latestScores(movie.scores)]));
+  const effective = new Map([...new Map(rows.map(row => [row.movie.id,row.movie])).values()].map(movie => [movie.id,scoresFor(movie)]));
   return metricsScoreDimensions.map((dimension,index) => {
     const values = rows.flatMap(row => {
       const observation = effective.get(row.movie.id)!.find(s => s.provider === dimension.provider && s.metric === dimension.metric);
@@ -114,7 +129,7 @@ export function uniqueAppearances(rows: Appearance[]): Appearance[] {
 }
 export interface PopularAppearance extends Appearance { votes: number }
 function imdbVotes(movie: Movie): number | null {
-  const votes = latestScores(movie.scores).find(s => s.provider === 'imdb' && s.metric === 'rating')?.vote_count;
+  const votes = scoresFor(movie).find(s => s.provider === 'imdb' && s.metric === 'rating')?.vote_count;
   return typeof votes === 'number' && Number.isFinite(votes) && votes > 0 ? votes : null;
 }
 export function popularityMetrics(rows: Appearance[]) {
@@ -138,14 +153,21 @@ export function extremesCabinet(rows: Appearance[]) {
     mostObscure:tiedExtreme(unique,row => imdbVotes(row.movie),'min')};
 }
 export function tiedExtreme<T>(items: readonly T[],value: (item:T) => number | null,direction: 'max' | 'min' = 'max'): {value:number;items:T[]} | null {
-  const qualifying = items.filter(item => {const number = value(item);return number !== null && Number.isFinite(number);});
+  const qualifying = items.flatMap(item => {const number=value(item);return number !== null && Number.isFinite(number) ? [{item,number}] : [];});
   if (!qualifying.length) return null;
-  const extreme = qualifying.reduce((best,item) => direction === 'max' ? Math.max(best,value(item)!) : Math.min(best,value(item)!),value(qualifying[0])!);
-  return {value:extreme,items:qualifying.filter(item => value(item) === extreme)};
+  const extreme = qualifying.reduce((best,entry) => direction === 'max' ? Math.max(best,entry.number) : Math.min(best,entry.number),qualifying[0].number);
+  return {value:extreme,items:qualifying.filter(entry => entry.number === extreme).map(entry => entry.item)};
 }
 export function metricsDashboard(rows: Appearance[],all: Appearance[]) {
-  return {fingerprint:genreFingerprint(rows,all),decades:decadeDistribution(rows),directors:directorFingerprint(rows),
-    ratings:ratingsProfile(rows),popularity:popularityMetrics(rows),extremes:extremesCabinet(rows)};
+  const fingerprint=once(()=>genreFingerprint(rows,all)), decades=once(()=>decadeDistribution(rows)), directors=once(()=>directorFingerprint(rows)),
+    ratings=once(()=>ratingsProfile(rows)), popularity=once(()=>popularityMetrics(rows)), extremes=once(()=>extremesCabinet(rows));
+  return {get fingerprint(){return fingerprint();},get decades(){return decades();},get directors(){return directors();},
+    get ratings(){return ratings();},get popularity(){return popularity();},get extremes(){return extremes();}};
+}
+/** Home needs counts and the genuine IMDb mean, without rankings or genre reports. */
+export function metricsSummary(catalog: Catalog) {
+  const rows=selectedAppearances(catalog);
+  return {events:catalog.sessions.filter(session=>matchesMetricsFilter(session,{kind:'all'})).length,appearances:rows.length,imdbAverage:average(rows)};
 }
 const average = (rows: Appearance[]) => {
   const scores = rows.flatMap(a => a.imdb === null ? [] : [a.imdb]);
@@ -162,32 +184,33 @@ export function selectedAppearances(catalog: Catalog, filter: MetricsFilter = {k
   return sessions.flatMap(session => session.movies.map((film,i): Appearance => {
     const movie = canonical.get(film.id) ?? film;
     if (!imdbByMovie.has(movie.id)) {
-      const score = latestScores(movie.scores).find(s => s.provider === 'imdb' && s.metric === 'rating');
+      const score = scoresFor(movie).find(s => s.provider === 'imdb' && s.metric === 'rating');
       imdbByMovie.set(movie.id,score ? scoreValue(score)!/10 : null);
     }
     return {session,movie,position: i+1,imdb: imdbByMovie.get(movie.id)!};
   }));
 }
-export function calculateMetrics(catalog: Catalog, filter: MetricsFilter = {kind: 'all'}, dimensions: {top?: MetricsScoreDimension; bottom?: MetricsScoreDimension} = {}, rows = selectedAppearances(catalog,filter)): Metrics {
-  const scored = rows.filter(a => a.imdb !== null);
-  const ranked = (id: MetricsScoreDimension, descending: boolean): RankedAppearance[] => {
+export function rankedMetricsAppearances(rows:Appearance[],id:MetricsScoreDimension,descending:boolean):RankedAppearance[] {
     const dimension = metricsScoreDimensions.find(d => d.id === id)!;
     return rows.flatMap(row => {
-      const stored = latestScores(row.movie.scores).find(s => s.provider === dimension.provider && s.metric === dimension.metric);
+      const stored = scoresFor(row.movie).find(s => s.provider === dimension.provider && s.metric === dimension.metric);
       return stored ? [{...row,selectedScore: scoreValue(stored)! * dimension.scale / 100}] : [];
     }).sort((a,b) => (descending ? b.selectedScore-a.selectedScore : a.selectedScore-b.selectedScore) || tie(a,b)).slice(0,5);
-  };
+}
+export function calculateMetrics(catalog: Catalog, filter: MetricsFilter = {kind: 'all'}, dimensions: {top?: MetricsScoreDimension; bottom?: MetricsScoreDimension} = {}, rows = selectedAppearances(catalog,filter)): Metrics {
+  const scored = rows.filter(a => a.imdb !== null);
+  const genreReport=once(() => {
   const groups = new Map<string,Appearance[]>(); let genreCovered = 0;
   for (const row of rows) {
     const genres = normalizedGenres(row.movie.genres);
     if (genres.length) genreCovered++;
-    for (const genre of genres.length ? genres : ['Uncategorised']) groups.set(genre,[...(groups.get(genre) ?? []),row]);
+    for (const genre of genres.length ? genres : ['Uncategorised']) {const items=groups.get(genre) ?? [];items.push(row);groups.set(genre,items);}
   }
+  return {genreCovered,uncategorised:rows.length-genreCovered,genres:[...groups].map(([genre,items]) => ({genre,appearances:items.length,percentage:items.length/rows.length*100,imdbAverage:average(items),imdbScored:items.filter(a=>a.imdb !== null).length})).sort((a,b)=>b.appearances-a.appearances || textOrder(a.genre,b.genre))};
+  });
+  const top=once(()=>rankedMetricsAppearances(rows,dimensions.top ?? 'imdb',true)),bottom=once(()=>rankedMetricsAppearances(rows,dimensions.bottom ?? 'imdb',false));
   const events = catalog.sessions.filter(s => matchesMetricsFilter(s,filter)).length;
   return {events,appearances: rows.length,uniqueFilms: new Set(rows.map(a => a.movie.id)).size,
-    imdbAverage: average(rows),imdbScored: scored.length,genreCovered,uncategorised: rows.length-genreCovered,
-    top: ranked(dimensions.top ?? 'imdb',true),
-    bottom: ranked(dimensions.bottom ?? 'imdb',false),
-    genres: [...groups].map(([genre,items]) => ({genre,appearances: items.length,percentage: items.length/rows.length*100,imdbAverage: average(items),imdbScored: items.filter(a => a.imdb !== null).length}))
-      .sort((a,b) => b.appearances-a.appearances || textOrder(a.genre,b.genre))};
+    imdbAverage: average(rows),imdbScored: scored.length,get genreCovered(){return genreReport().genreCovered;},get uncategorised(){return genreReport().uncategorised;},
+    get top(){return top();},get bottom(){return bottom();},get genres(){return genreReport().genres;}};
 }

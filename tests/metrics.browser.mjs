@@ -139,6 +139,7 @@ try {
     const studios=page.locator('.metrics-companies .metrics-five-scroll');
     assert(await studios.locator('.metrics-enriched-row').count()>12);assert.equal(await studios.locator('.metrics-enriched-row').count(),20);
     assert(await studios.evaluate(e=>e.scrollHeight>e.clientHeight));
+    assert(await studios.evaluate(e=>[...e.querySelectorAll('.metrics-enriched-row')].every((row,index,rows)=>!index || row.getBoundingClientRect().top>=rows[index-1].getBoundingClientRect().bottom)),'scroll rows do not overlap with long labels');
     await studios.evaluate(e=>e.scrollTop=e.scrollHeight);assert(await studios.evaluate(e=>e.scrollTop>0));
     await tab('Standalone');
     const countries=page.locator('.metrics-countries .metrics-five-scroll');

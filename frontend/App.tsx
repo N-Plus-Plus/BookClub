@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { ArrowLeft, ChartNoAxesColumn, CalendarPlus, ListPlus, Check, ChevronRight, Eye, History, Home, Info, Library, Plus, RefreshCw, X } from 'lucide-react';
 import type { Catalog, FilmCandidate, Movie, MovieDetail, TmdbPreview, Viewer, Rotation } from '../shared/types';
-import { calculateMetrics } from '../shared/metrics';
+import { metricsSummary } from '../shared/metrics';
 import { missingAnswers, sortClassics } from '../shared/ranking';
 import { SignInScreen } from './SignInScreen';
 import { api, ApiClientError, clearSession, hasSession, setDevMember, setUnauthorizedHandler, storeSession, type Health } from './api';
@@ -21,6 +21,7 @@ import { RotationCard } from './RotationCard';
 import { needsAvatar } from '../shared/identity';
 import { AdminScreen } from './AdminScreen';
 import { MetricsScreen } from './MetricsScreen';
+import { MetricsEnrichmentResource } from './metrics-cache';
 import { Navigation, destinations } from './Navigation';
 import { selectShellTitle } from './app-shell-title';
 
@@ -54,6 +55,8 @@ export function App() {
   const [health,setHealth] = useState<Health | null>(null);
   const [rotation,setRotation] = useState<Rotation | null>(null);
   const [viewer,setViewer] = useState<Viewer | null>(null);
+  const metricsResource=useMemo(()=>new MetricsEnrichmentResource(),[viewer?.id]);
+  const metricsResourceRef=useRef(metricsResource);metricsResourceRef.current=metricsResource;
   const seenAnswers = useSeenAnswers(viewer?.id ?? '',setCatalog,api.seen);
   const seenRef = useRef(seenAnswers); seenRef.current = seenAnswers;
   const [authBusy,setAuthBusy] = useState(false);
@@ -69,6 +72,7 @@ export function App() {
     generation.current++; confirmedReturn.current = null; inspectionRef.current = null; setInspection(null); setConfirmedMovie(null); setEventPrefill(null); setRotation(null); setCatalog(null); setViewer(null); setNotice(''); setLoadError(''); setActionError(''); setLoading(false);
   },[]);
   const load = useCallback(async () => {
+    metricsResourceRef.current.invalidate();
     const current = ++generation.current;
     setRefreshing(true); setLoadError(''); setActionError('');
     try {
@@ -98,6 +102,7 @@ export function App() {
     } finally { if (current === generation.current) { setLoading(false); setRefreshing(false); } }
   },[]);
   const refreshData = useCallback(async () => {
+    metricsResource.invalidate();
     const current = ++generation.current;
     setRefreshing(true); setLoadError('');
     try {
@@ -109,7 +114,7 @@ export function App() {
     } catch (error) {
       if (current === generation.current && !(error instanceof ApiClientError && error.status === 401)) setLoadError(error instanceof Error ? error.message : 'Could not load BookClub.');
     } finally { if (current === generation.current) { setLoading(false); setRefreshing(false); } }
-  },[]);
+  },[metricsResource]);
   useEffect(() => { setUnauthorizedHandler(resetAuth); void load(); return () => { generation.current++; setUnauthorizedHandler(); }; },[load,resetAuth]);
   const signIn = async (credential: string) => {
     if (authBusy) return;
@@ -182,11 +187,11 @@ export function App() {
     } finally { if (!accepted) { confirmInFlight.current = false; setConfirming(false); } }
   };
 
-  const quickFacts = useMemo(() => page === 'home' && catalog ? calculateMetrics(catalog,{kind:'all'}) : null,[page,catalog]);
-  const classics = catalog ? sortClassics(catalog.movies.filter(m => m.classic)) : [];
-  const eligible = classics.filter(m => m.ranking?.eligible && m.ranking.rankable);
-  const excluded = classics.filter(m => !m.ranking?.eligible);
-  const missing = catalog ? missingAnswers(catalog.movies,catalog.members,viewer?.id ?? '',new Set(catalog.sessions.flatMap(s => s.movies.map(m => m.id)))).length : 0;
+  const quickFacts = useMemo(() => catalog ? metricsSummary(catalog) : null,[catalog]);
+  const classics = useMemo(()=>catalog ? sortClassics(catalog.movies.filter(m=>m.classic)) : [],[catalog]);
+  const eligible = useMemo(()=>classics.filter(m=>m.ranking?.eligible && m.ranking.rankable),[classics]);
+  const excluded = useMemo(()=>classics.filter(m=>!m.ranking?.eligible),[classics]);
+  const missing = useMemo(()=>catalog ? missingAnswers(catalog.movies,catalog.members,viewer?.id ?? '',new Set(catalog.sessions.flatMap(s=>s.movies.map(m=>m.id)))).length : 0,[catalog,viewer?.id]);
   const isPreview = page.startsWith('preview/tmdb/');
   const isDetail = page.startsWith('movie/') || isPreview;
   const detailContext = inspection && page === inspection.target;
@@ -216,8 +221,8 @@ export function App() {
       <div className="dashboard-grid"><section className="stack"><div className="section-title"><h2>Last turn</h2><RouteLink to="history" icon={History} variant="tertiary">History</RouteLink></div>{catalog.sessions[0] ? <SessionCard variant="home" session={catalog.sessions[0]} members={catalog.members} /> : <Empty title="Your first night is waiting">Create an event to begin your shared history.</Empty>}</section>
       <section className="stack"><div className="section-title"><h2>Next Classics</h2><RouteLink to="classics" icon={ChevronRight} variant="tertiary">View all</RouteLink></div>{eligible.slice(0,2).map((m,i) => <RankingCard variant="home" key={m.id} movie={m} rank={i+1} />)}{!eligible.length && <Empty title="No eligible Classics">Open Classics to inspect the candidate pool.</Empty>}</section></div><section className="stack"><div className="section-title"><h2>Classics Snapshot</h2><RouteLink to="classics" icon={ChevronRight} variant="tertiary">View all</RouteLink></div><div className="stats-grid"><div className="card stat"><strong>{eligible.length}</strong><span>Eligible Classics</span></div><div className="card stat"><strong>{excluded.length}</strong><span>Already seen by all</span></div><a className="card stat stat-link" href="#/seen"><strong>{missing}</strong><span>Missing answers</span></a></div></section>{quickFacts && <section className="stack home-quick-facts"><div className="section-title"><h2>Quick Facts</h2></div><div className="stats-grid">{[['Events',quickFacts.events],['Films brought',quickFacts.appearances],['Average IMDb / 10',quickFacts.imdbAverage === null ? '—' : quickFacts.imdbAverage.toFixed(2)]].map(([label,value]) => <div className="card stat" key={label}><strong>{value}</strong><span>{label}</span></div>)}</div></section>}</div>}
       {page === 'history' && <HistoryScreen oldestFirst={historyOldestFirst} onSortChange={setHistoryOldestFirst} viewer={viewer} catalog={catalog} onChanged={() => void refreshData()} />}
-      {isAdminPage && <AdminScreen catalog={catalog} rotation={rotation} onRotationUpdated={turn => { rotationRevision.current++; setRotation(turn); }} writesEnabled={writesEnabled} onMovie={applyMovie} onUpdated={refreshData} />}
-      {page === 'metrics' && <MetricsScreen catalog={catalog} viewer={viewer} onUpdated={refreshData} />}
+      {isAdminPage && <AdminScreen onEnrichmentChanged={()=>metricsResource.invalidate()} catalog={catalog} rotation={rotation} onRotationUpdated={turn => { rotationRevision.current++; setRotation(turn); }} writesEnabled={writesEnabled} onMovie={applyMovie} onUpdated={refreshData} />}
+      {page === 'metrics' && <MetricsScreen resource={metricsResource} catalog={catalog} viewer={viewer} onUpdated={refreshData} />}
       {(page === 'builder' || builderInspection) && <div hidden={Boolean(builderInspection)}><BuilderScreen onEditorChanged={builderEditorChanged} newSetRequest={newSetRequest} onInspect={inspect} confirmedMovie={page === 'builder' ? confirmedMovie : null} onConfirmedConsumed={consumeConfirmedMovie} key={viewer?.id} catalog={catalog} viewer={viewer} rotation={rotation} onMovie={applyMovie} onPublished={() => { void refreshData(); setNotice('Set added to History.'); window.location.hash = '/history'; }} /></div>}
       {eventRoute && (eventRoute === 'event' || catalog.sessions.some(s => s.id === eventRoute.slice(6))) && <div hidden={Boolean(inspecting)} key={eventRoute}><EventScreen onInspect={inspect} confirmedMovie={page === eventRoute ? confirmedMovie : null} onConfirmedConsumed={consumeConfirmedMovie} prefillMovieIds={eventRoute === 'event' ? eventPrefill : null} onPrefillConsumed={consumeEventPrefill} initial={eventRoute === 'event' ? undefined : catalog.sessions.find(s => s.id === eventRoute.slice(6))} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={() => {
         void refreshData(); setNotice('Event saved to the film journal.'); window.location.hash = '/history';

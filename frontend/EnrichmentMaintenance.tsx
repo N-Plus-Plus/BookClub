@@ -8,7 +8,7 @@ import { useBulkMaintenanceLock } from './bulk-maintenance';
 import { loadMaintenanceCheckpoint, saveMaintenanceCheckpoint, type MaintenanceCheckpoint } from './maintenance-checkpoint';
 import { maintainEnrichment, type EnrichmentRun } from './enrichment-maintenance';
 
-export function EnrichmentMaintenance({provider,catalog,writesEnabled,onUpdated}: {provider: EnrichmentProvider;catalog:Catalog;writesEnabled:boolean;onUpdated:()=>Promise<void>}) {
+export function EnrichmentMaintenance({provider,catalog,writesEnabled,onUpdated,onCacheChanged}: {onCacheChanged?:()=>void;provider: EnrichmentProvider;catalog:Catalog;writesEnabled:boolean;onUpdated:()=>Promise<void>}) {
   const label=provider==='tmdb'?'TMDB':'MDBList', key=`bookclub.${provider}-enrichment.v1`, lock=useBulkMaintenanceLock();
   const [busy,setBusy]=useState(false), [run,setRun]=useState<EnrichmentRun | null>(null), [error,setError]=useState('');
   const [checkpoint,setCheckpoint]=useState(()=>loadMaintenanceCheckpoint(key));
@@ -24,7 +24,7 @@ export function EnrichmentMaintenance({provider,catalog,writesEnabled,onUpdated}
     checkpointChanged(saved);
     let canonicalChanged=false;
     try {
-      const result=await maintainEnrichment({provider,checkpoint:saved,batch:ids=>api.enrichProvider(provider,ids),stopped:()=>stop.current,
+      const result=await maintainEnrichment({provider,checkpoint:saved,batch:async ids=>{const batch=await api.enrichProvider(provider,ids);if(batch.results.some(result=>result.status === 'updated'))onCacheChanged?.();return batch;},stopped:()=>stop.current,
         checkpointChanged,progress:value=>{canonicalChanged ||= value.canonicalChanged;setRun(value);}});
       canonicalChanged ||= result.canonicalChanged;
     } catch (e) {setError(e instanceof Error ? e.message : 'Could not refresh enrichment. Saved work is retained.');}
