@@ -2,6 +2,11 @@
 const initialisms: Record<string,string> = {hbo:'HBO',bmw:'BMW',cgi:'CGI',cia:'CIA',fbi:'FBI',nasa:'NASA',ptsd:'PTSD',dvd:'DVD',imax:'IMAX',egot:'EGOT'};
 const phrases: Record<string,string> = {'hbo-max':'HBO Max','mercedes-benz':'Mercedes-Benz','coca-cola':'Coca-Cola','mcdonald-s':'McDonald’s'};
 
+/** Conservative derived identity; provider evidence and other punctuation remain intact. */
+export function themeKeyIdentity(raw: string): string {
+  return raw.trim().toLowerCase().replace(/[-\s]+/g,' ');
+}
+
 export function themeDisplayLabel(raw: string): string {
   const label = raw.trim();
   if (initialisms[label]) return initialisms[label];
@@ -29,8 +34,8 @@ const excluded = new Set([
   'bmw','mercedes-benz','mercedes-benz-the-car','coca-cola','coca-cola-advertisement',
   'coca-cola-machine','apple-computer','mcdonald-s-restaurant','volkswagen','porsche',
   'ferrari','nike','pepsi','rolex',
-].map(label => label.replaceAll('-',' ')));
+].map(themeKeyIdentity));
 
 export function isThemeKeyword(raw: string): boolean {
-  return !excluded.has(raw.trim().toLowerCase().replaceAll('-',' '));
+  return !excluded.has(themeKeyIdentity(raw));
 }

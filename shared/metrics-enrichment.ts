@@ -1,5 +1,5 @@
 import type { Catalog } from './types';
-import { isThemeKeyword, themeDisplayLabel } from './theme-keywords';
+import { isThemeKeyword, themeDisplayLabel, themeKeyIdentity } from './theme-keywords';
 import { contributorMetrics, extremesCabinet, genreColour, matchesMetricsFilter, median, tiedExtreme, uniqueAppearances, withCutoffTies, type Appearance, type MetricsFilter } from './metrics';
 export { tiedExtreme } from './metrics';
 
@@ -30,8 +30,8 @@ function dedupe(facts: Fact[]): Fact[] {
 export function themes(movie: MetricsEnrichmentMovie): Fact[] {
   const result = new Map<string,Fact>();
   // TMDB casing wins; lexical order breaks ties within a provider, independently of row order.
-  for (const item of [...movie.keywords].sort((a,b) => (a.provider === 'tmdb' ? 0 : 1)-(b.provider === 'tmdb' ? 0 : 1) || order(clean(a.name),clean(b.name)))) {
-    const label = clean(item.name), id = label.toLowerCase();
+  for (const item of [...movie.keywords].sort((a,b) => (a.provider === 'tmdb' ? 0 : 1)-(b.provider === 'tmdb' ? 0 : 1) || order(a.provider,b.provider) || order(clean(a.name),clean(b.name)))) {
+    const label = clean(item.name), id = themeKeyIdentity(label);
     if (id && !result.has(id)) result.set(id,{id,label});
   }
   return [...result.values()].sort((a,b) => order(a.id,b.id));
@@ -76,9 +76,12 @@ export function fingerprint(rows: Appearance[],all: Appearance[],read: FactReade
   values.sort((a,b) => (options.distinctive ? (b.ratio ?? 0)-(a.ratio ?? 0) || b.percentage-a.percentage : 0) || b.count-a.count || order(a.label,b.label) || order(a.id,b.id));
   return {covered:selected.covered,distinct:selected.values.length,values:values.slice(0,options.limit ?? 10)};
 }
-/** Theme Fingerprint only: retain raw facts for diversity and all other consumers. */
+// Shared eligibility for thematic breadth and signatures; support is a Fingerprint rule only.
+export function cleanedThemes(movie: MetricsEnrichmentMovie): Fact[] {
+  return themes(movie).filter(f => isThemeKeyword(f.id)).map(f => ({...f,label:themeDisplayLabel(f.label)}));
+}
 export function themeFingerprint(rows: Appearance[],all: Appearance[],data: MetricsEnrichment,options: {distinctive?:boolean;limit?:number} = {}) {
-  const read = (row:Appearance) => facts(row,data,'themes').filter(f => isThemeKeyword(f.id)).map(f => ({...f,label:themeDisplayLabel(f.label)}));
+  const read = (row:Appearance) => cleanedThemes(data.movies[row.movie.id] ?? emptyEnrichmentMovie());
   const supported = new Set(frequency(uniqueAppearances(rows),read).values.filter(f => f.count >= 2).map(f => f.id));
   const report = fingerprint(rows,all,read,{...options,limit:Number.MAX_SAFE_INTEGER});
   return {...report,values:report.values.filter(f => supported.has(f.id)).slice(0,options.limit ?? 10)};
@@ -159,7 +162,7 @@ export function filmEconomics(rows: Appearance[],data: MetricsEnrichment) {
   return {points,unique:unique.length,budget:{median:median(budgets),covered:budgets.length},revenue:{median:median(revenues),covered:revenues.length}};
 }
 export function tasteDiversity(rows: Appearance[],data: MetricsEnrichment,dimension: Dimension) {
-  const report = frequency(rows,row => facts(row,data,dimension));
+  const report = frequency(rows,row => dimension === 'themes' ? cleanedThemes(data.movies[row.movie.id] ?? emptyEnrichmentMovie()) : facts(row,data,dimension));
   const distinct = report.values.filter(v => dimension !== 'cast' || v.count >= 2).length;
   return {distinct,covered:report.covered,total:rows.length,perTen:report.covered ? distinct/report.covered*10 : null};
 }

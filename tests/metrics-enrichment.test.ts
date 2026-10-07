@@ -9,11 +9,11 @@ const rows = selectedAppearances({movies:[film,other,missing],members:[],cycles:
 const data:MetricsEnrichment = {movies:{a:movie({metadata:{original_language:'ja',budget:10,revenue:30},countries:[{code:'JP',name:'Japan'},{code:'US',name:null},{code:'JP',name:'Japan'}],languages:[{code:'ja',name:'日本語',english_name:'Japanese'}],companies:[{external_id:'1',name:'Studio'},{external_id:'1',name:'Alias'},{external_id:'2',name:'Studio'}],keywords:[{provider:'tmdb',name:'Time Travel'},{provider:'mdblist',name:' time travel '},{provider:'tmdb',name:'serial killer'},{provider:'mdblist',name:'murder'}],credits:[{kind:'cast',role:'cast',person_id:'1',name:'Person'},{kind:'cast',role:'cast',person_id:'1',name:'Alias'},{kind:'cast',role:'cast',person_id:'2',name:'Person'},{kind:'crew',role:'writer',person_id:'3',name:'Writer'},{kind:'crew',role:'screenplay',person_id:'3',name:'Writer'},{kind:'crew',role:'composer',person_id:'4',name:'Composer'}]}),b:movie({metadata:{original_language:'en',budget:100,revenue:300},keywords:[{provider:'tmdb',name:'one-off'}]})}};
 describe('enriched Metrics themes',() => {
   it.each([['tmdb','Theme'],['mdblist','Theme']])('uses %s keywords', (provider,name) => expect(themes(movie({keywords:[{provider,name}]}))).toEqual([{id:'theme',label:'Theme'}]));
-  it('deduplicates only exact case/trim matches with deterministic TMDB casing',() => {
+  it('deduplicates case, trim and hyphen/whitespace equivalents with deterministic TMDB casing',() => {
     expect(themes(data.movies.a).map(f => f.label)).toEqual(['murder','serial killer','Time Travel']);
     expect(themes({...data.movies.a,keywords:[...data.movies.a.keywords].reverse()})).toEqual(themes(data.movies.a));
     expect(themes(movie({keywords:[{provider:'mdblist',name:'Murder'},{provider:'mdblist',name:' murder '}]}))).toEqual([{id:'murder',label:'Murder'}]);
-    expect(themes(movie({keywords:[{provider:'tmdb',name:'time  travel'},{provider:'tmdb',name:'time travel'}]}))).toHaveLength(2);
+    expect(themes(movie({keywords:[{provider:'tmdb',name:'time  travel'},{provider:'tmdb',name:'time travel'}]}))).toHaveLength(1);
   });
   it('counts once per theme per appearance, retaining repeats and ALL denominator',() => {
     const read = (r:Appearance) => facts(r,data,'themes');

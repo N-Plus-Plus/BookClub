@@ -658,17 +658,21 @@ it('canonical provider title is shared by Home, History, all Classics tabs, Seen
 });
 
 const historyFixture = (): Catalog => ({...catalog,movies:[{...movies[0],au_classification:'MA15+'},movies[1]],cycles:Array.from({length:12},(_,i)=>({id:`c${12-i}`,ordinal:12-i,title:null,rough_date:'2026-01-01',import_source:null,import_key:null,created_at:'',updated_at:''})),sessions:Array.from({length:12},(_,i)=>[1,2].map(slot=>({id:`e${12-i}-${slot}`,cycle_id:`c${12-i}`,cycle_slot:slot,event_date:'2026-01-01',date_precision:'exact' as const,host_member_id:'member-2',kind:'hosted' as const,legacy_cycle_label:null,movies:[{...movies[0],au_classification:'MA15+'},movies[1]]}))).flat()});
-it('History reverses cycles, events, films, jump and pagination together and keeps sort only within History detail context',async()=>{
+it('History preserves stored film order while reversing cycles, events, jump and pagination and keeps sort only within History detail context',async()=>{
  await act(async()=>root.unmount());root=createRoot(container);vi.mocked(api.catalog).mockResolvedValue(historyFixture());window.location.hash='/history';await act(async()=>root.render(createElement(App)));await flush();
  const cycles=()=>[...container.querySelectorAll('section[id^="cycle-"]')].map(e=>e.id);
  expect(cycles()).toEqual(['cycle-c12','cycle-c11','cycle-c10','cycle-c9','cycle-c8']);
+ const filmOrder=(cycle:string)=>[...container.querySelectorAll(`#${cycle} .history-event`)].map(event=>[...event.querySelectorAll('.film-list .movie-link')].map(link=>[link.querySelector('.position')?.textContent,link.querySelector('.movie-title')?.textContent]));
+ const storedFilms=[[['#1','Film 0'],['#2','Film 1']],[['#1','Film 0'],['#2','Film 1']]];expect(filmOrder('cycle-c12')).toEqual(storedFilms);
+ expect(container.querySelector('#cycle-c12 .session-card [href^="#/event/"]')?.getAttribute('href')).toBe('#/event/e12-1');
  const metas=container.querySelectorAll('.history-event .film-list .movie-copy > .meta:first-of-type');expect(metas[0].textContent).toBe('1998 · 100 min · MA15+');expect(metas[1].textContent).toBe('1998 · 100 min');
  await click(button('Resort'));expect(cycles()).toEqual(['cycle-c1','cycle-c2','cycle-c3','cycle-c4','cycle-c5']);
- expect(container.querySelectorAll('#cycle-c1 .film-list .movie-title')[0].textContent).toBe('Film 1');
+ expect(filmOrder('cycle-c1')).toEqual(storedFilms);
+ expect(container.querySelectorAll('#cycle-c1 .film-list .movie-title')[0].textContent).toBe('Film 0');
  expect(container.querySelectorAll('#cycle-c1 .session-card [href^="#/event/"]')[0].getAttribute('href')).toBe('#/event/e1-2');
  const jump=container.querySelector('.archive-tools select') as unknown as HTMLSelectElement;
  expect([...jump.options].slice(1).map(o=>o.value)).toEqual(Array.from({length:12},(_,i)=>`c${i+1}`));
- await act(async()=>{jump.value='c11';jump.dispatchEvent(new Event('change',{bubbles:true}));});expect(cycles()).toEqual(['cycle-c11','cycle-c12']);
+ await act(async()=>{jump.value='c11';jump.dispatchEvent(new Event('change',{bubbles:true}));});expect(cycles()).toEqual(['cycle-c11','cycle-c12']);expect(filmOrder('cycle-c12')).toEqual(storedFilms);
  await click(button('Previous'));expect(cycles()).toEqual(['cycle-c6','cycle-c7','cycle-c8','cycle-c9','cycle-c10']);
  const host=container.querySelectorAll('.archive-tools select')[1] as unknown as HTMLSelectElement;await act(async()=>{host.value='member-2';host.dispatchEvent(new Event('change',{bubbles:true}));});expect(cycles()[0]).toBe('cycle-c1');
  await click(container.querySelector<HTMLAnchorElement>('.film-list .movie-link')!);await navigate('history');expect(cycles()[0]).toBe('cycle-c1');
