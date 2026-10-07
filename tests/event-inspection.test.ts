@@ -357,7 +357,7 @@ describe('Admin screen and Account navigation',() => {
     expect(container.querySelector('.account-menu-dropdown a[href="#/admin"]')).not.toBeNull();
     for(const nav of container.querySelectorAll('nav')) expect(nav.textContent).not.toContain('Admin');
     await navigate('classics');
-    for(const tab of ['Ranked0','Unranked0','Seen0']) {
+    for(const tab of ['Ranked','Unranked','Seen']) {
       await click(button(tab)); expect(button('Populate Missing Scores')).toBeUndefined();
       expect(container.querySelector('.classics-maintenance')).toBeNull();
     }

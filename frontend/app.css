@@ -161,7 +161,10 @@ progress { width: 100%; height: 10px; accent-color: var(--concrete); }
 .data-sources summary { font-size: calc(var(--text-metadata) * .5); }
 .data-sources summary svg { width: 9px; height: 9px; }
 .data-sources h2 { display: flex; align-items: center; gap: var(--space-8); font-size: var(--text-body); }
-.data-sources a { display: inline-flex; gap: var(--space-8); align-items: center; min-height: var(--target-min); width: fit-content; }
+.data-sources details[open] > summary { border-bottom: 0; margin-bottom: var(--space-4); }
+.data-sources-content { margin: 0; line-height: 1.4; }
+.data-sources a { display: inline; }
+.data-sources .tmdb-logo { display: inline-block; vertical-align: middle; }
 .tmdb-logo { width: 100px; height: auto; }
 .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface-base); border-top: 1px solid var(--asphalt); display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); padding: var(--space-8) var(--space-6) calc(var(--space-8) + env(safe-area-inset-bottom)); z-index: 100; }
 .bottom-nav a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-5); padding: var(--space-7) 2px; min-height: 50px; color: var(--text-muted); font-size: .62rem; text-decoration: none; border-radius: var(--radius-container); }
@@ -325,6 +328,8 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
   .app-layout.navigation-collapsed { --drawer-width: 72px; }
   .desktop-navigation { display: flex; flex-direction: column; position: fixed; inset: 0 auto 0 0; width: var(--drawer-width); padding: var(--space-12); background: var(--surface-base); border-right: 1px solid var(--asphalt-dark); z-index: 100; }
   .navigation-toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-24); }
+  .desktop-navigation .destination-icon { width: 33px; height: 33px; }
+  .navigation-collapsed .desktop-navigation nav a { justify-content: center; padding-inline: 0; }
   .desktop-navigation nav { display: grid; gap: var(--space-8); }
   .desktop-navigation nav a { position: relative; display: flex; align-items: center; gap: var(--space-12); min-height: 48px; padding: var(--space-12); text-decoration: none; color: var(--text-secondary); border-radius: var(--radius-container); }
   .desktop-navigation a[aria-current="page"] { background: var(--surface-active); color: var(--paper); }

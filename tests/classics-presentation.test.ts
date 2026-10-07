@@ -28,12 +28,16 @@ it('paginates each Classics view, retains global ranks, resets tabs and clamps s
  expect(container.querySelector('.rank-number')?.textContent).toBe('#1');expect(container.querySelectorAll('.candidate-director')).toHaveLength(1);
  expect(container.querySelector('.ranking-row .score,.ranking-row .badge,.ranking-row details')).toBeNull();expect(container.querySelector('.ranking-row')?.textContent).toContain('IMDb 80');
  expect(container.querySelectorAll('.classics-filters img,.classics-filters svg')).toHaveLength(0);
+ expect([...container.querySelectorAll('.classics-filters button')].map(b=>b.textContent)).toEqual(['Ranked','Unranked11','Seen']);
+ expect(container.querySelectorAll('.classics-count')).toHaveLength(1);
  await click('Next');expect(container.querySelector('.rank-number')?.textContent).toBe('#21');
  await click('Unranked');expect(container.querySelector('.movie-title')?.textContent).toBe('Film 100');expect(container.querySelectorAll('.ranking-row')).toHaveLength(10);expect(container.textContent).toContain('Page 1 of 2');expect(container.textContent).not.toContain('Missing:');
  await click('Next');expect(container.querySelectorAll('.ranking-row')).toHaveLength(1);
  await click('Seen');expect(container.querySelectorAll('.ranking-row')).toHaveLength(10);expect(container.textContent).toContain('Page 1 of 2');
  await click('Ranked');await click('Next');await click('Next');expect(container.querySelector('.rank-number')?.textContent).toBe('#41');
  await render(movies.slice(0,5));expect(container.querySelectorAll('.ranking-row')).toHaveLength(5);expect(container.textContent).toContain('Page 1 of 1');expect(container.querySelector('.rank-number')?.textContent).toBe('#1');
+ expect(container.querySelectorAll('.classics-count')).toHaveLength(0);
+ expect(container.querySelector('[aria-label="Unranked: 0 films"]')?.textContent).toBe('Unranked');
 });
 it.each([true,false])('infers all active members from History, regardless of Classics membership (%s), without writes',async(classic)=>{
  const movie:MovieDetail={...film(1),classic,appearances:[{id:'event',event_date:'2026-01-01',date_precision:'exact',kind:'hosted',host_member_id:'m3',position:1}]};
@@ -101,13 +105,13 @@ it('uses exact ordered compact Classics scores, omits missing ratings and explan
  expect(container.textContent).not.toContain('Watch Order uses six ratings');
  expect(container.querySelector('.developer-tools')).toBeNull();
 });
-it.each([0,99,100])('uses small distinct count pills with full accessible counts (%s)',async(count)=>{
+it.each([0,99,100])('shows only a nonzero Unranked badge with full accessible counts (%s)',async(count)=>{
  const movies=['ranked','missing','seen'].flatMap((group,g)=>Array.from({length:count},(_,i)=>film(g*1000+i,group)));
  await act(async()=>root.render(createElement(ClassicsScreen,{movies,viewer:null,writesEnabled:false,onMovie:vi.fn()})));
  const filters=[...container.querySelectorAll('.classics-filters button')];
  expect(filters.map(b=>b.querySelector('span')?.textContent)).toEqual(['Ranked','Unranked','Seen']);
- expect(filters.map(b=>b.querySelector('.classics-count')?.textContent)).toEqual(Array(3).fill(count>99?'99+':String(count)));
- expect(filters.map(b=>b.querySelector('.classics-count')?.className)).toEqual(['classics-count classics-count-ranked','classics-count classics-count-needs-data','classics-count classics-count-seen']);
+ expect(filters.map(b=>b.querySelector('.classics-count')?.textContent)).toEqual([undefined,count>0?(count>99?'99+':String(count)):undefined,undefined]);
+ expect(filters.map(b=>b.querySelector('.classics-count')?.className)).toEqual([undefined,count>0?'classics-count classics-count-needs-data':undefined,undefined]);
  for(const b of filters) expect(b.getAttribute('type')).toBe('button');
  for(const b of filters) expect(b.getAttribute('aria-label')).toContain(`${count} films`);
  expect(filters.map(b=>b.getAttribute('aria-pressed'))).toEqual(['true','false','false']);

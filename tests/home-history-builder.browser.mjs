@@ -19,9 +19,9 @@ try {
  const movies=Array.from({length:9},(_,i)=>({id:'m'+i,title:i===0?'A very long film title that must wrap while lineup controls remain usable':'Film '+i,year:1994,runtime:105,au_classification:i===0?'MA15+':undefined,director:'A Director',overview:'Synthetic plot.',original_title:null,release_date:null,genres:[],assets:[],external_ids:[],scores:[{provider:'imdb',metric:'rating',raw_value:8,raw_scale:10,normalized_value:80,vote_count:30,fetched_at:'2026'}],seen:members.map(m=>({member_id:m.id,seen:0,updated_at:''})),classic:true,ranking:null,appearances:[]}));movies.forEach(m=>m.ranking=rankMovie(m.scores,m.seen,members));
  const cycles=Array.from({length:12},(_,i)=>({id:'c'+(12-i),ordinal:12-i,rough_date:'2026-01-01',title:null}));
  const sessions=cycles.flatMap(c=>[1,2].map(slot=>({id:c.id+'-'+slot,event_date:'2026-01-01',host_member_id:'owner',cycle_id:c.id,cycle_slot:slot,kind:'hosted',date_precision:'cycle_rough',legacy_cycle_label:null,movies:movies.slice(0,2)})));
- let sets=[1,2,3,9].map(n=>({id:'s'+n,owner_member_id:'owner',title:n+' film set',notes:'Private notes',movie_ids:movies.slice(0,n).map(m=>m.id),revision:1,created_at:'2026-01-01',updated_at:''}));
- api.health=async()=>({status:'ok',environment:'local',authenticationRequired:false,demo:false});api.me=async()=>({viewer:{...members[0],role:'member'}});api.catalog=async()=>({movies,members,cycles,sessions});api.rotation=async()=>({id:1,nominal_slot:2,cycle_id:'c12',version:0,updated_at:''});api.builders=async()=>sets;
- api.saveBuilder=async(body,id)=>{await new Promise(r=>setTimeout(r,30));const saved={...body,id:id||'new',owner_member_id:'owner',revision:(body.revision||0)+1,created_at:'2026-01-01',updated_at:''};sets=[...sets.filter(s=>s.id!==saved.id),saved];return saved;};
+ let sets=[1,2,3,9].map(n=>({id:'s'+n,owner_member_id:'owner',title:n+' film set',notes:'Private notes',movie_ids:movies.slice(0,n).map(m=>m.id),revision:1,created_at:'2026-01-'+String(n).padStart(2,'0'),updated_at:''}));
+ api.health=async()=>({status:'ok',environment:'local',authenticationRequired:false,demo:false});api.me=async()=>({viewer:{...members[0],role:'member'}});api.catalog=async()=>({movies,members,cycles,sessions});api.rotation=async()=>({id:1,nominal_slot:2,cycle_id:'c12',version:0,updated_at:''});api.builders=async()=>[...sets].reverse();
+ api.saveBuilder=async(body,id)=>{await new Promise(r=>setTimeout(r,30));const saved={...body,id:id||'new',owner_member_id:'owner',revision:(body.revision||0)+1,created_at:sets.find(s=>s.id===id)?.created_at || '2026-02-01',updated_at:'2026-03-01'};sets=[...sets.filter(s=>s.id!==saved.id),saved];return saved;};
  api.search=async()=>({local:movies.map(m=>({id:m.id,title:m.title,year:m.year,tmdbId:null,poster:null})),external:[],lookup:{available:true,message:null}});api.detail=async id=>movies.find(m=>m.id===id);
  ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
  `}));
@@ -30,6 +30,12 @@ try {
  const shot=async(width,name)=>{await overflow();await page.screenshot({path:'.verification/home-history-builder/'+width+'-'+name+'.png',fullPage:true});};
  for(const width of [320,390,720,1440]) {
   await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/home');await page.reload();await page.getByRole('heading',{name:'Classics Snapshot',exact:true}).waitFor({timeout:10000}).catch(async e=>{console.log(errors,await page.locator('body').innerText());throw e;});
+  if(width>=720) {
+   const checkIcons=async()=>assert(await page.locator('.desktop-navigation .destination-icon').evaluateAll(nodes=>nodes.every(e=>{const rect=e.getBoundingClientRect();return rect.width===33 && rect.height===33;})));
+   await checkIcons();await page.getByRole('button',{name:'Collapse navigation',exact:true}).click();await checkIcons();
+   assert(await page.locator('.desktop-navigation nav a').evaluateAll(nodes=>nodes.every(e=>{const link=e.getBoundingClientRect(),icon=e.querySelector('img').getBoundingClientRect();return icon.left>=link.left && icon.right<=link.right;})));
+   await page.getByRole('button',{name:'Expand navigation',exact:true}).click();
+  }
   assert.deepEqual(await page.locator('.home-dashboard .section-title h2').allTextContents(),['Last turn','Next Classics','Classics Snapshot','Quick Facts']);
   assert.equal(await page.locator('.stat-link svg').count(),0);assert.deepEqual(await page.locator('.home-quick-facts .stat strong').allTextContents(),['24','48','8.00']);
   const borders=await page.locator('.home-dashboard .turn-card,.home-session-card,.home-rank-card').evaluateAll(nodes=>nodes.map(e=>getComputedStyle(e).borderColor));assert(borders.every(c=>c===borders[0]));await shot(width,'home');
@@ -40,6 +46,9 @@ try {
   assert(await page.locator('.builder-poster-strip').evaluateAll(strips=>strips.every(strip=>{const button=strip.nextElementSibling;return button?.textContent.includes('Open set') && strip.getBoundingClientRect().bottom<=button.getBoundingClientRect().top && [...strip.children].every(p=>Math.abs(p.querySelector(".poster").getBoundingClientRect().width-126)<1 && Math.abs(p.querySelector(".poster").getBoundingClientRect().height-189)<1);})));
   assert(await page.locator('.builder-poster-title').evaluateAll(nodes=>nodes.every(e=>{const css=getComputedStyle(e);return css.whiteSpace==='nowrap' && css.textOverflow==='ellipsis' && css.textAlign==='center' && css.fontWeight==='500';})));
   const attribution=await page.locator('.data-sources').evaluate(e=>({border:getComputedStyle(e).borderTopWidth,font:getComputedStyle(e.querySelector('summary')).fontSize,icon:e.querySelector('svg').getBoundingClientRect().width}));assert.deepEqual(attribution,{border:'0px',font:'6.24px',icon:9});
+  assert.deepEqual(await page.locator('.history-grid h2').allTextContents(),['1 film set','2 film set','3 film set','9 film set']);
+  await page.getByRole('button',{name:'Open set'}).first().click();await page.getByLabel('Private title (optional)').fill('Oldest edited');await page.getByRole('button',{name:'Save set',exact:true}).click();await page.getByRole('heading',{name:'Oldest edited',exact:true}).waitFor();
+  assert.deepEqual(await page.locator('.history-grid h2').allTextContents(),['Oldest edited','2 film set','3 film set','9 film set']);
   const buttonRect=await page.getByRole('button',{name:'New set'}).boundingBox();const headingRect=await page.locator('.page-heading').boundingBox();assert(buttonRect.width<headingRect.width);await shot(width,'builder-list');
   const posterGeometry=await page.locator('.builder-poster-strip').first().evaluate(e=>{const parent=e.getBoundingClientRect(),poster=e.firstElementChild.getBoundingClientRect();return Math.abs((parent.left+parent.right)/2-(poster.left+poster.right)/2);});assert(posterGeometry<1);
   await page.getByRole('button',{name:'New set'}).click();await page.getByLabel('Private title (optional)').waitFor();assert.equal(await page.getByText('Add a film manually',{exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'New set'}).count(),0);
@@ -49,7 +58,7 @@ try {
   assert.deepEqual(await page.locator('.builder-lineup .position').allTextContents(),['#1','#2']);assert.equal(await page.getByRole('button',{name:'Move Film 1 later',exact:true}).isDisabled(),true);await shot(width,'builder-editor');
   const rows=await page.locator('.builder-lineup li').evaluateAll(nodes=>nodes.map(li=>{const info=li.firstElementChild.getBoundingClientRect(),actions=li.lastElementChild.getBoundingClientRect();return info.right<=actions.left;}));assert(rows.every(Boolean));
   await page.getByRole('button',{name:'Move Film 1 earlier',exact:true}).click();assert.equal(await page.locator('.builder-lineup .movie-title').first().textContent(),'Film 1');await page.getByRole('button',{name:'Remove Film 1',exact:true}).click();
-  await page.getByRole('button',{name:'Save set',exact:true}).click();await page.getByRole('heading',{name:'Autosaved draft',exact:true}).waitFor();await shot(width,'builder-saved');results.push({width,passed:true});
+  await page.getByRole('button',{name:'Save set',exact:true}).click();await page.getByRole('heading',{name:'Autosaved draft',exact:true}).waitFor();assert.deepEqual(await page.locator('.history-grid h2').allTextContents(),['Oldest edited','2 film set','3 film set','9 film set','Autosaved draft']);await shot(width,'builder-saved');results.push({width,passed:true});
  }
  assert.deepEqual(errors,[]);await fs.writeFile('.verification/home-history-builder/results.json',JSON.stringify({results,errors},null,2));console.log(JSON.stringify(results));
 } finally {await browser.close();}
