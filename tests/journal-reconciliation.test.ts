@@ -5,6 +5,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import worker from '../worker/src/index';
 import { Repository } from '../worker/src/repository';
+import { catalogIndex } from '../shared/catalog-index';
+import { missingAnswers } from '../shared/ranking';
 import { ProductRepository } from '../worker/src/product-repository';
 import { disposableD1 } from './d1';
 import { api } from '../frontend/api';
@@ -70,16 +72,16 @@ it('older in-flight catalogue and rotation cannot undo a committed event',async(
   await act(async()=>{finishCatalog(old);finishRotation(oldTurn);await refresh;});expect(data.catalog!.sessions.some(session=>session.id===result.session!.id)).toBe(true);expect(data.rotation).toEqual(result.rotation);
   expect(api.catalog).toHaveBeenCalledTimes(2);expect(api.rotation).toHaveBeenCalledTimes(2);
 });
-it('in-flight Seen intention overlays returned journal movies and keeps all History references canonical',async()=>{
+it('History wins over an in-flight Seen intention and keeps all History references canonical',async()=>{
   let finish!:(movie:MovieDetail)=>void;vi.mocked(api.seen).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
   const result=await mutation('/sessions','POST',{event_date:'2030-01-01',movie_ids:['bicycle']});
   await act(async()=>data.seenAnswers.answer('bicycle','member-2',false,'Bicycle'));await apply(result);counts();
-  const movie=data.catalog!.movies.find(movie=>movie.id==='bicycle')!;expect(movie.seen.find(answer=>answer.member_id==='member-2')?.seen).toBe(0);expect(movie.ranking?.unseenCount).toBe(1);
+  const movie=data.catalog!.movies.find(movie=>movie.id==='bicycle')!;expect(movie.seen.find(answer=>answer.member_id==='member-2')?.seen).toBe(1);expect(movie.ranking).toMatchObject({seenCount:4,unseenCount:0,eligible:false});
   for (const session of data.catalog!.sessions) for (const film of session.movies.filter(film=>film.id===movie.id)) expect(film).toBe(movie);
   await act(async()=>finish({...movie,appearances:[]}));expect(data.seenAnswers.pending).toBe(0);
 });
 
-it('a newer Seen save that finishes before an older mutation response still wins, and its lease does not affect later mutations',async()=>{
+it('History wins over a Seen save completed during a mutation lease, and the lease releases for later mutations',async()=>{
   const committed=await mutation('/sessions','POST',{event_date:'2030-01-01',movie_ids:['bicycle']});
   let finishJournal!:(result:JournalMutationResult)=>void,finishSeen!:(movie:MovieDetail)=>void;
   const pending=data.readJournalMutation(()=>new Promise(resolve=>{finishJournal=resolve;}));
@@ -88,7 +90,51 @@ it('a newer Seen save that finishes before an older mutation response still wins
   const movie=data.catalog!.movies.find(movie=>movie.id==='bicycle')!;
   await act(async()=>finishSeen({...movie,appearances:[]}));expect(data.seenAnswers.pending).toBe(0);
   finishJournal(committed);await apply(await pending);counts();
-  expect(data.catalog!.movies.find(movie=>movie.id==='bicycle')?.seen.find(answer=>answer.member_id==='member-2')?.seen).toBe(0);
+  expect(data.catalog!.movies.find(movie=>movie.id==='bicycle')?.seen.find(answer=>answer.member_id==='member-2')?.seen).toBe(1);
   const later=await data.readJournalMutation(()=>mutation('/sessions','POST',{event_date:'2031-01-01',movie_ids:['bicycle']}));await apply(later);counts();
   expect(data.catalog!.movies.find(movie=>movie.id==='bicycle')?.seen.find(answer=>answer.member_id==='member-2')?.seen).toBe(1);
+});
+
+it.each(['event','builder','classics','restore'] as const)('%s immediately moves incomplete Classics to Seen and removes all active-member queues',async path=>{
+ local.sqlite.exec("UPDATE sessions SET deleted_at='2030-01-01';DELETE FROM seen_states WHERE movie_id IN ('bicycle','moon');INSERT OR IGNORE INTO classics(movie_id,source) VALUES('moon','test')");
+ // Establish a client snapshot with incomplete Seen answers before committing.
+ const snapshot=await repo.catalog();vi.mocked(api.catalog).mockResolvedValueOnce(snapshot);
+ await act(async()=>data.refreshData());
+ const before=data.catalog!.movies.find(movie=>movie.id==='bicycle')!;
+ expect(before.ranking).toMatchObject({eligible:true,unknownCount:4});
+ for(const member of data.catalog!.members.filter(member=>member.active===1)) expect(missingAnswers(data.catalog!.movies,data.catalog!.members,member.id,catalogIndex(data.catalog!).historyMovieIds).some(item=>item.movie.id==='bicycle')).toBe(true);
+ let result:JournalMutationResult;
+ if(path==='builder') {
+   const builder=await product.saveBuilder('member-2',{title:'Plan',movie_ids:['bicycle','moon']});
+   result=await data.readJournalMutation(()=>mutation(`/builders/${builder.id}/publish`,'POST',{revision:builder.revision,event_date:'2030-01-01',cycle_id:'demo-cycle-a',cycle_slot:2,complete_turn:false}));
+ } else if(path==='restore') {
+   const created=await mutation('/sessions','POST',{event_date:'2030-01-01',movie_ids:['bicycle','moon']});
+   await mutation(`/sessions/${created.session!.id}`,'DELETE');
+   local.sqlite.exec("DELETE FROM seen_states WHERE movie_id IN ('bicycle','moon')");
+   result=await data.readJournalMutation(()=>mutation(`/sessions/${created.session!.id}/restore`,'POST'));
+ } else {
+   if(path==='classics')local.sqlite.exec('UPDATE club_rotation SET nominal_slot=5,version=version+1');
+   result=await data.readJournalMutation(()=>mutation('/sessions','POST',{event_date:'2030-01-01',movie_ids:['bicycle','moon']}));
+ }
+ await apply(result);
+ for(const id of ['bicycle','moon']) {
+   const movie=data.catalog!.movies.find(movie=>movie.id===id)!;
+   expect(movie.ranking).toMatchObject({seenCount:4,unknownCount:0,eligible:false});
+   expect(data.catalog!.sessions.find(session=>session.id===result.session!.id)!.movies.find(film=>film.id===id)).toBe(movie);
+   for(const member of data.catalog!.members.filter(member=>member.active===1)) expect(missingAnswers(data.catalog!.movies,data.catalog!.members,member.id,catalogIndex(data.catalog!).historyMovieIds).some(item=>item.movie.id===id)).toBe(false);
+ }
+ // The only extra reads were the explicit pre-commit snapshot above.
+ expect(api.catalog).toHaveBeenCalledTimes(2);expect(api.rotation).toHaveBeenCalledTimes(2);
+});
+it('a stale No response completing after History publication cannot resurrect eligibility, while unrelated queued answers survive',async()=>{
+ let finish!:(movie:MovieDetail)=>void;
+ vi.mocked(api.seen).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;})).mockImplementationOnce(async()=>({...data.catalog!.movies.find(movie=>movie.id==='tokyo')!,appearances:[]}));
+ await act(async()=>data.seenAnswers.answer('bicycle','member-2',false,'Bicycle'));
+ const stale={...data.catalog!.movies.find(movie=>movie.id==='bicycle')!,appearances:[]};
+ await act(async()=>data.seenAnswers.answer('tokyo','member-2',false,'Tokyo'));
+ const result=await data.readJournalMutation(()=>mutation('/sessions','POST',{event_date:'2030-01-01',movie_ids:['bicycle']}));
+ await apply(result);
+ await act(async()=>finish(stale));
+ expect(data.catalog!.movies.find(movie=>movie.id==='bicycle')?.ranking).toMatchObject({seenCount:4,unknownCount:0,eligible:false});
+ expect(api.seen).toHaveBeenCalledTimes(2);counts();
 });

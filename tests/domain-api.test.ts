@@ -29,6 +29,7 @@ describe('cycles and membership',()=>{
     const catalog=await data<Catalog>(await call('/catalog'));expect(catalog.cycles).toHaveLength(1);expect(catalog.sessions.some(s=>s.kind==='classics')).toBe(true);
     const classics=catalog.movies.filter(m=>m.classic);expect(classics.some(m=>m.ranking?.rankable&&m.ranking.eligible)).toBe(true);expect(classics.some(m=>!m.ranking?.rankable)).toBe(true);expect(classics.some(m=>!m.ranking?.eligible)).toBe(true);
     expect(classics.some(m=>m.ranking?.unknownCount)).toBe(true);expect(classics.some(m=>m.scores.some(s=>s.provider==='letterboxd'))).toBe(true);
+    local.sqlite.exec("UPDATE sessions SET deleted_at='2030-01-01' WHERE id IN (SELECT session_id FROM session_movies WHERE movie_id='bicycle')");
     await new Repository(local.db).setSeen('bicycle','member-1',null);await new Repository(local.db).setClassic('bicycle',false);
     local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));expect((await new Repository(local.db).catalog()).movies.find(m=>m.id==='bicycle')!.classic).toBe(false);
     expect(local.sqlite.prepare("SELECT * FROM seen_states WHERE movie_id='bicycle' AND member_id='member-1'").get()).toBeUndefined();

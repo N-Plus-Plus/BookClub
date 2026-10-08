@@ -81,8 +81,10 @@ export function useBookClubData(localLogin:boolean) {
     const read = seenRef.current.beginCatalogRead();
     try {
       const result = await operation(), current = catalogRef.current;
-      return result.session && current ? {...result,session:{...result.session,
-        movies:result.session.movies.map(movie => read.reconcileMovie(movie,current))}} : result;
+      if (!result.session || !current) return result;
+      const committed = {...current,sessions:[...current.sessions.filter(session => session.id !== result.session!.id),result.session]};
+      return {...result,session:{...result.session,
+        movies:result.session.movies.map(movie => read.reconcileMovie(movie,committed))}};
     } finally { read.release(); }
   };
   const applyJournalMutation = (result:JournalMutationResult) => {
@@ -91,7 +93,8 @@ export function useBookClubData(localLogin:boolean) {
     if ('rotation' in result) updateRotation(result.rotation ?? null);
     setCatalog(current => {
       if (!current) return current;
-      let next = current;
+      // Establish the committed History appearance before overlaying Seen intentions.
+      let next = result.session ? {...current,sessions:[...current.sessions.filter(session => session.id !== result.session!.id),result.session]} : current;
       for (const movie of new Map(result.session?.movies.map(movie => [movie.id,movie])).values()) next = patchCatalogMovie(next,seenRef.current.reconcile(movie,next));
       const byId = new Map(next.movies.map(movie => [movie.id,movie]));
       let sessions = next.sessions.filter(session => session.id !== result.removedSessionId);

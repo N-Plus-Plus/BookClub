@@ -93,10 +93,10 @@ it('Home shows only the top two eligible rankable Classics with summary scores',
   await act(async()=>harness.root.unmount());harness.root=createRoot(harness.container);
   vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:pool,sessions:[{id:'last',event_date:'2026-01-01',date_precision:'exact',host_member_id:'member-2',kind:'hosted',cycle_id:null,cycle_slot:2,legacy_cycle_label:null,movies:pool.slice(0,2)}]});
   window.location.hash='/home';await act(async()=>harness.root.render(createElement(App)));await flush();
-  expect([...harness.container.querySelectorAll('.section-title h2')].map(e=>e.textContent)).toEqual(['Last turn','Next Classics','Classics Snapshot','Quick Facts']);
+  expect([...harness.container.querySelectorAll('.section-title h2')].map(e=>e.textContent)).toEqual(['Last turn','Next Classics','Quick Facts','Club Timeline','Classics Snapshot']);
   const home=harness.container.querySelector('.home-dashboard')!;
-  expect([...home.children].map(e=>e.className)).toEqual(['turn-card-area turn-card-area-personal','dashboard-grid','stack','stack home-quick-facts']);
-  const snapshot=home.children[2];
+  expect([...home.children].map(e=>e.className)).toEqual(['turn-card-area turn-card-area-personal','dashboard-grid','stack home-quick-facts','stack','stack']);
+  const snapshot=home.children[4];
   expect(snapshot.querySelector('.stat-link svg')).toBeNull();
   expect([...home.querySelectorAll('.home-quick-facts .stat strong')].map(e=>e.textContent)).toEqual(['1','2','8.00']);
   expect(snapshot.querySelector('.section-title a')?.getAttribute('href')).toBe('#/classics');
@@ -145,4 +145,12 @@ it('History preserves stored film order while reversing cycles, events, jump and
  await navigate('home');await navigate('history');expect(cycles()[0]).toBe('cycle-c12');
  await click(button('Re-sort'));await click(button('Re-sort'));expect(cycles()[0]).toBe('cycle-c12');
  await click(button('Re-sort'));await act(async()=>harness.root.unmount());harness.root=createRoot(harness.container);await act(async()=>harness.root.render(createElement(App)));await flush();expect(cycles()[0]).toBe('cycle-c12');
+});
+
+it('Home renders Quick Facts, Club Timeline and Classics Snapshot in order',async () => {
+  await navigate('home');
+  const sections = [...harness.container.querySelectorAll('.home-dashboard section')].filter(section => section.querySelector('.stats-grid'));
+  expect(sections.map(section => section.querySelector('h2')?.textContent)).toEqual(['Quick Facts','Club Timeline','Classics Snapshot']);
+  expect([...sections[1].querySelectorAll('.stat span')].map(node => node.textContent)).toEqual(['Days Active','Cycles Completed','Watch Time']);
+  expect(sections.every(section => section.querySelectorAll('.stat').length === 3)).toBe(true);
 });

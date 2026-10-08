@@ -5,8 +5,10 @@ export function NativeDialog({heading,id,onClose,busy=false,className='',closeLa
   heading:string;id:string;onClose:()=>void;busy?:boolean;className?:string;closeLabel?:string;autoFocus?:boolean;children:ReactNode;
 }) {
   const dialog=useRef<HTMLDialogElement>(null);
+  // Capture the opener before React's autoFocus moves focus during commit.
+  const previousFocus=useRef(typeof document === 'undefined' ? null : document.activeElement);
   useEffect(()=>{
-    const element=dialog.current!, previous=document.activeElement;
+    const element=dialog.current!, previous=previousFocus.current;
     element.showModal();
     return ()=>{element.close();if (previous instanceof HTMLElement && previous.isConnected) previous.focus();};
   },[]);

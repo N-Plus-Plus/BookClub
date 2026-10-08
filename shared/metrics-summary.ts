@@ -42,3 +42,25 @@ export function selectedAppearances(catalog: Catalog, filter: MetricsFilter = {k
     return {session,movie,position: i+1,imdb: imdbByMovie.get(movie.id)!};
   }));
 }
+
+/** Inclusive calendar-day count using local date parts on a DST-independent calendar axis. */
+export function daysActive(today: Date): number {
+  return Math.round((Date.UTC(today.getFullYear(),today.getMonth(),today.getDate()) - Date.UTC(2020,6,5))/86_400_000)+1;
+}
+export const formatTimelineNumber = (value: number) => value.toLocaleString('en-AU',{maximumFractionDigits:0});
+export const formatWatchTime = (minutes: number) => `${formatTimelineNumber(Math.floor(minutes/60))} hr ${minutes%60} min`;
+
+/** A complete History cycle contains the four human turns and the final Classics turn. */
+export function clubTimeline(catalog: Catalog,today: Date) {
+  const turns = new Map<string,Set<number>>();
+  for (const session of catalog.sessions) {
+    if (session.deleted_at || !session.cycle_id || session.cycle_slot === null) continue;
+    const slot = session.cycle_slot;
+    if (slot < 1 || slot > 5 || session.kind !== (slot === 5 ? 'classics' : 'hosted')) continue;
+    const slots = turns.get(session.cycle_id) ?? new Set<number>();
+    slots.add(slot); turns.set(session.cycle_id,slots);
+  }
+  const cyclesCompleted = catalog.cycles.filter(cycle => turns.get(cycle.id)?.size === 5).length;
+  const watchMinutes = selectedAppearances(catalog).reduce((sum,{movie}) => sum+(movie.runtime ?? 0),0);
+  return {daysActive:daysActive(today),cyclesCompleted,watchMinutes};
+}

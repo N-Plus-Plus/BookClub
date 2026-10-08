@@ -29,7 +29,7 @@
 .detail-seen-members .club-identity { flex-direction: column; text-align: center; }
 .detail-grid-without-seen { grid-template-columns: minmax(0,1fr); }
 .detail-identity { display: grid; grid-template-columns: auto minmax(0,1fr); }
-.detail-identity > .ranking-source-scores { grid-column: 1 / -1; }
+.detail-identity > .source-scores-summary { grid-column: 1 / -1; }
 .detail-identity .detail-overview { grid-column: 1 / -1; font-family: var(--font-prose); font-weight: 300; font-size: var(--text-body); line-height: 1.6; }
 .detail-classics-status { grid-column: 1 / -1; width: fit-content; max-width: 100%; }
 .detail-classics-score { min-width: 0; }

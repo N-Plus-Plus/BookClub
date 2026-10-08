@@ -121,6 +121,13 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .skeleton-heading { height: 44px; width: 60%; }
 .skeleton-panel { height: 160px; }
 .loading-placeholder { min-height: 400px; }
+.source-scores-summary { min-width: 0; width: 100%; }
+.source-scores-help-line { display: flex; justify-content: flex-end; }
+.source-scores-help { color: var(--text-muted); }
+.score-abbreviations { margin: 0; display: grid; gap: var(--space-10); }
+.score-abbreviations > div { display: grid; grid-template-columns: 4.5rem minmax(0,1fr); gap: var(--space-10); }
+.score-abbreviations dt { font-weight: 600; }
+.score-abbreviations dd { margin: 0; overflow-wrap: anywhere; color: var(--text-secondary); }
 .source-scores-critic-boundary::before { content: ''; position: absolute; top: 0; bottom: 0; left: var(--critic-divider-offset, calc(var(--space-8) / 2)); width: 1px; background: var(--asphalt); pointer-events: none; }
 .description-disclosure { display: flex; align-items: center; gap: var(--space-10); width: 100%; min-height: 32px; padding: 0; background: transparent; border: 0; color: var(--text-muted); font: inherit; font-size: var(--text-compact); font-weight: 600; cursor: pointer; }
 .description-disclosure::before,.description-disclosure::after { content: ''; flex: 1; border-top: 1px solid var(--asphalt); }

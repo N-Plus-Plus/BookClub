@@ -35,8 +35,16 @@ export class MovieRepository {
   async setSeen(movieId: string, memberId: string, seen: boolean | null) {
     await this.assertMovie(movieId);
     if (!await this.db.prepare('SELECT id FROM members WHERE id=? AND active=1').bind(memberId).first()) throw new ApiError(404,'NOT_FOUND','Active member not found.');
-    if (seen === null) await this.db.prepare('DELETE FROM seen_states WHERE movie_id=? AND member_id=?').bind(movieId,memberId).run();
-    else await this.db.prepare("INSERT INTO seen_states(movie_id,member_id,seen) VALUES(?,?,?) ON CONFLICT(movie_id,member_id) DO UPDATE SET seen=excluded.seen,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')").bind(movieId,memberId,seen ? 1 : 0).run();
+    // Evaluate History inside the write transaction: queued No/null answers may
+    // arrive after publication, but cannot undo active History's Seen evidence.
+    const history = 'EXISTS(SELECT 1 FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE sm.movie_id=? AND s.deleted_at IS NULL)';
+    await this.db.batch([
+      ...(seen === null ? [this.db.prepare(`DELETE FROM seen_states WHERE movie_id=? AND member_id=? AND NOT ${history}`).bind(movieId,memberId,movieId)] : []),
+      this.db.prepare(`INSERT INTO seen_states(movie_id,member_id,seen) SELECT ?,?,CASE WHEN ${history} THEN 1 ELSE ? END
+        WHERE ? IS NOT NULL OR ${history}
+        ON CONFLICT(movie_id,member_id) DO UPDATE SET seen=excluded.seen,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')`)
+        .bind(movieId,memberId,movieId,seen === null ? null : Number(seen),seen === null ? null : Number(seen),movieId),
+    ]);
   }
 
   async findExternal(provider: string, externalId: string): Promise<string | null> {

@@ -32,7 +32,7 @@ describe('explicit rotation, Classics and History',()=>{
     const after=await turn();for(let i=0;i<3;i++) await call('/catalog');expect(await turn()).toEqual(after);
     expect((await session({kind:'classics',host_member_id:null,cycle_id:state.cycle_id,cycle_slot:5,complete_turn:true,turn_version:state.version})).status).toBe(409);
     await call('/movies/moon/seen/member-1','PUT',{seen:false});await call(`/sessions/${s.id}`,'PUT',{event_date:'2031-01-01',kind:'classics',movie_ids:['moon','alien'],cycle_id:s.cycle_id,cycle_slot:5});
-    expect(local.sqlite.prepare("SELECT seen FROM seen_states WHERE movie_id='moon' AND member_id='member-1'").get()?.seen).toBe(0);expect(await turn()).toEqual(after);
+    expect(local.sqlite.prepare("SELECT seen FROM seen_states WHERE movie_id='moon' AND member_id='member-1'").get()?.seen).toBe(1);expect(await turn()).toEqual(after);
   });
   it('backfilled Classics marks Seen without advancing rotation',async()=>{
     await call('/sessions/demo-classics','DELETE',undefined,2);

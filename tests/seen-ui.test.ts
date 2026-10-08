@@ -145,17 +145,17 @@ it('retries only the latest failed intention after a correction supersedes an ea
  await act(async()=>requests[2].resolve({...detail('f0'),seen:[{member_id:'m',seen:0,updated_at:'saved'}]}));expect(container.querySelector('[role="alert"]')).toBeNull();
 });
 
-it('overlays saving, queued, corrected and failed latest Seen intentions onto fresh catalogue and History references',async()=>{
+it('active History takes precedence over saving, queued and failed Seen intentions in fresh catalogue references',async()=>{
  const requests:{resolve:(movie:MovieDetail)=>void;reject:(error:Error)=>void}[]=[];
  answer.mockImplementation(()=>new Promise<MovieDetail>((resolve,reject)=>requests.push({resolve,reject})));
  await mount();await click('Yes, seen it');await click('No, not yet');
  const fresh={...catalog,movies:films.map(f=>({...f,title:'Fresh '+f.title})),sessions:[{id:'event',movies:[films[0],films[1]],event_date:'2000-01-01',host_member_id:null,kind:'classics' as const,date_precision:'exact' as const,cycle_id:null,cycle_slot:null,legacy_cycle_label:null}]};
  await act(async()=>refreshCatalog(fresh));
- expect(observed.movies[0].seen[0].seen).toBe(1);expect(observed.movies[1].seen[0].seen).toBe(0);
+ expect(observed.movies[0].seen[0].seen).toBe(1);expect(observed.movies[1].seen[0].seen).toBe(1);
  expect(observed.sessions[0].movies[0]).toBe(observed.movies[0]);expect(observed.movies[0].title).toBe('Fresh Film 00');
  await act(async()=>requests[0].reject(new Error('Failed')));
  await act(async()=>refreshCatalog(fresh));
- expect(observed.movies[0].seen[0].seen).toBe(1);expect(observed.movies[1].seen[0].seen).toBe(0);expect(answer).toHaveBeenCalledTimes(2);
+ expect(observed.movies[0].seen[0].seen).toBe(1);expect(observed.movies[1].seen[0].seen).toBe(1);expect(answer).toHaveBeenCalledTimes(2);
  await act(async()=>requests[1].resolve({...detail('f1'),seen:[{member_id:'m',seen:0,updated_at:'saved'}]}));
 });
 
@@ -173,7 +173,7 @@ it('places genuine scores immediately before plot and updates them as the queue 
  const scored=films.slice(0,3).map((film,i)=>({...film,overview:'Plot '+i,ranking:rankMovie(i===2?[]:[{provider:'imdb',metric:'rating',raw_value:80+i,raw_scale:100,normalized_value:80+i,vote_count:null,fetched_at:''}],[],[member])}));
  await act(async()=>refreshCatalog({...catalog,movies:scored}));
  const row=()=>container.querySelector('.ranking-source-scores');
- expect(row()?.textContent).toBe('IMDb 81');expect(row()?.nextElementSibling?.className).toBe('seen-plot');
- await click('Yes, seen it');expect(row()?.textContent).toBe('IMDb 80');expect(row()?.nextElementSibling?.className).toBe('seen-plot');
+ expect(row()?.textContent).toBe('IMDb 81');expect(row()?.parentElement?.nextElementSibling?.className).toBe('seen-plot');
+ await click('Yes, seen it');expect(row()?.textContent).toBe('IMDb 80');expect(row()?.parentElement?.nextElementSibling?.className).toBe('seen-plot');
  await click('No, not yet');expect(row()).toBeNull();expect(container.querySelector('.seen-plot')).toBeTruthy();
 });

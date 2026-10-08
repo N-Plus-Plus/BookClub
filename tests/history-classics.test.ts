@@ -4,6 +4,7 @@ import worker from '../worker/src/index';
 import { Repository } from '../worker/src/repository';
 import { missingAnswers } from '../shared/ranking';
 import { disposableD1 } from './d1';
+import type { JournalMutationResult } from '../shared/types';
 import type { Env } from '../worker/src/http';
 let local: ReturnType<typeof disposableD1>, env: Env;
 beforeEach(()=>{local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-2'; INSERT INTO members(id,display_name,sort_order,active) VALUES('former','Former',6,0)");env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:4173'};});
@@ -14,13 +15,18 @@ const states=(id:string)=>local.sqlite.prepare('SELECT member_id,seen FROM seen_
 const allSeen=(id:string)=>expect(states(id)).toEqual([1,2,3,4].map(i=>({member_id:`member-${i}`,seen:1})));
 it.each([2,5])('saves every film all Seen for hosted/Classics slot %i, overrides No and excludes former members',async slot=>{
  local.sqlite.exec(`UPDATE club_rotation SET nominal_slot=${slot},version=version+1; DELETE FROM seen_states WHERE movie_id IN ('moon','alien'); INSERT INTO seen_states(movie_id,member_id,seen) VALUES('moon','member-1',0)`);
+ local.sqlite.exec("INSERT OR IGNORE INTO classics(movie_id,source) VALUES('moon','test'),('alien','test'),('arrival','test')");
  const response=await call('/sessions','POST',save);expect(response.status,await response.clone().text()).toBe(201);
- allSeen('moon');allSeen('alien');const {data:{session:data}}=await response.json() as {data:{session:{id:string}}};
+ allSeen('moon');allSeen('alien');const {data:result}=await response.json() as {data:JournalMutationResult};const data=result.session!;
+ expect(data.kind).toBe(slot===5?'classics':'hosted');
+ for(const film of data.movies) expect(film.ranking).toMatchObject({seenCount:4,unknownCount:0,eligible:false});
  for(let i=0;i<2;i++) expect((await call(`/sessions/${data.id}`,'PUT',{...save,movie_ids:['moon','arrival']})).status).toBe(200);
  allSeen('moon');allSeen('arrival');allSeen('alien');
  expect((await call(`/sessions/${data.id}`,'DELETE')).status).toBe(200);allSeen('moon');
  local.sqlite.exec("DELETE FROM seen_states WHERE movie_id='moon'; UPDATE seen_states SET seen=0 WHERE movie_id='arrival'");
- expect((await call(`/sessions/${data.id}/restore`,'POST')).status).toBe(200);allSeen('moon');allSeen('arrival');
+ const restored=await call(`/sessions/${data.id}/restore`,'POST');expect(restored.status).toBe(200);allSeen('moon');allSeen('arrival');
+ const {data:restoration}=await restored.json() as {data:JournalMutationResult};
+ for(const film of restoration.session!.movies) expect(film.ranking).toMatchObject({seenCount:4,unknownCount:0,eligible:false});
  const catalog=await new Repository(local.db).catalog();
  expect(missingAnswers(catalog.movies,catalog.members,'member-1',new Set(catalog.sessions.flatMap(s=>s.movies.map(m=>m.id)))).some(q=>q.movie.id==='arrival')).toBe(false);
 });
@@ -44,4 +50,14 @@ it('sanitation scopes exactly current Classics with active History, changes No/U
  const sql=readFileSync('scripts/dev/classics-history-sanitation.sql','utf8');local.sqlite.exec(sql);allSeen('arrival');
  expect(states('alien')).toEqual([{member_id:'member-1',seen:0}]);expect(states('paris')).toEqual([{member_id:'member-1',seen:0}]);
  const before=local.sqlite.prepare('SELECT * FROM seen_states ORDER BY movie_id,member_id').all();local.sqlite.exec(sql);expect(local.sqlite.prepare('SELECT changes() n').get()?.n).toBe(0);expect(local.sqlite.prepare('SELECT * FROM seen_states ORDER BY movie_id,member_id').all()).toEqual(before);
+});
+
+it.each([false,null] as const)('queued personal %s cannot undo active History but remains valid outside it',async answer=>{
+ local.sqlite.exec("UPDATE sessions SET deleted_at='2030-01-01'; DELETE FROM seen_states WHERE movie_id='bicycle'; INSERT INTO seen_states(movie_id,member_id,seen) VALUES('bicycle','member-2',1)");
+ expect((await call('/movies/bicycle/seen/member-2','PUT',{seen:answer})).status).toBe(200);
+ expect(states('bicycle')).toEqual(answer===null?[]:[{member_id:'member-2',seen:0}]);
+ const published=await call('/sessions','POST',{...save,movie_ids:['bicycle']});expect(published.status).toBe(201);allSeen('bicycle');
+ const late=await call('/movies/bicycle/seen/member-2','PUT',{seen:answer});expect(late.status).toBe(200);allSeen('bicycle');
+ const {data}=await late.json() as {data:import('../shared/types').MovieDetail};
+ expect(data.ranking).toMatchObject({seenCount:4,unknownCount:0,eligible:false});
 });

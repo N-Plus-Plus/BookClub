@@ -22,16 +22,16 @@ it('loads only selected-film relationships for Seen PUT and ordinary detail, pre
  });
  const response=await call('/movies/arrival/seen/member-1',false);expect(response.status,await response.clone().text()).toBe(200);
  const movie=(await response.json() as {data:MovieDetail}).data;
- expect(movie.id).toBe('arrival');expect(movie.seen.find(s=>s.member_id==='member-1')?.seen).toBe(0);
+ expect(movie.id).toBe('arrival');expect(movie.seen.find(s=>s.member_id==='member-1')?.seen).toBe(1);
  expect(movie.ranking).toEqual(rankMovie(movie.scores,movie.seen,catalog.members,movie.classics_membership!.rank_seed));
  expect(movie.appearances).toEqual(previous.appearances);expect(movie.appearances.length).toBeGreaterThan(0);
  for(const field of ['scores','genres','assets','external_ids','classics_membership'] as const) expect(movie[field]).toEqual(previous[field]);
  const relationships=queries.filter(q=>/SELECT.*FROM (movies|movie_assets|movie_external_ids|source_scores|seen_states|classics|movie_genres|session_movies)\b/.test(q.sql));
- expect(relationships.length).toBe(9); // existence guard plus eight selected relationships
+ expect(relationships.length).toBe(10); // existence guard, transactional History guard and eight selected relationships
  for(const query of relationships) {expect(query.values).toContain('arrival');expect(query.sql).toMatch(/WHERE .*?(id=\?|IN \(\?\))/);}
  expect(queries.some(q=>/FROM cycles|FROM sessions ORDER/.test(q.sql))).toBe(false);
  expect(narrow).toHaveBeenCalledExactlyOnceWith(['arrival']);expect(full).not.toHaveBeenCalled();
  const read=await call('/movies/arrival');expect(read.status).toBe(200);expect((await read.json() as {data:MovieDetail}).data).toEqual(movie);expect(full).not.toHaveBeenCalled();
- const undo=await call('/movies/arrival/seen/member-1',null);expect(undo.status).toBe(200);expect((await undo.json() as {data:MovieDetail}).data.seen.some(s=>s.member_id==='member-1')).toBe(false);
+ const undo=await call('/movies/arrival/seen/member-1',null);expect(undo.status).toBe(200);expect((await undo.json() as {data:MovieDetail}).data.seen.find(s=>s.member_id==='member-1')?.seen).toBe(1);
  expect((await call('/movies/nonexistent')).status).toBe(404);
 });

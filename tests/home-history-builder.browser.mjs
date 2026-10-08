@@ -36,7 +36,7 @@ try {
    assert(await page.locator('.desktop-navigation nav a').evaluateAll(nodes=>nodes.every(e=>{const link=e.getBoundingClientRect(),icon=e.querySelector('img').getBoundingClientRect();return icon.left>=link.left && icon.right<=link.right;})));
    await page.getByRole('button',{name:'Expand navigation',exact:true}).click();
   }
-  assert.deepEqual(await page.locator('.home-dashboard .section-title h2').allTextContents(),['Last turn','Next Classics','Classics Snapshot','Quick Facts']);
+  assert.deepEqual(await page.locator('.home-dashboard .section-title h2').allTextContents(),['Last turn','Next Classics','Quick Facts','Club Timeline','Classics Snapshot']);
   assert.equal(await page.locator('.stat-link svg').count(),0);assert.deepEqual(await page.locator('.home-quick-facts .stat strong').allTextContents(),['24','48','8.00']);
   const borders=await page.locator('.home-dashboard .turn-card,.home-session-card,.home-rank-card').evaluateAll(nodes=>nodes.map(e=>getComputedStyle(e).borderColor));assert(borders.every(c=>c===borders[0]));await shot(width,'home');
   await page.getByRole('link',{name:'History',exact:true}).first().click();await page.getByRole('button',{name:'Re-sort History oldest first'}).click();assert.equal(await page.locator('section[id^="cycle-"]').first().getAttribute('id'),'cycle-c1');assert.deepEqual(await page.locator('#cycle-c1 .history-event').first().locator('.movie-title').allTextContents(),['A very long film title that must wrap while lineup controls remain usable','Film 1']);

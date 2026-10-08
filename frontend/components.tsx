@@ -1,10 +1,11 @@
 import { ratingDimensions, ratingDimension, sourceRatingKeys } from '../shared/rating-dimensions';
-import { useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { Eye, Film, RefreshCw, type LucideIcon } from 'lucide-react';
+import { useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { Eye, Film, Info, RefreshCw, type LucideIcon } from 'lucide-react';
 import { latestScores, scoreValue } from '../shared/ranking';
 import { posterReference } from '../shared/artwork';
 import { formatScore100, possessiveName } from './presentation';
 import { ClubIdentity } from './ClubIdentity';
+import { NativeDialog } from './NativeDialog';
 import type { Member, Movie, Ranking, Score, Session } from '../shared/types';
 
 const ACTION_ICON_SIZE = 18;
@@ -69,6 +70,8 @@ export const sourceRatings = sourceRatingKeys.map(key => {
   return [d.provider,d.metric,d.compactLabel,d.fullLabel] as const;
 });
 export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; scores?: Score[]}) {
+  const [explaining,setExplaining] = useState(false);
+  const headingId = useId();
   const stored = latestScores(scores);
   const items = sourceRatings.flatMap(([provider,metric,label,description]) => {
     const source = stored.find(s => s.provider === provider && s.metric === metric);
@@ -101,9 +104,14 @@ export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; s
     return () => observer.disconnect();
   },[structure]);
   const stacked = items.length > 6;
-  return items.length ? <p ref={rowRef} className={`meta ranking-source-scores${stacked ? ' ranking-source-scores-stacked' : ''}`}>{items.map(({provider,metric,label,description,value},index) =>
+  return items.length ? <div className="source-scores-summary">
+    <div className="source-scores-help-line"><Action icon={Info} variant="tertiary" className="source-scores-help" aria-label="Explain score abbreviations" title="Explain score abbreviations" onClick={() => setExplaining(true)} /></div>
+    {explaining && <NativeDialog heading="Score abbreviations" id={headingId} closeLabel="Close score abbreviations" onClose={() => setExplaining(false)} autoFocus>
+      <dl className="score-abbreviations">{sourceRatingKeys.map(key => <div key={key}><dt>{ratingDimensions[key].compactLabel}</dt><dd>{ratingDimensions[key].fullLabel}</dd></div>)}</dl>
+    </NativeDialog>}
+    <p ref={rowRef} className={`meta ranking-source-scores${stacked ? ' ranking-source-scores-stacked' : ''}`}>{items.map(({provider,metric,label,description,value},index) =>
     <span key={`${provider}:${metric}`} className={firstCritic > 0 && index === firstCritic ? 'source-scores-critic-boundary' : undefined} title={description} aria-label={`${description}: ${formatScore100(value)}`}><span>{label}</span>{' '}<span>{formatScore100(value)}</span></span>
-  )}</p> : null;
+  )}</p></div> : null;
 }
 export function RankingScore({movie,compact = false,variant}: {movie: Movie; compact?: boolean; variant?: 'home' | 'classics'}) {
   const r = movie.ranking!;

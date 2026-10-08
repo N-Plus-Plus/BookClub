@@ -4,7 +4,16 @@ import type { Catalog, Movie, MovieDetail } from '../shared/types';
 import { rankMovie } from '../shared/ranking';
 
 export interface SeenSave { movieId: string; memberId: string; seen: boolean | null; title: string; status: 'queued' | 'saving' | 'failed'; message?: string }
+function historySeen(movie: Movie, catalog: Catalog): Movie {
+  if (!catalogIndex(catalog).historyMovieIds.has(movie.id)) return movie;
+  const active = catalog.members.filter(member => member.active === 1);
+  if (active.every(member => movie.seen.some(answer => answer.member_id === member.id && answer.seen === 1))) return movie;
+  const seen = [...movie.seen.filter(answer => !active.some(member => member.id === answer.member_id)),
+    ...active.map(member => ({member_id:member.id,seen:1,updated_at:new Date().toISOString()}))];
+  return {...movie,seen,ranking:movie.classic ? rankMovie(movie.scores,seen,catalog.members,movie.classics_membership?.rank_seed ?? 0) : null};
+}
 export function patchCatalogMovie(catalog: Catalog, movie: Movie): Catalog {
+  movie = historySeen(movie,catalog);
   if (movie.au_classification === undefined) {
     const existing = catalogIndex(catalog).movieById.get(movie.id);
     if (existing?.au_classification !== undefined) movie = {...movie,au_classification:existing.au_classification};
@@ -13,6 +22,7 @@ export function patchCatalogMovie(catalog: Catalog, movie: Movie): Catalog {
     sessions:catalog.sessions.map(s => ({...s,movies:s.movies.map(m => m.id === movie.id ? movie : m)}))};
 }
 function withAnswer(movie: Movie, task: SeenSave, catalog: Catalog): Movie {
+  if (catalogIndex(catalog).historyMovieIds.has(movie.id)) return historySeen(movie,catalog);
   const seen = movie.seen.filter(s => s.member_id !== task.memberId);
   if (task.seen !== null) seen.push({member_id:task.memberId,seen:Number(task.seen),updated_at:new Date().toISOString()});
   return {...movie,seen,ranking:movie.classic ? rankMovie(movie.scores,seen,catalog.members,movie.classics_membership?.rank_seed ?? 0) : null};

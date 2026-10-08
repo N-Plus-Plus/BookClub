@@ -46,8 +46,8 @@ it('keeps intrinsic columns and readable typography with graceful wrapping',()=>
  const style=document.createElement('style');style.textContent=applicationCss();document.head.appendChild(style);
  const {node}=render(9);document.body.appendChild(node);
  try{
- const row=getComputedStyle(node.firstElementChild!);expect([row.display,row.flexWrap,row.justifyContent]).toEqual(['flex','wrap','space-between']);
- for(const item of node.firstElementChild!.children){const css=getComputedStyle(item);expect([css.flex,css.display,css.flexDirection,css.alignItems]).toEqual(['0 0 auto','flex','column','center']);}
+ const row=getComputedStyle(node.querySelector('.ranking-source-scores')!);expect([row.display,row.flexWrap,row.justifyContent]).toEqual(['flex','wrap','space-between']);
+ for(const item of node.querySelector('.ranking-source-scores')!.children){const css=getComputedStyle(item);expect([css.flex,css.display,css.flexDirection,css.alignItems]).toEqual(['0 0 auto','flex','column','center']);}
  }finally{node.remove();style.remove();}
 });
 
@@ -59,12 +59,14 @@ it.each([5,6,7,9])('Home, Classics and Detail share genuine-only presentation wi
  const seen=[{member_id:'m1',seen:0,updated_at:''}];
  const ranking=rankMovie(scores,seen,members),before=structuredClone(ranking);
  const movie:MovieDetail={id:'shared-'+count,title:'Shared scores',year:2000,runtime:100,original_title:null,release_date:null,director:null,genres:[],overview:'Overview',assets:[],external_ids:[],classic:true,scores,seen,ranking,appearances:[]};
- const expected=renderToStaticMarkup(createElement(SourceScores,{scores,ranking}));
+ const summary=document.createElement('div');summary.innerHTML=renderToStaticMarkup(createElement(SourceScores,{scores,ranking}));
+ const expected=summary.querySelector('.ranking-source-scores')!.outerHTML;
  const node=document.createElement('div');
  for(const element of [createElement(RankingCard,{movie,variant:'home',rank:1}),createElement(ClassicsScreen,{movies:[movie],viewer:null,writesEnabled:false,onMovie:vi.fn()})]){
   node.innerHTML=renderToStaticMarkup(element);
   expect(node.querySelector('.ranking-source-scores')?.outerHTML).toBe(expected);
   expect(node.querySelectorAll('.ranking-source-scores > span')).toHaveLength(count);
+  expect(node.querySelectorAll('button[aria-label="Explain score abbreviations"]')).toHaveLength(1);
   expect(node.textContent).not.toMatch(/Missing:|using available-score average|imput|residual|Score breakdown/);
  }
  Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
@@ -73,8 +75,9 @@ it.each([5,6,7,9])('Home, Classics and Detail share genuine-only presentation wi
   await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members})));
   const row=node.querySelector('.ranking-source-scores')!;
   expect(row.outerHTML).toBe(expected);
+  expect(node.querySelectorAll('button[aria-label="Explain score abbreviations"]')).toHaveLength(1);
   expect(row.classList.contains('ranking-source-scores-stacked')).toBe(count>6);
-  expect(row.nextElementSibling?.className).toBe('detail-overview');
+  expect(row.parentElement?.nextElementSibling?.className).toBe('detail-overview');
   expect(row.textContent).not.toMatch(/Missing|average|imput/);
   expect(node.querySelector('.detail-score-breakdown')).toBeTruthy();
   if(count===5){
@@ -90,7 +93,7 @@ it.each([5,6,7,9])('Home, Classics and Detail share genuine-only presentation wi
 it('keeps inline pairs together but allows the shared row to wrap on narrow screens',()=>{
  const style=document.createElement('style');style.textContent=applicationCss();document.head.appendChild(style);
  const {node}=render(6);document.body.appendChild(node);
- try{expect(getComputedStyle(node.firstElementChild!).flexWrap).toBe('wrap');for(const item of node.firstElementChild!.children)expect(getComputedStyle(item).whiteSpace).toBe('nowrap');}
+ try{expect(getComputedStyle(node.querySelector('.ranking-source-scores')!).flexWrap).toBe('wrap');for(const item of node.querySelector('.ranking-source-scores')!.children)expect(getComputedStyle(item).whiteSpace).toBe('nowrap');}
  finally{node.remove();style.remove();}
 });
 
