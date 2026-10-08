@@ -1,3 +1,6 @@
+import { estimateMaintenance } from './maintenance-estimates';
+import { MaintenanceOperationDetails } from './MaintenanceOperationDetails';
+import { catalogIndex } from '../shared/catalog-index';
 import { useState } from 'react';
 import { RefreshCw, RotateCcw, Square } from 'lucide-react';
 import type { Catalog } from '../shared/types';
@@ -21,7 +24,7 @@ export function EnrichmentMaintenance({provider,catalog,writesEnabled,onUpdated,
     checkpointChanged(saved);
     let canonicalChanged=false;
     try {
-      const result=await maintainEnrichment({provider,checkpoint:saved,batch:async ids=>{const batch=await api.enrichProvider(provider,ids);if(batch.results.some(result=>result.status === 'updated'))onCacheChanged?.();return batch;},stopped:()=>stop.current,
+      const result=await maintainEnrichment({provider,checkpoint:saved,batch:async ids=>{const batch=await api.enrichProvider(provider,ids);if(batch.results.some(result=>result.status === 'updated')) {onCacheChanged?.();if(provider==='tmdb') canonicalChanged=true;}return batch;},stopped:()=>stop.current,
         checkpointChanged,progress:value=>{canonicalChanged ||= value.canonicalChanged;setRun(value);}});
       canonicalChanged ||= result.canonicalChanged;
     } catch (e) {setError(e instanceof Error ? e.message : 'Could not refresh enrichment. Saved work is retained.');}
@@ -32,8 +35,9 @@ export function EnrichmentMaintenance({provider,catalog,writesEnabled,onUpdated,
     }
   });
   return <section className="card stack classics-maintenance enrichment-maintenance" aria-labelledby={`${provider}-enrichment-heading`}>
-    <h2 id={`${provider}-enrichment-heading`}>{label} enrichment cache</h2>
-    <p className="meta">Cache provider data for all identified films. Completed updates are saved.</p>
+    <h2 id={`${provider}-enrichment-heading`}>Refresh {label} Enrichment</h2>
+    <MaintenanceOperationDetails operation={provider} estimate={estimateMaintenance(provider,remaining.length ? remaining.flatMap(id=>{const movie=catalogIndex(catalog).movieById.get(id);return movie ? [movie] : [];}) : eligible)} />
+    {checkpoint && <p className="meta">{checkpoint.completed} checkpoint films completed · {remaining.length} remaining.</p>}
     <p className="meta">{eligible.length} eligible films · {catalog.movies.length-eligible.length} without a valid {label} identity.</p>
     <div className="button-set"><Action icon={RefreshCw} disabled={busy || job.locked || !writesEnabled || !eligible.length} onClick={()=>void start()}>
       {remaining.length ? `Resume ${label} enrichment · ${remaining.length} remaining` : `Refresh ${label} enrichment`}</Action>

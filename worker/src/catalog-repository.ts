@@ -1,4 +1,4 @@
-import type { Catalog, CompactCatalog, Cycle, Member, Movie, Session, SavedSearchResult } from '../../shared/types';
+import type { AuWatchOffer, Catalog, CompactCatalog, Cycle, Member, Movie, Session, SavedSearchResult } from '../../shared/types';
 import { normalizeTitle } from '../../shared/search';
 import { australianClassification } from '../../shared/metrics-enrichment/classification';
 import { assembleMovies, groupMovies } from './catalog-assembly';
@@ -49,12 +49,16 @@ export class CatalogRepository {
       this.db.prepare('SELECT sm.session_id,sm.movie_id,sm.position FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE s.deleted_at IS NULL ORDER BY sm.position'),
       this.db.prepare('SELECT * FROM cycles ORDER BY ordinal DESC,id'),
       this.db.prepare(enrichment ? "SELECT movie_id,certification,release_type FROM movie_provider_content_ratings WHERE provider='tmdb' AND country='AU'" : 'SELECT NULL AS movie_id,NULL AS certification,NULL AS release_type WHERE 0'),
+      this.db.prepare(enrichment ? "SELECT movie_id,service_id,name,access_type,link FROM movie_provider_watch_offers WHERE country='AU' AND access_type IN ('subscription','free','ads','rent','buy') ORDER BY movie_id,provider,ordinal,service_id" : 'SELECT NULL AS movie_id WHERE 0'),
     ]);
     const rows = <T>(i: number) => result[i].results as T[];
     const members = rows<Member>(0);
     const movies = assembleMovies(result,compact);
     const ratings = groupMovies(rows<{movie_id:string;certification:string;release_type:number | null}>(11));
+    const offers = groupMovies(rows<WithMovie<AuWatchOffer>>(12));
     for (const movie of movies) {
+      const availability = [...new Map((offers.get(movie.id) ?? []).map(offer => [`${offer.service_id}:${offer.access_type}`,offer])).values()];
+      if (availability.length) movie.au_watch_offers = availability;
       const value = australianClassification({contentRatings:ratings.get(movie.id) ?? []});
       if (value !== 'Unknown') movie.au_classification = value;
     }

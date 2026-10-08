@@ -1,3 +1,4 @@
+import { formatRetryDuration } from './retry-duration';
 import type { EnrichmentBatch, EnrichmentProvider } from '../shared/enrichment';
 import { MAINTENANCE_IDLE_MS } from '../shared/score-maintenance';
 import type { MaintenanceCheckpoint } from './maintenance-checkpoint';
@@ -27,7 +28,7 @@ export async function maintainEnrichment(options: {
       run={...run,processed:run.processed+batch.results.length,remaining:checkpoint.remainingIds.length,
         updated:run.updated+batch.results.filter(r=>r.status==='updated').length,noChange:run.noChange+batch.results.filter(r=>r.status==='no_change').length,
         failed:run.failed+failed.length,conflicts:run.conflicts+conflicts,canonicalChanged:run.canonicalChanged || batch.canonicalChanged,quota:batch.quota ?? run.quota,
-        failure:failed.length ? `${failed[0].message}${failed[0].retryAfter===undefined ? '' : ` Retry after at least ${failed[0].retryAfter} seconds.`}` : run.failure};
+        failure:failed.length ? `${failed[0].message}${failed[0].retryAfter===undefined ? '' : ` Retry after at least ${formatRetryDuration(failed[0].retryAfter)}.`}` : run.failure};
       if (batch.stopped || failed.some(r=>r.blocking!==false || r.retryAfter!==undefined)) run.message='Stopped. Completed updates are saved; review the provider status before resuming.';
       options.progress(run);
       if (run.message || options.stopped()) break;

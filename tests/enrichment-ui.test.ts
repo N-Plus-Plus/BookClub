@@ -18,13 +18,13 @@ it.each(['TMDB','MDBList'])('%s runs remain interactive, disable other maintenan
   vi.mocked(api.enrichProvider).mockImplementation(()=>new Promise(done=>{resolve=done;}));await render();
   expect(container.textContent).toContain('11 eligible films · 1 without a valid');
   await act(async()=>button(`Refresh ${label} enrichment`).click());
-  const other=label==='TMDB'?'MDBList':'TMDB';expect(button(`Refresh ${other} enrichment`).disabled).toBe(true);expect(button('Fill missing metadata').disabled).toBe(true);expect(button('Refresh Scores').disabled).toBe(true);
+  const other=label==='TMDB'?'MDBList':'TMDB';expect(button(`Refresh ${other} enrichment`).disabled).toBe(true);expect(button('Fill missing TMDB metadata').disabled).toBe(true);expect(button('Refresh scores').disabled).toBe(true);
   // A pending network request does not prevent immediate interaction with Stop.
   await act(async()=>button('Stop after this batch').click());expect(vi.mocked(api.enrichProvider)).toHaveBeenCalledTimes(1);
   const ids=vi.mocked(api.enrichProvider).mock.calls[0][1];
   await act(async()=>resolve({results:ids.map(movieId=>({movieId,status:'updated',message:'Saved'})),canonicalChanged:false}));
   expect(container.textContent).toContain(`${ids.length} / 11 processed`);expect(container.textContent).toContain('Stopped. Completed updates are saved');expect(button(`Refresh ${other} enrichment`).disabled).toBe(false);
-  const checkpoint=JSON.parse(localStorage.getItem(`bookclub.${label==='TMDB'?'tmdb':'mdblist'}-enrichment.v1`)!);expect(checkpoint.completed).toBe(ids.length);expect(checkpoint.remainingIds).toHaveLength(11-ids.length);expect(updated).not.toHaveBeenCalled();expect(cacheChanged).toHaveBeenCalledOnce();
+  const checkpoint=JSON.parse(localStorage.getItem(`bookclub.${label==='TMDB'?'tmdb':'mdblist'}-enrichment.v1`)!);expect(checkpoint.completed).toBe(ids.length);expect(checkpoint.remainingIds).toHaveLength(11-ids.length);expect(updated).toHaveBeenCalledTimes(label==='TMDB'?1:0);expect(cacheChanged).toHaveBeenCalledOnce();
 });
 it('refreshes shared data once only when canonical IDs changed and shows local provider errors/quota',async()=>{
   vi.mocked(api.enrichProvider).mockResolvedValue({results:[{movieId:'film-0',status:'updated',message:'Saved'},{movieId:'film-1',status:'failed',blocking:true,message:'Provider unavailable',retryAfter:60}],canonicalChanged:true,quota:{'X-RateLimit-Remaining':'25'},stopped:true});await render();

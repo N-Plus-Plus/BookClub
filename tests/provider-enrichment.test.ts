@@ -54,7 +54,7 @@ describe('TMDB analytical capture',()=>{
   it('uses one details request with all supported append targets, no people/company calls',async()=>{
     const fetch=vi.fn().mockResolvedValue(Response.json(tmdbEnrichmentFixture()));vi.stubGlobal('fetch',fetch);
     const detail=await new TmdbProvider('fictional').details('42');expect(detail.enrichment?.credits).toHaveLength(21);
-    expect(fetch).toHaveBeenCalledTimes(1);expect(fetch.mock.calls[0][0]).toBe('https://api.themoviedb.org/3/movie/42?append_to_response=external_ids,credits,keywords,release_dates');
+    expect(fetch).toHaveBeenCalledTimes(1);expect(fetch.mock.calls[0][0]).toBe('https://api.themoviedb.org/3/movie/42?append_to_response=external_ids,credits,keywords,release_dates,watch/providers');
   });
 });
 describe('verified MDBList Media Info shape',()=>{
@@ -62,8 +62,7 @@ describe('verified MDBList Media Info shape',()=>{
     const parsed=parseMdbEnrichment(mdbEnrichmentFixture(),{provider:'imdb',external_id:'tt0000042'},at)!;
     expect(parsed.metadata).toEqual({title:'MDBList title',runtime:97});
     expect(parsed.identities).toEqual([{provider:'imdb',external_id:'tt0000042'},{provider:'tmdb',external_id:'42'},{provider:'trakt',external_id:'309'},{provider:'tvdb',external_id:'572'},{provider:'mdblist',external_id:'c0ro'}]);
-    expect(parsed.watch_offers).toHaveLength(4);expect(parsed.watch_offers?.[0]).toEqual({collection:'streams',service_id:'2',name:'Prime Video',country:null,access_type:null,link:null,ordinal:0});
-    expect(parsed.watch_offers?.[2]).toMatchObject({collection:'watch_providers',service_id:'2',name:'Apple TV Store'});
+    expect(parsed.watch_offers).toEqual([]);
     expect(parsed.provider).toBe('mdblist');expect(parsed.keywords).toEqual([{external_id:'3022',name:'judge'},{external_id:'5043',name:'jurors'}]);
     expect(parseMdbList(mdbEnrichmentFixture(),at,'batch').find(s=>s.provider==='letterboxd')).toMatchObject({raw_scale:10,normalized_value:92});
   });
@@ -143,7 +142,7 @@ describe('provider cache API and durable current state',()=>{
   it.each(['missing','refresh'])('%s scores opportunistically save enrichment with exactly one MDBList HTTP call',async mode=>{
     await repo.setClassic('film',true);const fetch=vi.fn(async()=>Response.json([mdbEnrichmentFixture()]));vi.stubGlobal('fetch',fetch);
     const response=await worker.fetch(new Request('http://api/api/v1/movies/maintain',{method:'POST',headers:{'X-BookClub-Dev-Member':'member-1'},body:JSON.stringify({mode,movie_ids:['film']})}),env);
-    expect(response.status).toBe(200);expect(fetch).toHaveBeenCalledTimes(1);expect(rows('watch_offers')).toHaveLength(4);expect(rows('keywords')).toHaveLength(2);expect(local.sqlite.prepare("SELECT * FROM source_scores WHERE movie_id='film'").all()).toHaveLength(6);
+    expect(response.status).toBe(200);expect(fetch).toHaveBeenCalledTimes(1);expect(rows('watch_offers')).toHaveLength(0);expect(rows('keywords')).toHaveLength(2);expect(local.sqlite.prepare("SELECT * FROM source_scores WHERE movie_id='film'").all()).toHaveLength(6);
   });
   it('ordinary TMDB metadata details also populate the cache in the same request',async()=>{
     const fetch=vi.fn(async()=>Response.json(tmdbEnrichmentFixture()));vi.stubGlobal('fetch',fetch);
@@ -200,7 +199,7 @@ describe('provider cache API and durable current state',()=>{
   });
   it('incomplete MDBList does not clear availability or keywords, even with usable ratings',async()=>{
     await repo.cacheEnrichment('film',parseMdbEnrichment(mdbEnrichmentFixture(),{provider:'imdb',external_id:'tt0000042'},at)!);
-    const previous=rows('watch_offers'),state=rows('enrichment_state');vi.stubGlobal('fetch',vi.fn(async()=>Response.json([{...mdbEnrichmentFixture(),streams:null}])));
+    const previous=rows('watch_offers'),state=rows('enrichment_state');vi.stubGlobal('fetch',vi.fn(async()=>Response.json([{...mdbEnrichmentFixture(),keywords:null}])));
     expect((await data(await call('mdblist',['film']))).results[0].status).toBe('failed');expect(rows('watch_offers')).toEqual(previous);expect(rows('enrichment_state')).toEqual(state);
   });
 });

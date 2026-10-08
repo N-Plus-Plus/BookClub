@@ -2,7 +2,7 @@
 .bookclub-shell { max-width: var(--content-wide); margin: 0 auto; padding: max(var(--space-20), env(safe-area-inset-top)) var(--space-18) calc(105px + env(safe-area-inset-bottom)); }
 .site-header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-12); padding-bottom: 26px; border-bottom: 1px solid var(--asphalt-dark); }
 .brand { display: flex; gap: var(--space-10); align-items: center; text-decoration: none; font-size: 1.35rem; font-weight: 700; min-height: var(--target-min); }
-.brand-icon { width: 30px; height: 30px; object-fit: contain; }
+.brand-icon { width: 45px; height: 45px; flex-shrink: 0; object-fit: contain; }
 .destination-icon { width: 22px; height: 22px; object-fit: contain; flex: 0 0 auto; }
 .page-heading h1 { display: flex; align-items: center; gap: var(--space-8); }
 .page-heading h1 .destination-icon { width: 1em; height: 1em; }

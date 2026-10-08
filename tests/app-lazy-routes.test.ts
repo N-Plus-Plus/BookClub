@@ -80,7 +80,7 @@ it('keeps Home and denied Admin out of heavy modules, preserves the shell during
   expect(container.querySelector('.loading-placeholder')).not.toBeNull();
   expect(container.querySelector('.account-menu-trigger')).not.toBeNull();
   await act(async()=>chunks.adminReady());await waitFor('main section.card');
-  expect(container.textContent).toContain('Scores and OMDb metadata');
+  expect(container.textContent).toContain('Refresh OMDb Metadata');
 });
 it('renders a direct Metrics entry and a fresh authenticated Admin entry',async()=>{
   chunks.metricsReady();chunks.adminReady();
@@ -94,6 +94,6 @@ it('renders a direct Metrics entry and a fresh authenticated Admin entry',async(
 it('keeps direct member Admin entry denied even after its chunk has loaded',async()=>{
   await mount('admin');
   expect(container.querySelector('h1')?.textContent).toBe('Page not found');
-  expect(container.textContent).not.toContain('Scores and OMDb metadata');
+  expect(container.textContent).not.toContain('Refresh OMDb Metadata');
   expect(api.scoreMaintenanceStatus).not.toHaveBeenCalled();
 });

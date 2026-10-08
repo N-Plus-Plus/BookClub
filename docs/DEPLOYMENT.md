@@ -203,6 +203,8 @@ Migration `0016_provider_enrichment.sql` adds only provider-cache tables and ana
 
 Migration `0017_canonical_title.sql` adds title authority with fallback classification and an insert trigger; it changes no existing title. Old Workers ignore the new column. Apply schema before the new Worker, then frontend. The new title endpoints require 0017; ordinary provider cache/title writes capability-detect older schemas. Run the explicit admin cached reconciliation after deployment to apply existing evidence without quota, then operator-selected independent provider jobs. No crawl runs during migration or deployment.
 
+Migration `0018_au_watch_offers.sql` deletes only derived watch rows with NULL/non-AU country; no tables or canonical evidence change. New Worker reads and writes safely on pre-0018 databases with 0016 cache tables, filtering exact AU. Older Workers remain structurally compatible but may repopulate regionless rows: deploy the new AU-filtering API Worker first, then apply ordered 0018 after the normal fresh backup, verify the cache invariant, and publish the frontend last. Keep all earlier bridge/cache/title gates. Older Workers omitting the optional projection remain frontend-compatible. No provider request or automatic enrichment runs as part of migration/release.
+
 If pending migrations only add schema or otherwise remain compatible with the currently deployed Worker, the normal order is:
 
 1. backup;

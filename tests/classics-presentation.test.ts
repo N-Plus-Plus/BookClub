@@ -67,8 +67,8 @@ it('omits maintenance on all Classics tabs and includes History in Admin bulk wo
  await act(async()=>root.render(createElement(AdminScreen,{catalog,writesEnabled:true,onMovie,onUpdated:async()=>{}})));
  vi.mocked(api.maintainMovies).mockImplementation(async(_mode,ids)=>({results:ids.map(id=>({movie:{...catalog.movies.find(m=>m.id===id)!,appearances:[]},providers:[{provider:'mdblist',status:'success',count:3,message:'Saved'}]}))}));
  vi.useFakeTimers();
- await click('Refresh Scores');await act(async()=>{ await vi.runAllTimersAsync(); });expect(vi.mocked(api.maintainMovies).mock.calls.filter(([mode])=>mode==='refresh').flatMap(([,ids])=>ids)).toEqual(['f1','f2','f3','f99']);expect(onMovie).toHaveBeenCalled();expect(container.textContent).toContain('4 / 4 films processed');
- await click('Populate Missing Scores');await act(async()=>{ await vi.runAllTimersAsync(); });expect(vi.mocked(api.maintainMovies).mock.calls.filter(([mode])=>mode==='missing').flatMap(([,ids])=>ids)).toEqual(['f1','f2','f3','f99']);
+ await click('Refresh scores');await act(async()=>{ await vi.runAllTimersAsync(); });expect(vi.mocked(api.maintainMovies).mock.calls.filter(([mode])=>mode==='refresh').flatMap(([,ids])=>ids)).toEqual(['f1','f2','f3','f99']);expect(onMovie).toHaveBeenCalled();expect(container.textContent).toContain('4 / 4 films processed');
+ await click('Populate missing scores');await act(async()=>{ await vi.runAllTimersAsync(); });expect(vi.mocked(api.maintainMovies).mock.calls.filter(([mode])=>mode==='missing').flatMap(([,ids])=>ids)).toEqual(['f1','f2','f3','f99']);
  vi.useRealTimers();
  await render('member');expect(container.querySelector('.classics-maintenance')).toBeNull();
 });
@@ -77,9 +77,9 @@ it('keeps the Admin DOM compact through a 980-film no-data run',async()=>{
  vi.useFakeTimers();const movies=Array.from({length:980},(_,i)=>({...film(i),external_ids:[{provider:'imdb',external_id:'tt0000001'}]}));
  const onMovie=vi.fn();vi.mocked(api.maintainMovies).mockImplementation(async(_mode,ids)=>({results:ids.map(id=>({movie:{...movies.find(m=>m.id===id)!,appearances:[]},providers:[{provider:'mdblist',status:'success',count:0,message:'No usable ratings supplied.'}]}))}));
  await act(async()=>root.render(createElement(AdminScreen,{catalog:{movies,members,sessions:[],cycles:[]},writesEnabled:true,onMovie,onUpdated:async()=>{}})));
- await click('Refresh Scores');await act(async()=>{await vi.runAllTimersAsync();});
+ await click('Refresh scores');await act(async()=>{await vi.runAllTimersAsync();});
  expect(onMovie).toHaveBeenCalledTimes(980);expect(container.textContent).toContain('980 / 980 films processed');expect(container.textContent).toContain('980 with no new scores');
- expect(container.querySelectorAll('.classics-maintenance li')).toHaveLength(0);expect(container.querySelectorAll('.classics-maintenance strong')).toHaveLength(0);
+ expect(container.querySelectorAll('.classics-maintenance li')).toHaveLength(0);expect(container.querySelectorAll('section > .maintenance-details')).toHaveLength(6);
  expect(container.querySelector('progress')?.value).toBe(980);
 });
 
@@ -135,7 +135,7 @@ it('scopes smaller mobile titles to Classics and keeps tabs in one flexible touc
  expect(css).toContain('padding: 0 var(--space-4); border-radius: var(--radius-pill); font-size: var(--text-eyebrow); line-height: 1.5;');
 });
 
-it.each(['Populate Missing Scores','Refresh Scores','Enrich/Refresh Metadata'])('keeps active %s feedback quiet and retains provider failures',async(label)=>{
+it.each(['Populate missing scores','Refresh scores','Refresh OMDb metadata'])('keeps active %s feedback quiet and retains provider failures',async(label)=>{
  const movies=Array.from({length:11},(_,i)=>({...film(i),external_ids:[{provider:'imdb',external_id:'tt0000001'}]}));
  let release!: (value: Awaited<ReturnType<typeof api.maintainMovies>>) => void;
  vi.mocked(api.maintainMovies).mockImplementationOnce(async(_mode,ids)=>({results:ids.map(id=>({movie:{...movies.find(m=>m.id===id)!,appearances:[]},providers:[
@@ -146,8 +146,7 @@ it.each(['Populate Missing Scores','Refresh Scores','Enrich/Refresh Metadata'])(
  ]}))})).mockImplementationOnce(()=>new Promise(resolve=>{release=resolve;}));
  vi.mocked(api.scoreMaintenanceStatus).mockResolvedValueOnce({candidateIds:movies.map(m=>m.id),eligibleDimensions:5729,unavailableDimensions:7,unavailableFilms:3});
  await act(async()=>root.render(createElement(AdminScreen,{catalog:{movies:[...movies,{...film(99),external_ids:[{provider:'tmdb',external_id:'99'}]},film(100)],members,sessions:[],cycles:[]},writesEnabled:true,onMovie:vi.fn(),onUpdated:async()=>{}})));
- expect(container.textContent).toContain('Scores: IMDb, RT-A, RT-C, LB, MC and TMDB. Populate fills missing scores; Refresh rechecks identified films. OMDb Metadata refreshes title, year, runtime, director and genres across the whole catalogue with a valid IMDb identity.');
- expect(container.textContent).toContain('1 need score identity · 2 need IMDb identity for metadata · 11 eligible for whole-catalogue OMDb Metadata.');
+ expect(container.textContent).toContain('11 eligible films');
  expect(container.textContent).toContain('5729 score inputs eligible · 7 confirmed unavailable (3 films).');
  vi.useFakeTimers();await click(label);
  expect(container.textContent).toContain('Stop after this batch');expect(container.textContent).toContain('10 /');
@@ -156,11 +155,11 @@ it.each(['Populate Missing Scores','Refresh Scores','Enrich/Refresh Metadata'])(
  for(const message of ['Captured','No missing scores supplied.','TMDB rating already available.','No missing score OMDb can supply.']) expect(container.textContent).not.toContain(message);
  await act(async()=>{await vi.advanceTimersByTimeAsync(2000);});
  await act(async()=>release({results:[{movie:{...movies[10],appearances:[]},providers:[{provider:'omdb',status:'failed',count:0,message:'Provider cooling down.',retryAfter:120}]}]}));
- expect(container.textContent).toContain('omdb · failed: Provider cooling down. Wait 120s before retrying.');
- expect(container.textContent).toContain('Stopped after a provider failure or cooldown.');expect(container.textContent).toContain(label === 'Enrich/Refresh Metadata' ? '10 / 11 films processed' : label === 'Refresh Scores' ? '12 / 12 films processed' : '11 / 11 films processed');
+ expect(container.textContent).toContain('omdb · failed: Provider cooling down. Wait 2 min before retrying.');
+ expect(container.textContent).toContain('Stopped after a provider failure or cooldown.');expect(container.textContent).toContain(label === 'Refresh OMDb metadata' ? '10 / 11 films processed' : label === 'Refresh scores' ? '12 / 12 films processed' : '11 / 11 films processed');
  expect(container.querySelectorAll('.classics-maintenance li')).toHaveLength(1);
- if (label === 'Enrich/Refresh Metadata') {
-  expect(container.textContent).toContain('Resume Metadata '+String.fromCharCode(183)+' 1 remaining');
+ if (label === 'Refresh OMDb metadata') {
+  expect(container.textContent).toContain('Resume OMDb metadata '+String.fromCharCode(183)+' 1 remaining');
   expect(JSON.parse(localStorage.getItem('bookclub.omdb-metadata.v1')!)).toEqual({version:1,completed:10,remainingIds:['f10']});
  }
 });

@@ -72,7 +72,7 @@ describe('fixed TMDB metadata queue', () => {
     } finally { vi.useRealTimers(); }
   });
 });
-describe('Fill missing metadata action', () => {
+describe('Fill missing TMDB metadata action', () => {
   const data = {...catalog,movies:Array.from({length:5},(_,i)=>({...catalog.movies[0],id:`f${i}`}))};
   it('refreshes once after completion and displays refreshed eligibility rather than run counts', async () => {
     vi.useFakeTimers();
@@ -109,7 +109,7 @@ describe('Fill missing metadata action', () => {
       const refresh=vi.fn(async()=>{}); screen(refresh,data)[0].onClick(); await vi.runAllTimersAsync();
       expect(request).toHaveBeenCalledTimes(2);expect(refresh).toHaveBeenCalledOnce();
       expect(hooks.values[5]).toMatchObject({updated:2,message:expect.any(String)});
-      if(kind==='provider') expect(hooks.values[5]).toMatchObject({failed:1,failure:expect.stringContaining('60 seconds')});
+      if(kind==='provider') expect(hooks.values[5]).toMatchObject({failed:1,failure:expect.stringContaining('1 min')});
     } finally {vi.useRealTimers();}
   });
   it('freshly checked queued films are skipped and do not stop the run',async()=>{

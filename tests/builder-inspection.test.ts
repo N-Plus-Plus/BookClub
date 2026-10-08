@@ -28,7 +28,7 @@ it.each(['production','import-preview'])('hides the local indicator and dev tool
  vi.mocked(api.health).mockResolvedValue({status:'ok',environment,authenticationRequired:true,googleAuthConfigured:false,tmdbConfigured:false,mdblistConfigured:false,omdbConfigured:false,demo:true});
  vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'admin'}});
  await act(async()=>harness.root.unmount());harness.root=createRoot(harness.container);await act(async()=>harness.root.render(createElement(App)));await flush();await navigate('admin');
- expect(harness.container.querySelector('.demo-label,.developer-tools')).toBeNull();expect(button('Populate Missing Scores')).toBeTruthy();
+ expect(harness.container.querySelector('.demo-label,.developer-tools')).toBeNull();expect(button('Populate missing scores')).toBeTruthy();
 });
 
 describe('Builder inspection and Use set',() => {

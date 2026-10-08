@@ -18,6 +18,10 @@ export function patchCatalogMovie(catalog: Catalog, movie: Movie): Catalog {
     const existing = catalogIndex(catalog).movieById.get(movie.id);
     if (existing?.au_classification !== undefined) movie = {...movie,au_classification:existing.au_classification};
   }
+  if (movie.au_watch_offers === undefined) {
+    const existing = catalogIndex(catalog).movieById.get(movie.id);
+    if (existing?.au_watch_offers !== undefined) movie = {...movie,au_watch_offers:existing.au_watch_offers};
+  }
   return {...catalog,movies:catalog.movies.some(m => m.id === movie.id) ? catalog.movies.map(m => m.id === movie.id ? movie : m) : [...catalog.movies,movie],
     sessions:catalog.sessions.map(s => ({...s,movies:s.movies.map(m => m.id === movie.id ? movie : m)}))};
 }

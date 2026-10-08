@@ -30,14 +30,14 @@ try {
       } else throw new Error(`Unexpected API ${path}`);
       await route.fulfill({contentType:'application/json',body:JSON.stringify({data})});
     });
-    const label=provider==='tmdb'?'TMDB':'MDBList',other=provider==='tmdb'?'MDBList':'TMDB',card=page.locator('section', {has:page.getByRole('heading',{name:`${label} enrichment cache`,exact:true})});
+    const label=provider==='tmdb'?'TMDB':'MDBList',other=provider==='tmdb'?'MDBList':'TMDB',card=page.locator('section', {has:page.getByRole('heading',{name:`Refresh ${label} Enrichment`,exact:true})});
     await page.goto('http://localhost:4173/#/admin');await card.waitFor();
     assert((await card.innerText()).includes(`23 eligible films · 1 without a valid ${label} identity.`));
     await card.getByRole('button',{name:`Refresh ${label} enrichment`,exact:true}).click();
     await waitPending();
     assert(await page.getByRole('button',{name:`Refresh ${other} enrichment`,exact:true}).isDisabled());
-    assert(await page.getByRole('button',{name:'Refresh Scores',exact:true}).isDisabled());
-    assert(await page.getByRole('button',{name:'Fill missing metadata',exact:true}).isDisabled());
+    assert(await page.getByRole('button',{name:'Refresh scores',exact:true}).isDisabled());
+    assert(await page.getByRole('button',{name:'Fill missing TMDB metadata',exact:true}).isDisabled());
     // Browser focus/scroll responds while fetch is deliberately left unresolved.
     const stop=card.getByRole('button',{name:'Stop after this batch',exact:true});await stop.focus();assert(await stop.evaluate(el=>el===document.activeElement));
     await page.evaluate(()=>window.scrollBy(0,120));assert.equal(calls,1);
@@ -49,7 +49,7 @@ try {
     await page.screenshot({path:`.verification/admin-enrichment/${provider}-${width}-running.png`,fullPage:true});
     await stop.click();assert.equal(calls,2);pending();
     await card.getByText('Stopped. Completed updates are saved; resume to continue.',{exact:true}).waitFor();
-    assert((await card.innerText()).includes(`${2*size} / 23 processed`));assert.equal(maxActive,1);assert.equal(catalogReads,1);
+    assert((await card.innerText()).includes(`${2*size} / 23 processed`));assert.equal(maxActive,1);assert.equal(catalogReads,provider==='tmdb'?2:1);
     assert(!await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),`Page overflow ${provider} ${width}`);
     assert(await card.getByRole('button',{name:/^Resume /}).evaluate(el=>el.scrollWidth<=el.clientWidth+1),'Resume control overflow');
     const progress=card.getByRole('progressbar');assert((await progress.boundingBox()).width>100);assert.equal(await progress.getAttribute('value'),String(2*size));
@@ -58,7 +58,7 @@ try {
     await page.reload();await card.getByRole('button',{name:`Resume ${label} enrichment · ${23-2*size} remaining`,exact:true}).waitFor();
     fail=true;await card.getByRole('button',{name:/^Resume /}).click();await waitPending();pending();
     await card.getByText(/Synthetic provider unavailable/).waitFor();
-    const otherCard=page.locator('section',{has:page.getByRole('heading',{name:`${other} enrichment cache`,exact:true})});assert(!(await otherCard.innerText()).includes('Synthetic provider unavailable'));
+    const otherCard=page.locator('section',{has:page.getByRole('heading',{name:`Refresh ${other} Enrichment`,exact:true})});assert(!(await otherCard.innerText()).includes('Synthetic provider unavailable'));
     assert.deepEqual(errors,[]);assert.equal(maxActive,1);
     evidence.push({provider,width,calls,maxActive,completed:saved.completed,pending:saved.remainingIds.length,overflow:false,responsive:true});
     await context.close();

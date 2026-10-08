@@ -24,7 +24,7 @@ it('Stop after a delayed batch retains accepted checkpoint progress and never la
 it('provider-wide failure retains failed/unprocessed films, acknowledges earlier success and stops subsequent batches',async()=>{
   const batch=vi.fn(async()=>({results:[{movieId:'film-0',status:'updated' as const,message:'Saved'},{movieId:'film-1',status:'failed' as const,message:'Rate limited',blocking:true,retryAfter:120}],canonicalChanged:true,stopped:true})),checkpointChanged=vi.fn();
   const run=await maintainEnrichment({provider:'tmdb',checkpoint:checkpoint(5),batch,checkpointChanged,progress:()=>{},stopped:()=>false});
-  expect(batch).toHaveBeenCalledTimes(1);expect(run).toMatchObject({processed:2,remaining:4,updated:1,failed:1,canonicalChanged:true});expect(run.failure).toContain('120 seconds');
+  expect(batch).toHaveBeenCalledTimes(1);expect(run).toMatchObject({processed:2,remaining:4,updated:1,failed:1,canonicalChanged:true});expect(run.failure).toContain('2 min');
   expect(checkpointChanged).toHaveBeenLastCalledWith({version:1,completed:1,remainingIds:['film-1','film-2','film-3','film-4']});
 });
 it('mixed MDBList results count failed films as remaining while processed counts every result',async()=>{

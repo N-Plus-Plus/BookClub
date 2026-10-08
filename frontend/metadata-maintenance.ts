@@ -1,3 +1,4 @@
+import { formatRetryDuration } from './retry-duration';
 import { MAINTENANCE_IDLE_MS, METADATA_MAINTENANCE_BATCH_SIZE } from '../shared/score-maintenance';
 import type { SelectedMetadataEnrichment } from '../shared/types';
 
@@ -21,7 +22,7 @@ export async function maintainMetadata(options: {
     const processed = run.processed + Math.min(selected.length,batch.results.length);
     run = {...run,remaining:ids.length-processed,processed,
       updated:run.updated+batch.results.filter(r => r.status === 'success').length,failed:run.failed+failures.length,
-      failure:failures.slice(0,1).map(r => `${r.provider} · ${r.status}: ${r.message}${r.retryAfter !== undefined ? ` Retry after at least ${r.retryAfter} seconds.` : ''}`).join(''),message:''};
+      failure:failures.slice(0,1).map(r => `${r.provider} · ${r.status}: ${r.message}${r.retryAfter !== undefined ? ` Retry after at least ${formatRetryDuration(r.retryAfter)}.` : ''}`).join(''),message:''};
     if (failures.length) run.message = 'Stopped after a failed update. Completed updates are saved; review the failure and resume later.';
     else if (batch.results.length < selected.length) run.message = 'Stopped because this batch made no progress. Review remaining films before resuming.';
     else if (!run.remaining) run.message = 'All queued metadata is checked. Films without a valid TMDB identity need identification first.';

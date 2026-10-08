@@ -1,3 +1,5 @@
+import { estimateMaintenance } from './maintenance-estimates';
+import { MaintenanceOperationDetails } from './MaintenanceOperationDetails';
 import { useState } from 'react';
 import { RefreshCw, Square } from 'lucide-react';
 import type { Catalog } from '../shared/types';
@@ -26,10 +28,10 @@ export function MetadataMaintenance({catalog,onUpdated,writesEnabled=true}: {cat
 
     }
   });
-  return <section className="card stack" aria-labelledby="tmdb-maintenance-heading"><h2 id="tmdb-maintenance-heading">TMDB metadata and artwork</h2>
-      <p className="meta">Fetch missing artwork and unchecked or stale metadata from stored TMDB identities. Requests run in bounded batches. History and ratings are preserved.</p>
+  return <section className="card stack" aria-labelledby="tmdb-maintenance-heading"><h2 id="tmdb-maintenance-heading">Fill Missing TMDB Metadata and Artwork</h2>
+      <MaintenanceOperationDetails operation="tmdb-metadata" estimate={estimateMaintenance('tmdb-metadata',catalog.movies.filter(metadataCandidate))} />
       <p className="meta">{remaining} identified films remaining · {unidentified} films without a valid TMDB identity.</p>
-      <div className="button-set"><Action icon={RefreshCw} disabled={busy || job.locked || !writesEnabled || !remaining} onClick={() => void maintain()}>Fill missing metadata</Action>
+      <div className="button-set"><Action icon={RefreshCw} disabled={busy || job.locked || !writesEnabled || !remaining} onClick={() => void maintain()}>Fill missing TMDB metadata</Action>
         {busy && <Action icon={Square} onClick={job.requestStop}>Stop after this batch</Action>}</div>
       {busy && <p className="meta" role="status">Filling metadata… completed batches are saved.</p>}
       {result && <MaintenanceProgress processed={result.processed} total={result.total} label="TMDB maintenance progress" summary={<>{result.processed} / {result.total} processed this run · {result.updated} successfully updated · {result.failed} failures.</>} beforeProgress={result.message && <p className="meta">{result.message}</p>}>

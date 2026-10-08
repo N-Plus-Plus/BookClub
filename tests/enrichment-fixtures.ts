@@ -10,6 +10,7 @@ export const tmdbEnrichmentFixture=(id=42) => ({
   release_dates:{results:[{iso_3166_1:'US',release_dates:[{certification:'PG',type:3,release_date:'2000-01-01T00:00:00.000Z'},{certification:'R',type:4,release_date:'2001-01-01T00:00:00.000Z'},{certification:'',type:1}]},
     {iso_3166_1:'AU',release_dates:[{certification:'M',type:3,release_date:'2000-02-01T00:00:00.000Z'}]},
     {iso_3166_1:'GB',release_dates:[{certification:'15',type:3}]}]},
+  'watch/providers':{results:{}},
   external_ids:{imdb_id:'tt0000042'},genres:[{name:'Drama'}],vote_average:8,vote_count:100,
 });
 export const mdbEnrichmentFixture=(imdb='tt0000042',tmdb=42) => ({

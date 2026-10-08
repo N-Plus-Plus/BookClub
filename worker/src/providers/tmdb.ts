@@ -41,7 +41,7 @@ export class TmdbProvider implements MovieSearchProvider, MovieMetadataProvider,
       scores: score ? [score] : [], fetched_at, enrichment:parseTmdbEnrichment(m,fetched_at) };
   }
   private movie(id: string) {
-    return this.request<TmdbFilm>(`movie/${encodeURIComponent(id)}?append_to_response=external_ids,credits,keywords,release_dates`);
+    return this.request<TmdbFilm>(`movie/${encodeURIComponent(id)}?append_to_response=external_ids,credits,keywords,release_dates,watch/providers`);
   }
   async enrichment(id: string) {
     return parseTmdbEnrichment(await this.movie(id),new Date().toISOString());

@@ -1,0 +1,67 @@
+// @vitest-environment jsdom
+import { act, createElement as h } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { EventScreen } from '../frontend/EventScreen';
+import { FilmPicker } from '../frontend/FilmPicker';
+import { AdminScreen } from '../frontend/AdminScreen';
+import { patchCatalogMovie } from '../frontend/seen-answers';
+import { rankMovie } from '../shared/ranking';
+import { api } from '../frontend/api';
+import type { Catalog, Movie, Rotation, Session } from '../shared/types';
+vi.mock('../frontend/api',()=>({api:{saveSession:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),enrichProvider:vi.fn(),scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:['f1'],eligibleDimensions:1,unavailableDimensions:0,unavailableFilms:0}))},ApiClientError:class extends Error {fields=[];}}));
+let root:Root,container:HTMLDivElement,catalog:Catalog;
+const rotation:Rotation={id:1,cycle_id:null,nominal_slot:5,version:9,updated_at:''};
+const saved=vi.fn();
+const button=(name:string)=>[...container.querySelectorAll<HTMLButtonElement>('button')].find(button=>button.textContent===name)!;
+const click=async(element:HTMLElement)=>act(async()=>element.click());
+function film(i:number):Movie{
+ const seen=[{member_id:'member',seen:0,updated_at:''}],scores=[{provider:'imdb',metric:'rating',raw_value:10-i,raw_scale:10,normalized_value:100-i*10,vote_count:1,fetched_at:'',retrieved_via:'omdb'}];
+ return {id:`f${i}`,title:`Film ${i}`,original_title:null,year:2000,runtime:100,release_date:null,overview:null,genres:[],assets:[],external_ids:[{provider:'tmdb',external_id:String(i)},{provider:'imdb',external_id:`tt000000${i}`}],scores,seen,classic:true,ranking:rankMovie(scores,seen,[{id:'member',display_name:'Member',active:1,sort_order:1}],i)};
+}
+const renderEvent=async(options:Partial<Parameters<typeof EventScreen>[0]>={})=>act(async()=>root.render(h(EventScreen,{catalog,rotation,writesEnabled:true,onMovie:()=>{},onSaved:saved,viewer:null,...options})));
+beforeEach(()=>{vi.clearAllMocks();localStorage.clear();Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});HTMLElement.prototype.scrollIntoView=vi.fn();container=document.createElement('div');document.body.appendChild(container);root=createRoot(container);catalog={members:[{id:'member',display_name:'Member',active:1,sort_order:1}],movies:[film(3),film(1),film(2),{...film(4),ranking:null}],sessions:[],cycles:[]};vi.mocked(api.saveSession).mockResolvedValue({});});
+afterEach(async()=>{await act(async()=>root.unmount());container.remove();});
+it.each([0,1,2,3])('attests only available ranked films (%i), locking first two and initially excluding third',async count=>{
+ catalog.movies=catalog.movies.filter(movie=>Number(movie.id.slice(1))<=count || movie.id==='f4');await renderEvent();
+ const choices=[...container.querySelectorAll<HTMLInputElement>('.classics-attestation input')];expect(choices).toHaveLength(count);
+ for(const [index,choice] of choices.entries()){expect(choice.checked).toBe(index<2);expect(choice.disabled).toBe(index<2);expect(choice.getAttribute('aria-label')).toContain(index<2?'required next Classic':'optional third Classic');}
+ expect(container.querySelector('.classics-attestation')?.textContent).not.toContain('Film 4');expect(container.textContent).toContain('Add another film');
+ if(count){await click(button('Save event'));expect(api.saveSession).toHaveBeenLastCalledWith(expect.objectContaining({movie_ids:Array.from({length:Math.min(count,2)},(_,i)=>`f${i+1}`),complete_turn:true,turn_version:9}),undefined);}
+ else {expect(container.textContent).toContain('No eligible Ranked Classics');await click(button('Save event'));expect(api.saveSession).not.toHaveBeenCalled();}
+});
+it('optional toggle submits once, removes on uncheck, and manual confirmation cannot duplicate locked recommendations',async()=>{
+ await renderEvent();const third=container.querySelectorAll<HTMLInputElement>('.classics-attestation input')[2];await click(third);await renderEvent({confirmedMovie:catalog.movies.find(movie=>movie.id==='f1')!});await click(button('Save event'));
+ expect(api.saveSession).toHaveBeenLastCalledWith(expect.objectContaining({movie_ids:['f1','f2','f3']}),undefined);
+ await click(third);await renderEvent({confirmedMovie:film(5)});await click(button('Save event'));expect(api.saveSession).toHaveBeenLastCalledWith(expect.objectContaining({movie_ids:['f1','f2','f5']}),undefined);
+ expect(container.querySelector('button[aria-label="Remove Film 1"]')).toBeNull();
+});
+it('catalogue rerender retains locked seeds and removes a now-ineligible optional film',async()=>{
+ await renderEvent();await click(container.querySelectorAll<HTMLInputElement>('.classics-attestation input')[2]);
+ catalog={...catalog,movies:catalog.movies.map(movie=>movie.id==='f3'?{...movie,ranking:{...movie.ranking!,eligible:false}}:movie)};await renderEvent();
+ expect(container.querySelectorAll('.classics-attestation input')).toHaveLength(2);await click(button('Save event'));expect(api.saveSession).toHaveBeenLastCalledWith(expect.objectContaining({movie_ids:['f1','f2']}),undefined);
+});
+it.each(['member','historical'])('does not inject recommendations into %s event',async mode=>{
+ await renderEvent(mode==='member'?{rotation:{...rotation,nominal_slot:2}}:{initial:{id:'old',kind:'classics',movies:[film(4)],event_date:'2000-01-01',date_precision:'exact',cycle_id:null,cycle_slot:5,host_member_id:null,legacy_cycle_label:null} as Session});expect(container.querySelector('.classics-attestation')).toBeNull();
+ if(mode==='historical') expect(container.querySelector('.lineup-list')?.textContent).toContain('Film 4');
+});
+it('availability groups cached primary options and quieter rent/buy without making provider calls, including saved search results',async()=>{
+ const movie={...film(1),au_watch_offers:([{service_id:'1',name:'Netflix',access_type:'subscription',link:null},{service_id:'2',name:'ABC iview',access_type:'free',link:null},{service_id:'3',name:'SBS',access_type:'ads',link:null},{service_id:'4',name:'Apple TV',access_type:'rent',link:null},{service_id:'4',name:'Apple TV',access_type:'buy',link:null}] as const).map(offer=>({...offer}))};
+ await act(async()=>root.render(h(FilmPicker,{builder:true,selected:[movie],movieById:new Map([[movie.id,movie]]),onSelected:()=>{},onMovie:()=>{}})));
+ expect(container.textContent).toContain('Stream: Netflix');expect(container.textContent).toContain('Free: ABC iview');expect(container.textContent).toContain('With ads: SBS');expect(container.querySelector('.au-availability .meta')?.textContent).toBe('Rent: Apple TV');
+ expect(api.preview).not.toHaveBeenCalled();expect(api.enrichProvider).not.toHaveBeenCalled();expect(api.search).not.toHaveBeenCalled();
+ const patched=patchCatalogMovie({...catalog,movies:[movie]},film(1));expect(patched.movies[0].au_watch_offers).toEqual(movie.au_watch_offers);
+ expect(patchCatalogMovie(patched,{...film(1),au_watch_offers:[]}).movies[0].au_watch_offers).toEqual([]);
+ vi.mocked(api.search).mockResolvedValue({local:[{id:movie.id,title:movie.title,year:movie.year,tmdbId:'1',poster:null}],external:[{provider:'tmdb',externalId:'9',title:'Unsaved',year:2000,poster:null}],lookup:{available:true,message:null}});
+ const input=container.querySelector<HTMLInputElement>('input[maxlength="150"]')!;
+ await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'film');input.dispatchEvent(new Event('input',{bubbles:true}));});
+ await act(async()=>container.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ expect(container.querySelector('.search-row .au-availability')?.textContent).toContain('Stream: Netflix');expect(container.querySelectorAll('.search-row .au-availability')).toHaveLength(1);expect(api.preview).not.toHaveBeenCalled();expect(api.enrichProvider).not.toHaveBeenCalled();
+
+});
+it('Admin renders six independent operations with title/button conventions, providers and accurate AU collection text',async()=>{
+ await act(async()=>root.render(h(AdminScreen,{catalog,writesEnabled:true,onMovie:()=>{},onUpdated:async()=>{}})));
+ const pairs=[['Populate Missing Scores','Populate missing scores'],['Refresh Scores','Refresh scores'],['Refresh OMDb Metadata','Refresh OMDb metadata'],['Fill Missing TMDB Metadata and Artwork','Fill missing TMDB metadata'],['Refresh TMDB Enrichment','Refresh TMDB enrichment'],['Refresh MDBList Enrichment','Refresh MDBList enrichment']];
+ for(const [title,action] of pairs){const heading=[...container.querySelectorAll('h2')].find(heading=>heading.textContent===title)!;expect(heading).toBeTruthy();const section=heading.closest('section')!;expect(section.querySelectorAll('h2')).toHaveLength(1);expect(section.contains(button(action))).toBe(true);expect(section.textContent).toContain('Estimated calls:');expect(section.textContent).toContain('APIs:');}
+ expect(container.querySelector('#tmdb-enrichment-heading')?.closest('section')?.textContent).toContain('Australian watch availability');expect(container.querySelector('#mdblist-enrichment-heading')?.closest('section')?.textContent).toContain('Regionless stream/watch fields are excluded');
+});

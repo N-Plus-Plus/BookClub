@@ -51,7 +51,20 @@ export function parseTmdbEnrichment(data: unknown, at: string): EnrichmentCaptur
       ratings.push({country:String(r.iso_3166_1),certification,release_type:number(entry.type),release_date:text(entry.release_date)});
     }
   }
-  return {provider:'tmdb',identity:{provider:'tmdb',external_id:id(m.id)!},fetchedAt:at,
+  const watch=object(m['watch/providers']), regions=object(watch?.results);
+  if (!regions) return undefined;
+  const offers: NonNullable<EnrichmentCapture['watch_offers']> = [];
+  if (Object.hasOwn(regions,'AU')) {
+    const au=object(regions.AU); if (!au) return undefined;
+    const seen=new Set<string>();
+    for (const [category,access] of Object.entries({flatrate:'subscription',free:'free',ads:'ads',rent:'rent',buy:'buy'})) {
+      if (!Object.hasOwn(au,category)) continue;
+      const parsed=rows(au[category],(s,ordinal)=>id(s.provider_id) && text(s.provider_name) ? {collection:'watch/providers',service_id:id(s.provider_id)!,name:text(s.provider_name)!,country:'AU',access_type:access,link:text(au.link),ordinal} : undefined);
+      if (!parsed) return undefined;
+      for (const offer of parsed) { const key=`${offer.service_id}:${access}`; if (!seen.has(key)) {seen.add(key);offers.push(offer);} }
+    }
+  }
+  return {provider:'tmdb',watch_offers:offers,identity:{provider:'tmdb',external_id:id(m.id)!},fetchedAt:at,
     metadata:scalars(m,['title','original_language','tagline'],['budget','revenue','popularity']),countries,languages,companies,
     credits:[...cast.sort((a,b)=>a.billing_order!-b.billing_order! || a.ordinal-b.ordinal).slice(0,15).map((c,ordinal)=>({...c,ordinal})),...crew],keywords,content_ratings:ratings};
 }
@@ -68,13 +81,6 @@ export function parseMdbEnrichment(data: unknown, identity: ExternalId, at: stri
     if (valid && /^[a-z][a-z0-9_-]*$/.test(provider)) identities.push({provider,external_id:String(value)});
   }
   const keywords=rows(m.keywords,k=>text(k.name) ? {external_id:id(k.id),name:text(k.name)!} : undefined);
-  const offers: NonNullable<EnrichmentCapture['watch_offers']> = [];
-  for (const collection of ['streams','watch_providers']) {
-    const parsed=rows(m[collection],(s,ordinal)=>id(s.id) && text(s.name) ? {collection,service_id:id(s.id)!,name:text(s.name)!,country:null,access_type:null,link:null,ordinal} : undefined);
-    if (!parsed) return undefined;
-    // Provider duplicates do not imply unknown access types; retain first display order.
-    const seen=new Set<string>(); for (const offer of parsed) { const key=`${offer.service_id}:${offer.name}`; if (!seen.has(key)) { seen.add(key); offers.push(offer); } }
-  }
   if (!keywords) return undefined;
-  return {provider:'mdblist',identity,fetchedAt:at,metadata:scalars(m,['title'],['runtime']),identities,keywords,watch_offers:offers};
+  return {provider:'mdblist',identity,fetchedAt:at,metadata:scalars(m,['title'],['runtime']),identities,keywords,watch_offers:[]};
 }

@@ -23,6 +23,7 @@ export class EnrichmentRepository {
       return [column,preserve ? before?.[column] ?? null : supplied];
     }));
     const values: Record<string,Record<string,unknown>[] | undefined> = {...capture,identity_claims:capture.identities?.map(i=>({identity_provider:i.provider,external_id:i.external_id}))} as unknown as Record<string,Record<string,unknown>[] | undefined>;
+    values.watch_offers=values.watch_offers?.filter(offer=>offer.country==='AU');
     const sets=Object.entries(relations).map(([name,columns])=>({name,columns,rows:values[name] === undefined ? undefined : [...new Map(values[name]!.map(row=>{
       const fields=columns.map(c=>row[c] ?? null);
       // Ordinal is evidence, but identical watch offers are one availability record.

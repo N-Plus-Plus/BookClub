@@ -13,10 +13,12 @@ export interface Ranking {
   imputedScores: { provider: string; metric: string; value: number }[];
   sources: { provider: string; metric: string; value: number; retrieved_via: string }[];
 }
+export interface AuWatchOffer { service_id: string; name: string; access_type: 'subscription' | 'free' | 'ads' | 'rent' | 'buy'; link: string | null }
 export interface Movie {
   id: string; title: string; original_title: string | null; year: number | null;
   release_date: string | null; runtime: number | null; overview: string | null; director?: string | null;
   au_classification?: string | null;
+  au_watch_offers?: AuWatchOffer[];
   tmdb_metadata_checked_at?: string | null;
   tmdb_artwork_checked_at?: string | null;
   genres: string[]; assets: Asset[]; external_ids: ExternalId[]; scores: Score[];

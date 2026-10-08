@@ -225,7 +225,7 @@ Avoid vague labels such as:
 
 unless the context genuinely requires them.
 
-Errors should state what happened and what the user can do next.
+Errors should state what happened and what the user can do next. Cooldown/retry wait durations round up to whole minutes, using hr/min and omitting zero units; never display seconds.
 
 Confirmation text should identify the object, scope and consequence.
 
@@ -609,7 +609,7 @@ Retain the shared Data sources & attribution disclosure with its label, body tex
 
 ### Authenticated header
 
-Use the canonical `assets/source/newFav/fav1.png` artwork through its generated `favicon.png` (32px) and `newFav/fav1.png` brand derivative (96px), preserving existing typography and placement. The visible title is exactly “Book Club” on Home; on every other route, including Admin and direct loads, it selects an ephemeral anagram from the fixed 18-title pool in `frontend/app-shell-title.ts`. Selection occurs only on initial non-Home entry or a changed hash-route page, remaining stable during ordinary rerenders. Keep the small tagline “HAVE YOU UPDATED THE SPREADSH... WEB APP?”. The existing avatar and uppercase member name form a button that toggles a compact Account dropdown. Admin viewers see an Admin link above Logout, navigating to `#/admin` and closing the dropdown; other viewers see only Logout. Outside clicks, leaving the account controls with keyboard focus, and Escape dismiss it; Logout uses the existing session behaviour.
+Use the canonical `assets/source/newFav/fav1.png` artwork through its generated `favicon.png` (32px) and `newFav/fav1.png` brand derivative (96px), displayed at 45×45px beside the title, preserving existing typography and placement. The visible title is exactly “Book Club” on Home; on every other route, including Admin and direct loads, it selects an ephemeral anagram from the fixed 18-title pool in `frontend/app-shell-title.ts`. Selection occurs only on initial non-Home entry or a changed hash-route page, remaining stable during ordinary rerenders. Keep the small tagline “HAVE YOU UPDATED THE SPREADSH... WEB APP?”. The existing avatar and uppercase member name form a button that toggles a compact Account dropdown. Admin viewers see an Admin link above Logout, navigating to `#/admin` and closing the dropdown; other viewers see only Logout. Outside clicks, leaving the account controls with keyboard focus, and Escape dismiss it; Logout uses the existing session behaviour.
 
 ### Sign-in
 

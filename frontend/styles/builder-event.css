@@ -53,3 +53,9 @@
 
 .button.builder-result-add { background: var(--emerald); color: #000; border-color: var(--emerald); }
 .button.builder-result-add:hover:not(:disabled) { background: var(--emerald-dark); border-color: var(--emerald-dark); }
+
+.au-availability { display: grid; gap: var(--space-4); margin-top: var(--space-8); }
+.au-availability p { margin: 0; overflow-wrap: anywhere; }
+.classics-attestation .host-option { min-height: var(--target-min); align-items: center; }
+.classics-attestation .movie-copy { min-width: 0; }
+.classics-attestation .movie-copy > span { display: block; }

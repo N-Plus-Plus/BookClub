@@ -20,7 +20,11 @@ it.each([2,5])('saves every film all Seen for hosted/Classics slot %i, overrides
  allSeen('moon');allSeen('alien');const {data:result}=await response.json() as {data:JournalMutationResult};const data=result.session!;
  expect(data.kind).toBe(slot===5?'classics':'hosted');
  for(const film of data.movies) expect(film.ranking).toMatchObject({seenCount:4,unknownCount:0,eligible:false});
- for(let i=0;i<2;i++) expect((await call(`/sessions/${data.id}`,'PUT',{...save,movie_ids:['moon','arrival']})).status).toBe(200);
+ for(let i=0;i<2;i++) {
+  const correction=await call(`/sessions/${data.id}`,'PUT',{...save,movie_ids:['moon','arrival']});expect(correction.status).toBe(200);
+  const {data:corrected}=await correction.json() as {data:JournalMutationResult};
+  expect(corrected.session!.movies.find(movie=>movie.id==='arrival')!.ranking).toMatchObject({seenCount:4,unknownCount:0,eligible:false});
+ }
  allSeen('moon');allSeen('arrival');allSeen('alien');
  expect((await call(`/sessions/${data.id}`,'DELETE')).status).toBe(200);allSeen('moon');
  local.sqlite.exec("DELETE FROM seen_states WHERE movie_id='moon'; UPDATE seen_states SET seen=0 WHERE movie_id='arrival'");
@@ -28,7 +32,7 @@ it.each([2,5])('saves every film all Seen for hosted/Classics slot %i, overrides
  const {data:restoration}=await restored.json() as {data:JournalMutationResult};
  for(const film of restoration.session!.movies) expect(film.ranking).toMatchObject({seenCount:4,unknownCount:0,eligible:false});
  const catalog=await new Repository(local.db).catalog();
- expect(missingAnswers(catalog.movies,catalog.members,'member-1',new Set(catalog.sessions.flatMap(s=>s.movies.map(m=>m.id)))).some(q=>q.movie.id==='arrival')).toBe(false);
+ for(const member of catalog.members.filter(member=>member.active===1)) expect(missingAnswers(catalog.movies,catalog.members,member.id,new Set(catalog.sessions.flatMap(s=>s.movies.map(m=>m.id)))).some(q=>['moon','arrival'].includes(q.movie.id))).toBe(false);
 });
 it.each([false,true])('admin removal preserves canonical relationships and History precedence (%s)',async history=>{
  local.sqlite.exec("INSERT OR IGNORE INTO classics(movie_id,source) VALUES('moon','test'); INSERT INTO seen_states(movie_id,member_id,seen) VALUES('moon','member-1',0)");

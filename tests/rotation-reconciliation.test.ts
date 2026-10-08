@@ -27,7 +27,7 @@ it('a returned swap does not discard an in-flight broad catalogue refresh or get
  await act(async()=>harness.root.unmount());harness.root=createRoot(harness.container);window.location.hash='/admin';await act(async()=>harness.root.render(createElement(App)));await navigate('admin');vi.clearAllMocks();
  let release!:(catalog:Catalog)=>void;vi.mocked(api.catalog).mockReturnValueOnce(new Promise(resolve=>{release=resolve;}));
  vi.mocked(api.enrichMetadataSelected).mockResolvedValue({results:[{movieId:'saved-7',title:'Fixture',provider:'tmdb',status:'success',message:'Saved'}]});
- await click(button('Fill missing metadata'));expect(api.catalog).toHaveBeenCalledOnce();
+ await click(button('Fill missing TMDB metadata'));expect(api.catalog).toHaveBeenCalledOnce();
  await navigate('admin');vi.mocked(api.swapRotation).mockResolvedValue({id:1,nominal_slot:2,cycle_id:null,version:1,updated_at:'saved',human_order:{'2':'member-3','3':'member-2'}});
  await act(async()=>{const select=harness.container.querySelector('main .card')!.querySelector('select')!;select.value='member-3';select.dispatchEvent(new Event('change',{bubbles:true}));});
  await act(async()=>harness.container.querySelector('main .card form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));await flush();

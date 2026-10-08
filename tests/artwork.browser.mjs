@@ -35,7 +35,7 @@ await context.route('**/*',async route=>{
 try {
   await page.goto('http://localhost:4173/#/history');await page.locator('.poster-empty').first().waitFor();assert.equal(calls,0);
   await page.goto('http://localhost:4173/#/admin');
-  await page.getByRole('button',{name:'Fill missing metadata',exact:true}).click();
+  await page.getByRole('button',{name:'Fill missing TMDB metadata',exact:true}).click();
   await page.getByText(/successfully updated/).waitFor();assert.equal(calls,1);
   await page.screenshot({path:'.verification/artwork-maintenance-progress.png',fullPage:true});
   for(const width of [390,900,1440]) {

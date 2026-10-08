@@ -19,31 +19,31 @@ describe('Admin screen and Account navigation',() => {
     expect(harness.container.querySelector('a[href="#/admin"]')).toBeNull();
     await navigate('admin');
     expect(harness.container.querySelector('h1')?.textContent).toBe('Page not found');
-    expect(button('Fill missing metadata')).toBeUndefined();
-    expect(button('Populate Missing Scores')).toBeUndefined();
+    expect(button('Fill missing TMDB metadata')).toBeUndefined();
+    expect(button('Populate missing scores')).toBeUndefined();
     expect(harness.container.textContent).not.toContain('Scores and OMDb metadata');
   });
-  it('renders all four maintenance sections only on Admin and keeps them out of navigation and member screens',async()=>{
+  it('renders six maintenance operations and Swap Turn only on Admin and keeps them out of navigation and member screens',async()=>{
     await asAdmin(); await navigate('admin');
     expect(harness.container.querySelector('h1')?.textContent).toBe('Admin');
-    expect(harness.container.querySelectorAll('main section.card h2')).toHaveLength(5);
-    for(const label of ['Populate Missing Scores','Refresh Scores','Enrich/Refresh Metadata','Fill missing metadata']) expect(button(label)).toBeTruthy();
-    expect(harness.container.textContent).toContain('Scores and OMDb metadata');
-    expect(harness.container.textContent).toContain('TMDB metadata and artwork');
-    expect(harness.container.textContent).toContain('TMDB enrichment cache');
-    expect(harness.container.textContent).toContain('MDBList enrichment cache');
+    expect(harness.container.querySelectorAll('main section.card h2')).toHaveLength(7);
+    for(const label of ['Populate missing scores','Refresh scores','Refresh OMDb metadata','Fill missing TMDB metadata']) expect(button(label)).toBeTruthy();
+    expect(harness.container.textContent).toContain('Refresh OMDb Metadata');
+    expect(harness.container.textContent).toContain('Fill Missing TMDB Metadata and Artwork');
+    expect(harness.container.textContent).toContain('Refresh TMDB Enrichment');
+    expect(harness.container.textContent).toContain('Refresh MDBList Enrichment');
     await click(harness.container.querySelector<HTMLButtonElement>('.account-menu-trigger')!);
     expect(harness.container.querySelector('.account-menu-dropdown')?.textContent).toBe('AdminLogout');
     expect(harness.container.querySelector('.account-menu-dropdown a[href="#/admin"]')).not.toBeNull();
     for(const nav of harness.container.querySelectorAll('nav')) expect(nav.textContent).not.toContain('Admin');
     await navigate('classics');
     for(const tab of ['Ranked','Unranked','Seen']) {
-      await click(button(tab)); expect(button('Populate Missing Scores')).toBeUndefined();
+      await click(button(tab)); expect(button('Populate missing scores')).toBeUndefined();
       expect(harness.container.querySelector('.classics-maintenance')).toBeNull();
     }
-    await navigate('metrics'); expect(button('Fill missing metadata')).toBeUndefined();
+    await navigate('metrics'); expect(button('Fill missing TMDB metadata')).toBeUndefined();
     await navigate('home'); expect(harness.container.textContent).not.toContain('Admin · swap current turn');
-    await navigate('admin'); expect(harness.container.querySelector('main .card h2')?.textContent).toBe('Admin · swap current turn'); expect(harness.container.querySelector('main .card details')).toBeNull();
+    await navigate('admin'); expect(harness.container.querySelector('main .card h2')?.textContent).toBe('Admin · swap current turn'); expect(harness.container.querySelector('main .card:first-child details')).toBeNull();
     await navigate('movie/saved-7'); expect(harness.container.textContent).not.toContain('Admin · score maintenance');
     expect(button('Refresh scores')).toBeUndefined();
   });
@@ -64,11 +64,11 @@ describe('Admin screen and Account navigation',() => {
     vi.mocked(api.enrichMetadataSelected).mockResolvedValue({results:[{movieId:movie.id,title:movie.title,provider:'tmdb',status:'success',message:'Updated.'}]});
     await asAdmin(); await navigate('admin');
     const bootstrapCalls=[vi.mocked(api.health).mock.calls.length,vi.mocked(api.me).mock.calls.length],catalogCalls=vi.mocked(api.catalog).mock.calls.length;
-    await click(button('Refresh Scores'));
+    await click(button('Refresh scores'));
     expect(api.maintainMovies).toHaveBeenCalledWith('refresh',[movie.id]);
     expect(harness.container.querySelector('progress')?.value).toBe(1);
     vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:catalog.movies.map(m=>m.id===movie.id ? {...m,director:'Director',tmdb_metadata_checked_at:new Date().toISOString(),tmdb_artwork_checked_at:new Date().toISOString()} : m)});
-    await click(button('Fill missing metadata'));
+    await click(button('Fill missing TMDB metadata'));
     expect(api.enrichMetadataSelected).toHaveBeenCalledOnce();
     expect(harness.container.textContent).toContain('1 successfully updated');
     expect(harness.container.textContent).toContain('0 identified films remaining');
@@ -79,7 +79,7 @@ describe('Admin screen and Account navigation',() => {
     vi.mocked(api.me).mockResolvedValue({viewer:null});
     await act(async()=>harness.root.unmount()); harness.root=createRoot(harness.container);
     window.location.hash='/admin'; await act(async()=>harness.root.render(createElement(App))); await flush();
-    expect(button('Populate Missing Scores')).toBeUndefined(); expect(button('Fill missing metadata')).toBeUndefined();
+    expect(button('Populate missing scores')).toBeUndefined(); expect(button('Fill missing TMDB metadata')).toBeUndefined();
     expect(harness.container.querySelector('h1')?.textContent).not.toBe('Admin');
   });
   it('stops TMDB work after the pending batch and preserves partial counts on Admin',async()=>{
@@ -88,8 +88,8 @@ describe('Admin screen and Account navigation',() => {
     vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:queue});
     vi.mocked(api.enrichMetadataSelected).mockImplementationOnce(()=>new Promise(resolve=>{release=resolve;}));
     await asAdmin(); await navigate('admin');
-    await click(button('Fill missing metadata'));
-    expect(button('Fill missing metadata').disabled).toBe(true);
+    await click(button('Fill missing TMDB metadata'));
+    expect(button('Fill missing TMDB metadata').disabled).toBe(true);
     await click(button('Stop after this batch'));
     const sent=vi.mocked(api.enrichMetadataSelected).mock.calls[0][0];
     vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:queue.map(m=>sent.includes(m.id) ? {...m,director:'Director',tmdb_metadata_checked_at:new Date().toISOString(),tmdb_artwork_checked_at:new Date().toISOString()} : m)});
@@ -107,12 +107,12 @@ describe('Admin screen and Account navigation',() => {
     vi.mocked(api.maintainMovies).mockResolvedValue({results:[{movie:{...movie,appearances:[]},providers:[{provider:'tmdb',status:'failed',count:0,message:'Score quota reached.',retryAfter:120}]}]});
     vi.mocked(api.enrichMetadataSelected).mockResolvedValue({results:[{movieId:movie.id,title:movie.title,provider:'tmdb',status:'failed',message:'Artwork quota reached.',retryAfter:60}]});
     await asAdmin(); await navigate('admin');
-    await click(button('Refresh Scores'));
-    expect(harness.container.querySelector('.classics-maintenance')?.textContent).toContain('Score quota reached. Wait 120s before retrying.');
-    await click(button('Fill missing metadata'));
+    await click(button('Refresh scores'));
+    expect(harness.container.querySelector('#refresh-maintenance-heading')?.closest('section')?.textContent).toContain('Score quota reached. Wait 2 min before retrying.');
+    await click(button('Fill missing TMDB metadata'));
     const tmdbSection=harness.container.querySelector('[aria-labelledby="tmdb-maintenance-heading"]');
     expect(tmdbSection?.textContent).toContain('1 failures');
-    expect(tmdbSection?.textContent).toContain('Artwork quota reached. Retry after at least 60 seconds.');
+    expect(tmdbSection?.textContent).toContain('Artwork quota reached. Retry after at least 1 min.');
     expect(tmdbSection?.textContent).toContain('Completed updates are saved');
     expect(api.enrichMetadataSelected).toHaveBeenCalledOnce();
   });

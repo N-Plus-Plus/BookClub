@@ -7,3 +7,6 @@
 .developer-tools { margin-bottom: var(--space-20); border: 0; font-size: var(--text-body-small); }
 .developer-tools[open] { padding: var(--space-16); background: var(--surface-raised); border: 1px solid var(--asphalt); }
 .developer-tools:not([open]) summary { color: var(--text-muted); }
+
+.maintenance-details { display: grid; gap: var(--space-8); }
+.maintenance-details p { margin: 0; overflow-wrap: anywhere; }

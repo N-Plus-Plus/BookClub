@@ -42,6 +42,10 @@ Status semantics: malformed JSON 400; missing/invalid/expired session or invalid
 
 CORS reflects exact configured origins only, never `*`, with no cookie credentials. Production temporarily allows exactly `https://n-plus-plus.github.io` and `https://bookclub.nissen.nexus` (no paths) during cutover; local `http://localhost:4173`. Permit Content-Type/Authorization; dev identity header only under local bypass. Requests without Origin still require auth. OPTIONS returns 204 for allowed/no origin. Responses use no-store, nosniff and Vary: Origin.
 
+## Australian watch availability projection
+
+Full and compact catalogue Movie objects optionally contain `au_watch_offers: {service_id:string,name:string,access_type:"subscription"|"free"|"ads"|"rent"|"buy",link:string|null}[]`. It is a narrow cached Australian projection, loaded once set-wise, with no raw provider payload, regionless offers or provider HTTP. No offers (including pre-0016 schemas) may omit the field. Older Workers may omit it; clients treat that as no cached evidence. Narrow selected-film/session mutation responses may omit the catalogue-only field; `patchCatalogMovie` preserves known availability on omission and honours explicit empty arrays. Full catalogue replacement establishes current cache state. FilmPicker uses the existing canonical movie map for saved Builder search rows; unsaved external candidates carry no cached availability.
+
 ## Authentication and catalog routes
 
 | Method / path | Request / result |

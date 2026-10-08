@@ -1,3 +1,5 @@
+import { estimateMaintenance } from './maintenance-estimates';
+import { MaintenanceOperationDetails } from './MaintenanceOperationDetails';
 import { useEffect, useState } from 'react';
 import { RefreshCw, Square, RotateCcw } from 'lucide-react';
 import type { Catalog, MovieDetail, ScoreMaintenanceStatus } from '../shared/types';
@@ -8,7 +10,8 @@ import { useBulkJobController, MaintenanceProgress } from './bulk-maintenance';
 import { ProviderFeedback } from './maintenance-feedback';
 import { maintainScores, type MaintenanceRun } from './score-maintenance';
 import { freshOmdbCheckpoint, loadOmdbCheckpoint, maintainOmdbMetadata, reconcileOmdbCheckpoint, saveOmdbCheckpoint, type OmdbCheckpoint } from './omdb-maintenance';
-const labels = {missing:'Populate Missing Scores',refresh:'Refresh Scores',metadata:'Enrich/Refresh Metadata'};
+const labels = {missing:'Populate Missing Scores',refresh:'Refresh Scores',metadata:'Refresh OMDb Metadata'};
+const actions = {missing:'Populate missing scores',refresh:'Refresh scores',metadata:'Refresh OMDb metadata'};
 export function ClassicsMaintenance({catalog,writesEnabled,onMovie,onUpdated}: {
   catalog: Catalog; writesEnabled: boolean; onMovie: (movie: MovieDetail) => void; onUpdated?: () => Promise<void>;
 }) {
@@ -42,18 +45,21 @@ export function ClassicsMaintenance({catalog,writesEnabled,onMovie,onUpdated}: {
       setMode(null);
     }
   });
-  return <section className="card stack classics-maintenance" aria-labelledby="score-maintenance-heading"><h2 id="score-maintenance-heading">Scores and OMDb metadata</h2>
-    <p className="meta">Scores: IMDb, RT-A, RT-C, LB, MC and TMDB. Populate fills missing scores; Refresh rechecks identified films. OMDb Metadata refreshes title, year, runtime, director and genres across the whole catalogue with a valid IMDb identity.</p>
-    <p className="meta">{movies.filter(m => !maintenanceIdentity(m,'refresh')).length} need score identity · {catalog.movies.filter(m => !maintenanceIdentity(m,'metadata')).length} need IMDb identity for metadata · {catalog.movies.filter(m => maintenanceIdentity(m,'metadata')).length} eligible for whole-catalogue OMDb Metadata.</p>
-    {status && <p className="meta">{status.eligibleDimensions} score inputs eligible · {status.unavailableDimensions} confirmed unavailable ({status.unavailableFilms} films).</p>}
-    <div className="button-set">{(Object.keys(labels) as MaintenanceMode[]).map(operation => <Action key={operation} icon={RefreshCw} disabled={Boolean(mode) || job.locked || !writesEnabled || !(operation === 'metadata' ? catalog.movies : movies).some(m => maintenanceIdentity(m,operation) && (operation !== 'missing' || status?.candidateIds.includes(m.id)))} onClick={() => void start(operation)}>{operation === 'metadata' && resumable?.remainingIds.length ? `Resume Metadata · ${resumable.remainingIds.length} remaining` : labels[operation]}</Action>)}
-    {checkpoint && !mode && <Action icon={RotateCcw} variant="tertiary" onClick={() => { checkpointChanged(null); setRun(null); }}>Discard metadata progress</Action>}
-    {mode && <Action icon={Square} onClick={job.requestStop}>Stop after this batch</Action>}</div>
-    {run && <MaintenanceProgress processed={run.processed} total={run.total} label="Bulk maintenance progress" className="score-maintenance-progress" summary={<>{mode ? `${labels[mode]}… ` : ''}{run.processed} / {run.total} films processed · {run.remaining} remaining · {run.updated} updated · {run.noChange} {runMode === 'metadata' ? 'with no change' : 'with no new scores'} · {run.failed} failures.</>}>
-
-      {runMode === 'metadata' && resumed && <p className="meta">Update, no-change and failure counts are for this visit.</p>}
-      {run.message && <p className="meta">{run.message}</p>}
-      {run.providers.some(provider => provider.status === 'failed') && <ProviderFeedback providers={run.providers.filter(provider => provider.status === 'failed')} />}
-    </MaintenanceProgress>}{error && <p className="error-message" role="alert">{error}</p>}
-  </section>;
+  return <>{(Object.keys(labels) as MaintenanceMode[]).map(operation => {
+    const candidates=(operation==='metadata' ? catalog.movies : movies).filter(movie=>maintenanceIdentity(movie,operation) && (operation!=='missing' || status?.candidateIds.includes(movie.id)));
+    const pending=operation==='metadata' && resumable?.remainingIds.length ? candidates.filter(movie=>resumable.remainingIds.includes(movie.id)) : candidates;
+    return <section key={operation} className="card stack classics-maintenance" aria-labelledby={`${operation}-maintenance-heading`}><h2 id={`${operation}-maintenance-heading`}>{labels[operation]}</h2>
+      <MaintenanceOperationDetails operation={operation} estimate={estimateMaintenance(operation,pending)} />
+      <p className="meta">{candidates.length} eligible films{operation==='metadata' && resumable ? ` · ${resumable.completed} checkpoint films completed · ${pending.length} remaining` : ''} · {(operation==='metadata' ? catalog.movies : movies).length-candidates.length} outside this operation's scope.</p>
+      {operation==='missing' && !status && <p className="meta">Loading missing-score eligibility…</p>}
+      {operation==='missing' && status && <p className="meta">{status.eligibleDimensions} score inputs eligible · {status.unavailableDimensions} confirmed unavailable ({status.unavailableFilms} films).</p>}
+      <div className="button-set"><Action icon={RefreshCw} disabled={Boolean(mode) || job.locked || !writesEnabled || !candidates.length} onClick={()=>void start(operation)}>{operation==='metadata' && resumable?.remainingIds.length ? `Resume OMDb metadata · ${resumable.remainingIds.length} remaining` : actions[operation]}</Action>
+        {operation==='metadata' && checkpoint && !mode && <Action icon={RotateCcw} variant="tertiary" disabled={job.locked} onClick={()=>{checkpointChanged(null);setRun(null);}}>Discard metadata progress</Action>}
+        {mode===operation && <Action icon={Square} onClick={job.requestStop}>Stop after this batch</Action>}</div>
+      {run && runMode===operation && <MaintenanceProgress processed={run.processed} total={run.total} label={`${labels[operation]} progress`} className="score-maintenance-progress" summary={<>{mode ? `${labels[operation]}… ` : ''}{run.processed} / {run.total} films processed · {run.remaining} remaining · {run.updated} updated · {run.noChange} {operation==='metadata' ? 'with no change' : 'with no new scores'} · {run.failed} failures.</>}>
+        {operation==='metadata' && resumed && <p className="meta">Update, no-change and failure counts are for this visit.</p>}{run.message && <p className="meta">{run.message}</p>}{run.providers.some(provider=>provider.status==='failed') && <ProviderFeedback providers={run.providers.filter(provider=>provider.status==='failed')} />}
+      </MaintenanceProgress>}
+      {error && (runMode===operation || !runMode && operation==='missing') && <p className="error-message" role="alert">{error}</p>}
+    </section>;
+  })}</>;
 }

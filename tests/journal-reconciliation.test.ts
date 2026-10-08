@@ -53,6 +53,7 @@ it('Builder publication reconciles its new cycle, History, Seen and turn and ato
   const builder=await product.saveBuilder('member-2',{title:'Plan',movie_ids:['bicycle','moon']});
   const result=await mutation(`/builders/${builder.id}/publish`,'POST',{revision:builder.revision,event_date:'2031-01-01',cycle_slot:1,cycle_id:null,complete_turn:true,turn_version:turn.version});
   await apply(result);counts();expect(data.catalog!.sessions.find(session=>session.id===result.session!.id)).toEqual(result.session);expect(data.rotation).toEqual(result.rotation);
+  for(const id of ['bicycle','moon']) expect(data.catalog!.movies.find(movie=>movie.id===id)!.seen.filter(answer=>answer.seen===1)).toHaveLength(data.catalog!.members.filter(member=>member.active===1).length);
   expect(data.catalog!.cycles.some(cycle=>cycle.id===result.cycle?.id)).toBe(true);expect(data.catalog!.movies.find(movie=>movie.id==='bicycle')?.ranking?.eligible).toBe(false);
   await expect(product.builder('member-2',builder.id)).rejects.toMatchObject({status:404});
 });
