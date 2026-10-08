@@ -256,15 +256,15 @@ Departure / limitation: None.
 
 Source / evidence: tests/pre-launch.browser.mjs; tests/compact-scores.browser.mjs; tests/metrics.browser.mjs; ignored .verification/pre-launch evidence.
 
-Rendered checks use synthetic local fixtures and blocked provider traffic. Authenticated production smoke is separate and must be recorded after publication.
+Rendered acceptance uses synthetic local fixtures and blocked provider traffic. Post-release public production smoke passed; authenticated owner production smoke was not performed because no owner session was used.
 
 ## AG. Committed handoff report
 
-**Complete.** This temporary report records actual changes and evidence per letter. It is included in the intended release commit and will receive a factual deployment closeout commit. No private fixture, owner, snapshot or credential contents appear here.
+**Complete.** This temporary report records actual changes and evidence per letter. It is included in release commit 8985f5f25f888af2ac96f406c517e5d020b96da7; this final report update records deployment facts in a separate documentation commit. No private fixture, owner, snapshot or credential contents appear here.
 
 Source / evidence: PRE_LAUNCH_FIXES.md.
 
-Release outcome fields remain pending until deployment completes.
+Release outcomes are recorded below. The report-only closeout commit does not redeploy the application.
 
 ## AH. Authorised cleanup
 
@@ -276,11 +276,11 @@ Deletion commands were unavailable under automatic tool approval policy. No sour
 
 ## AI. Full production release
 
-**Partially complete.** Pending source commit/push and coordinated API then frontend publication. Read-only Cloudflare target/authentication checks succeeded; the production ledger contains all tracked 0001–0018 migrations, with no pending migration or schema change. No schema mutation/backup is required for this release.
+**Complete.** Release commit 8985f5f25f888af2ac96f406c517e5d020b96da7 was pushed to main and verified against remote main. Read-only Cloudflare target/authentication and ledger checks succeeded: all tracked 0001–0018 migrations were applied, with no pending migration or schema change. No schema mutation/backup was required. The production API was deployed and health/auth/CORS checked, then the verified frontend was published LAST. Public production smoke passed.
 
 Source / evidence: docs/DEPLOYMENT.md; exact configured bookclub-prod / bookclub-api / bookclub-frontend targets.
 
-The application has not yet been published from this change.
+Authenticated owner production smoke was not performed; no owner session was used. Synthetic workflow coverage passed locally. No production club history, Seen state, metadata or rotation was mutated.
 
 ## Cleanup inventory
 
@@ -329,10 +329,11 @@ Explicitly retained: original label audit/inventory/CSV, STYLE_UNIFICATION_DECIS
 
 ## Release summary
 
-- Release commit / pushed remote SHA: pending.
+- Release commit / verified pushed remote SHA: `8985f5f25f888af2ac96f406c517e5d020b96da7` (main).
 - Production schema: all tracked migrations 0001–0018 applied; no pending migration (read-only remote ledger verified).
 - Build inputs: production API origin and the unchanged Google Web Application client ID recovered from the currently published public bundle; private material excluded.
-- API Worker: pending.
-- Frontend LAST: pending.
-- Production smoke: pending.
-- Outstanding: cleanup and release completion.
+- API Worker: deployed `bookclub-api`, version `70d7c42c-1df5-45b3-8d80-607f0b680c49`; verified production health, required authentication and configured Google/TMDB/MDBList/OMDb. Unauthenticated private read/mutation and invalid bearer returned 401; intended-origin OPTIONS returned 204, arbitrary origin 403.
+- Frontend LAST: deployed `bookclub-frontend`, version `61e5409a-074f-4435-8245-9ae20f670a0b`, at https://bookclub.nissen.nexus. Verified published `index-D1EUjYC9.js` and `index-B7LjbqUi.css` match the release build.
+- Production smoke: passed HTTPS shell/assets/fonts, avatars 0–19 and a.png, icon, production API requests, all six hash routes/refresh, live Google sign-in iframe and no page overflow/runtime errors at 320/390/1440px. Ignored evidence: `.verification/pre-launch/production-smoke-results.json`, deployment logs and sign-in screenshots. Authenticated owner smoke not performed.
+- Completion: 34 of 35 lettered tasks satisfied (C already satisfied); AH cleanup blocked by automatic approval review. All cleanup candidates retained.
+- Final documentation closeout: report-only commit pushed after publication; source/production release remains the release SHA above.
