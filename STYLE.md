@@ -76,7 +76,7 @@ On desktop, actively compose for the available space. Do not merely stretch the 
 
 ## 5. Spacing and rhythm
 
-BookClub should use a small approved spacing scale.
+BookClub uses 4, 8, 12, 16, 20, 24 and 32px spacing, with explicitly defined 2px/6px microspacing. Use 8px icon-to-label/control gaps, 4–8px compact text groups, 12px poster-to-details, 8px label-to-field, 16px heading/content and row rhythm, and 24–32px section separation. Metrics retains its 32px outer gap. Poster dimensions, content-width tiers, drawer geometry and chart constraints are geometry rather than spacing tokens. The bottom dock's 5px label gap and 7px item padding retain its constrained composition.
 
 Use central spacing tokens or established project values rather than arbitrary gaps.
 
@@ -122,7 +122,7 @@ Visible borders should be quiet and purposeful. Strong borders should be reserve
 
 Nested cards should be uncommon.
 
-BookClub may use pills and badges fairly freely for compact metadata, state and category presentation, provided they improve scanning and do not become visual noise.
+Status badges are outlined rounded pills: 11px/800, line-height 1, 4px × 8px padding, 1px border and 24px minimum height. Intent changes colour, not geometry. Attached counts are a separate solid family: 11px/600, line-height 1, 2px × 4px padding, with semantic fills for tab/filter counts. Use each family according to meaning; do not vary padding or weight by screen.
 
 ## 7. Shape vocabulary
 
@@ -180,25 +180,35 @@ Routine cards should not need shadows. Preserve BookClub’s top-left dark radia
 
 ## 11. Typography
 
-BookClub uses Lexend Deca Variable for interface text and numbers unless explicitly redesigned.
+BookClub uses Lexend Deca for interface text and numbers. Keep the existing bundled 300/400/500/600/700/800 static font faces and the numeric-family/tabular-number conventions; this is not a variable-font configuration.
 
-Keep the hierarchy small.
+Typography follows semantic roles, independent of screen or HTML tag. Shared application tokens in `frontend/styles/shared-content.css` define:
 
-Use a limited set of text roles:
+| Role | Size | Weight |
+| --- | --- | --- |
+| Page H1 | Fluid 32–52px | 600 |
+| Section H2 | 20px | 600 |
+| Subsection H3 | 18px | 600 |
+| Minor heading H4 | 16px | 600 |
+| Standard film title | 22px | 600 |
+| Compact film title | 18px | 600 |
+| Detail film title | 24px | 600 |
+| Seen hero film title | 30px | 600 |
+| Body | 16px | 400 |
+| Supporting prose | 14px | 400 |
+| Metadata/helper | 13px | 400 |
+| Field label | 13px | 500 |
+| Button/tab label | 15px | 600 |
+| Eyebrow/overline | 11px | 600 |
+| Compact identity/count | 11px | 600 |
 
-- page title;
-- section heading;
-- item title;
-- body;
-- metadata;
-- helper text;
-- warning or error.
+Classify subordinate text before applying a role; the inherited 16px body is not the default for metadata, helpers or supporting prose. Headings and film titles use 1.25 line height (the fluid H1 uses 1.2); ordinary text uses 1.5; metadata/narrative prose uses 1.6; controls and compact indicators use 1. Explicitly style h4 and small. Emphasis uses 600 within the current role; status badges use 800. Preserve subdued metadata colours, established heading/eyebrow tracking and tabular numeric alignment.
 
-Prefer weight, size, spacing and contrast over many different font sizes or decorative treatments.
+Named variants retain History film titles at the event H3 size, compact mobile Classics/narrow Builder titles, large Detail/Seen identities, Home's responsive statistic numerals/labels, compact branding/navigation microtext, light 300-weight narrative prose in Seen/Detail/Add Classic, and generated Metrics theme typography/report colours. Home statistics use 24–30px mobile numerals and 38px at 720px, with 11/13px labels and weight-500 numerals. Builder poster captions use the reusable metadata-label variant (13px/500), centred and ellipsised. The deliberately tiny attribution remains unchanged pending owner readability review. Details and the small exception register belong in [STYLE_UNIFICATION_DECISIONS](docs/audits/STYLE_UNIFICATION_DECISIONS.md).
 
-Uppercase text is acceptable sparingly for short identity elements, compact labels and established member-name treatment. Do not convert ordinary prose or controls to uppercase for decoration.
+Linked film identity containers, including poster and subordinate metadata, remain native Film Detail links with visible hover and keyboard focus treatment; independent actions remain outside the link. Do not use decorative Eye icons to indicate Film Detail navigation. Informational film displays remain unlinked unless navigation is already intended.
 
-Linked film presentations use the shared movie-title typography role at approximately 1.5 times their base item-title size (or their existing larger title role). Keep year/runtime metadata subordinate. The full film identity container, including its poster and supporting metadata, is a native Film Detail link with visible hover and keyboard focus treatment; independent actions remain outside the link. Do not use decorative Eye icons to indicate Film Detail navigation. Informational film displays remain unlinked unless navigation is already intended.
+Whole-number counts use shared `formatCount` (`en-AU` thousands separators), including statistics, pagination, ranking/Seen counts, report counts, Admin estimates and progress. Preserve film years, dates, identifiers, units, percentages, score precision, calculation precision and the Unranked 99+ cap; its accessible name exposes the full formatted count. Fractional vote medians retain their existing precision.
 
 Use Australian English throughout the interface. Possessive member display names ending in s or S take only an apostrophe (Jess’ week); other names take ’s (Sean’s week).
 
@@ -247,6 +257,10 @@ Action priority should be visible through a combination of:
 - size where appropriate;
 - placement;
 - spacing.
+
+Ordinary Actions share 46px height, 12px inline padding, 8px icon/text gap and 15px/600 labels. Primary/secondary/tertiary and intent colours do not change geometry. Icon-only Actions have at least 44×44px targets; artwork/icon dimensions remain independent. Tabs/source filters share `.tab-control` geometry: 44px height, 12px inline padding, 8px gaps and the same label role, transparent surface and active underline. Metrics identity choices are avatar tiles rather than ordinary text filters.
+
+The reusable wrapping-label variant keeps the 46px minimum, 12px inline padding and 8px gap, adding 8px block padding with 1.25 line height when needed in Admin, Home's narrow turn column and long retry/developer controls. Seen answers remain equal 60px Actions. Narrow Builder editor actions hide decorative icons below 390px to preserve their single row with standard label size and padding. Classics removal extends its 44px target around the established quiet 18px icon dock without colliding with the film link.
 
 Keep destructive controls separate from routine completion.
 
@@ -339,7 +353,7 @@ When sticky or fixed UI is used, verify that it does not cover:
 
 ## 19. Forms
 
-Forms should be staged around the task.
+Forms should be staged around the task. Ordinary fields use 48px height, 12px inline padding and 16px input text for mobile readability/browser behaviour. Labels use the 13px/500 field-label role; multiline fields retain their established resizing behaviour.
 
 Use visible labels where ambiguity is possible. Placeholder text is not a label replacement.
 
@@ -537,7 +551,7 @@ History defaults to newest cycles first with lower-to-higher event positions. Re
 
 Prioritise visual comprehension and comparison. The outer Metrics stack adds 1rem to the normal section gap; internal card and chart spacing retains the shared rhythm.
 
-Charts are encouraged where they reveal patterns better than text alone. Metrics remains one route with global identity filters immediately above seven category tabs: Top / Bottom, Fingerprints, General, Averages, Diversity, Standalone and Extremes. Only the selected panel renders its reports; identity changes preserve the category. Default to Top / Bottom on mount, with in-memory state only. Use the same transparent, body-size text, hover emphasis and inset straight focus-token underline as Classics tabs, without icons. The intrinsic-width strip scrolls horizontally rather than wrapping at narrow widths, keeps 44px touch targets and visible keyboard focus, and supports arrow keys/Home/End. Metric assignments and theme eligibility belong in DATA.md.
+Charts are encouraged where they reveal patterns better than text alone. Metrics remains one route with global identity filters immediately above seven category tabs: Top / Bottom, Fingerprints, General, Averages, Diversity, Standalone and Extremes. Only the selected panel renders its reports; identity changes preserve the category. Default to Top / Bottom on mount, with in-memory state only. Use the shared tab-control label role, transparent surface, hover emphasis and inset straight focus-token underline as Classics tabs, without icons. The intrinsic-width strip scrolls horizontally rather than wrapping at narrow widths, keeps 44px touch targets and visible keyboard focus, and supports arrow keys/Home/End. Metric assignments and theme eligibility belong in DATA.md.
 
 Use flat sections and quiet dividers. Genre fingerprints use dual coloured selected and neutral club bars normalised to the larger share. Theme fingerprints use vertical, palette-coloured word lists of up to twelve positive outliers per identity, with humanised labels and club ratios. Themes require three appearances across the whole club; lowercase single words and slugs start with a capital. Omit theme coverage labels, the global all-time/host/repeat summary and Popularity & Obscurity appearance coverage. Release decades use one stacked bar. Most common uses the full decade (2010s); each legend entry stacks a colour swatch, abbreviated decade reference and percentage on three separate rows, without separator dots. Unknown remains explicit. Studios list at most twenty entries. Top Directors and Cast include at least five entries and every fifth-place count tie. Lists above twenty results use twenty-row Previous/Next pages with full counts; film-extreme lists above twenty use five films per page. Small lists remain together, ratio numbering stays global, and pagination makes every tie available. Fingerprints use horizontal bars with sentence-cased lowercase slugs and preserved natural provider text. Language/classification use individual bars scaled to the largest category in each profile, actual share labels and explicit Unknown, classification retains empty rows for zero-count categories, language labels use full English names where possible, and diversity uses aligned comparisons with distinct counts and no coverage copy. General ends with Top/Bottom reported revenue/budget ratio lists with title links, year and reported amounts, without unique-film coverage copy. Ratio rows have a separate aligned rank column; reported USD budget and revenue use full amounts with thousands separators. Standalone contains World cinema and Original-language profile. Averages combines budget/revenue medians into touching horizontal bars per identity, on a shared scale within each pair, with carrot Budget/USD above and grass Revenue/USD below; beneath each identity name, show median revenue divided by median budget to one decimal, or an unavailable label when either median is missing, plus Ratings Profile. Talent and Production countries omit coverage labels. Role controls retain normal field styling and touch targets. Diversity comparisons alternate jeans/lavender in contributor order. Diversity titles have concise per-ten explanations. Rating-source selectors use a spanning, non-wrapping scroll strip with an active underline. Rating-source axes use ten-point circle glyphs with clipped fractional fills and retain fixed order and visible mean and median, with full names accessible. Semantic CSS bars always retain exact visible values; theme word-list colours cycle through the approved palette in displayed order after sorting; other category palette mappings stay stable as filters change. Pair comparisons, Top/Bottom and Popular/Obscure at wider content widths. Popular/Obscure film rows use full-width straight dividers with square edges. Genre Detail insets the first column 1rem from the left and the last column 1rem from the right, preserving sticky headers and fixed row heights. Extremes uses a two-column grid when space permits, collapsing to one column without shrinking text; film cards keep poster/title links and release year; Most Popular and Most Obscure follow Oldest and Longest, using highest and lowest positive IMDb vote counts and showing all ties. Film and creator headings use successive approved spectrum colours in report order, with creator colours continuing after the eight film categories; creator cards retain, smaller non-bold secondary count/tie metadata and readable names without dedicated coverage rows; every genuine tie remains available through its result pages. Charts respond to available content width beside either navigation drawer state; colour is never the only label. Data/resolution/counting rules belong in DATA.md.
 
@@ -555,7 +569,7 @@ Ranked, Unranked (the existing Needs Data group) and Seen remain distinct, with 
 
 Only authenticated admins can view `#/admin`; other viewers receive the ordinary not-found treatment. Show Admin only in the admin viewer’s Account dropdown above Logout; keep it absent from primary navigation. Use the normal shell and Admin page heading. The first distinct card is the pre-exposed Admin · swap current turn, retaining the eligible future member selector, Swap turns and local feedback; Classics/uninitialised turns show an unavailable message. Follow it with stacked, distinct Scores and OMDb metadata and TMDB metadata and artwork sections. Preserve live counts, progress, Stop and aggregate run feedback. Score/OMDb maintenance shows provider details only for failures, including available cooldown/retry information; ordinary success/skipped notes remain hidden. Its native progress fill uses pumpkin with a neutral asphalt-dark track. Keep the score/metadata explanation brief and operational. Show concise counts of missing scores still eligible to check and checked scores with no source data. Apply returned score batches through onMovie and discard film detail; retain aggregate counters and bounded provider/status summaries, without per-film run logs. TMDB metadata batches retain aggregate counters and one failure summary. Freeze the catalogue candidate queue at run start, show local queue progress during the run, then recalculate remaining/identity counts from the one final shared-data refresh.
 
-The separate TMDB enrichment cache and MDBList enrichment cache sections follow the existing maintenance sections. Each shows all-catalogue eligible/identity-gap counts, concise Refresh/Resume controls, processed/total/remaining and update/no-change/failure counts, the shared progress style, Stop after this batch and bounded local failure/quota feedback. All bulk provider actions share one frontend lock. Resume preserves completed work using the existing credential-free checkpoint format; Discard allows a fresh full crawl. Enrichment buttons may wrap labels at narrow widths. Shared catalogue refresh is needed only when canonical IDs changed.
+The separate TMDB enrichment cache and MDBList enrichment cache sections follow the existing maintenance sections. Each shows all-catalogue eligible/identity-gap counts, concise Refresh/Resume controls, processed/total/remaining and update/no-change/failure counts, the shared progress style, Stop after this batch and bounded local failure/quota feedback. All bulk provider actions share one frontend lock. Resume preserves completed work using the existing credential-free checkpoint format; Discard allows a fresh full crawl. All operation action groups use the same wrapping-label variant at narrow widths, including Stop, Resume and Discard; progress and scope/status text use the metadata role. Shared catalogue refresh is needed only when canonical IDs changed.
 
 ### Builder
 
@@ -678,4 +692,4 @@ If the screen technically works but still feels assembled rather than designed, 
 
 ## 33. Document maintenance and relationships
 
-Update this authority in the same pass when an explicit lasting UX decision changes, or when other work reveals drift. Preserve BookClub-specific decisions; do not replace them with a generic starter. Remove stale rules rather than append competing ones. Product/data behaviour belongs in [DATA](docs/DATA.md) and [CONTRACTS](docs/CONTRACTS.md); rendered verification policy belongs in [TESTING](docs/TESTING.md). The dated [UI audits](docs/UI_AUDIT_POST_ALIGNMENT.md) are reference evidence, not current design authority or permission to implement their recommendations.
+Update this authority in the same pass when an explicit lasting UX decision changes, or when other work reveals drift. Preserve BookClub-specific decisions; do not replace them with a generic starter. Remove stale rules rather than append competing ones. Product/data behaviour belongs in [DATA](docs/DATA.md) and [CONTRACTS](docs/CONTRACTS.md); rendered verification policy belongs in [TESTING](docs/TESTING.md). The [style decision register](docs/audits/STYLE_UNIFICATION_DECISIONS.md) records semantic families and justified exceptions; the original label inventory/CSV remain immutable before-state evidence. The dated [UI audits](docs/UI_AUDIT_POST_ALIGNMENT.md) are reference evidence, not current design authority or permission to implement their recommendations.

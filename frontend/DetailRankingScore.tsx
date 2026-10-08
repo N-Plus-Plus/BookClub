@@ -1,8 +1,9 @@
+import { formatCount } from '../shared/format';
 import type { Ranking } from '../shared/types';
 
 import { detailRatingKeys, ratingDimensions } from '../shared/rating-dimensions';
 const score100 = (value: number | undefined) => value !== undefined && Number.isFinite(value) ? `${Math.round(value)}/100` : '-';
-const integer = (value: number | null) => value !== null && Number.isFinite(value) ? Math.round(value).toLocaleString('en-AU') : '—';
+const integer = (value: number | null) => value !== null && Number.isFinite(value) ? formatCount(Math.round(value)) : '—';
 
 export function DetailRankingScore({ranking}: {ranking: Ranking}) {
   const inputs = detailRatingKeys.map(key => {

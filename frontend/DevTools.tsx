@@ -26,7 +26,7 @@ export default function DevTools({members,onChanged}: {members: Member[];onChang
   return <details className="developer-tools utility-disclosure"><summary>Local development tools</summary><div className="stack">
     <label className="input-label">Develop as member<select className="field__input" disabled={busy} defaultValue={localStorage.getItem('bookclub.dev-member') ?? ''} onChange={event => {setDevMember(event.target.value); void onChanged();}}><option value="">Anonymous local bypass</option>{members.map(member => <option key={member.id} value={member.id}>{member.display_name}</option>)}</select></label>
     <p>Replace disposable LOCAL data with current production state. Production will not be modified. Private Builder plans are copied; sessions and Google identities are cleared.</p>
-    {confirm ? <><p>Discard current local edits and replace the local database?</p><Action icon={RefreshCw} intent="destructive" onClick={() => void refresh()}>Confirm local replacement</Action><Action icon={X} onClick={() => setConfirm(false)}>Cancel</Action></> : <Action icon={RefreshCw} disabled={busy} onClick={() => setConfirm(true)}>Refresh Dev DB from Production</Action>}
+    {confirm ? <><p>Discard current local edits and replace the local database?</p><Action className="action-wrap" icon={RefreshCw} intent="destructive" onClick={() => void refresh()}>Confirm local replacement</Action><Action className="action-wrap" icon={X} onClick={() => setConfirm(false)}>Cancel</Action></> : <Action className="action-wrap" icon={RefreshCw} disabled={busy} onClick={() => setConfirm(true)}>Refresh Dev DB from Production</Action>}
     {message && <p role="status">{message}</p>}
   </div></details>;
 }

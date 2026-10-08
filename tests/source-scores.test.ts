@@ -77,7 +77,7 @@ it.each([5,6,7,9])('Home, Classics and Detail share genuine-only presentation wi
   expect(row.outerHTML).toBe(expected);
   expect(node.querySelectorAll('button[aria-label="Explain score abbreviations"]')).toHaveLength(1);
   expect(row.classList.contains('ranking-source-scores-stacked')).toBe(count>6);
-  expect(row.parentElement?.nextElementSibling?.className).toBe('detail-overview');
+  expect(row.parentElement?.nextElementSibling?.classList.contains('detail-overview')).toBe(true);
   expect(row.textContent).not.toMatch(/Missing|average|imput/);
   expect(node.querySelector('.detail-score-breakdown')).toBeTruthy();
   if(count===5){

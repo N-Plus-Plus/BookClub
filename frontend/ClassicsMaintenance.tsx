@@ -1,3 +1,4 @@
+import { formatCount } from '../shared/format';
 import { estimateMaintenance } from './maintenance-estimates';
 import { MaintenanceOperationDetails } from './MaintenanceOperationDetails';
 import { useEffect, useState } from 'react';
@@ -50,13 +51,13 @@ export function ClassicsMaintenance({catalog,writesEnabled,onMovie,onUpdated}: {
     const pending=operation==='metadata' && resumable?.remainingIds.length ? candidates.filter(movie=>resumable.remainingIds.includes(movie.id)) : candidates;
     return <section key={operation} className="card stack classics-maintenance" aria-labelledby={`${operation}-maintenance-heading`}><h2 id={`${operation}-maintenance-heading`}>{labels[operation]}</h2>
       <MaintenanceOperationDetails operation={operation} estimate={estimateMaintenance(operation,pending)} />
-      <p className="meta">{candidates.length} eligible films{operation==='metadata' && resumable ? ` · ${resumable.completed} checkpoint films completed · ${pending.length} remaining` : ''} · {(operation==='metadata' ? catalog.movies : movies).length-candidates.length} outside this operation's scope.</p>
+      <p className="meta">{formatCount(candidates.length)} eligible films{operation==='metadata' && resumable ? ` · ${formatCount(resumable.completed)} checkpoint films completed · ${formatCount(pending.length)} remaining` : ''} · {formatCount((operation==='metadata' ? catalog.movies : movies).length-candidates.length)} outside this operation's scope.</p>
       {operation==='missing' && !status && <p className="meta">Loading missing-score eligibility…</p>}
-      {operation==='missing' && status && <p className="meta">{status.eligibleDimensions} score inputs eligible · {status.unavailableDimensions} confirmed unavailable ({status.unavailableFilms} films).</p>}
-      <div className="button-set"><Action icon={RefreshCw} disabled={Boolean(mode) || job.locked || !writesEnabled || !candidates.length} onClick={()=>void start(operation)}>{operation==='metadata' && resumable?.remainingIds.length ? `Resume OMDb metadata · ${resumable.remainingIds.length} remaining` : actions[operation]}</Action>
+      {operation==='missing' && status && <p className="meta">{formatCount(status.eligibleDimensions)} score inputs eligible · {formatCount(status.unavailableDimensions)} confirmed unavailable ({formatCount(status.unavailableFilms)} films).</p>}
+      <div className="button-set action-group-wrap"><Action icon={RefreshCw} disabled={Boolean(mode) || job.locked || !writesEnabled || !candidates.length} onClick={()=>void start(operation)}>{operation==='metadata' && resumable?.remainingIds.length ? `Resume OMDb metadata · ${formatCount(resumable.remainingIds.length)} remaining` : actions[operation]}</Action>
         {operation==='metadata' && checkpoint && !mode && <Action icon={RotateCcw} variant="tertiary" disabled={job.locked} onClick={()=>{checkpointChanged(null);setRun(null);}}>Discard metadata progress</Action>}
         {mode===operation && <Action icon={Square} onClick={job.requestStop}>Stop after this batch</Action>}</div>
-      {run && runMode===operation && <MaintenanceProgress processed={run.processed} total={run.total} label={`${labels[operation]} progress`} className="score-maintenance-progress" summary={<>{mode ? `${labels[operation]}… ` : ''}{run.processed} / {run.total} films processed · {run.remaining} remaining · {run.updated} updated · {run.noChange} {operation==='metadata' ? 'with no change' : 'with no new scores'} · {run.failed} failures.</>}>
+      {run && runMode===operation && <MaintenanceProgress processed={run.processed} total={run.total} label={`${labels[operation]} progress`} className="score-maintenance-progress" summary={<>{mode ? `${labels[operation]}… ` : ''}{formatCount(run.processed)} / {formatCount(run.total)} films processed · {formatCount(run.remaining)} remaining · {formatCount(run.updated)} updated · {formatCount(run.noChange)} {operation==='metadata' ? 'with no change' : 'with no new scores'} · {formatCount(run.failed)} failures.</>}>
         {operation==='metadata' && resumed && <p className="meta">Update, no-change and failure counts are for this visit.</p>}{run.message && <p className="meta">{run.message}</p>}{run.providers.some(provider=>provider.status==='failed') && <ProviderFeedback providers={run.providers.filter(provider=>provider.status==='failed')} />}
       </MaintenanceProgress>}
       {error && (runMode===operation || !runMode && operation==='missing') && <p className="error-message" role="alert">{error}</p>}

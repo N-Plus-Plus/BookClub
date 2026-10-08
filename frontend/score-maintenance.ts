@@ -1,3 +1,4 @@
+import { formatCount } from '../shared/format';
 import type { RefreshResult, ScoreMaintenance, ProviderResult } from '../shared/types';
 import { MAINTENANCE_BATCH_SIZE, MAINTENANCE_IDLE_MS } from '../shared/score-maintenance';
 export type MaintenanceProviderResult = ProviderResult & {filmTitle?: string};
@@ -29,6 +30,6 @@ export async function maintainScores(options: {
     }
     if (!options.stopped() && offset+selected.length < ids.length) await new Promise(resolve => setTimeout(resolve,MAINTENANCE_IDLE_MS));
   }
-  run = {...run,message:options.stopped() && run.remaining ? 'Stopped. Completed updates are saved.' : run.failed ? `Finished with ${run.failed} unresolved film${run.failed === 1 ? '' : 's'}. Completed updates are saved.` : 'Finished. Available information is saved; unavailable provider data remains missing.'};
+  run = {...run,message:options.stopped() && run.remaining ? 'Stopped. Completed updates are saved.' : run.failed ? `Finished with ${formatCount(run.failed)} unresolved film${run.failed === 1 ? '' : 's'}. Completed updates are saved.` : 'Finished. Available information is saved; unavailable provider data remains missing.'};
   await options.progress(run); return run;
 }

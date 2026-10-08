@@ -5,6 +5,8 @@ import { EnrichedProfiles } from './metrics/Standalone';
 import { MedianEconomics } from './metrics/Averages';
 import { DiversityMetrics } from './metrics/Diversity';
 import { GeneralEconomics } from './metrics/General';
+import { RefreshCw } from 'lucide-react';
+import { Action } from './components';
 import { useState } from 'react';
 import type { Catalog } from '../shared/types';
 import { withCutoffTies, type Appearance, type MetricsFilter } from '../shared/metrics';
@@ -30,7 +32,7 @@ export function EnrichedMetrics({category,catalog,all,rows,filter,data,status,re
   const economics = category === 'averages' ? cached('economics',()=>scopes.map(s=>({...s,report:filmEconomics(s.rows,data)}))) : [];
   const diversity = category === 'diversity' ? cached('diversity',()=>(['countries','languages','themes','directors','cast'] as const).map(dimension=>({dimension,values:scopes.map(s=>({label:s.label,...tasteDiversity(s.rows,data,dimension)}))}))) : [];
 
-  return <>{['fingerprints','general','averages','diversity','standalone','extremes'].includes(category) && status !== 'ready' && <div role="status" className="stack"><p className="meta">{status === 'loading' ? 'Loading enriched Metrics…' : 'Enriched Metrics could not load. Existing Metrics remains available.'}</p>{status === 'error' && <button type="button" onClick={retry}>Retry enriched Metrics</button>}</div>}
+  return <>{['fingerprints','general','averages','diversity','standalone','extremes'].includes(category) && status !== 'ready' && <div role="status" className="stack"><p className="meta">{status === 'loading' ? 'Loading enriched Metrics…' : 'Enriched Metrics could not load. Existing Metrics remains available.'}</p>{status === 'error' && <Action icon={RefreshCw} onClick={retry}>Retry enriched Metrics</Action>}</div>}
     {category === 'fingerprints' && <EnrichedFingerprints isAll={isAll} themeReport={themeReport} talentReport={talentReport} signatures={signatures} role={role} setRole={setRole} />}
     {['fingerprints','standalone','general'].includes(category) && <EnrichedProfiles rows={rows} all={all} data={data} isAll={isAll} scopes={scopes} cached={cached} reader={reader} language={language} category={category} />}
     {category === 'averages' && <MedianEconomics economics={economics} />}

@@ -122,22 +122,6 @@ Preserve the existing Metrics caching, lazy calculation and performance architec
 
 Depends on: None
 
-### Priority 2 - UI consistency audit and cleanup
-Status: Incomplete
-
-Perform an application-wide audit followed by implementation of consistent presentation conventions.
-
-Focus specifically on:
-
-- number formatting, including consistent thousands separators for whole-number counts;
-- title and heading font size, weight and hierarchy;
-- pill/badge usage, wording and meaning;
-- inline Admin controls, including placement, wording, icon/button treatment and visibility.
-
-Prefer shared formatting helpers, styles or components where equivalent presentation should genuinely be consistent. Preserve deliberate workflow-specific differences.
-
-Depends on: None
-
 ### Priority 2 - Data Health and Exceptions
 Status: Incomplete
 

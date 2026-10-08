@@ -47,7 +47,8 @@ export function selectedAppearances(catalog: Catalog, filter: MetricsFilter = {k
 export function daysActive(today: Date): number {
   return Math.round((Date.UTC(today.getFullYear(),today.getMonth(),today.getDate()) - Date.UTC(2020,6,5))/86_400_000)+1;
 }
-export const formatTimelineNumber = (value: number) => value.toLocaleString('en-AU',{maximumFractionDigits:0});
+export { formatCount as formatTimelineNumber } from './format';
+import { formatCount as formatTimelineNumber } from './format';
 export const formatWatchTime = (minutes: number) => `${formatTimelineNumber(Math.floor(minutes/60))} hr ${minutes%60} min`;
 
 /** A complete History cycle contains the four human turns and the final Classics turn. */

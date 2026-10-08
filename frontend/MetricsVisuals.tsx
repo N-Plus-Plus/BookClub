@@ -1,3 +1,4 @@
+import { formatCount } from '../shared/format';
 import type { CSSProperties } from 'react';
 
 export function comparisonWidths(ratio: number) {
@@ -21,5 +22,5 @@ export function Bar({label,value,detail,width,colour = 'jeans'}: {label:string;v
   return <div className="metrics-distribution-row metrics-enriched-row" style={{'--chart-colour':`var(--${colour})`} as CSSProperties}><div className="metrics-distribution-label"><span>{label}</span><strong>{value}</strong></div><div className="metrics-distribution-track" aria-hidden="true"><span style={{width:`${Math.max(0,Math.min(100,width))}%`}} /></div><p className="meta">{detail}</p></div>;
 }
 export function Coverage({label,covered,total}: {label:string;covered:number;total:number}) {
-  return <p className="meta">{total ? `${label} known for ${covered} / ${total} appearances.` : 'No film appearances for this selection.'}</p>;
+  return <p className="meta">{total ? `${label} known for ${formatCount(covered)} / ${formatCount(total)} appearances.` : 'No film appearances for this selection.'}</p>;
 }

@@ -36,7 +36,7 @@ export function AddClassicModal({catalog,onMovie,onClose}: {catalog: Catalog; on
   return <NativeDialog heading="Add Classic" id="add-classic-heading" closeLabel="Close Add Classic" onClose={onClose} busy={busy} className="add-classic-modal">
       <FilmPicker movieById={catalogIndex(catalog).movieById} historyMovieIds={catalogIndex(catalog).historyMovieIds} selected={[]} onSelected={() => {}} onMovie={() => {}} disabled={busy} onSelectionPending={setSelecting} onCandidateSelected={(candidate,film) => { setSelection({candidate,film}); setError(''); }} />
       {selection && <section className="stack" aria-label="Selected film" aria-live="polite"><div className="movie-row"><Poster movie={selection.film} /><div className="movie-copy"><h3 className="movie-title">{selection.film.title}</h3><p className="meta">{selection.film.year ?? 'Year unknown'} · {selection.film.runtime ? `${selection.film.runtime} min` : 'Runtime unknown'}</p><p className="meta">Director: {selection.film.director ?? 'Unknown'}</p></div></div>
-        {selection.film.overview && <p className="detail-overview">{selection.film.overview}</p>}
+        {selection.film.overview && <p className="detail-overview narrative">{selection.film.overview}</p>}
         {status ? <p className="classic-eligibility" role="status">{status}</p> : <Action icon={Plus} variant="primary" disabled={busy || selecting} onClick={() => void add()}>{busy ? 'Adding…' : 'Add Classic'}</Action>}
       </section>}
       {error && <p className="error-message" role="alert">{error}</p>}

@@ -1,3 +1,4 @@
+import { formatCount } from '../shared/format';
 import { ratingDimensions, ratingDimension, sourceRatingKeys } from '../shared/rating-dimensions';
 import { useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Eye, Film, Info, RefreshCw, type LucideIcon } from 'lucide-react';
@@ -54,7 +55,7 @@ export function SessionCard({session,members,actions,dateHeading,variant}: {sess
   const host = members.find(m => m.id === session.host_member_id);
   const home = variant === 'home';
   const identity = session.kind === 'classics' ? <ClubIdentity identity={{kind: 'classics'}} /> : host ? <ClubIdentity identity={{kind: 'member',member: host}} /> : <span>Hosted by a former member</span>;
-  const heading = <><div className="eyebrow">{dateHeading ?? (home || variant === 'history' ? eventDateLabel(session) : <>{eventDateLabel(session)} · {session.movies.length} film{session.movies.length === 1 ? '' : 's'}</>)}</div>
+  const heading = <><div className="eyebrow">{dateHeading ?? (home || variant === 'history' ? eventDateLabel(session) : <>{eventDateLabel(session)} · {formatCount(session.movies.length)} film{session.movies.length === 1 ? '' : 's'}</>)}</div>
     <h3>{session.kind === 'classics' ? 'Classics week' : host ? `${possessiveName(host.display_name)} ${home ? 'turn' : 'week'}` : home ? 'Former member’s turn' : 'Former member’s week'}</h3></>;
   return <article className={home ? 'card session-card home-session-card' : 'card session-card'}>{variant === 'history' ? <div className="history-event-header"><div className="history-event-heading">{heading}</div><div className="history-event-actions">{actions}<div className="history-event-identity">{identity}</div></div></div> : <>{actions}{home && <div className="home-session-identity">{identity}</div>}{heading}</>}{((!home && variant !== 'history') || session.legacy_cycle_label) && <div className="session-meta">
       {!home && variant !== 'history' && session.kind === 'classics' && <ClubIdentity identity={{kind: 'classics'}} />}
@@ -119,7 +120,7 @@ export function RankingScore({movie,compact = false,variant,members = []}: {memb
   return <div className="stack ranking-score">{!variant && <div className="rank-top">
     <span className="badge" data-intent={r.eligible ? 'constructive' : 'destructive'}>{!r.eligible ? 'Disqualified' : r.rankable ? 'Ranked' : 'Needs Data'}</span>
     <strong className="score numeric">{r.finalScore?.toFixed(2) ?? '—'}<small>residual score</small></strong></div>}
-    <p className="meta">{r.seenCount} Seen · {r.unseenCount} No{variant !== 'home' && <> · {r.unknownCount} Unknown{unknownNames.length > 0 && ` (${unknownNames.join(', ')})`}</>}</p>
+    <p className="meta">{formatCount(r.seenCount)} Seen · {formatCount(r.unseenCount)} No{variant !== 'home' && <> · {formatCount(r.unknownCount)} Unknown{unknownNames.length > 0 && ` (${unknownNames.join(', ')})`}</>}</p>
     {(!compact || variant === 'classics') && <SourceScores ranking={r} scores={movie.scores} />}
     {!variant && <details><summary><Eye size={17} aria-hidden="true" />Score breakdown</summary><div className="breakdown">
       <p>Sum of squares <strong>{r.rawScore?.toFixed(2) ?? 'Incomplete'}</strong></p><p>Unseen multiplier <strong>{r.unseenMultiplier.toFixed(6)}</strong></p>

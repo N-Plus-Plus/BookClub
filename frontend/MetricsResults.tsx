@@ -1,3 +1,4 @@
+import { formatCount } from '../shared/format';
 import { PaginationControls } from './PaginationControls';
 import { useState, type ReactNode } from 'react';
 
@@ -7,5 +8,5 @@ export function MetricsResults<T>({items,render,label,pageSize=20,list=false}: {
   const page=selection.items === items ? Math.min(selection.page,Math.max(0,Math.ceil(items.length/pageSize)-1)) : 0;
   const pages=Math.ceil(items.length/pageSize);
   const Footer=list ? 'li' : 'div';
-  return <>{items.slice(page*pageSize,(page+1)*pageSize).map((item,index)=>render(item,page*pageSize+index))}{pages>1 && <Footer className="button-set metrics-result-pages" role="group" aria-label={`${label} pages`}><PaginationControls page={page+1} pages={pages} onPage={value=>setSelection({items,page:value-1})} status>{page+1} / {pages} · {items.length} results</PaginationControls></Footer>}</>;
+  return <>{items.slice(page*pageSize,(page+1)*pageSize).map((item,index)=>render(item,page*pageSize+index))}{pages>1 && <Footer className="button-set metrics-result-pages pagination-controls" role="group" aria-label={`${label} pages`}><PaginationControls page={page+1} pages={pages} onPage={value=>setSelection({items,page:value-1})} status>{formatCount(page+1)} / {formatCount(pages)} · {formatCount(items.length)} results</PaginationControls></Footer>}</>;
 }

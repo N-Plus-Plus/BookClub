@@ -1,3 +1,4 @@
+import { formatCount, formatCountText } from '../shared/format';
 import { estimateMaintenance } from './maintenance-estimates';
 import { MaintenanceOperationDetails } from './MaintenanceOperationDetails';
 import { catalogIndex } from '../shared/catalog-index';
@@ -37,18 +38,18 @@ export function EnrichmentMaintenance({provider,catalog,writesEnabled,onUpdated,
   return <section className="card stack classics-maintenance enrichment-maintenance" aria-labelledby={`${provider}-enrichment-heading`}>
     <h2 id={`${provider}-enrichment-heading`}>Refresh {label} Enrichment</h2>
     <MaintenanceOperationDetails operation={provider} estimate={estimateMaintenance(provider,remaining.length ? remaining.flatMap(id=>{const movie=catalogIndex(catalog).movieById.get(id);return movie ? [movie] : [];}) : eligible)} />
-    {checkpoint && <p className="meta">{checkpoint.completed} checkpoint films completed · {remaining.length} remaining.</p>}
-    <p className="meta">{eligible.length} eligible films · {catalog.movies.length-eligible.length} without a valid {label} identity.</p>
-    <div className="button-set"><Action icon={RefreshCw} disabled={busy || job.locked || !writesEnabled || !eligible.length} onClick={()=>void start()}>
-      {remaining.length ? `Resume ${label} enrichment · ${remaining.length} remaining` : `Refresh ${label} enrichment`}</Action>
+    {checkpoint && <p className="meta">{formatCount(checkpoint.completed)} checkpoint films completed · {formatCount(remaining.length)} remaining.</p>}
+    <p className="meta">{formatCount(eligible.length)} eligible films · {formatCount(catalog.movies.length-eligible.length)} without a valid {label} identity.</p>
+    <div className="button-set action-group-wrap"><Action icon={RefreshCw} disabled={busy || job.locked || !writesEnabled || !eligible.length} onClick={()=>void start()}>
+      {remaining.length ? `Resume ${label} enrichment · ${formatCount(remaining.length)} remaining` : `Refresh ${label} enrichment`}</Action>
       {busy && <Action icon={Square} onClick={job.requestStop}>Stop after this batch</Action>}
       {checkpoint && !busy && <Action icon={RotateCcw} variant="tertiary" disabled={job.locked} onClick={()=>{checkpointChanged(null);setRun(null);}}>Discard {label} progress</Action>}
     </div>
-    {run && <MaintenanceProgress processed={run.processed} total={run.total} label={`${label} enrichment progress`} className="score-maintenance-progress" summary={<>{run.processed} / {run.total} processed · {run.remaining} remaining · {run.updated} updated · {run.noChange} no change · {run.failed} failures.</>}>
+    {run && <MaintenanceProgress processed={run.processed} total={run.total} label={`${label} enrichment progress`} className="score-maintenance-progress" summary={<>{formatCount(run.processed)} / {formatCount(run.total)} processed · {formatCount(run.remaining)} remaining · {formatCount(run.updated)} updated · {formatCount(run.noChange)} no change · {formatCount(run.failed)} failures.</>}>
 
       {run.message && <p className="meta">{run.message}</p>}
-      {run.conflicts>0 && <p className="error-message">{run.conflicts} external identity conflicts cached for review. Existing ownership is preserved.</p>}
-      {run.quota?.['X-RateLimit-Remaining'] && <p className="meta">Provider requests remaining: {run.quota['X-RateLimit-Remaining']}{run.quota['X-RateLimit-Limit'] ? ` / ${run.quota['X-RateLimit-Limit']}` : ''}.</p>}
+      {run.conflicts>0 && <p className="error-message">{formatCount(run.conflicts)} external identity conflicts cached for review. Existing ownership is preserved.</p>}
+      {run.quota?.['X-RateLimit-Remaining'] && <p className="meta">Provider requests remaining: {formatCountText(run.quota['X-RateLimit-Remaining'])}{run.quota['X-RateLimit-Limit'] ? ` / ${formatCountText(run.quota['X-RateLimit-Limit'])}` : ''}.</p>}
       {run.failure && <p className="error-message">{run.failure}</p>}
     </MaintenanceProgress>}
     {error && <p className="error-message" role="alert">{error}</p>}

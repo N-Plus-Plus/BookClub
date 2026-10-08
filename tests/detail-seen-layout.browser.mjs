@@ -9,6 +9,8 @@ try {
   page.on('pageerror', error => console.error(error.message));
   await page.route('**/*', route => ['localhost','127.0.0.1'].includes(new URL(route.request().url()).hostname) ? route.fallback() : route.abort());
   await page.route('**/api/v1/**', route => route.abort());
+  // Vite may serve imports with different HMR URLs; share one synthetic API object.
+  await page.route(/\/frontend\/api\.ts(?:\?.*)?$/, route => route.fulfill({ contentType: 'text/javascript', body: 'export const api = globalThis.__seenLayoutApi ??= {}; export class ApiClientError extends Error {}' }));
   await page.route(/\/frontend\/main\.tsx(?:\?.*)?$/, route => route.fulfill({ contentType: 'text/javascript', body: `
     import React from '/node_modules/.vite/deps/react.js';
     import ReactDOM from '/node_modules/.vite/deps/react-dom_client.js';

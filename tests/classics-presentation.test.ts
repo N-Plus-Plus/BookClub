@@ -112,7 +112,7 @@ it.each([0,99,100])('shows only a nonzero Unranked badge with full accessible co
  const filters=[...container.querySelectorAll('.classics-filters button')];
  expect(filters.map(b=>b.querySelector('span')?.textContent)).toEqual(['Ranked','Unranked','Seen']);
  expect(filters.map(b=>b.querySelector('.classics-count')?.textContent)).toEqual([undefined,count>0?(count>99?'99+':String(count)):undefined,undefined]);
- expect(filters.map(b=>b.querySelector('.classics-count')?.className)).toEqual([undefined,count>0?'classics-count classics-count-needs-data':undefined,undefined]);
+ expect(filters.map(b=>b.querySelector('.classics-count')?.className)).toEqual([undefined,count>0?'count-indicator classics-count classics-count-needs-data':undefined,undefined]);
  for(const b of filters) expect(b.getAttribute('type')).toBe('button');
  for(const b of filters) expect(b.getAttribute('aria-label')).toContain(`${count} films`);
  expect(filters.map(b=>b.getAttribute('aria-pressed'))).toEqual(['true','false','false']);
@@ -122,17 +122,15 @@ it.each([0,99,100])('shows only a nonzero Unranked badge with full accessible co
  expect(css).toContain('--mandarin: var(--pumpkin)');expect(css).toContain('font-size: var(--text-eyebrow)');
 });
 
-it('scopes smaller mobile titles to Classics and keeps tabs in one flexible touch strip',()=>{
+it('scopes compact film titles and shares the tab and count families',()=>{
  const css=applicationCss();
- expect(css).toMatch(/@media \(max-width: 719px\)\s*\{\s*\.classics-ranking-row \.movie-title \{ font-size: calc\(var\(--text-movie-title\) \* \.75\); \}\s*\}/);
- expect(css).toContain('.movie-title { display: block; font-weight: 600; font-size: var(--text-movie-title); }');
+ expect(css).toMatch(/@media \(max-width: 719px\)\s*\{\s*\.classics-ranking-row \.movie-title \{ --text-movie-title: var\(--text-film-compact\); \}\s*\}/);
  for (const selector of ['.classics-filters','.metrics-category-tabs']) expect(css).toContain(`${selector} { display: flex; flex-wrap: nowrap;`);
- expect(css).toContain('flex: 1 1 0; min-width: 0; min-height: var(--target-min)');
- expect(css).toContain('font-size: var(--text-body); white-space: nowrap;');
- expect(css).toContain('.classics-filters .button svg,.classics-filters .button .action-icon { width: 14.4px; height: 14.4px; }');
- expect(css).toContain('.classics-filters .button[aria-pressed="true"]::after');
+ expect(css).toContain('.classics-filters .tab-control { flex: 1 0 auto; min-width: 0; }');
+ expect(css).toContain('.tab-control,.button.tab-control');
+ expect(css).toContain('.tab-control[aria-pressed=true]::after,.tab-control[aria-selected=true]::after');
  expect(css).toContain('bottom: 0; height: 3px; background: var(--focus-outline)');
- expect(css).toContain('padding: 0 var(--space-4); border-radius: var(--radius-pill); font-size: var(--text-eyebrow); line-height: 1.5;');
+ expect(css).toContain('.count-indicator {');
 });
 
 it.each(['Populate missing scores','Refresh scores','Refresh OMDb metadata'])('keeps active %s feedback quiet and retains provider failures',async(label)=>{
@@ -147,7 +145,7 @@ it.each(['Populate missing scores','Refresh scores','Refresh OMDb metadata'])('k
  vi.mocked(api.scoreMaintenanceStatus).mockResolvedValueOnce({candidateIds:movies.map(m=>m.id),eligibleDimensions:5729,unavailableDimensions:7,unavailableFilms:3});
  await act(async()=>root.render(createElement(AdminScreen,{catalog:{movies:[...movies,{...film(99),external_ids:[{provider:'tmdb',external_id:'99'}]},film(100)],members,sessions:[],cycles:[]},writesEnabled:true,onMovie:vi.fn(),onUpdated:async()=>{}})));
  expect(container.textContent).toContain('11 eligible films');
- expect(container.textContent).toContain('5729 score inputs eligible · 7 confirmed unavailable (3 films).');
+ expect(container.textContent).toContain('5,729 score inputs eligible · 7 confirmed unavailable (3 films).');
  vi.useFakeTimers();await click(label);
  expect(container.textContent).toContain('Stop after this batch');expect(container.textContent).toContain('10 /');
  expect(container.querySelector('.score-maintenance-progress')?.getAttribute('value')).toBe('10');

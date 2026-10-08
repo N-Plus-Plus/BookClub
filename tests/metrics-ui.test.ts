@@ -22,8 +22,8 @@ it('uses square popularity dividers and insets only the outer table columns',asy
   expect(container.querySelectorAll('.metrics-popularity-list')).toHaveLength(2);
   for(const list of container.querySelectorAll('.metrics-popularity-list')) expect(getComputedStyle(list.querySelector('a')!).borderRadius).toBe('0');
   await tab('General');
-  for(const cell of container.querySelectorAll('.metrics-table tr > :first-child')) expect(getComputedStyle(cell).paddingLeft).toBe('1rem');
-  for(const cell of container.querySelectorAll('.metrics-table tr > :last-child')) expect(getComputedStyle(cell).paddingRight).toBe('1rem');
+  for(const cell of container.querySelectorAll('.metrics-table tr > :first-child')) expect(getComputedStyle(cell).paddingLeft).toBe('var(--space-16)');
+  for(const cell of container.querySelectorAll('.metrics-table tr > :last-child')) expect(getComputedStyle(cell).paddingRight).toBe('var(--space-16)');
   expect(getComputedStyle(container.querySelector('thead')!).position).toBe('sticky');
  } finally {await act(async()=>root.unmount());container.remove();style.remove();}
 });

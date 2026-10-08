@@ -1,3 +1,4 @@
+import { formatCount } from '../shared/format';
 import { NativeDialog } from './NativeDialog';
 import { useRef, useState } from 'react';
 import { Trash2, X } from 'lucide-react';
@@ -17,7 +18,7 @@ export function RemoveClassicModal({movie,onMovie,onClose}: {movie: Movie; onMov
   const r = movie.ranking!;
   return <NativeDialog heading="Remove from Classics" id="remove-classic-heading" closeLabel="Close confirmation" onClose={onClose} busy={busy}>
 
-    <div className="movie-row"><Poster movie={movie} /><div className="movie-copy"><h3 className="movie-title">{movie.title}</h3><p className="meta">{movie.year ?? 'Year unknown'}</p><p className="meta">{r.seenCount} Seen · {r.unseenCount} No · {r.unknownCount} Unknown</p></div></div>
+    <div className="movie-row"><Poster movie={movie} /><div className="movie-copy"><h3 className="movie-title">{movie.title}</h3><p className="meta">{movie.year ?? 'Year unknown'}</p><p className="meta">{formatCount(r.seenCount)} Seen · {formatCount(r.unseenCount)} No · {formatCount(r.unknownCount)} Unknown</p></div></div>
     <p>Remove this film from Classics and clear its Seen / Not Seen answers. Active History appearances still prove Seen by everyone.</p>
     <p className="meta">The film, scores, metadata, external IDs, artwork and History remain.</p>
     {error && <p role="alert" className="error-message">{error}</p>}

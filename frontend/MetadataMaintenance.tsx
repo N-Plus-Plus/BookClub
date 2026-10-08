@@ -1,3 +1,4 @@
+import { formatCount } from '../shared/format';
 import { estimateMaintenance } from './maintenance-estimates';
 import { MaintenanceOperationDetails } from './MaintenanceOperationDetails';
 import { useState } from 'react';
@@ -30,11 +31,11 @@ export function MetadataMaintenance({catalog,onUpdated,writesEnabled=true}: {cat
   });
   return <section className="card stack" aria-labelledby="tmdb-maintenance-heading"><h2 id="tmdb-maintenance-heading">Fill Missing TMDB Metadata and Artwork</h2>
       <MaintenanceOperationDetails operation="tmdb-metadata" estimate={estimateMaintenance('tmdb-metadata',catalog.movies.filter(metadataCandidate))} />
-      <p className="meta">{remaining} identified films remaining · {unidentified} films without a valid TMDB identity.</p>
-      <div className="button-set"><Action icon={RefreshCw} disabled={busy || job.locked || !writesEnabled || !remaining} onClick={() => void maintain()}>Fill missing TMDB metadata</Action>
+      <p className="meta">{formatCount(remaining)} identified films remaining · {formatCount(unidentified)} films without a valid TMDB identity.</p>
+      <div className="button-set action-group-wrap"><Action icon={RefreshCw} disabled={busy || job.locked || !writesEnabled || !remaining} onClick={() => void maintain()}>Fill missing TMDB metadata</Action>
         {busy && <Action icon={Square} onClick={job.requestStop}>Stop after this batch</Action>}</div>
       {busy && <p className="meta" role="status">Filling metadata… completed batches are saved.</p>}
-      {result && <MaintenanceProgress processed={result.processed} total={result.total} label="TMDB maintenance progress" summary={<>{result.processed} / {result.total} processed this run · {result.updated} successfully updated · {result.failed} failures.</>} beforeProgress={result.message && <p className="meta">{result.message}</p>}>
+      {result && <MaintenanceProgress processed={result.processed} total={result.total} label="TMDB maintenance progress" summary={<>{formatCount(result.processed)} / {formatCount(result.total)} processed this run · {formatCount(result.updated)} successfully updated · {formatCount(result.failed)} failures.</>} beforeProgress={result.message && <p className="meta">{result.message}</p>}>
 
         {result.failure && <p className="error-message">{result.failure}</p>}</MaintenanceProgress>}
       {error && <p className="error-message" role="alert">{error}</p>}

@@ -25,7 +25,7 @@ it('places Detail overview and informational status below poster and metadata, p
   await render();
   const identity=container.querySelector('.detail-identity')!;
   expect(identity.children[0].classList.contains('poster-large')).toBe(true);
-  expect([...identity.children].slice(1).map(node=>node.className)).toEqual(['film-identity-metadata','source-scores-summary','detail-overview','badge detail-classics-status']);
+  expect([...identity.children].slice(1).map(node=>node.className)).toEqual(['film-identity-metadata','source-scores-summary','detail-overview narrative','badge badge-wrap detail-classics-status']);
   const metadata=identity.querySelector('.film-identity-metadata')!;
   for(const copy of ['A Film','Original title: Original Film','Runtime: 3 hrs, 8 mins','Release: 1982-01-01','Director: A Director','Drama · Mystery'])expect(metadata.textContent).toContain(copy);
   expect(metadata.textContent).not.toContain('1982 ·');expect(metadata.textContent).not.toContain('188 min');
@@ -62,7 +62,7 @@ it('retains historical attribution to an inactive participant',async()=>{
 it.each([[188,'3 hrs, 8 mins'],[93,'1 hr, 33 mins'],[47,'47 mins'],[60,'1 hr'],[61,'1 hr, 1 min'],[120,'2 hrs'],[1,'1 min']])('formats runtime %s without a standalone year', (runtime,label)=>{
   const html=renderToStaticMarkup(createElement(FilmIdentity,{movie:{...movie,runtime},variant:'detail'}));
   const element=document.createElement('div');element.innerHTML=html;
-  expect(element.querySelector('p.meta')?.textContent).toBe(`Runtime: ${label}`);
+  expect([...element.querySelectorAll('p.meta')].find(p=>p.textContent?.startsWith('Runtime:'))?.textContent).toBe(`Runtime: ${label}`);
   expect(element.textContent).not.toContain('1982 ·');
 });
 
@@ -127,7 +127,8 @@ it('removes Detail utility sections while retaining appearances, History and pos
 it('scopes responsive full-width overview and fit-content status to Detail and right-aligns Seen',()=>{
   const css=applicationCss();
   expect(css).toContain('.detail-identity { display: grid; grid-template-columns: auto minmax(0,1fr); }');
-  expect(css).toMatch(/\.detail-identity \.detail-overview \{ grid-column: 1 \/ -1;.*font-weight: 300;.*line-height: 1.6;/);
+  expect(css).toContain('.detail-identity .detail-overview { grid-column: 1 / -1; }');
+  expect(css).toMatch(/\.narrative \{.*font-weight: 300;.*line-height: var\(--leading-prose\);/);
   expect(css).toMatch(/\.detail-classics-status \{ grid-column: 1 \/ -1; width: fit-content;/);
   expect(css).toContain('.detail-seen-summary { display: flex; }');
   expect(css).toContain('.detail-seen-column h3 { white-space: nowrap; }');
@@ -139,7 +140,7 @@ it('scopes responsive full-width overview and fit-content status to Detail and r
 it.each([true,false])('places genuine scores directly before overview regardless of Classics membership (%s)',async classic=>{
  await render({...movie,classic});
  const row=container.querySelector('.ranking-source-scores')!;
- expect(row.parentElement?.nextElementSibling?.className).toBe('detail-overview');
+ expect(row.parentElement?.nextElementSibling?.classList.contains('detail-overview')).toBe(true);
  expect([...row.children].map(n=>n.textContent)).toEqual(['IMDb 81.4','LB 98.7','RT-A 92','MC 93','RT-C 99']);
  expect(row.textContent).not.toContain('TMDB');
  expect(Boolean(container.querySelector('.detail-classics-score'))).toBe(classic);
