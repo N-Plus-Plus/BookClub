@@ -133,6 +133,10 @@ Do not use Priority 0.5 for application regressions, production blockers, or fea
 
 If the current task explicitly includes updating stale tests, update them instead of deferring them.
 
+## Artwork pipeline checks
+
+`tests/asset-preparation.test.ts` uses disposable synthetic transparent PNGs to cover clean generation, persistent cache reuse after output removal, content/dimension/recipe invalidation, corrupted cache repair, concurrent serialization, stale-output pruning, aspect ratio and no enlargement. Runtime coverage checks navigation/heading literals, dynamically constructed member/Classics paths, chooser IDs and Lucide-only Action callers against the manifest and retained source inventory. `tests/prod-check.test.ts` prepares from an empty disposable cache/output with copied canonical sources before a real Vite build, checks every shipped derivative's dimensions/format, and rejects originals and obsolete files. `corepack pnpm assets:prepare --report` provides cache counters and source/output payload totals.
+
 ## Test environments
 
 Automated tests should use:

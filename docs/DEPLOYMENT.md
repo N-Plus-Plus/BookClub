@@ -297,7 +297,7 @@ OMDb failover requires only an API Worker deployment and the desired Worker secr
 
 ## Publishing the static frontend (final release step)
 
-`wrangler.frontend.jsonc` defines the assets-only `bookclub-frontend` Worker, `./dist`, SPA fallback and exact Custom Domain `bookclub.nissen.nexus`. It disables workers.dev and preview URLs and has no runtime script or bindings. Build and deploy are separate operations.
+`wrangler.frontend.jsonc` defines the assets-only `bookclub-frontend` Worker, `./dist`, SPA fallback and exact Custom Domain `bookclub.nissen.nexus`. It disables workers.dev and preview URLs and has no runtime script or bindings. Build and deploy are separate operations. Normal `corepack pnpm build` prepares cached lightweight artwork into `generated/public/` before Vite copies it into `dist/`; high-resolution `assets/source/` is excluded. A fresh clone/cache works automatically. See [artwork generation](ARCHITECTURE.md#local-artwork-generation).
 
 In PowerShell, set the public build inputs (the client ID must be the existing Web Application client matching Worker `GOOGLE_CLIENT_ID`):
 

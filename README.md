@@ -38,7 +38,7 @@ Snapshot refresh replaces local work; the development tools panel can stop/resta
 
 Development fixes the API to localhost regardless of root env files. For production builds/previews, copy `.env.example` to ignored `.env.local` and set public `VITE_API_BASE_URL` to the Worker origin without `/api/v1`, plus `VITE_GOOGLE_CLIENT_ID`. Missing production API configuration produces a visible error. Provider secrets never use a `VITE_` prefix.
 
-Optional local provider credentials belong in ignored `worker/.dev.vars.local`, copied from `worker/.dev.vars.example`; restart the API after changes. Google authenticates privately provisioned club accounts in production. TMDB supplies optional search/metadata/artwork; MDBList supplies ratings with OMDb fallback. Ordinary screens read stored snapshots and do not trigger provider API refreshes. Artwork CDN failures degrade to a labelled fallback. Fonts and attribution assets are bundled.
+Optional local provider credentials belong in ignored `worker/.dev.vars.local`, copied from `worker/.dev.vars.example`; restart the API after changes. Google authenticates privately provisioned club accounts in production. TMDB supplies optional search/metadata/artwork; MDBList supplies ratings with OMDb fallback. Ordinary screens read stored snapshots and do not trigger provider API refreshes. Artwork CDN failures degrade to a labelled fallback. Fonts and attribution assets are bundled. Normal UI launches and builds automatically prepare lightweight artwork from tracked originals; see [local artwork generation](docs/ARCHITECTURE.md#local-artwork-generation).
 
 D1 is canonical; production, ordinary local D1 and import-preview D1 are separate. See [DATA](docs/DATA.md) and [INTEGRATIONS](docs/INTEGRATIONS.md).
 

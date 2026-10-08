@@ -13,7 +13,7 @@ import { App } from './App';
 const favicon = document.createElement('link');
 favicon.rel = 'icon';
 favicon.type = 'image/png';
-favicon.href = `${import.meta.env.BASE_URL}newFav/fav1.png`;
+favicon.href = `${import.meta.env.BASE_URL}favicon.png`;
 document.head.appendChild(favicon);
 
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);

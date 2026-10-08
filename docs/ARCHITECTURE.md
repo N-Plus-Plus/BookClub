@@ -60,6 +60,16 @@ The independently deployed Worker (`worker/src/index.ts`) owns validation, autho
 
 Normal development prepares local D1, then runs Vite and a Node supervisor that starts/stops local Wrangler. Vite proxies `/__dev/refresh` to loopback 8790. `frontend/DevTools.tsx`, rendered only on local Admin (never import-preview), and the supervisor support an explicitly confirmed one-way production snapshot replacement; neither is present in production. Member switching and completed local replacement use the full auth-aware bootstrap reload. Development fixes its API to localhost even if root env files specify production.
 
+## Local artwork generation
+
+High-resolution canonical PNGs live in tracked `assets/source/{avatars,buttons,newFav}/`; their bytes remain unchanged. `scripts/assets/manifest.mjs` declares all 20 member choices, Classics avatar, nine navigation/heading images, brand and dedicated favicon. `public/` holds small hand-maintained static files (TMDB SVG). Vite serves/copies only ignored `generated/public/`; source originals never enter `dist/`.
+
+`corepack pnpm assets:prepare` uses development-only sharp to resize inside the original aspect ratio without enlargement, cropping or palette quantisation: lossless RGBA PNG, Lanczos3, compression 9. Maximum dimensions are 128×128 for destination/heading images (22px dock, 33px drawer, up to 52px headings), 96×96 brand (30px), 32×32 favicon, and 320×320 avatars (44px normal, 80px Home, 132px chooser). Runtime URLs stay unchanged except the dedicated `/favicon.png`.
+
+Persistent ignored `.cache/bookclub-artwork/` stores encodings keyed by SHA-256 source contents, dimensions, complete format/encoding recipe/version and sharp/native library versions. Bump `imageRecipe.version` when processing behaviour changes beyond its declared options. SHA-256 receipts detect damaged cache files. Unchanged runs hash/validate/copy without re-encoding; outputs already identical are not rewritten. A process lock serializes concurrent preparation; atomic writes prevent partial files. Removed manifest outputs are pruned only from the generator-owned output directory.
+
+Normal `dev` delegates preparation once to `dev:ui`; `dev:ui`, `dev:import-preview:ui` and `build` automatically prepare before Vite starts. A fresh clone needs only the normal install/build commands. Never hand-edit generated or cached files. To deliberately regenerate, stop preparation/dev/build processes, delete only `.cache/bookclub-artwork/` and `generated/public/`, then run `corepack pnpm assets:prepare` (`--report` prints per-file bytes). Cleaning `dist/` preserves the cache. After a killed preparation, remove its abandoned `prepare.lock/` directory only after confirming preparation processes have stopped.
+
 ## Internal technical dependencies
 
 | Area | Owner | Coupling / purpose |

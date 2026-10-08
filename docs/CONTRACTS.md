@@ -174,7 +174,7 @@ This ignored operator package contains identity/canonical decisions only: no loc
 | `TMDB_READ_TOKEN`, `MDBLIST_API_KEY`, `OMDB_API_KEY`, `OMDB_API_KEY_SECONDARY` | Optional Worker-only credentials; explicit resolver may use private TMDB process env/file |
 | `worker/.dev.vars.local`, `.env.local`, `.env.production.local` | Ignored local secrets / public frontend build configuration; examples tracked |
 | `/#/...`, `/` in development/build/preview | Static hash routes; preserve Vite base-aware asset/identity paths |
-| `public/avatars/0.png`–`19.png`, `a.png` | Fixed one-time member choices and reserved Classics asset; never modify source assets to simplify tests |
+| `/avatars/0.png`–`19.png`, `a.png` | Fixed runtime URLs for one-time member choices and reserved Classics; generated 320px PNGs from `assets/source/avatars/`; never modify source artwork to simplify tests |
 
 ## Development refresh boundary
 

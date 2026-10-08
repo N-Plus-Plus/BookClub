@@ -1,8 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
+import {imageAssets} from '../scripts/assets/manifest.mjs';
+import {prepareAssets} from '../scripts/assets/prepare.mjs';
+import sharp from 'sharp';
 import { checkProduction } from '../scripts/prod-check.mjs';
 it('checks working-tree release safety and public variables without remote access',()=>{
   const migrations=execFileSync('git',['ls-files','--cached','--others','--exclude-standard','--','worker/migrations/*.sql'],{encoding:'utf8'}).trim().split(/\r?\n/).map(path=>path.split('/').at(-1)!).sort();
@@ -62,10 +65,14 @@ it('retires every active GitHub Pages publication workflow',()=>{
     expect(readFileSync(join('.github/workflows',file),'utf8')).not.toMatch(/actions\/(?:deploy-pages|upload-pages-artifact|configure-pages)|gh\s+workflow\s+run\s+pages/);
   }
 });
-it('builds root asset references with bundled fonts and avatars',()=>{
-  const output=mkdtempSync(join(tmpdir(),'bookclub-build-'));
+it('builds root asset references with lightweight artwork from clean generated output',async()=>{
+  const root=mkdtempSync(join(tmpdir(),'bookclub-build-'));
+  const output=join(root,'dist');
   try {
-    execFileSync(process.execPath,['node_modules/vite/bin/vite.js','build','--outDir',output],{env:{...process.env,NODE_ENV:'production',VITE_API_BASE_URL:'https://fictional-worker.example.invalid',VITE_GOOGLE_CLIENT_ID:'fictional.apps.googleusercontent.com'},stdio:'pipe'});
+    cpSync('assets/source',join(root,'assets/source'),{recursive:true});
+    cpSync('public',join(root,'public'),{recursive:true});
+    expect(await prepareAssets({root})).toMatchObject({encoded:32,reused:0});
+    execFileSync(process.execPath,['--input-type=module','--eval',"import {build} from 'vite'; await build({publicDir:process.argv[1],build:{outDir:process.argv[2]}});",join(root,'generated/public'),output],{env:{...process.env,NODE_ENV:'production',VITE_API_BASE_URL:'https://fictional-worker.example.invalid',VITE_GOOGLE_CLIENT_ID:'fictional.apps.googleusercontent.com'},stdio:'pipe'});
     const html=readFileSync(join(output,'index.html'),'utf8');
     expect(html).not.toContain('/BookClub/');
     const assets=[...html.matchAll(/(?:src|href)="(\/assets\/[^" ]+)"/g)].map(match=>match[1]);
@@ -73,7 +80,18 @@ it('builds root asset references with bundled fonts and avatars',()=>{
     expect(assets.some(path=>path.endsWith('.css'))).toBe(true);
     for(const asset of assets) expect(existsSync(join(output,asset.slice(1)))).toBe(true);
     expect(readdirSync(join(output,'assets')).some(name=>name.endsWith('.woff2'))).toBe(true);
+    for(const asset of imageAssets) {
+      const file=join(output,asset.output);
+      expect(existsSync(file)).toBe(true);
+      const metadata=await sharp(file).metadata();
+      expect(metadata.format).toBe('png');
+      expect(metadata.width).toBeLessThanOrEqual(asset.size);
+      expect(metadata.height).toBeLessThanOrEqual(asset.size);
+      expect(readFileSync(file)).not.toEqual(readFileSync(join('assets/source',asset.source)));
+    }
+    expect(existsSync(join(output,'assets/source'))).toBe(false);
+    for(const removed of ['buttons/closedrawer.png','buttons/dq.png','buttons/next.png','buttons/prev.png','buttons/ranked.png','buttons/resort.png','buttons/unranked.png','favicons','newFav/fav0.png']) expect(existsSync(join(output,removed))).toBe(false);
     for(const avatar of ['a',...Array.from({length:20},(_,i)=>String(i))]) expect(existsSync(join(output,'avatars',`${avatar}.png`))).toBe(true);
     for(const file of readdirSync(join(output,'assets')).filter(name=>/\.(js|css)$/.test(name))) expect(readFileSync(join(output,'assets',file),'utf8')).not.toContain('/BookClub/');
-  } finally {rmSync(output,{recursive:true,force:true});}
+  } finally {rmSync(root,{recursive:true,force:true});}
 },30000);
