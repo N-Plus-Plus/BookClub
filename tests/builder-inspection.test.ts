@@ -101,7 +101,7 @@ describe('Builder inspection and Use set',() => {
     expect(harness.container.querySelector('textarea')).toBeNull();
     vi.mocked(api.builders).mockResolvedValue([{...set,id:existing ? 'existing':'new-set',title:'Saved title',notes:existing ? 'Old note' : '',movie_ids:existing ? set.movie_ids : []}]);
     await click(button('Save set'));
-    expect(button('Save set')).toBeUndefined(); expect(button('New set')).toBeTruthy(); expect(harness.container.textContent).toContain('Saved title'); if (existing) expect(harness.container.textContent).toContain('Old note');
+    expect(button('Save set')).toBeUndefined(); expect(button('New set')).toBeTruthy(); expect(harness.container.textContent).toContain('Saved title'); expect(harness.container.textContent).not.toContain('Old note');
     expect(harness.container.textContent).not.toContain('Private set saved.');
     expect(api.saveBuilder).toHaveBeenCalledWith({title:'Saved title',notes:existing ? 'Old note' : '',movie_ids:existing ? set.movie_ids:[],...(existing ? {revision:3}: {})},existing ? 'existing':undefined);
     await click(button('Open set')); expect(lineup()).toEqual(existing ? ['Film 2','Film 0','Film 2']:[]);

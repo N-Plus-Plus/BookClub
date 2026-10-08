@@ -75,7 +75,7 @@ it('does no theme work on Top / Bottom, retains visited reports, and treats repe
     await tab('Fingerprints');expect(theme).toHaveBeenCalledTimes(5);
     await tab('General');await tab('Fingerprints');expect(theme).toHaveBeenCalledTimes(5);
     await act(async()=>container.querySelector<HTMLButtonElement>('.metrics-filters button')!.click());expect(theme).toHaveBeenCalledTimes(5);
-    await tab('Diversity');expect(diversity).toHaveBeenCalledTimes(25);
+    await tab('Diversity');expect(diversity).toHaveBeenCalledTimes(20);
   }finally{await act(async()=>root.unmount());container.remove();}
 });
 

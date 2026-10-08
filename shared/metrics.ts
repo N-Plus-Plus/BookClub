@@ -126,9 +126,16 @@ export function extremesCabinet(rows: Appearance[]) {
     topCritic:tiedExtreme(unique,row => compositeScore(row.movie,'critic')),bottomCritic:tiedExtreme(unique,row => compositeScore(row.movie,'critic'),'min'),
     topAudience:tiedExtreme(unique,row => compositeScore(row.movie,'audience')),bottomAudience:tiedExtreme(unique,row => compositeScore(row.movie,'audience'),'min'),
     oldest:tiedExtreme(unique,row => row.movie.year !== null && row.movie.year > 0 ? row.movie.year : null,'min'),
+    newest:tiedExtreme(unique,row => validReleaseDate(row.movie.release_date)),
     longest:tiedExtreme(unique,row => row.movie.runtime !== null && row.movie.runtime > 0 ? row.movie.runtime : null),
+    shortest:tiedExtreme(unique,row => row.movie.runtime !== null && row.movie.runtime > 0 ? row.movie.runtime : null,'min'),
     mostPopular:tiedExtreme(unique,row => imdbVotes(row.movie)),
     mostObscure:tiedExtreme(unique,row => imdbVotes(row.movie),'min')};
+}
+export function validReleaseDate(value: string | null): number | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0,10) === value ? timestamp : null;
 }
 export function tiedExtreme<T>(items: readonly T[],value: (item:T) => number | null,direction: 'max' | 'min' = 'max'): {value:number;items:T[]} | null {
   const qualifying = items.flatMap(item => {const number=value(item);return number !== null && Number.isFinite(number) ? [{item,number}] : [];});

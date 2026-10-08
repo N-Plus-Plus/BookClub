@@ -5,15 +5,15 @@ import type { ResolvedRoute } from './routes';
 import { AccountMenu } from './AccountMenu';
 import { Navigation } from './Navigation';
 
-export function AppShell({navigationExpanded,onToggleNavigation,page,route,shellTitle,heading,viewer,authBusy,onLogout,demo,localDevelopment,subtitle,actions,children}: {
-  navigationExpanded:boolean; onToggleNavigation:()=>void;
+export function AppShell({navigationExpanded,onToggleNavigation,unrankedCount,page,route,shellTitle,heading,viewer,authBusy,onLogout,demo,localDevelopment,subtitle,actions,children}: {
+  unrankedCount?:number; navigationExpanded:boolean; onToggleNavigation:()=>void;
   page:string; route:ResolvedRoute; shellTitle:string; heading:RefObject<HTMLHeadingElement|null>;
   viewer:Viewer|null; authBusy:boolean; onLogout:()=>void; demo:boolean; localDevelopment:boolean;
   subtitle?:string; actions:ReactNode; children:ReactNode;
 }) {
   return <div className={`app-layout ${navigationExpanded ? 'navigation-expanded' : 'navigation-collapsed'}`}>
     {localDevelopment && demo && <p className="demo-label"><Info size={12} aria-hidden="true" />Local disposable database</p>}
-    <Navigation page={page} expanded={navigationExpanded} onToggle={onToggleNavigation} />
+    <Navigation unrankedCount={unrankedCount} page={page} expanded={navigationExpanded} onToggle={onToggleNavigation} />
     <div className="bookclub-shell"><header className="site-header"><a className="brand" href="#/home"><img className="brand-icon" src={`${import.meta.env.BASE_URL}newFav/fav1.png`} alt="" /><span>{page === 'home' ? 'Book Club' : shellTitle}<small>HAVE YOU UPDATED THE SPREADSH... WEB APP?</small></span></a><div className="viewer-controls">{viewer ? <AccountMenu viewer={viewer} busy={authBusy} onLogout={onLogout} /> : <span className="header-tag">{demo ? 'LOCAL DEMO' : 'FILM CLUB'}</span>}</div></header>
     <main id="main"><div className="page-heading"><div className="page-title-region"><h1 ref={heading} tabIndex={-1}>{route.image && <img className="destination-icon" src={`${import.meta.env.BASE_URL}buttons/${route.image}`} alt="" />}{route.heading}</h1>{subtitle && <p className="subtitle">{subtitle}</p>}</div>{actions}</div>
     {children}

@@ -53,7 +53,7 @@ try{
   }
   await page.getByRole('tab',{name:'Fingerprints',exact:true}).click();await page.getByText('Loading enriched Metrics…',{exact:true}).waitFor({state:'hidden'});
   await page.getByRole('tab',{name:'Top / Bottom',exact:true}).click();
-  for(const name of ['Fingerprints','General','Averages','Diversity','Standalone','Extremes','Top / Bottom']){
+  for(const name of ['Fingerprints','General','Averages','Diversity','Standalone','Cabinet','Top / Bottom']){
    const id=await page.getByRole('tab',{name,exact:true}).getAttribute('id');
    results.push({...await measure(`[id="${id}"]`,name),width});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
@@ -61,7 +61,7 @@ try{
    assert(await page.locator('.metrics-directors .metrics-distribution-label').count()<=20);
    assert(await page.locator('.metrics-film-extreme a').count()<=40);
   }
-  await page.getByRole('tab',{name:'Extremes',exact:true}).click();
+  await page.getByRole('tab',{name:'Cabinet',exact:true}).click();
   const tied=page.locator('.metrics-film-extreme').first();assert.match(await tied.textContent(),/1000-way tie/);
   assert.equal(await tied.locator('a').count(),5);await tied.getByRole('button',{name:'Next',exact:true}).click();assert.equal(await tied.locator('a').count(),5);
   await page.screenshot({path:`.verification/metrics/performance-extremes-${width}.png`,fullPage:true});

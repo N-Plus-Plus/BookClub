@@ -17,9 +17,10 @@ it('normalises selected and club bars defensively',()=>{
   expect(comparisonWidths(.5)).toEqual({selected:50,club:100});
   expect(comparisonWidths(0)).toEqual({selected:0,club:100});
 });
-it.each([[80,8,1],[83,9,.3],[87.5,9,.75],[100,10,1],[0,0,undefined]])('circles represent mean %s exactly',(mean,length,last)=>{
-  const fills=ratingCircleFills(mean!);expect(fills).toHaveLength(length!);expect(fills.at(-1)).toBe(last);
-  expect(fills.slice(0,-1).every(f=>f===1)).toBe(true);
+it.each([0,.4,10,70.4,80,83,87.5,100])('ten circles represent mean %s exactly',mean=>{
+  const fills=ratingCircleFills(mean);expect(fills).toHaveLength(10);
+  expect(fills.reduce((sum,n)=>sum+n,0)*10).toBeCloseTo(mean);
+  fills.forEach((fill,index)=>expect(fill).toBeCloseTo(Math.max(0,Math.min(1,(mean-index*10)/10))));
 });
 it('cutoff includes every fifth-place tie and handles small lists',()=>{
   expect(withCutoffTies([10,8,7,7,6,6,6,6,6],n=>n)).toHaveLength(9);
@@ -77,7 +78,7 @@ it('renders revised visuals, stable colours, clean presentation and linked ratio
     for (const list of container.querySelectorAll('.metrics-theme-cloud')) {expect(list.children.length).toBeLessThanOrEqual(12);for(const term of list.children) expect(parseFloat(term.querySelector('strong')!.textContent!)).toBeGreaterThanOrEqual(1);}
     await tab('General');expect(container.querySelectorAll('.metrics-decades .metrics-stack-bar')).toHaveLength(1);
     expect(container.querySelectorAll('.metrics-classifications .metrics-distribution-track').length).toBeGreaterThan(0);
-    for (const profile of container.querySelectorAll('.metrics-classifications .metrics-stacked-profile')) {expect(profile.querySelectorAll('.metrics-distribution-row')).toHaveLength(7);expect(profile.textContent).not.toContain('known for');}
+    for (const profile of container.querySelectorAll('.metrics-classifications .metrics-stacked-profile')) {expect(profile.querySelectorAll('.metrics-distribution-row')).toHaveLength(6);expect(profile.textContent).not.toContain('known for');}
     expect(container.querySelector('.metrics-decades > p')?.textContent).toMatch(/Most common: \d{4}s/);
     expect(container.querySelector('.metrics-decade-legend')?.textContent).not.toMatch(/19\d\ds|20\d\ds|\u00b7|appearances/);
     expect(container.querySelector('.metrics-table')?.textContent).not.toContain('scored');
@@ -96,15 +97,15 @@ it('renders revised visuals, stable colours, clean presentation and linked ratio
     await tab('General');expect(container.querySelector('.metrics-panel')?.lastElementChild?.getAttribute('data-metric')).toBe('L');expect(container.querySelector('.metrics-revenue-ratios')?.textContent).not.toContain('unique films have reported');await tab('Standalone');expect(container.querySelector('.metrics-countries')?.textContent).not.toContain('Production country known for');
     expect(container.querySelector('.metrics-languages')?.textContent).not.toMatch(/among known|known for|\bEN\b|\bDE\b|\bIT\b/);
     await tab('General');expect(container.querySelector('.metrics-ratio-list a')?.getAttribute('href')).toMatch(/^#\/movie\//);
-    await tab('Extremes');expect(container.textContent).not.toMatch(/Highest IMDb|Lowest IMDb|Cinematographer known for/);
+    await tab('Cabinet');expect(container.textContent).not.toMatch(/Highest IMDb|Lowest IMDb|Cinematographer known for/);
     for(const name of ['Top Critic','Top Audience','Bottom Critic','Bottom Audience']) expect(container.textContent).toContain(name);
     const filmCards = [...container.querySelectorAll('.metrics-film-extreme')];
-    expect(filmCards.map(card=>card.querySelector('h3')?.textContent)).toEqual(['Top Critic','Top Audience','Bottom Critic','Bottom Audience','Oldest','Longest','Most Popular','Most Obscure']);
-    expect(filmCards[6].textContent).toContain('2,000,000 IMDb votes');
-    expect(filmCards[6].querySelector('a')?.getAttribute('href')).toBe('#/movie/a');
-    expect(filmCards[7].textContent).toContain('12 IMDb votes');
-    expect(filmCards[7].querySelector('a')?.getAttribute('href')).toBe('#/movie/b');
-    expect([...container.querySelectorAll<HTMLElement>('.metrics-extremes h3')].map(h=>h.style.getPropertyValue('--extreme-colour'))).toEqual(['ruby','grapefruit','carrot','pumpkin','sunflower','avacado','grass','emerald','aqua','sapphire','jeans','indigo','lavender','rose'].map(c=>`var(--${c})`));
+    expect(filmCards.map(card=>card.querySelector('h3')?.textContent)).toEqual(['Top Critic','Top Audience','Bottom Critic','Bottom Audience','Oldest','Newest','Longest','Shortest','Most Popular','Most Obscure']);
+    expect(filmCards[8].textContent).toContain('2,000,000 IMDb votes');
+    expect(filmCards[8].querySelector('a')?.getAttribute('href')).toBe('#/movie/a');
+    expect(filmCards[9].textContent).toContain('12 IMDb votes');
+    expect(filmCards[9].querySelector('a')?.getAttribute('href')).toBe('#/movie/b');
+    expect([...container.querySelectorAll<HTMLElement>('.metrics-extremes h3')].every(h=>!h.style.getPropertyValue('--extreme-colour'))).toBe(true);expect(container.querySelector('.metrics-creator-extreme h3 strong')?.textContent).toBe('Director');
     expect(container.querySelector('.metrics-creator-extreme > .meta')).not.toBeNull();
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(1);
   } finally {await act(async()=>root.unmount());}

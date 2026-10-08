@@ -6,7 +6,7 @@ import { metricsFilm,metricsEvent } from './metrics-fixture';
 
 describe('derived theme identity and presentation preserve raw evidence',() => {
   it.each([
-    ['infanticide','Infanticide'],['jumping','Jumping'],['loser','Loser'],['path','Path'],['shaking','Shaking'],['escape-plan','Escape plan'],['hbo-max-original','HBO Max original'],['bmw','BMW'],
+    ['rural area','Rural area'],['silent film','Silent film'],['rural Area','Rural Area'],['infanticide','Infanticide'],['jumping','Jumping'],['loser','Loser'],['path','Path'],['shaking','Shaking'],['escape-plan','Escape plan'],['hbo-max-original','HBO Max original'],['bmw','BMW'],
     ['hiding-in-the-basement','Hiding in the basement'],['  escape-plan  ','Escape plan'],
     ['Escape Plan','Escape Plan'],[' Hiding in the basement ','Hiding in the basement'],
     ['FBI investigation','FBI investigation'],['fbi-investigation','FBI investigation'],

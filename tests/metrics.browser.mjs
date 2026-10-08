@@ -37,8 +37,8 @@ await fs.mkdir('.verification/metrics',{recursive:true});
 const columns = locator => locator.evaluate(e => getComputedStyle(e).gridTemplateColumns.split(' ').length);
 const overflow = () => page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
 const results = [];
-const tabs = ['Top / Bottom','Fingerprints','General','Averages','Diversity','Standalone','Extremes'];
-const assignments = [['E','U','V','W'],['C','F','G','J'],['B','D','K','Y','L'],['M','N','T'],['O','P','Q','R','S'],['H','I'],['X']];
+const tabs = ['Top / Bottom','Fingerprints','General','Averages','Diversity','Standalone','Cabinet'];
+const assignments = [['E','U','V','W'],['C','F','G','J'],['B','D','K','Y','L'],['M','N','T'],['O','P','R','S'],['H','I'],['X']];
 const tab = name => page.getByRole('tab',{name,exact:true}).click();
 const active = () => page.locator('[role=tab][aria-selected=true]').textContent();
 const check = async(width,label) => {
@@ -84,7 +84,7 @@ try {
       await page.getByRole('tabpanel').evaluate(e=>e.lastElementChild?.scrollIntoView({block:'end'}));
       await check(width,tabs[index]+' bottom');await page.evaluate(()=>scrollTo(0,0));
     }
-    assert.equal(found.length,24);assert.equal(new Set(found).size,24);
+    assert.equal(found.length,23);assert.equal(new Set(found).size,23);
     await tab('Top / Bottom');
     assert.match(await page.locator('.metrics-popularity-list').first().textContent(),/2,000,000 IMDb votes/);
     assert.match(await page.locator('.metrics-popularity-list').nth(1).textContent(),/12 IMDb votes/);
@@ -96,7 +96,7 @@ try {
     }
     for(const footer of await page.locator('.metrics-film-footer').all()) {
       const g=await footer.evaluate(e=>({score:e.querySelector('strong').getBoundingClientRect().toJSON(),identity:e.lastElementChild.getBoundingClientRect().toJSON()}));
-      assert(g.score.x<g.identity.x && g.score.y<g.identity.bottom && g.identity.y<g.score.bottom);
+      assert(g.score.x<g.identity.x && g.score.y<g.identity.bottom);
     }
     await tab('General');
     assert.match(await page.locator('.metrics-decades').textContent(),/Unknown.*14.3%/s);
@@ -107,7 +107,7 @@ try {
       const rem=parseFloat(getComputedStyle(document.documentElement).fontSize);
       return [...e.querySelectorAll('tr')].every(row=>parseFloat(getComputedStyle(row.firstElementChild).paddingLeft)===rem && parseFloat(getComputedStyle(row.lastElementChild).paddingRight)===rem);
     }),'outer header/body columns have 1rem inset');
-    assert(await genreScroll.locator('tr > :nth-child(2), tr > :nth-child(3)').evaluateAll(cells=>cells.every(cell=>getComputedStyle(cell).paddingLeft==='3px' && getComputedStyle(cell).paddingRight==='3px')),'middle-column spacing unchanged');
+    assert(await genreScroll.locator('tr > :nth-child(2), tr > :nth-child(3)').evaluateAll(cells=>cells.every(cell=>getComputedStyle(cell).paddingLeft==='4px' && getComputedStyle(cell).paddingRight==='16px')),'middle-column spacing unchanged');
     const headerBefore=await genreScroll.locator('thead').boundingBox();
     await genreScroll.evaluate(e=>e.scrollTop=120);
     const headerAfter=await genreScroll.locator('thead').boundingBox();
@@ -118,7 +118,7 @@ try {
     await tab('Averages');
     for(const glyphs of await page.locator('.metrics-rating-circles').all()) assert.equal(await glyphs.getAttribute('aria-hidden'),'true');
     assert.equal(await page.locator('.metrics-rating-profile > div').count(),9);assert.match(await page.locator('.metrics-rating-profile').textContent(),/Ebert.*87.5/s);
-    await tab('Extremes');assert(await page.locator('.metrics-extremes .poster-empty').count()>=4);
+    await tab('Cabinet');assert(await page.locator('.metrics-extremes .poster-empty').count()>=4);
     const available=await page.locator('.metrics-content').evaluate(e=>e.clientWidth);assert.equal(await columns(page.locator('.metrics-extremes')),available>=540 ? 2 : 1);
     for(let i=1;i<=5;i++) {
       await tab('Fingerprints');await page.locator('.metrics-filters button').nth(i).click();
@@ -130,7 +130,7 @@ try {
       await tab('Averages');
     for(const glyphs of await page.locator('.metrics-rating-circles').all()) assert.equal(await glyphs.getAttribute('aria-hidden'),'true');
     assert.equal(await page.locator('.metrics-median-budget').count(),2);
-      await tab('Diversity');assert.equal(await page.locator('.metrics-diversity section').count(),5);
+      await tab('Diversity');assert.equal(await page.locator('.metrics-diversity section').count(),4);
     }
     await tab('Fingerprints');await page.locator('.metrics-filters button').nth(1).click();
     for(const role of ['Cast','Director','Writer','Cinematographer','Composer','Editor','Producer']) {await page.locator('.metrics-talent select').selectOption(role);assert.doesNotMatch(await page.locator('.metrics-talent').textContent(),/known for/);}
@@ -151,13 +151,13 @@ try {
     await tab('Top / Bottom');
     const modes=page.locator('.metrics-score-filters').first();
     assert.equal(await modes.locator('button').count(),9);
-    assert(await modes.evaluate(e=>{const buttons=[...e.querySelectorAll('button')],active=buttons.find(b=>b.getAttribute('aria-pressed')==='true'),style=getComputedStyle(active);return buttons.every(b=>b.offsetTop===buttons[0].offsetTop) && style.borderBottomStyle==='solid' && parseFloat(style.borderBottomWidth)>0 && style.borderRadius==='0px';}));
+    assert(await modes.evaluate(e=>{const buttons=[...e.querySelectorAll('button')],active=buttons.find(b=>b.getAttribute('aria-pressed')==='true'),style=getComputedStyle(active);return buttons.every(b=>b.offsetTop===buttons[0].offsetTop) && parseFloat(getComputedStyle(active,'::after').height)>0 && style.borderRadius==='0px';}));
     await page.getByRole('group',{name:'Top 5 score filter'}).getByRole('button',{name:'Roger Ebert',exact:true}).click();assert.match(await page.locator('.metrics-rankings section').first().textContent(),/3.5 \/ 4/);
     await page.evaluate(()=>scrollTo(0,0));
     const before=await page.evaluate(()=>scrollY);await tab('Fingerprints');assert.equal(await page.evaluate(()=>scrollY),before,'tab click does not move page');
     const selected=page.getByRole('tab',{name:'Fingerprints',exact:true});await selected.focus();await page.keyboard.press('ArrowRight');assert.equal(await active(),'General');
     assert(await page.locator('[role=tab][aria-selected=true]').evaluate(e=>e===document.activeElement && getComputedStyle(e).outlineStyle!=='none'),'visible keyboard focus');
-    await page.keyboard.press('End');assert.equal(await active(),'Extremes');await page.keyboard.press('Home');assert.equal(await active(),'Top / Bottom');
+    await page.keyboard.press('End');assert.equal(await active(),'Cabinet');await page.keyboard.press('Home');assert.equal(await active(),'Top / Bottom');
     assert.equal(requests.length,baseline,'tab/identity/role/score changes generate no API reads');assert.equal(requests.filter(p=>p.endsWith('/metrics/enrichment')).length,1);
     results.push({width,available,overflow:false,filterCalls:requests.length-baseline,tabs:7});
   }

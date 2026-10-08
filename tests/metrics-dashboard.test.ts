@@ -106,7 +106,7 @@ describe('Metrics dashboard',() => {
     expect(report.highest?.items.map(r => r.movie.id)).toEqual(['a']);expect(report.lowest?.items.map(r => r.movie.id)).toEqual(['b']);expect(report.oldest?.items.map(r => r.movie.id)).toEqual(['a']);expect(report.longest?.items.map(r => r.movie.id)).toEqual(['a']);
     expect(extremesCabinet([...rows].reverse())).toEqual(report);
     const ties = rowsOf([metricsFilm('z'),metricsFilm('a')]);
-    expect(Object.values(extremesCabinet(ties)).map(r => r?.items.map(item => item.movie.id))).toEqual([['a','z'],['a','z'],undefined,undefined,['a','z'],['a','z'],['a','z'],['a','z'],['a','z'],['a','z']]);
+    expect(Object.values(extremesCabinet(ties)).map(r => r?.items.map(item => item.movie.id))).toEqual([['a','z'],['a','z'],undefined,undefined,['a','z'],['a','z'],['a','z'],undefined,['a','z'],['a','z'],['a','z'],['a','z']]);
   });
   it('vote extremes retain ties, deduplicate repeats and ignore missing, invalid and non-IMDb votes',() => {
     const films = [
@@ -125,7 +125,7 @@ describe('Metrics dashboard',() => {
   });
   it('missing extremes and empty dashboards stay safe',() => {
     const rows = rowsOf([metricsFilm('a',{scores:[],year:null,runtime:null,director:null,genres:[]})]);
-    expect(extremesCabinet(rows)).toEqual({highest:null,lowest:null,topCritic:null,bottomCritic:null,topAudience:null,bottomAudience:null,oldest:null,longest:null,mostPopular:null,mostObscure:null});
+    expect(extremesCabinet(rows)).toEqual({highest:null,lowest:null,topCritic:null,bottomCritic:null,topAudience:null,bottomAudience:null,oldest:null,newest:null,longest:null,shortest:null,mostPopular:null,mostObscure:null});
     expect(extremesCabinet([])).toEqual(extremesCabinet(rows));
     expect(metricsDashboard([],[])).toMatchObject({fingerprint:[],decades:[],directors:{covered:0,top:[]},popularity:{coverage:0,median:null}});
     expect(metricsScoreDimensions).toHaveLength(9);

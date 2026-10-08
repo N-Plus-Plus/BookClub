@@ -17,6 +17,20 @@ export const ratingDimensions = {
   'rogerebert:rating': dimension('rogerebert:rating',{fullLabel:'Roger Ebert Rating',compactLabel:'Ebert',providerName:'Roger Ebert',ratingLabel:'rogerebert',id:'ebert',name:'Roger Ebert',scale:4,group:'critic'} as const),
 } as const;
 export type RatingDimensionKey = keyof typeof ratingDimensions;
+// Explanatory native voting scales, not aggregate/parser rounding instructions.
+// TMDB accepts half-point votes on /10; IMDb and MC user aggregates use tenths.
+export const glossaryScales: Record<RatingDimensionKey,{maximum:number;step:number}> = {
+  'imdb:rating':{maximum:10,step:0.1}, 'letterboxd:rating':{maximum:5,step:0.5},
+  'metacritic:critic':{maximum:100,step:1}, 'metacritic:user':{maximum:10,step:0.1},
+  'rottentomatoes:audience':{maximum:100,step:1}, 'rottentomatoes:critic':{maximum:100,step:1},
+  'tmdb:rating':{maximum:10,step:0.5}, 'trakt:rating':{maximum:10,step:1},
+  'rogerebert:rating':{maximum:4,step:0.5},
+};
+export function glossaryExample(key:RatingDimensionKey) {
+  const {maximum,step}=glossaryScales[key], value=Number((maximum-step).toFixed(3));
+  const source = key === 'imdb:rating' ? 'Internet Movie Database' : key === 'tmdb:rating' ? 'The Movie Database' : ratingDimensions[key].fullLabel;
+  return {source,native:`${value} / ${maximum}`,normalised:`${Number((value/maximum*100).toFixed(3))}%`};
+}
 export function ratingDimension(provider:string,metric:string) {
   return ratingDimensions[`${provider}:${metric}` as RatingDimensionKey];
 }

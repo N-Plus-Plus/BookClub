@@ -30,10 +30,10 @@ const text = (markup: string) => {const element=document.createElement('div');el
 it.each([[87,'87'],[87.5,'87.5'],[87.26,'87.3']])('formats /100 %s as %s', (value,expected) => expect(formatScore100(value as number)).toBe(expected));
 
 it.each([
-  ['exact',null,'1 January 2026 · Cycle 1 Film 1'],
-  ['cycle_rough',null,'Cycle 1 Film 1'],
-  ['unknown',null,'Cycle 1 Film 1'],
-  ['exact','legacy-spreadsheet','Cycle 1 Film 1'],
+  ['exact',null,'2001 · 1 January 2026 · Cycle 1 Film 1'],
+  ['cycle_rough',null,'2001 · Cycle 1 Film 1'],
+  ['unknown',null,'2001 · Cycle 1 Film 1'],
+  ['exact','legacy-spreadsheet','2001 · Cycle 1 Film 1'],
 ])('Metrics ranking metadata respects %s precision and %s provenance', async(precision,source,expected)=>{
   const data={...catalog,sessions:[{...session,date_precision:precision as Session['date_precision']}],cycles:[{...catalog.cycles[0],title:'Custom cycle title',import_source:source}]};
   Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});

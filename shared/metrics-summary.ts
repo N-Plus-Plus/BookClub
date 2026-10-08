@@ -48,20 +48,22 @@ export function daysActive(today: Date): number {
   return Math.round((Date.UTC(today.getFullYear(),today.getMonth(),today.getDate()) - Date.UTC(2020,6,5))/86_400_000)+1;
 }
 export { formatCount as formatTimelineNumber } from './format';
-import { formatCount as formatTimelineNumber } from './format';
-export const formatWatchTime = (minutes: number) => `${formatTimelineNumber(Math.floor(minutes/60))} hr ${minutes%60} min`;
+export const formatWatchTime = (minutes: number) => `${Math.floor(minutes/60)}:${String(minutes%60).padStart(2,'0')}`;
 
-/** A complete History cycle contains the four human turns and the final Classics turn. */
+/** Chronological milestone, independent of completeness of imported turn records. */
 export function clubTimeline(catalog: Catalog,today: Date) {
-  const turns = new Map<string,Set<number>>();
+  let cyclesCompleted = 0;
+  const cycles = catalogIndex(catalog).cycleById;
   for (const session of catalog.sessions) {
     if (session.deleted_at || !session.cycle_id || session.cycle_slot === null) continue;
-    const slot = session.cycle_slot;
-    if (slot < 1 || slot > 5 || session.kind !== (slot === 5 ? 'classics' : 'hosted')) continue;
-    const slots = turns.get(session.cycle_id) ?? new Set<number>();
-    slots.add(slot); turns.set(session.cycle_id,slots);
+    const cycle = cycles.get(session.cycle_id);
+    if (!cycle || !Number.isInteger(cycle.ordinal) || cycle.ordinal < 1) continue;
+    const completed = session.completed_turn_version != null;
+    const importedFinal = session.cycle_slot === 5 && session.kind === 'classics' && Boolean(cycle.import_source || cycle.import_key);
+    if (session.cycle_slot === 5 && session.kind === 'classics' && (completed || importedFinal)) cyclesCompleted = Math.max(cyclesCompleted,cycle.ordinal);
+    // A genuinely completed first turn establishes the next chronological cycle.
+    if (session.cycle_slot === 1 && session.kind === 'hosted' && completed) cyclesCompleted = Math.max(cyclesCompleted,cycle.ordinal-1);
   }
-  const cyclesCompleted = catalog.cycles.filter(cycle => turns.get(cycle.id)?.size === 5).length;
   const watchMinutes = selectedAppearances(catalog).reduce((sum,{movie}) => sum+(movie.runtime ?? 0),0);
   return {daysActive:daysActive(today),cyclesCompleted,watchMinutes};
 }

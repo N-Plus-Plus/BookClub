@@ -12,8 +12,8 @@ Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
 afterEach(() => vi.resetAllMocks());
 const assignments = {
   'Top / Bottom':['E','U','V','W'],Fingerprints:['C','F','G','J'],
-  'General':['B','D','K','Y','L'],Averages:['M','N','T'],'Diversity':['O','P','Q','R','S'],
-  'Standalone':['H','I'],Extremes:['X'],
+  'General':['B','D','K','Y','L'],Averages:['M','N','T'],'Diversity':['O','P','R','S'],
+  'Standalone':['H','I'],Cabinet:['X'],
 };
 it('renders every metric in exactly one associated active panel, keeps global filters and cached enrichment',async() => {
   vi.mocked(api.metricsEnrichment).mockResolvedValue(metricsEnrichmentFixture());
@@ -38,7 +38,7 @@ it('renders every metric in exactly one associated active panel, keeps global fi
       expect(present.sort()).toEqual([...codes].sort());seen.push(...present);
       expect(container.textContent).not.toMatch(/NaN|Infinity|undefined|0 \/ 0/);
     }
-    expect(new Set(seen).size).toBe(24);expect(seen).toHaveLength(24);
+    expect(new Set(seen).size).toBe(23);expect(seen).toHaveLength(23);
     expect(metricsTabs.flatMap(t => [...t.metrics]).sort()).toEqual(seen.sort());
     await select('Fingerprints');
     const all = container.querySelector('.metrics-fingerprint')!.textContent;

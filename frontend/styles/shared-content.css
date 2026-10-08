@@ -150,13 +150,12 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .skeleton-heading { height: 44px; width: 60%; }
 .skeleton-panel { height: 160px; }
 .loading-placeholder { min-height: 400px; }
-.source-scores-summary { min-width: 0; width: 100%; }
-.source-scores-help-line { display: flex; justify-content: flex-end; }
-.source-scores-help { color: var(--text-muted); }
-.score-abbreviations { margin: 0; display: grid; gap: var(--space-12); }
-.score-abbreviations > div { display: grid; grid-template-columns: 4.5rem minmax(0,1fr); gap: var(--space-12); }
-.score-abbreviations dt { font-weight: 600; }
-.score-abbreviations dd { margin: 0; overflow-wrap: anywhere; color: var(--text-secondary); }
+.source-scores-summary { position: relative; min-width: 0; width: 100%; }
+.source-scores-help { position: absolute; right: 0; top: calc(-1 * var(--space-8)); transform: translateY(-100%); z-index: 1; color: var(--text-muted); }
+.score-glossary-scroll { max-width: 100%; overflow-x: auto; }
+.score-abbreviations { width: 100%; min-width: 420px; border-collapse: collapse; font-size: var(--text-metadata); }
+.score-abbreviations th,.score-abbreviations td { padding: var(--space-8); text-align: left; border-bottom: 1px solid var(--asphalt-dark); }
+.score-abbreviations td:nth-last-child(-n+2) { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .source-scores-critic-boundary::before { content: ''; position: absolute; top: 0; bottom: 0; left: var(--critic-divider-offset, calc(var(--space-8) / 2)); width: 1px; background: var(--asphalt); pointer-events: none; }
 .description-disclosure { display: flex; align-items: center; gap: var(--space-12); width: 100%; min-height: var(--target-min); padding: 0; background: transparent; border: 0; color: var(--text-muted); font: inherit; font-size: var(--text-button); font-weight: 600; cursor: pointer; }
 .description-disclosure::before,.description-disclosure::after { content: ''; flex: 1; border-top: 1px solid var(--asphalt); }
@@ -174,3 +173,6 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 
 /* Wrapping labels keep the standard minimum height, padding and gap. */
 .button.action-wrap,.action-group-wrap > .button { max-width: 100%; white-space: normal; height: auto; min-height: var(--control-button-height); padding-block: var(--space-8); line-height: var(--leading-heading); }
+
+/* Keep the absolute score-help target clear of preceding metadata, without adding a help row. */
+.ranking-score:has(.source-scores-summary) > .meta { padding-right: var(--target-min); }

@@ -102,6 +102,13 @@ If completed work contains durable information that future agents still need, pl
 
 ## Current roadmap
 
+### Priority 2 - Bottom horizontal divider consistency sweep
+Status: Incomplete
+
+Audit and normalise bottom horizontal bars/dividers, especially systematically introduced bars that are inappropriate locally. Distinguish genuine content boundaries from decorative clutter; remove redundant bottom borders while preserving row separation, focus and hierarchy.
+
+Depends on: None
+
 ### Priority 2 - Specialist film enrichment
 Status: Incomplete
 

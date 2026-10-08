@@ -36,3 +36,5 @@
 .detail-rating-summary li { min-width: 0; }
 .detail-score-breakdown .breakdown p strong { margin-left: auto; }
 .detail-score-breakdown > .stack { padding-bottom: var(--space-16); }
+
+.detail-identity:has(.source-scores-summary) .film-identity-metadata > p:nth-last-child(-n+2) { padding-right: var(--target-min); }

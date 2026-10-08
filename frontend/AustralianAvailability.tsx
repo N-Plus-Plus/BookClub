@@ -5,5 +5,5 @@ export function AustralianAvailability({movie,empty = false}: {movie: Movie;empt
   return <div className="au-availability" aria-label="Cached Australian watch availability">{(['subscription','free','ads','rent','buy'] as const).map(access=>{
     const names=[...new Set(offers.filter(offer=>offer.access_type===access).map(offer=>offer.name))];
     return names.length ? <p key={access} className={access==='rent' || access==='buy' ? 'meta' : undefined}>{({subscription:'Stream',free:'Free',ads:'With ads',rent:'Rent',buy:'Buy'})[access]}: {names.join(' · ')}</p> : null;
-  })}<p className="meta">Cached AU options · JustWatch via TMDB</p></div>;
+  })}</div>;
 }

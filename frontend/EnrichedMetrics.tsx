@@ -30,7 +30,7 @@ export function EnrichedMetrics({category,catalog,all,rows,filter,data,status,re
   }) : emptyReport;
   const language = category === 'standalone' ? cached('language',()=>languageCategories(all,data)) : [];
   const economics = category === 'averages' ? cached('economics',()=>scopes.map(s=>({...s,report:filmEconomics(s.rows,data)}))) : [];
-  const diversity = category === 'diversity' ? cached('diversity',()=>(['countries','languages','themes','directors','cast'] as const).map(dimension=>({dimension,values:scopes.map(s=>({label:s.label,...tasteDiversity(s.rows,data,dimension)}))}))) : [];
+  const diversity = category === 'diversity' ? cached('diversity',()=>(['countries','languages','directors','cast'] as const).map(dimension=>({dimension,values:scopes.map(s=>({label:s.label,...tasteDiversity(s.rows,data,dimension)}))}))) : [];
 
   return <>{['fingerprints','general','averages','diversity','standalone','extremes'].includes(category) && status !== 'ready' && <div role="status" className="stack"><p className="meta">{status === 'loading' ? 'Loading enriched Metrics…' : 'Enriched Metrics could not load. Existing Metrics remains available.'}</p>{status === 'error' && <Action icon={RefreshCw} onClick={retry}>Retry enriched Metrics</Action>}</div>}
     {category === 'fingerprints' && <EnrichedFingerprints isAll={isAll} themeReport={themeReport} talentReport={talentReport} signatures={signatures} role={role} setRole={setRole} />}

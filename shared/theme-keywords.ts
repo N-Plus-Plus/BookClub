@@ -11,7 +11,7 @@ export function themeDisplayLabel(raw: string): string {
   const label = raw.trim();
   if (initialisms[label]) return initialisms[label];
   // Natural phrases keep their casing and punctuation; lowercase words and slugs get an initial capital.
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(label)) return label;
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(label)) return label.charAt(0).toUpperCase()+label.slice(1);
   let words = label.split('-').map(token => initialisms[token] ?? token).join(' ');
   for (const [slug,phrase] of Object.entries(phrases)) {
     words = words.replace(new RegExp(`(^| )${slug.replaceAll('-',' ')}(?= |$)`,'gi'),(_,prefix:string) => `${prefix}${phrase}`);

@@ -34,5 +34,5 @@ it('keeps the Unranked cap while exposing the full formatted count', () => {
   const html = renderToStaticMarkup(createElement(ClassicsScreen,{movies:Array(1234).fill(movie),viewer:null,writesEnabled:false,onMovie:()=>{}}));
   expect(html).toContain('Unranked: 1,234 films');
   expect(html).toContain('aria-hidden="true" class="count-indicator classics-count classics-count-needs-data">99+');
-  expect(formatWatchTime(60001)).toBe('1,000 hr 1 min');
+  expect(formatWatchTime(60001)).toBe('1000:01');
 });

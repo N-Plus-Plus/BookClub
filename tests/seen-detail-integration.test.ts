@@ -32,7 +32,7 @@ it('Seen queue, Home count, corrections and Detail context belong to the viewer'
   expect(button('Undo last answer')).toBeUndefined();
   await click(button('Change to No')); expect(api.seen).toHaveBeenLastCalledWith(personal.id,'member-2',false);
   expect(harness.container.textContent).toContain('0 remaining');
-  await navigate('home'); await navigate('movie/saved-0'); expect(button('Back')).toBeUndefined();
+  await navigate('home'); await navigate('movie/saved-0'); expect(button('Back')).toBeTruthy();
 });
 
 it('Detail groups explicit answers in member order and omits unanswered members',async()=>{

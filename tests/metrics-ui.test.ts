@@ -48,7 +48,7 @@ it('defaults on each mount, keeps nine selectors independent, displays full head
  for(const [label,name,,,,,display] of dimensions) {
   await select(0,label);
   expect(sections()[0].querySelector('h2')?.textContent).toBe(`Top 5 by ${name}`);
-  expect([...sections()[0].querySelectorAll('.metrics-film-footer > strong')].map(s=>s.textContent)).toEqual([display,display]);
+  expect([...sections()[0].querySelectorAll('.metrics-film-footer > .stack > strong')].map(s=>s.textContent)).toEqual([display,display]);
   expect(sections()[1].querySelector('h2')?.textContent).toBe('Bottom 5 by IMDb');
   expect(container.querySelector('.metrics-filters button[aria-pressed=true]')?.textContent).toContain('MEMBER');
  }
@@ -56,7 +56,7 @@ it('defaults on each mount, keeps nine selectors independent, displays full head
  for(const [label,name,,,,,display] of dimensions) {
   await select(1,label);
   expect(sections()[1].querySelector('h2')?.textContent).toBe(`Bottom 5 by ${name}`);
-  expect(sections()[1].querySelector('.metrics-film-footer > strong')?.textContent).toBe(display);
+  expect(sections()[1].querySelector('.metrics-film-footer > .stack > strong')?.textContent).toBe(display);
   expect(sections()[0].querySelector('h2')?.textContent).toBe('Top 5 by Letterboxd');
  }
  await tab('General');
@@ -77,7 +77,7 @@ it('empty identities preserve report axes and restrained missing states without 
   expect(container.textContent).toContain('No appearances with IMDb scores yet.');
   const tab=(label:string)=>act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===label)!.click());
   await tab('Averages');expect(container.querySelectorAll('.metrics-rating-profile > div')).toHaveLength(9);
-  await tab('Extremes');expect(container.querySelectorAll('.metrics-extremes section')).toHaveLength(14);
+  await tab('Cabinet');expect(container.querySelectorAll('.metrics-extremes section')).toHaveLength(16);
   await tab('Top / Bottom');expect(container.textContent).toContain('No director data for this selection.');
   expect(container.textContent).not.toMatch(/NaN|Infinity|undefined|0 \/ 0/);
  } finally {await act(async()=>root.unmount());}

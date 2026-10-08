@@ -25,7 +25,7 @@ it('loads once in StrictMode, updates every identity/role locally and exposes tr
     for (const list of container.querySelectorAll('.metrics-ratio-list')) {
       expect([...list.querySelectorAll('.metrics-ratio-rank')].map(n=>n.textContent)).toEqual(['1.','2.','3.','4.','5.','6.','7.']);
       expect(list.querySelectorAll('li > .metrics-ratio-data')).toHaveLength(7);
-      expect(list.textContent).toMatch(/Reported budget USD\s[\d,]+,000 · Reported revenue USD\s[\d,]+,000/);
+      for (const amounts of list.querySelectorAll('.metrics-reported-money')) {expect([...amounts.querySelectorAll('dt')].map(n=>n.textContent)).toEqual(['Reported budget USD','Reported revenue USD']); expect([...amounts.querySelectorAll('dd')].every(n=>/^\$[\d,]+,000$/.test(n.textContent!))).toBe(true);}
     }
     for (let i = 1;i <= 5;i++) {
       await act(async() => container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[i].click());
@@ -38,7 +38,7 @@ it('loads once in StrictMode, updates every identity/role locally and exposes tr
       await tab('Averages');
       expect(container.querySelectorAll('.metrics-median-budget')).toHaveLength(2);
       await tab('Diversity');
-      expect(container.querySelectorAll('.metrics-diversity section')).toHaveLength(5);
+      expect(container.querySelectorAll('.metrics-diversity section')).toHaveLength(4);
       expect(container.textContent).not.toMatch(/NaN|Infinity|undefined|0 \/ 0/);
     }
     await tab('Fingerprints');
@@ -49,9 +49,9 @@ it('loads once in StrictMode, updates every identity/role locally and exposes tr
     }
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(1);
     await act(async() => container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[3].click());
-    await tab('Extremes');
-    expect(container.querySelectorAll('.metrics-film-extreme')[5].textContent).toContain('6-way tie');
-    expect(container.querySelectorAll('.metrics-film-extreme')[5].querySelectorAll('a')).toHaveLength(6);
+    await tab('Cabinet');
+    expect(container.querySelectorAll('.metrics-film-extreme')[6].textContent).toContain('6-way tie');
+    expect(container.querySelectorAll('.metrics-film-extreme')[6].querySelectorAll('a')).toHaveLength(6);
     await tab('General');
     expect(container.querySelector('.metrics-revenue-ratios a')?.getAttribute('href')).toMatch(/^#\/movie\//);
     expect(container.querySelector('.metrics-revenue-ratios')?.textContent).toMatch(/Reported budget.*Reported revenue/);
@@ -68,7 +68,7 @@ it('failed/partial loading preserves existing reports, supports explicit retry a
     expect(container.textContent).toContain('Existing Metrics remains available.');
     await act(async() => [...container.querySelectorAll('button')].find(b => b.textContent === 'Retry enriched Metrics')!.click());
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(2);expect(container.textContent).not.toContain('could not load');
-    expect(container.textContent).toContain('No qualifying evidence');await tab('Extremes');expect(container.textContent).toContain('No repeat writer yet');
+    expect(container.textContent).toContain('No qualifying evidence');await tab('Cabinet');expect(container.textContent).toContain('No repeat writer yet');
     await tab('Standalone');
     expect(container.querySelector('.metrics-languages')?.textContent).toMatch(/Unknown.*100.0%/);
     expect(container.textContent).not.toMatch(/NaN|Infinity|undefined|0 \/ 0/);

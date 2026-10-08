@@ -1,5 +1,5 @@
 import { formatCount } from '../shared/format';
-import { ratingDimensions, ratingDimension, sourceRatingKeys } from '../shared/rating-dimensions';
+import { ratingDimensions, ratingDimension, sourceRatingKeys, glossaryExample } from '../shared/rating-dimensions';
 import { useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Eye, Film, Info, RefreshCw, type LucideIcon } from 'lucide-react';
 import { latestScores, scoreValue } from '../shared/ranking';
@@ -106,9 +106,9 @@ export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; s
   },[structure]);
   const stacked = items.length > 6;
   return items.length ? <div className="source-scores-summary">
-    <div className="source-scores-help-line"><Action icon={Info} variant="tertiary" className="source-scores-help" aria-label="Explain score abbreviations" title="Explain score abbreviations" onClick={() => setExplaining(true)} /></div>
+    <Action icon={Info} variant="tertiary" className="source-scores-help" aria-label="Explain score abbreviations" title="Explain score abbreviations" onClick={() => setExplaining(true)} />
     {explaining && <NativeDialog heading="Score abbreviations" id={headingId} closeLabel="Close score abbreviations" onClose={() => setExplaining(false)} autoFocus>
-      <dl className="score-abbreviations">{sourceRatingKeys.map(key => <div key={key}><dt>{ratingDimensions[key].compactLabel}</dt><dd>{ratingDimensions[key].fullLabel}</dd></div>)}</dl>
+      <div className="score-glossary-scroll"><table className="score-abbreviations"><thead><tr>{['Abbreviation','Source','Native','Normalised'].map(label=><th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>{sourceRatingKeys.map(key => {const example=glossaryExample(key);return <tr key={key}><th scope="row">{ratingDimensions[key].compactLabel}</th><td>{example.source}</td><td>{example.native}</td><td>{example.normalised}</td></tr>;})}</tbody></table></div>
     </NativeDialog>}
     <p ref={rowRef} className={`meta ranking-source-scores${stacked ? ' ranking-source-scores-stacked' : ''}`}>{items.map(({provider,metric,label,description,value},index) =>
     <span key={`${provider}:${metric}`} className={firstCritic > 0 && index === firstCritic ? 'source-scores-critic-boundary' : undefined} title={description} aria-label={`${description}: ${formatScore100(value)}`}><span>{label}</span>{' '}<span>{formatScore100(value)}</span></span>

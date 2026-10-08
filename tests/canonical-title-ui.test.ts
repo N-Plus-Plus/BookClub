@@ -30,7 +30,7 @@ it('canonical provider title is shared by Home, History, all Classics tabs, Seen
    if(route==='metrics')await act(async()=>[...harness.container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent==='Top / Bottom')!.click());
    expect(visible(),route).toContain(title);expect(visible(),route).not.toContain('Wrong Legacy Name');
    if(route==='metrics') {
-     for(const [tab,selectors] of [['Top / Bottom',['.metrics-rankings','.metrics-popularity-list']],['Extremes',['.metrics-extremes']]] as const) {
+     for(const [tab,selectors] of [['Top / Bottom',['.metrics-rankings','.metrics-popularity-list']],['Cabinet',['.metrics-extremes']]] as const) {
        await act(async()=>[...harness.container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===tab)!.click());
        for(const selector of selectors)expect(harness.container.querySelector(selector)?.textContent).toContain(title);
      }

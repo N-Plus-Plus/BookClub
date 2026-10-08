@@ -70,3 +70,5 @@
   .add-classic-modal .search-row .movie-row { flex-basis: 100%; }
   .add-classic-modal .search-row > .button { margin-left: auto; }
 }
+
+.seen-content section:has(> .source-scores-summary) .answer-copy > .meta:last-child { padding-right: var(--target-min); }
