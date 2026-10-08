@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { AdminScreen } from '../frontend/AdminScreen';
+import { ClassicsMaintenance } from '../frontend/ClassicsMaintenance';
 import { ClassicsScreen } from '../frontend/ClassicsScreen';
 import { DetailScreen } from '../frontend/DetailScreen';
 import { api } from '../frontend/api';
@@ -64,7 +64,7 @@ it('omits maintenance on all Classics tabs and includes History in Admin bulk wo
   await click(tab);expect(container.querySelectorAll('.classics-maintenance')).toHaveLength(0);
   expect(container.querySelector('.ranking-list details')).toBeNull();expect(container.textContent).not.toContain('Populate missing scores');
  }
- await act(async()=>root.render(createElement(AdminScreen,{catalog,writesEnabled:true,onMovie,onUpdated:async()=>{}})));
+ await act(async()=>root.render(createElement(ClassicsMaintenance,{catalog,writesEnabled:true,onMovie,onUpdated:async()=>{}})));
  vi.mocked(api.maintainMovies).mockImplementation(async(_mode,ids)=>({results:ids.map(id=>({movie:{...catalog.movies.find(m=>m.id===id)!,appearances:[]},providers:[{provider:'mdblist',status:'success',count:3,message:'Saved'}]}))}));
  vi.useFakeTimers();
  await click('Refresh scores');await act(async()=>{ await vi.runAllTimersAsync(); });expect(vi.mocked(api.maintainMovies).mock.calls.filter(([mode])=>mode==='refresh').flatMap(([,ids])=>ids)).toEqual(['f1','f2','f3','f99']);expect(onMovie).toHaveBeenCalled();expect(container.textContent).toContain('4 / 4 films processed');
@@ -76,10 +76,10 @@ it('omits maintenance on all Classics tabs and includes History in Admin bulk wo
 it('keeps the Admin DOM compact through a 980-film no-data run',async()=>{
  vi.useFakeTimers();const movies=Array.from({length:980},(_,i)=>({...film(i),external_ids:[{provider:'imdb',external_id:'tt0000001'}]}));
  const onMovie=vi.fn();vi.mocked(api.maintainMovies).mockImplementation(async(_mode,ids)=>({results:ids.map(id=>({movie:{...movies.find(m=>m.id===id)!,appearances:[]},providers:[{provider:'mdblist',status:'success',count:0,message:'No usable ratings supplied.'}]}))}));
- await act(async()=>root.render(createElement(AdminScreen,{catalog:{movies,members,sessions:[],cycles:[]},writesEnabled:true,onMovie,onUpdated:async()=>{}})));
+ await act(async()=>root.render(createElement(ClassicsMaintenance,{catalog:{movies,members,sessions:[],cycles:[]},writesEnabled:true,onMovie,onUpdated:async()=>{}})));
  await click('Refresh scores');await act(async()=>{await vi.runAllTimersAsync();});
  expect(onMovie).toHaveBeenCalledTimes(980);expect(container.textContent).toContain('980 / 980 films processed');expect(container.textContent).toContain('980 with no new scores');
- expect(container.querySelectorAll('.classics-maintenance li')).toHaveLength(0);expect(container.querySelectorAll('section > .maintenance-details')).toHaveLength(6);
+ expect(container.querySelectorAll('.classics-maintenance li')).toHaveLength(0);expect(container.querySelectorAll('section > .maintenance-details')).toHaveLength(3);
  expect(container.querySelector('progress')?.value).toBe(980);
 });
 
@@ -143,7 +143,7 @@ it.each(['Populate missing scores','Refresh scores','Refresh OMDb metadata'])('k
   {provider:'omdb',status:'skipped',count:0,message:'No missing score OMDb can supply.'},
  ]}))})).mockImplementationOnce(()=>new Promise(resolve=>{release=resolve;}));
  vi.mocked(api.scoreMaintenanceStatus).mockResolvedValueOnce({candidateIds:movies.map(m=>m.id),eligibleDimensions:5729,unavailableDimensions:7,unavailableFilms:3});
- await act(async()=>root.render(createElement(AdminScreen,{catalog:{movies:[...movies,{...film(99),external_ids:[{provider:'tmdb',external_id:'99'}]},film(100)],members,sessions:[],cycles:[]},writesEnabled:true,onMovie:vi.fn(),onUpdated:async()=>{}})));
+ await act(async()=>root.render(createElement(ClassicsMaintenance,{catalog:{movies:[...movies,{...film(99),external_ids:[{provider:'tmdb',external_id:'99'}]},film(100)],members,sessions:[],cycles:[]},writesEnabled:true,onMovie:vi.fn(),onUpdated:async()=>{}})));
  expect(container.textContent).toContain('11 eligible films');
  expect(container.textContent).toContain('5,729 score inputs eligible · 7 confirmed unavailable (3 films).');
  vi.useFakeTimers();await click(label);

@@ -38,3 +38,10 @@ export const builderSchema = z.object({title: z.string().trim().max(300).optiona
 export const revisionSchema = z.object({revision: z.number().int().nonnegative()}).strict();
 export const rotationSchema = z.union([z.object({target_member_id: idSchema,version: z.number().int().nonnegative()}).strict(),z.object({target_kind:z.literal('classics'),version:z.number().int().nonnegative()}).strict()]);
 export const publishSchema = z.object({revision: z.number().int().nonnegative(),event_date: dateSchema,cycle_id: idSchema.nullable(),cycle_slot: z.number().int().min(1).max(5),complete_turn: z.boolean(),turn_version: z.number().int().nonnegative().optional(),new_cycle: cycleSchema.optional()}).strict();
+
+export const unifiedMaintenanceSchema = z.object({
+  intent:z.enum(['populate','refresh']),startedAt:z.iso.datetime(),
+  units:z.array(z.object({movieId:idSchema,provider:z.enum(['mdblist','omdb','tmdb']),identity:z.object({provider:z.enum(['imdb','tmdb']),external_id:z.string().max(20)}).strict(),operations:z.array(z.enum(['scores','omdb-metadata','tmdb-metadata','tmdb-enrichment','mdblist-enrichment'])).min(1).max(3)}).strict()).min(1).max(10),
+}).strict().superRefine((v,ctx)=>{
+  for(const u of v.units) if(u.operations.some(o=>o!=='scores' && !o.startsWith(u.provider))) ctx.addIssue({code:'custom',path:['units'],message:'Provider and operation must match.'});
+});

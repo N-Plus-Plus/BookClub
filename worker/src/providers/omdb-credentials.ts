@@ -7,7 +7,7 @@ import { OmdbProvider } from './omdb';
 // One instance per operation: rejected credentials are never retried for later films.
 export class OmdbCredentials {
   private unavailable = new Map<string,ProviderError>();
-  constructor(private repo: Repository, private env: Env, private limits: (identity: string) => (headers: Headers) => Promise<void>) {}
+  constructor(private repo: Repository, private env: Env, private limits: (identity: string) => (headers: Headers) => Promise<void>, private onAttempt?:()=>void) {}
   get configured() { return Boolean(this.env.OMDB_API_KEY || this.env.OMDB_API_KEY_SECONDARY); }
   async details(id: string) {
     const failures: ProviderError[] = [];
@@ -15,7 +15,7 @@ export class OmdbCredentials {
       if (!key) continue;
       let error = this.unavailable.get(identity);
       if (!error) {
-        try { return await executeProvider(this.repo,identity,() => new OmdbProvider(key,this.limits(identity)).details(id),{provider:'OMDb',cooldownMessage:'omdb is cooling down after a rate limit. Try later.'}); }
+        try { return await executeProvider(this.repo,identity,() => {this.onAttempt?.();return new OmdbProvider(key,this.limits(identity)).details(id);},{provider:'OMDb',cooldownMessage:'omdb is cooling down after a rate limit. Try later.'}); }
         catch (caught) {
           if (!(caught instanceof ProviderError) || !['credentials','rate_limited'].includes(caught.kind)) throw caught;
           error = caught;

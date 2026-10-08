@@ -32,7 +32,7 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
         ...(import.meta.env.DEV && localStorage.getItem('bookclub.dev-member') ? {'X-BookClub-Dev-Member': localStorage.getItem('bookclub.dev-member')!} : {}),
         ...(authenticated && sentToken ? { Authorization: `Bearer ${sentToken}` } : {}),
       }, ...(data === undefined ? {} : { body: JSON.stringify(data) }),
-      signal: signal ? AbortSignal.any([signal,AbortSignal.timeout(15000)]) : AbortSignal.timeout((path === '/movies/enrich-metadata' || path === '/movies/enrich-metadata-selected' || path === '/movies/enrich-provider-selected' || path === '/movies/maintain') ? 105000 : path === '/classics/enrich' ? 65000 : 15000),
+      signal: signal ? AbortSignal.any([signal,AbortSignal.timeout(15000)]) : AbortSignal.timeout((path === '/movies/enrich-metadata' || path === '/movies/enrich-metadata-selected' || path === '/movies/enrich-provider-selected' || path === '/movies/maintain' || path === '/movies/maintenance-provider') ? 105000 : path === '/classics/enrich' ? 65000 : 15000),
     });
   } catch { throw new Error('Could not reach BookClub. Check your connection and that the API is running, then retry.'); }
   if (response.status === 401 && authenticated && sentToken === sessionToken) { clearSession(); unauthorized?.(); }
@@ -46,6 +46,8 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
   return payload.data as T;
 }
 export const api = {
+  maintenanceCoverage: (after:string | null=null) => request<import('../shared/maintenance-plan').MaintenanceCoverage & {next:string | null}>(`/movies/maintenance-coverage${after ? '?after='+encodeURIComponent(after) : ''}`),
+  maintenanceProvider: (intent:import('../shared/maintenance-plan').MaintenanceIntent,units:import('../shared/maintenance-plan').MaintenanceUnit[],startedAt:string) => request<import('../shared/maintenance-plan').MaintenanceBatchResult>('/movies/maintenance-provider','POST',{intent,units,startedAt}),
   metricsEnrichment: () => request<import('../shared/metrics-enrichment').MetricsEnrichment>('/metrics/enrichment'),
   catalog: async (): Promise<Catalog> => {
     try { return hydrateCatalog(await request<CompactCatalog>('/catalog/compact')); }

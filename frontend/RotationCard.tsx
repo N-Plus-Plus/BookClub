@@ -15,7 +15,7 @@ export function RotationCard({catalog,rotation,viewer,onUseBuilder}: {catalog: C
   return <div className={`turn-card-area ${personal ? 'turn-card-area-personal' : ''}`}><section className={`card stack turn-card ${personal ? 'turn-card-personal' : ''}`}>
     <div className="turn-row"><div className="stack turn-identity"><h2>{personal ? 'It is your turn' : 'Current turn'}</h2>
       {rotation ? isClassicsTurn(rotation) ? <ClubIdentity identity={{kind:'classics'}} /> : current ? <ClubIdentity identity={{kind:'member',member:current}} /> : <p>Current member is unavailable.</p> : <p className="meta">Current turn has not been initialised.</p>}
-    </div>{rotation && <div className="button-set turn-actions action-group-wrap">
+    </div>{rotation && <div className="button-set turn-actions">
       {personal && <><RouteLink to="builder" icon={ListPlus} variant="secondary">Plan in Builder</RouteLink><Action icon={ListChecks} onClick={e => { pickerTrigger.current = e.currentTarget; setChoosing(true); }}>Use from Builder</Action></>}
       {isClassicsTurn(rotation) && <RouteLink to="classics" icon={ListPlus} variant="secondary">View watch order</RouteLink>}
       <RouteLink to="event" icon={CalendarPlus} variant="primary">Record an event</RouteLink>

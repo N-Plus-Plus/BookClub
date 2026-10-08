@@ -7,7 +7,7 @@ import { glossaryExample,sourceRatingKeys } from '../shared/rating-dimensions';
 import { selectedAppearances,extremesCabinet } from '../shared/metrics';
 import { metricsFixture,metricsFilm,metricsEvent } from './metrics-fixture';
 import { emptyEnrichmentMovie,stackedProfile } from '../shared/metrics-enrichment';
-import { Stacks } from '../frontend/metrics/Profiles';
+import { ClassificationChart } from '../frontend/metrics/Profiles';
 import { Navigation } from '../frontend/Navigation';
 import { isUnrankedClassic } from '../frontend/ClassicsScreen';
 
@@ -40,12 +40,13 @@ it('groups Other/Unknown only in classification presentation and retains the kno
   const catalog={...metricsFixture(),movies,sessions:[metricsEvent('s',movies)]};const rows=selectedAppearances(catalog);
   const data={movies:Object.fromEntries(movies.map(m=>[m.id,{...emptyEnrichmentMovie(),contentRatings:m.id==='Unknown'?[]:[{certification:m.id,release_type:3}]}]))};
   const profile=stackedProfile(rows,data,'classification');expect(profile.counts.get('Other')).toBe(1);expect(profile.counts.get('Unknown')).toBe(1);expect(profile.headline).toBeCloseTo(100/3);
-  const html=renderToStaticMarkup(createElement(Stacks,{scopes:[{label:'Club',rows}],data,dimension:'classification',categories:[...['G','PG','M','MA15+','R18+'].map(id=>({id,label:id})),{id:'Other/Unknown',label:'Other/Unknown'}]}));
-  const container=document.createElement('div');container.innerHTML=html;const bars=container.querySelectorAll('.metrics-distribution-row');expect(bars).toHaveLength(6);expect(bars[5].textContent).toContain('28.6%');expect(bars[5].textContent).toContain('2 appearances');expect(bars[5].getAttribute('style')).toContain('asphalt');expect(container.textContent).toContain('MA15+ / R18+: 33.3%');
+  const html=renderToStaticMarkup(createElement(ClassificationChart,{scopes:[{label:'Club',rows}],data}));
+  const container=document.createElement('div');container.innerHTML=html;const bars=container.querySelectorAll('.metrics-stack-bar > span');expect(bars).toHaveLength(6);expect(bars[5].textContent).toContain('28.6%');expect(container.textContent).not.toContain('appearances');expect(bars[5].getAttribute('style')).toContain('asphalt');expect(container.querySelector('[role=img]')?.getAttribute('aria-label')).toContain('Other/Unknown 28.6%');
 });
-it.each([0,1,123])('desktop Classics count %i is exact accessibly, capped visually and absent from the dock',count=>{
-  const node=document.createElement('div');node.innerHTML=renderToStaticMarkup(createElement(Navigation,{page:'classics',expanded:false,onToggle:()=>{},unrankedCount:count}));
+it.each([0,1,9,99,100,126].flatMap(count=>[true,false].map(expanded=>({count,expanded}))))('desktop Seen count $count expanded=$expanded is exact accessibly, capped visually and absent from the dock',({count,expanded})=>{
+  const node=document.createElement('div');node.innerHTML=renderToStaticMarkup(createElement(Navigation,{page:'classics',expanded,onToggle:()=>{},missingAnswersCount:count}));
+  expect(node.querySelector('.desktop-navigation a[href="#/classics"] .count-indicator')).toBeNull();
   expect(node.querySelectorAll('.bottom-nav .count-indicator')).toHaveLength(0);const badge=node.querySelector('.desktop-navigation .count-indicator');
-  if(count){expect(badge?.textContent).toBe(count>99?'99+':String(count));expect(badge?.parentElement?.getAttribute('aria-label')).toContain(String(count));}else expect(badge).toBeNull();
+  if(count){expect(badge?.textContent).toBe(count>99?'99+':String(count));expect(badge?.parentElement?.getAttribute('aria-label')).toBe(`Seen: ${count} missing ${count===1?'answer':'answers'}`);}else expect(badge).toBeNull();
   expect(isUnrankedClassic(metricsFilm('a',{ranking:null}))).toBe(false);
 });

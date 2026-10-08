@@ -96,7 +96,7 @@ export function frequency(rows: Appearance[],read: FactReader):FrequencyReport {
   const report={covered,values:[...counts.values()].sort((a,b) => b.count-a.count || order(a.label,b.label) || order(a.id,b.id))};
   cache?.set(rows,report);return report;
 }
-// Shared eligibility for thematic breadth and signatures; support is a Fingerprint rule only.
+// Shared meaningful-keyword eligibility for thematic breadth and frequency signatures.
 export function cleanedThemes(movie: MetricsEnrichmentMovie): Fact[] {
   return themes(movie).filter(f => isThemeKeyword(f.id)).map(f => ({...f,label:themeDisplayLabel(f.label)}));
 }

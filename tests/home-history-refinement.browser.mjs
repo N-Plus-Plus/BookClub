@@ -56,7 +56,7 @@ try{
   if(width<720)for(const r of rects.filter(r=>r.class!=='bookclub-shell')){assert.equal(r.rect.left,16);assert.equal(r.rect.right,width-16);}
   if(baseline){measurements.push({width,rects});continue;}
   const homeHeading=await headingCheck();const account=await accountCheck();const infos=await helpCheck();
-  const strips=await page.locator('.stats-grid').evaluateAll(es=>es.map(e=>({x:e.getBoundingClientRect().x,right:e.getBoundingClientRect().right,columns:getComputedStyle(e).gridTemplateColumns,pads:[...e.children].map(c=>getComputedStyle(c).paddingLeft)})));
+  const strips=await page.locator('.stats-grid').evaluateAll(es=>es.map(e=>({x:e.getBoundingClientRect().x,right:e.getBoundingClientRect().right,columns:getComputedStyle(e).gridTemplateColumns,pads:[...e.children].filter(c=>getComputedStyle(c).display!=='none').map(c=>getComputedStyle(c).paddingLeft)})));
   assert.deepEqual(strips[0],strips[1]);assert.deepEqual(strips[1],strips[2]);for(const strip of strips)assert(strip.pads.every(p=>p===(width<720?'16px':'32px')));
   const snapshot=page.locator('section').filter({has:page.getByRole('heading',{name:'Classics snapshot',exact:true})});assert.equal(await snapshot.getByRole('link',{name:'View all'}).count(),0);assert.equal(await page.getByRole('link',{name:'View all',exact:true}).count(),1);
   assert(await page.locator('.home-session-card h3').evaluate(h=>h.nextElementSibling.className==='eyebrow'));assert.match(await page.locator('.home-session-card .eyebrow').innerText(),/^Cycle started /);
@@ -64,8 +64,8 @@ try{
   for(const c of candidates){assert.equal(c.counts.length,1);assert.equal(c.copy[0].class,'movie-title');assert.equal(c.copy[1].class,'meta');assert.equal(c.copy.at(-1).class,'meta compact-seen-summary home-candidate-seen');assert.equal(c.poster.width,56);assert.equal(c.poster.height,84);assert(c.copy.every(v=>v.rect.left===c.copy[0].rect.left));assert(c.row.top>=c.copy.at(-1).rect.bottom);}
   assert.equal(await page.locator('.home-session-card .movie-title + .meta').first().evaluate(e=>getComputedStyle(e).marginTop),'4px');await shot('home',width);
   const help=page.getByRole('button',{name:'Explain score abbreviations',exact:true}).first();await help.focus();await page.keyboard.press('Enter');await page.getByRole('dialog').waitFor();
-  const columns=await page.locator('dialog tr').evaluateAll(es=>es.map(e=>[...e.children].map(c=>({width:c.getBoundingClientRect().width,align:getComputedStyle(c).textAlign}))));
-  for(const row of columns){assert.deepEqual(row.map(c=>c.align),['left','left','right','right']);assert(Math.abs(row[2].width-row[3].width)<1);}
+  const columns=await page.locator('dialog tr').evaluateAll(es=>es.map(e=>[...e.children].filter(c=>getComputedStyle(c).display!=='none').map(c=>({width:c.getBoundingClientRect().width,align:getComputedStyle(c).textAlign}))));
+  for(const row of columns){assert.deepEqual(row.map(c=>c.align),width<720?['left','left']:['left','left','right','right']);if(width>=720)assert(Math.abs(row[2].width-row[3].width)<1);}
   await shot('glossary',width);await page.keyboard.press('Escape');assert(await help.evaluate(e=>document.activeElement===e));
   await go('history');await page.locator('.history-event').first().waitFor();await headingCheck();assert.equal(await page.getByLabel(/^Cycle/).count(),1);assert.equal(await page.getByLabel(/^Host/).count(),1);
   assert(await page.locator('.history-event-heading').evaluateAll(es=>es.every(e=>e.firstElementChild.tagName==='H3'&&e.firstElementChild.nextElementSibling.className==='eyebrow')));

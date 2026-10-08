@@ -1,13 +1,12 @@
 import { TopBottomMetrics } from './metrics/TopBottom';
 import { GenreFingerprint } from './metrics/Fingerprints';
 import { GeneralMetrics } from './metrics/General';
-import { RatingsProfile } from './metrics/Averages';
 import { ExtremesMetrics } from './metrics/Extremes';
 import { useMemo, useState, useId } from 'react';
 
 import { Filter } from 'lucide-react';
 import type { Catalog, Viewer } from '../shared/types';
-import { metricsCatalog, rankedMetricsAppearances, calculateMetrics, matchesMetricsFilter, selectedAppearances, contributorMetrics, metricsDashboard, type MetricsScoreDimension, type MetricsFilter } from '../shared/metrics';
+import { metricsCatalog, rankedMetricsAppearances, calculateMetrics, matchesMetricsFilter, selectedAppearances, contributorMetrics, metricsDashboard, type PopularityMeasure, type MetricsScoreCategory, type MetricsFilter } from '../shared/metrics';
 
 import { ClubIdentity } from './ClubIdentity';
 import { EnrichedMetrics, useMetricsEnrichment } from './EnrichedMetrics';
@@ -29,8 +28,9 @@ export function MetricsScreen({catalog:sourceCatalog,resource}: {catalog: Catalo
   const tabId = useId();
   const [filter,updateFilter] = useState<MetricsFilter>({kind: 'all'});
   const setFilter=(next:MetricsFilter)=>updateFilter(previous=>previous.kind === next.kind && (previous.kind !== 'member' || next.kind === 'member' && previous.memberId === next.memberId) ? previous : next);
-  const [topDimension,setTopDimension] = useState<MetricsScoreDimension>('imdb');
-  const [bottomDimension,setBottomDimension] = useState<MetricsScoreDimension>('imdb');
+  const [topDimension,setTopDimension] = useState<MetricsScoreCategory>('critic');
+  const [bottomDimension,setBottomDimension] = useState<MetricsScoreCategory>('critic');
+  const [popularityMeasure,setPopularityMeasure] = useState<PopularityMeasure>('imdb');
   const all = useMemo(() => selectedAppearances(catalog),[catalog]);
   const identities=useMetricsReports([catalog,all]);
   const rows=identities(`rows:${filter.kind === 'member' ? filter.memberId : filter.kind}`,()=>filter.kind === 'all' ? all : all.filter(row=>matchesMetricsFilter(row.session,filter)));
@@ -50,12 +50,11 @@ export function MetricsScreen({catalog:sourceCatalog,resource}: {catalog: Catalo
       button?.focus({preventScroll:true});
       if (button) revealTab(button);
     }}>{tab.label}</button>)}</div><div className="stack metrics-panel" role="tabpanel" id={`${tabId}-panel`} aria-labelledby={`${tabId}-tab-${category}`} tabIndex={0}>
-    {category === 'top-bottom' && <TopBottomMetrics catalog={catalog} rows={rows} dashboard={dashboard} topDimension={topDimension} bottomDimension={bottomDimension} setTopDimension={setTopDimension} setBottomDimension={setBottomDimension} topRows={topRows} bottomRows={bottomRows} />}
+    {category === 'top-bottom' && <TopBottomMetrics catalog={catalog} rows={rows} dashboard={dashboard} topDimension={topDimension} bottomDimension={bottomDimension} setTopDimension={setTopDimension} setBottomDimension={setBottomDimension} topRows={topRows} bottomRows={bottomRows} popularityMeasure={popularityMeasure} setPopularityMeasure={setPopularityMeasure} />}
     {category === 'fingerprints' && <GenreFingerprint filter={filter} dashboard={dashboard} contributions={contributions} />}
     {category === 'general' && <GeneralMetrics dashboard={dashboard} metrics={metrics} contributions={contributions} />}
-    {category === 'averages' && <RatingsProfile dashboard={dashboard} />}
     {category === 'extremes' && <ExtremesMetrics rows={rows} dashboard={dashboard} enrichment={enrichment} />}
-    <EnrichedMetrics category={category} catalog={catalog} all={all} rows={rows} filter={filter} {...enrichment} />
+    <EnrichedMetrics category={category} catalog={catalog} all={all} rows={rows} filter={filter} dashboard={dashboard} {...enrichment} />
     </div>
   </div>;
 }

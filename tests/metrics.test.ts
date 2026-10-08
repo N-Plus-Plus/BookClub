@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateMetrics, metricsScoreDimensions } from '../shared/metrics';
+import { calculateMetrics } from '../shared/metrics';
 import { movieGenres, normalizeGenre, normalizedGenres } from '../shared/genres';
 import type { Catalog, Movie, Session } from '../shared/types';
 const film = (id: string,imdb: number | null,genres: string[] = []): Movie => ({id,title:id,year:2000,original_title:null,release_date:null,runtime:null,overview:null,genres,assets:[],external_ids:[],seen:[],classic:false,ranking:null,
@@ -11,7 +11,7 @@ describe('appearance Metrics',()=>{
   it('ALL includes hosted and Classics; repeated films count, unique IDs deduplicate, deleted and Builder stay absent',()=>{
     const result=calculateMetrics({...catalog,builders:[{movie_ids:['b']}]} as Catalog);
     expect(result).toMatchObject({events:2,appearances:4,uniqueFilms:3,imdbAverage:8,imdbScored:3,genreCovered:3,uncategorised:1});
-    expect(result.top.map(a=>a.movie.id)).toEqual(['a','a','b']);
+    expect(calculateMetrics(catalog,{kind:'all'}, {top:'audience'}).top.map(a=>a.movie.id)).toEqual(['a','a','b']);
   });
   it('member filters use actual host, including swaps; CLSC is Classics only',()=>{
     expect(calculateMetrics(catalog,{kind:'member',memberId:'m1'}).appearances).toBe(0);
@@ -29,10 +29,10 @@ describe('appearance Metrics',()=>{
   it('top/bottom cap at five with deterministic date/title/session/movie/position ties independent of input order',()=>{
     const movies=[film('z',9),film('a',9),film('b',3)];
     const sessions=[event('z',[movies[0]],'m1',1),event('b',[movies[1],movies[1]],'m1',2),event('a',[movies[1]],'m1',3),{...event('old',[movies[0]],'m1',4),event_date:'1999-01-01'},event('low',[movies[2],movies[2]],'m1',1)];
-    const result=calculateMetrics({...catalog,movies,sessions});
+    const result=calculateMetrics({...catalog,movies,sessions},{kind:'all'},{top:'audience',bottom:'audience'});
     expect(result.top.map(r=>`${r.session.id}:${r.position}`)).toEqual(['old:1','a:1','b:1','b:2','z:1']);
     expect(result.bottom.map(r=>r.session.id)).toEqual(['low','low','old','a','b']);
-    expect(calculateMetrics({...catalog,movies,sessions:[...sessions].reverse()})).toEqual(result);
+    expect(calculateMetrics({...catalog,movies,sessions:[...sessions].reverse()},{kind:'all'},{top:'audience',bottom:'audience'})).toEqual(result);
   });
   it('multi-genre counts once per applicable genre, shares use all appearances and Uncategorised remains visible',()=>{
     const result=calculateMetrics(catalog);
@@ -47,16 +47,16 @@ describe('appearance Metrics',()=>{
 });
 
  describe('selected Metrics dimensions',()=>{
-  it.each(metricsScoreDimensions)('ranks genuine $name scores with provenance, repeats, filtering and stable ties',dimension=>{
-    const scored=(id:string,value:number):Movie=>({...film(id,1),scores:[...film(id,1).scores.filter(s=>s.provider!==dimension.provider),{provider:dimension.provider,metric:dimension.metric,raw_value:value,raw_scale:dimension.scale,normalized_value:null,vote_count:null,fetched_at:'2000-01-01',retrieved_via:'mdblist'},{provider:dimension.provider,metric:dimension.metric,raw_value:0,raw_scale:dimension.scale,normalized_value:null,vote_count:null,fetched_at:'2099-01-01',retrieved_via:'legacy-spreadsheet'}]});
-    const high=scored('high',dimension.scale*.9),low=scored('low',dimension.scale*.2),missing={...film('missing',9),scores:film('missing',9).scores.filter(s=>s.provider!==dimension.provider)};
+  it.each([{id:'critic',name:'Critics',provider:'rogerebert',metric:'rating',scale:4},{id:'audience',name:'Audience',provider:'letterboxd',metric:'rating',scale:5}] as const)('ranks genuine $name scores with provenance, repeats, filtering and stable ties',dimension=>{
+    const scored=(id:string,value:number):Movie=>({...film(id,1),scores:[{provider:dimension.provider,metric:dimension.metric,raw_value:value,raw_scale:dimension.scale,normalized_value:null,vote_count:null,fetched_at:'2000-01-01',retrieved_via:'mdblist'},{provider:dimension.provider,metric:dimension.metric,raw_value:0,raw_scale:dimension.scale,normalized_value:null,vote_count:null,fetched_at:'2099-01-01',retrieved_via:'legacy-spreadsheet'}]});
+    const high=scored('high',dimension.scale*.9),low=scored('low',dimension.scale*.2),missing={...film('missing',9),scores:[]};
     const data={...catalog,movies:[high,low,missing],sessions:[event('z',[high,low,missing],'m2',1),event('a',[high],'m2',2),event('other',[low],'m1',1)]};
     const options={top:dimension.id,bottom:dimension.id};
     const result=calculateMetrics(data,{kind:'member',memberId:'m2'},options);
     expect(result.top.map(r=>r.movie.id)).toEqual(['high','high','low']);
     expect(result.bottom.map(r=>r.movie.id)).toEqual(['low','high','high']);
     expect(result.top.map(r=>r.session.id)).toEqual(['a','z','z']);
-    expect(result.top[0].selectedScore).toBeCloseTo(dimension.scale*.9);
+    expect(result.top[0].selectedScore).toBeCloseTo(90);
     expect(result.appearances).toBe(4);expect(result.uniqueFilms).toBe(3);
     expect(calculateMetrics({...data,sessions:[...data.sessions].reverse()},{kind:'member',memberId:'m2'},options)).toEqual(result);
   });

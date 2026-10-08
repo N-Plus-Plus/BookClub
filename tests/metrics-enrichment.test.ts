@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest';
-import { comparisonScopes,emptyEnrichmentMovie,facts,filmEconomics,fingerprint,languageCategories,normaliseAu,australianClassification,positiveMoney,recurringTalent,stackedProfile,talent,tasteDiversity,themes,tiedExtreme,filmExtremes,talentRoles,type MetricsEnrichment,type MetricsEnrichmentMovie } from '../shared/metrics-enrichment';
+import { comparisonScopes,emptyEnrichmentMovie,facts,filmEconomics,fingerprint,nonEnglishLanguageRankings,normaliseAu,australianClassification,positiveMoney,recurringTalent,stackedProfile,talent,tasteDiversity,themes,tiedExtreme,filmExtremes,talentRoles,type MetricsEnrichment,type MetricsEnrichmentMovie } from '../shared/metrics-enrichment';
 import { matchesMetricsFilter,selectedAppearances,type Appearance,type MetricsFilter } from '../shared/metrics';
 import { metricsEvent, metricsFilm, metricsFixture } from './metrics-fixture';
 import { metricsEnrichmentFixture } from './metrics-enrichment-fixture';
@@ -66,7 +66,7 @@ describe('talent and multi-valued profiles',() => {
   it('non-English excludes Unknown and uses en, not friendly label or spoken languages',() => {
     const report = stackedProfile(rows,data,'language');
     expect([...report.counts]).toEqual([['ja',2],['en',1],['Unknown',1]]);expect(report.covered).toBe(3);expect(report.headline).toBeCloseTo(200/3);
-    expect(languageCategories(rows,data)).toEqual([{id:'ja',label:'Japanese'},{id:'en',label:'English'},{id:'Other',label:'Other'},{id:'Unknown',label:'Unknown'}]);
+    expect(nonEnglishLanguageRankings(rows,data)).toEqual({maximum:1,values:[{id:'ja',label:'Japanese',count:1}]});
   });
 });
 describe('AU classification resolver',() => {

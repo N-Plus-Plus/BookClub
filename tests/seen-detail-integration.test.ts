@@ -16,6 +16,9 @@ it('Seen queue, Home count, corrections and Detail context belong to the viewer'
   await act(async()=>harness.root.unmount()); harness.root=createRoot(harness.container);
   window.location.hash='/home'; await act(async()=>harness.root.render(createElement(App))); await flush();
   expect(harness.container.querySelector('.stat-link strong')?.textContent).toBe('1');
+  const badge=()=>harness.container.querySelector('.desktop-navigation a[href="#/seen"] .navigation-count');
+  expect(badge()?.textContent).toBe('1');
+  expect(harness.container.querySelector('.desktop-navigation a[href="#/classics"] .navigation-count')).toBeNull();
   await navigate('seen');
   expect(harness.container.textContent).toContain('1 remaining'); expect(harness.container.textContent).toContain('HAVE YOU SEEN...');
   expect(harness.container.textContent).toContain('Director: Stored Director'); expect(harness.container.textContent).not.toContain('Answer unknown');
@@ -28,10 +31,10 @@ it('Seen queue, Home count, corrections and Detail context belong to the viewer'
   await click(button('Back')); expect(window.location.hash).toBe('#/seen');
   vi.mocked(api.seen).mockImplementation(async (_id,memberId,value)=>({...personal,appearances:[],seen:value === null ? personal.seen : [...personal.seen,{member_id:memberId,seen:Number(value),updated_at:''}]}));
   await click(button('Yes, seen it')); expect(api.seen).toHaveBeenLastCalledWith(personal.id,'member-2',true);
-  expect(harness.container.textContent).toContain('0 remaining');
+  expect(harness.container.textContent).toContain('0 remaining');expect(badge()).toBeNull();
   expect(button('Undo last answer')).toBeUndefined();
   await click(button('Change to No')); expect(api.seen).toHaveBeenLastCalledWith(personal.id,'member-2',false);
-  expect(harness.container.textContent).toContain('0 remaining');
+  expect(harness.container.textContent).toContain('0 remaining');expect(badge()).toBeNull();
   await navigate('home'); await navigate('movie/saved-0'); expect(button('Back')).toBeTruthy();
 });
 
@@ -60,4 +63,21 @@ it('keeps App-owned Seen saves serial through navigation and exposes failures fo
  await click(button('Retry saving Film 0'));expect(api.seen).toHaveBeenLastCalledWith('saved-0','member-2',true);
  await act(async()=>requests[2].resolve({...pool[0],seen:[{member_id:'member-2',seen:1,updated_at:'saved'}]}));await flush();
  expect(harness.container.querySelector('[role="alert"]')).toBeNull();
+});
+
+it('desktop Missing answers follows session viewers and membership while excluding active History',async()=>{
+ const member=catalog.members[0],other={id:'other',display_name:'Other',sort_order:1,active:1,avatar:1};
+ const pool=movies.slice(0,3).map((m,i)=>({...m,classic:true,seen:i===0?[{member_id:member.id,seen:0,updated_at:''}]:[]}));
+ const history={id:'history',event_date:'2026-01-01',date_precision:'exact' as const,kind:'hosted' as const,host_member_id:member.id,cycle_id:null,cycle_slot:null,legacy_cycle_label:null,movies:[pool[2]]};
+ const remount=async(viewer:typeof member,present=pool)=>{
+  vi.mocked(api.me).mockResolvedValue({viewer:{...viewer,avatar:viewer.avatar!,role:'member'}});
+  vi.mocked(api.catalog).mockResolvedValue({...catalog,members:[member,other],movies:present,sessions:[history]});
+  await act(async()=>harness.root.unmount());harness.root=createRoot(harness.container);
+  await act(async()=>harness.root.render(createElement(App)));await flush();
+ };
+ const label=()=>harness.container.querySelector('.desktop-navigation a[href="#/seen"]')?.getAttribute('aria-label');
+ await remount(member);expect(label()).toBe('Seen: 1 missing answer');
+ await remount(other);expect(label()).toBe('Seen: 2 missing answers');
+ await remount(other,pool.map(m=>({...m,classic:m.id!==pool[1].id})));expect(label()).toBe('Seen: 1 missing answer');
+ await remount(member,pool.map(m=>({...m,classic:m.id!==pool[1].id})));expect(label()).toBe('Seen');
 });

@@ -39,39 +39,38 @@ it('uses sentence-case Home headings/statistics and preserves Classics, IMDb and
   expect(harness.container.querySelector('.classics-attestation h2')?.textContent).toBe('Next ranked Classics');
 });
 
-it('renders all six Admin operations in sentence case without changing provider names',async () => {
+it('renders both Admin maintenance groups in sentence case without changing provider names',async () => {
   vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'admin'}});
   await remount(); await navigate('admin');
-  expect(headingTexts('main section.card h2')).toEqual([
-    'Swap current turn','Populate missing scores','Refresh scores','Refresh OMDb metadata',
-    'Fill missing TMDB metadata and artwork','Refresh TMDB enrichment','Refresh MDBList enrichment',
+  expect(headingTexts('main section.card h2,main section.card h3')).toEqual([
+    'Swap current turn','Populate missing data','Populate missing scores','Populate missing OMDb metadata','Populate missing TMDB metadata and artwork','Populate missing TMDB enrichment','Populate missing MDBList enrichment',
+    'Refresh all data','Refresh scores','Refresh OMDb metadata','Refresh TMDB metadata and artwork','Refresh TMDB enrichment','Refresh MDBList enrichment',
   ]);
-  expect([...harness.container.querySelectorAll('.maintenance-details summary')].map(node => node.textContent)).toEqual(Array(6).fill('Data collected and safeguards'));
+  expect([...harness.container.querySelectorAll('.utility-disclosure summary')].map(node => node.textContent)).toEqual(Array(12).fill('Data collected and safeguards'));
 });
 
-it('renders every source/direction, all Metrics tabs and Cabinet roles without recasing canonical identities',async () => {
+it('renders both composite categories/directions, all Metrics tabs and Cabinet roles without recasing canonical identities',async () => {
   await navigate('metrics');
-  expect(headingTexts()).toContain('Top directors');
-  expect(headingTexts()).toContain('Popularity & obscurity');
-  expect([...harness.container.querySelectorAll('[role=tab]')].map(node => node.textContent)).toEqual(['Top / bottom','Fingerprints','General','Averages','Diversity','Standalone','Cabinet']);
-  const expectedSources = [
-    ['IMDb','IMDb'],['LB','Letterboxd'],['MC-U','Metacritic user'],['RT-A','Rotten Tomatoes - audience'],
-    ['TMDB','TMDB'],['Trakt','Trakt'],['Ebert','Roger Ebert'],['MC','Metacritic'],['RT-C','Rotten Tomatoes - critic'],
-  ];
+  expect(headingTexts()).not.toContain('Top directors');
+  expect(headingTexts()).toContain('Top 5 highest critic scores');
+  expect(headingTexts()).toContain('Top 5 most popular · IMDb');
+  expect([...harness.container.querySelectorAll('[role=tab]')].map(node => node.textContent)).toEqual(['Top 5','Tastes','Breakdowns','Records']);
+  const expectedSources = [['Critics','Critics'],['Audience','Audience']];
   for (const [index,direction] of ['Top','Bottom'].entries()) {
     for (const [label,name] of expectedSources) {
       const section = harness.container.querySelectorAll('.metrics-rankings section')[index];
       await click([...section.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent === label)!);
-      expect(section.querySelector('h2')?.textContent).toBe(`${direction} 5 by ${name}`);
+      expect(section.querySelector('h2')?.textContent).toBe(`Top 5 ${direction === 'Top' ? 'highest' : 'lowest'} ${name === 'Critics' ? 'critic' : 'audience'} scores`);
     }
   }
   expect(ratingDimensions['metacritic:user'].name).toBe('Metacritic User');
   expect(ratingDimensions['rottentomatoes:audience'].name).toBe('Rotten Tomatoes - Audience');
   expect(ratingDimensions['rottentomatoes:critic'].name).toBe('Rotten Tomatoes - Critic');
-  await click(button('General'));
-  expect(headingTexts()).toEqual(expect.arrayContaining(['Top 5 revenue / budget ratio','Bottom 5 revenue / budget ratio','Australian classification']));
-  await click(button('Averages')); expect(headingTexts()).toContain('Ratings profile');
-  await click(button('Cabinet'));
+  expect(headingTexts()).toEqual(expect.arrayContaining(['Top 5 highest revenue / budget ratio','Top 5 lowest revenue / budget ratio']));
+  await click(button('Breakdowns'));
+  expect(headingTexts()).toContain('Australian classification');
+  await click(button('Breakdowns')); expect(headingTexts()).toContain('Ratings profile');
+  await click(button('Records'));
   expect(headingTexts('.metrics-film-extreme h3')).toEqual(['Top critic','Top audience','Bottom critic','Bottom audience','Oldest','Newest','Longest','Shortest','Most popular','Most obscure']);
   expect(headingTexts('.metrics-creator-extreme h3')).toEqual(['Most recurring director','Most recurring writer','Most recurring cinematographer','Most recurring composer','Most recurring editor','Most recurring producer']);
   expect([...harness.container.querySelectorAll('.metrics-creator-extreme h3 strong')].map(node => node.textContent)).toEqual(['director','writer','cinematographer','composer','editor','producer']);

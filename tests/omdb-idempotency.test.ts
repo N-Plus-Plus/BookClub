@@ -23,13 +23,13 @@ beforeEach(async()=>{
 });
 afterEach(()=>{local.sqlite.close();vi.restoreAllMocks();vi.unstubAllGlobals();});
 const writes = () => local.sqlite.prepare('SELECT * FROM observed_writes').all();
-it('successful identical/reordered metadata makes zero mutations, preserves updated_at and aggregates as no change',async()=>{
+it('successful identical/reordered metadata makes no canonical mutations and records successful coverage, preserves updated_at and aggregates as no change',async()=>{
  const before=row(); const prepare=vi.spyOn(local.db,'prepare');
  vi.stubGlobal('fetch',vi.fn(async()=>Response.json({Response:'True',Year:'1999',Runtime:'100 min',Director:'Director',Genre:'Sci-Fi, Drama, Drama'})));
  const response=await new ScoreService(repo,env).maintain('metadata',[id]);
  expect(response.results[0].providers[0]).toMatchObject({status:'success',count:0});
  expect(writes()).toEqual([]);expect(row()).toEqual(before);
- expect(prepare.mock.calls.filter(([sql])=>/^(UPDATE|DELETE|INSERT)/.test(sql))).toEqual([]);
+ expect(prepare.mock.calls.filter(([sql])=>/^(UPDATE|DELETE|INSERT)/.test(sql) && !sql.includes('movie_maintenance_coverage'))).toEqual([]);
  const run=await maintainScores({ids:[id],batch:async()=>response,stopped:()=>false,progress:async()=>{}});
  expect(run).toMatchObject({updated:0,noChange:1,failed:0});
 });

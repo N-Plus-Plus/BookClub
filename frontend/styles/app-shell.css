@@ -84,5 +84,6 @@
 .viewer-controls .meta { text-align: right; }
 .viewer-controls { align-items: flex-end; flex-shrink: 0; }
 
-.desktop-navigation .navigation-count { margin-left: auto; flex-shrink: 0; }
-.navigation-collapsed .desktop-navigation .navigation-count { position: absolute; top: var(--space-4); right: var(--space-2); }
+.desktop-navigation .navigation-count { margin-left: auto; flex-shrink: 0; background: var(--rose); }
+.navigation-collapsed .desktop-navigation nav a:has(.navigation-count) { padding-block: var(--space-20) var(--space-4); }
+.navigation-collapsed .desktop-navigation .navigation-count { position: absolute; top: var(--space-2); right: var(--space-2); }

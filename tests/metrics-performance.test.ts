@@ -22,7 +22,7 @@ it('cached analytical snapshots preserve every filter, role, repeat, score and m
     const rows=selectedAppearances(catalog,filter),before=selectedAppearances(source,filter);
     expect(calculateMetrics(catalog,filter)).toEqual(calculateMetrics(source,filter));
     expect(metricsDashboard(rows,all)).toEqual(metricsDashboard(before,original));
-    expect(reports.themeFingerprint(rows,all,data,{distinctive:true,limit:10000})).toEqual(reports.themeFingerprint(before,original,raw,{distinctive:true,limit:10000}));
+    expect(reports.themeFingerprint(rows,all,data)).toEqual(reports.themeFingerprint(before,original,raw));
     for(const dimension of ['countries','languages','themes','directors','cast','companies'] as const){
       expect(reports.fingerprint(rows,all,reports.metricsFactReader(data,dimension))).toEqual(reports.fingerprint(before,original,r=>reports.facts(r,raw,dimension)));
       expect(reports.tasteDiversity(rows,data,dimension)).toEqual(reports.tasteDiversity(before,raw,dimension));
@@ -64,7 +64,7 @@ it('shares reads across visits and invalidates without allowing an older respons
   const otherAccount=new MetricsEnrichmentResource();await otherAccount.load(next);expect(next).toHaveBeenCalledTimes(2);
 });
 
-it('does no theme work on Top / bottom, retains visited reports, and treats repeated identity selection as a no-op',async()=>{
+it('does no theme work on Top 5, retains visited reports, and treats repeated identity selection as a no-op',async()=>{
   vi.mocked(api.metricsEnrichment).mockResolvedValue(metricsEnrichmentFixture());
   const theme=vi.spyOn(reports,'themeFingerprint'),diversity=vi.spyOn(reports,'tasteDiversity');
   const container=document.createElement('div'),root=createRoot(container);document.body.appendChild(container);
@@ -72,10 +72,10 @@ it('does no theme work on Top / bottom, retains visited reports, and treats repe
     await act(async()=>root.render(createElement(MetricsScreen,{catalog:metricsFixture(),viewer:null,onUpdated:async()=>{}})));
     expect(theme).not.toHaveBeenCalled();expect(diversity).not.toHaveBeenCalled();
     const tab=(name:string)=>act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent === name)!.click());
-    await tab('Fingerprints');expect(theme).toHaveBeenCalledTimes(5);
-    await tab('General');await tab('Fingerprints');expect(theme).toHaveBeenCalledTimes(5);
+    await tab('Tastes');expect(theme).toHaveBeenCalledTimes(5);
+    await tab('Breakdowns');await tab('Tastes');expect(theme).toHaveBeenCalledTimes(5);
     await act(async()=>container.querySelector<HTMLButtonElement>('.metrics-filters button')!.click());expect(theme).toHaveBeenCalledTimes(5);
-    await tab('Diversity');expect(diversity).toHaveBeenCalledTimes(20);
+    await tab('Tastes');expect(diversity).toHaveBeenCalledTimes(20);
   }finally{await act(async()=>root.unmount());container.remove();}
 });
 
@@ -102,10 +102,10 @@ it('invalidating saved enrichment refreshes an already mounted Metrics screen',a
   const container=document.createElement('div'),root=createRoot(container);document.body.appendChild(container);
   try{
     await act(async()=>root.render(createElement(MetricsScreen,{catalog:metricsFixture(),viewer:null,onUpdated:async()=>{},resource})));
-    await act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent === 'Fingerprints')!.click());
+    await act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent === 'Tastes')!.click());
     expect(container.querySelectorAll('.metrics-theme-cloud li').length).toBeGreaterThan(0);
     await act(async()=>resource.invalidate());
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(2);expect(container.querySelector('.metrics-theme-cloud')).toBeNull();
-    expect(container.querySelector('[role=tab][aria-selected=true]')?.textContent).toBe('Fingerprints');
+    expect(container.querySelector('[role=tab][aria-selected=true]')?.textContent).toBe('Tastes');
   }finally{await act(async()=>root.unmount());container.remove();}
 });

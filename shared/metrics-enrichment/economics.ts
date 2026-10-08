@@ -21,10 +21,20 @@ export function filmEconomics(rows: Appearance[],data: MetricsEnrichment) {
 }
 export function revenueRatioRankings(rows: Appearance[],data: MetricsEnrichment) {
   const report = filmEconomics(rows,data);
-  const values = report.points.map(point => ({...point,ratio:point.revenue/point.budget}));
+  const values = report.points.map(point => ({...point,ratio:point.revenue/point.budget})).filter(point=>Number.isFinite(point.ratio) && point.ratio>0);
   const order = (a:typeof values[number],b:typeof values[number]) => orderText(a.movie.title,b.movie.title) || (a.movie.year ?? 0)-(b.movie.year ?? 0) || orderText(a.movie.id,b.movie.id);
   const orderText = (a:string,b:string) => a < b ? -1 : a > b ? 1 : 0;
   return {covered:values.length,unique:report.unique,
     top:withCutoffTies([...values].sort((a,b) => b.ratio-a.ratio || order(a,b)),p => p.ratio),
     bottom:withCutoffTies([...values].sort((a,b) => a.ratio-b.ratio || order(a,b)),p => p.ratio)};
+}
+
+
+export function medianEconomicsComparison<T extends {label:string;rows:Appearance[]}>(scopes:T[],data:MetricsEnrichment) {
+  const groups=scopes.map(scope=>{
+    const report=filmEconomics(scope.rows,data);
+    return {...scope,report:{...report,budget:{...report.budget,median:positiveMoney(report.budget.median)},revenue:{...report.revenue,median:positiveMoney(report.revenue.median)}}};
+  });
+  const maximum=Math.max(0,...groups.flatMap(group=>[group.report.budget.median ?? 0,group.report.revenue.median ?? 0]));
+  return {groups,maximum};
 }

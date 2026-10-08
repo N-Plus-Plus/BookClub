@@ -18,7 +18,7 @@ const columns = (db: DatabaseSync, table: string) => db.prepare(`PRAGMA table_in
 // Explicit pre-0010 compatibility only; every other source-only column fails closed.
 const retiredSessionColumns = ['title','notes','swap_note'];
 // Additive 0016 caches may be absent from an older authorised source export.
-const optionalEnrichmentTables: readonly string[]=providerEnrichmentTables;
+const optionalEnrichmentTables: readonly string[]=[...providerEnrichmentTables,'movie_maintenance_coverage','movie_maintenance_failures'];
 // Production maintenance receipts are outside the application migration ledger.
 // Create only these reviewed local schemas; never execute source CREATE SQL.
 export const maintenanceSchemas: Record<string, string> = {

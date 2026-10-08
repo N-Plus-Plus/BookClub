@@ -1,6 +1,6 @@
 import { isThemeKeyword, themeDisplayLabel } from '../theme-keywords';
-import { genreColour, type Appearance } from '../metrics';
-import { frequency, themeReader, themes, order, percent, type FactReader, type Frequency, type MetricsEnrichment } from './facts';
+import { genreColour, uniqueAppearances, withCutoffTies, type Appearance } from '../metrics';
+import { frequency, metricsFactReader, themeReader, themes, order, percent, type FactReader, type Frequency, type MetricsEnrichment } from './facts';
 
 export function fingerprint(rows: Appearance[],all: Appearance[],read: FactReader,options: {distinctive?:boolean; minimum?:number; limit?:number; qualifyingShare?:boolean} = {}) {
   const selected = frequency(rows,read), baseline = frequency(all,read);
@@ -14,11 +14,9 @@ export function fingerprint(rows: Appearance[],all: Appearance[],read: FactReade
   values.sort((a,b) => (options.distinctive ? (b.ratio ?? 0)-(a.ratio ?? 0) || b.percentage-a.percentage : 0) || b.count-a.count || order(a.label,b.label) || order(a.id,b.id));
   return {covered:selected.covered,distinct:selected.values.length,values:values.slice(0,options.limit ?? 10)};
 }
-export function themeFingerprint(rows: Appearance[],all: Appearance[],data: MetricsEnrichment,options: {distinctive?:boolean;limit?:number} = {}) {
-  const read = themeReader(data);
-  const supported = new Set(frequency(all,read).values.filter(f => f.count >= 3).map(f => f.id));
-  const report = fingerprint(rows,all,read,{...options,limit:Number.MAX_SAFE_INTEGER});
-  return {...report,values:report.values.filter(f => supported.has(f.id)).slice(0,options.limit ?? 10)};
+/** Frequency selects exactly twelve at most; club ratios describe rather than rank themes. */
+export function themeFingerprint(rows: Appearance[],all: Appearance[],data: MetricsEnrichment) {
+  return fingerprint(rows,all,themeReader(data),{limit:12});
 }
 /** Safe aggregate diagnostic; no movie IDs, titles, provenance or private rows are returned. */
 export function themeKeywordAudit(data: MetricsEnrichment,rows: Appearance[] = []) {
@@ -38,4 +36,14 @@ export function themeKeywordAudit(data: MetricsEnrichment,rows: Appearance[] = [
     topExcluded:excluded.slice(0,20).map(f => ({label:f.label,films:f.films})),
     topIncluded:included.slice(0,20).map(f => ({label:themeDisplayLabel(f.label),films:f.films})),
     fingerprint:themeFingerprint(rows,rows,data).values.map(f => ({label:f.label,count:f.count}))};
+}
+
+/** Frequency rankings retain every actual fifth-place count tie, in stable label/ID order. */
+export function topFrequency(rows:Appearance[],all:Appearance[],read:FactReader,qualifyingShare=false) {
+  const report=fingerprint(rows,all,read,{qualifyingShare,limit:Infinity});
+  return {...report,values:withCutoffTies(report.values,value=>value.count)};
+}
+export function productionCountryRankings(rows:Appearance[],data:MetricsEnrichment) {
+  const unique=uniqueAppearances(rows);
+  return {...topFrequency(unique,unique,metricsFactReader(data,'countries')),unique:unique.length};
 }

@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest';
-import { contributorMetrics,decadeDistribution,directorFingerprint,extremesCabinet,genreColour,genreFingerprint,median,metricsDashboard,metricsScoreDimensions,popularityMetrics,ratingsProfile,selectedAppearances } from '../shared/metrics';
+import { audienceVotes,compositeScore,rankedMetricsAppearances,contributorMetrics,decadeDistribution,directorFingerprint,extremesCabinet,genreColour,genreFingerprint,median,metricsDashboard,metricsScoreDimensions,popularityMetrics,ratingsProfile,selectedAppearances } from '../shared/metrics';
 import { liveScoreDimensions,rankMovie,requiredScores } from '../shared/ranking';
 import { metricsEvent,metricsFilm,metricsFixture,observation } from './metrics-fixture';
 import type { Catalog, Movie } from '../shared/types';
@@ -130,4 +130,57 @@ describe('Metrics dashboard',() => {
     expect(metricsDashboard([],[])).toMatchObject({fingerprint:[],decades:[],directors:{covered:0,top:[]},popularity:{coverage:0,median:null}});
     expect(metricsScoreDimensions).toHaveLength(9);
   });
+});
+
+it('sums exactly six effective audience dimensions, using endpoint scales and no critic votes',()=>{
+  const scores = [
+    observation('imdb','rating',8,10,10),observation('letterboxd','rating',9.2,10,20),
+    observation('metacritic','user',7,10,30),observation('rottentomatoes','audience',60,100,40),
+    observation('tmdb','rating',75,100,50),observation('trakt','rating',90,100,60),
+    observation('metacritic','critic',80,100,1000),observation('rottentomatoes','critic',50,100,2000),
+    observation('rogerebert','rating',3,4,3000),observation('unknown','rating',8,10,4000),
+  ];
+  const film=metricsFilm('a',{scores});
+  expect(audienceVotes(film)).toBe(10);expect(audienceVotes(film,'audience')).toBe(210);
+  expect(compositeScore(film,'audience')).toBeCloseTo((80+92+70+60+75+90)/6);
+  expect(compositeScore(film,'critic')).toBeCloseTo((80+50+75)/3);
+  const historical={...scores[1],raw_value:1,vote_count:90000,fetched_at:'2025-01-01'};
+  const legacy={...scores[0],vote_count:999999,retrieved_via:'legacy-spreadsheet',fetched_at:'2099-01-01'};
+  expect(audienceVotes({...film,scores:[historical,legacy,...scores,scores[0]]},'audience')).toBe(210);
+  expect(compositeScore({...film,scores:[historical,legacy,...scores]},'audience')).toBe(compositeScore(film,'audience'));
+});
+it.each([null,undefined,0,-1,NaN,Infinity])('omits invalid audience votes %s without historical vote fallback',votes=>{
+  const old=observation('letterboxd','rating',4,5,1234);
+  const current={...old,vote_count:votes as number|null,fetched_at:'2026-02-01'};
+  const film=metricsFilm('a',{scores:[old,current,observation('trakt','rating',101,100,999),observation('metacritic','critic',80,100,999)]});
+  expect(audienceVotes(film,'audience')).toBeNull();
+  expect(popularityMetrics(rowsOf([film]),'audience')).toMatchObject({median:null,coverage:0,popular:[],obscure:[]});
+  expect(audienceVotes({...film,scores:[...film.scores,observation('tmdb','rating',8,10,5)]},'audience')).toBe(5);
+});
+it('both vote medians retain qualifying appearance weights while lists retain unique films and deterministic representatives',()=>{
+  const films=Array.from({length:7},(_,i)=>metricsFilm(String(i),{scores:[observation('imdb','rating',8,10,i+1),observation('trakt','rating',80,100,70-i*10)]}));
+  const missing=metricsFilm('missing',{scores:[]});
+  const rows=rowsOf([...films,missing],[films[0],films[0],...films.slice(1),missing]);
+  const imdb=popularityMetrics(rows),audience=popularityMetrics(rows,'audience');
+  expect(imdb).toMatchObject({median:3.5,coverage:8});expect(audience).toMatchObject({median:48.5,coverage:8});
+  expect(imdb.popular.map(r=>r.movie.id)).toEqual(['6','5','4','3','2']);
+  expect(audience.popular.map(r=>r.movie.id)).toEqual(['0','1','2','3','4']);
+  expect(audience.obscure.map(r=>r.movie.id)).toEqual(['6','5','4','3','2']);
+  expect(audience.popular[0].position).toBe(1);
+  expect(popularityMetrics([...rows].reverse(),'audience')).toEqual(audience);
+  const tied=rowsOf([metricsFilm('z'),metricsFilm('a')]);
+  expect(popularityMetrics(tied,'audience').popular.map(r=>r.movie.id)).toEqual(['a','z']);
+  expect(popularityMetrics(tied,'audience').obscure.map(r=>r.movie.id)).toEqual(['a','z']);
+});
+it.each(['critic','audience'] as const)('composite %s rankings exclude missing coverage, preserve appearances and cap ties deterministically',kind=>{
+  const scores=kind==='critic'?[observation('rogerebert','rating',3,4),observation('metacritic','critic',85,100)]:[observation('imdb','rating',8,10)];
+  const films=Array.from({length:7},(_,i)=>metricsFilm(String(i),{scores}));
+  const empty=metricsFilm('missing',{scores:[]});
+  const rows=rowsOf([...films,empty],[...films,films[0],empty]);
+  const report=rankedMetricsAppearances(rows,kind,true);
+  expect(report.map(r=>r.movie.id)).toEqual(['0','0','1','2','3']);
+  expect(report.map(r=>r.selectedScore)).toEqual([80,80,80,80,80]);
+  expect(rankedMetricsAppearances([...rows].reverse(),kind,true)).toEqual(report);
+  expect(rankedMetricsAppearances(rows,kind,false)).toEqual(report);
+  expect(compositeScore(empty,kind)).toBeNull();
 });

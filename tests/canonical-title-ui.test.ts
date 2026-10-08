@@ -27,11 +27,12 @@ it('canonical provider title is shared by Home, History, all Classics tabs, Seen
  const visible=()=>[...harness.container.querySelectorAll('main')].map(e=>e.textContent).join('');
  for(const route of ['home','history','classics','seen','movie/ranked','metrics','event/canonical-event']) {
    await navigate(route);
-   if(route==='metrics')await act(async()=>[...harness.container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent==='Top / bottom')!.click());
+   if(route==='metrics')await act(async()=>[...harness.container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent==='Top 5')!.click());
    expect(visible(),route).toContain(title);expect(visible(),route).not.toContain('Wrong Legacy Name');
    if(route==='metrics') {
-     for(const [tab,selectors] of [['Top / bottom',['.metrics-rankings','.metrics-popularity-list']],['Cabinet',['.metrics-extremes']]] as const) {
+     for(const [tab,selectors] of [['Top 5',['.metrics-rankings','.metrics-popularity-list']],['Records',['.metrics-extremes']]] as const) {
        await act(async()=>[...harness.container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===tab)!.click());
+       if(tab==='Top 5')await act(async()=>harness.container.querySelectorAll<HTMLButtonElement>('.metrics-rankings section:first-child button')[1].click());
        for(const selector of selectors)expect(harness.container.querySelector(selector)?.textContent).toContain(title);
      }
    }

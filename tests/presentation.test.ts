@@ -30,18 +30,18 @@ const text = (markup: string) => {const element=document.createElement('div');el
 it.each([[87,'87'],[87.5,'87.5'],[87.26,'87.3']])('formats /100 %s as %s', (value,expected) => expect(formatScore100(value as number)).toBe(expected));
 
 it.each([
-  ['exact',null,'2001 · 1 January 2026 · Cycle 1 Film 1'],
-  ['cycle_rough',null,'2001 · Cycle 1 Film 1'],
-  ['unknown',null,'2001 · Cycle 1 Film 1'],
-  ['exact','legacy-spreadsheet','2001 · Cycle 1 Film 1'],
+  ['exact',null,'1 January 2026 · Cycle 1 · Film 1'],
+  ['cycle_rough',null,'Cycle 1 · Film 1'],
+  ['unknown',null,'Cycle 1 · Film 1'],
+  ['exact','legacy-spreadsheet','Cycle 1 · Film 1'],
 ])('Metrics ranking metadata respects %s precision and %s provenance', async(precision,source,expected)=>{
   const data={...catalog,sessions:[{...session,date_precision:precision as Session['date_precision']}],cycles:[{...catalog.cycles[0],title:'Custom cycle title',import_source:source}]};
   Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
   const element=document.createElement('div'),root=createRoot(element);
   try {
     await act(async()=>root.render(createElement(MetricsScreen,{catalog:data,viewer:null,onUpdated:async()=>{}})));
-    await act(async()=>[...element.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent==='Top / bottom')!.click());
-    expect([...element.querySelectorAll('.metrics-film-item p.meta')].map(e=>e.textContent)).toEqual([expected,expected]);
+    await act(async()=>[...element.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent==='Top 5')!.click());
+    expect([...element.querySelectorAll('.metrics-film-item .movie-copy > p.meta:last-of-type')].map(e=>e.textContent)).toEqual([expected,expected]);
   } finally {await act(async()=>root.unmount());}
 });
 
@@ -78,13 +78,13 @@ it('supports partial anchor, delete and restore evidence and malformed evidence 
   expect(text(renderToStaticMarkup(createElement(HistoryEvidence,{json:'invalid',catalog})))).toBe('Change details unavailable.');
 });
 
-it('uses /100 formatting in ranking without changing derived precision or native Metrics IMDb',() => {
+it('uses /100 formatting in ranking and composite Metrics without changing derived precision',() => {
   const ranking=text(renderToStaticMarkup(createElement(RankingScore,{movie})));
   expect(ranking).toContain('IMDb 87');expect(ranking).toContain('RT-A 87.5');expect(ranking).toContain('RT-C 87.3');
   expect(ranking).toContain('87 / 100');expect(ranking).toContain('87.5 / 100');
   expect(ranking).toContain(movie.ranking!.finalScore!.toFixed(2));expect(ranking).toContain(movie.ranking!.rawScore!.toFixed(2));expect(ranking).toContain('1.000000');
   const metrics=text(renderToStaticMarkup(createElement(MetricsScreen,{catalog,viewer:null,onUpdated:async()=>{}})));
-  expect(metrics).toContain('8.7');expect(metrics).toContain('8.7 / 10');expect(metrics).not.toMatch(/nominal|slot/i);
+  expect(metrics).toContain('87.3 / 100');expect(metrics).not.toContain('8.7 / 10');expect(metrics).not.toMatch(/nominal|slot/i);
 });
 
 

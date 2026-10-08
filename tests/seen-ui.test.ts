@@ -128,7 +128,7 @@ it('omits the summary block and disclosure when overview is absent',async()=>{
 });
 it('shows only Films brought contribution bars with alternating palette classes',async()=>{
  await act(async()=>root.render(createElement(MetricsScreen,{catalog:{...catalog,members:[member,{...member,id:'m2',display_name:'Other',sort_order:2}]},viewer:null,onUpdated:async()=>{}})));
- await act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent==='General')!.click());
+ await act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent==='Breakdowns')!.click());
  expect([...container.querySelectorAll('figcaption')].map(e=>e.textContent)).toEqual(['Films brought']);
  expect([...container.querySelectorAll('.chart-track > span')].map(e=>e.className)).toEqual(['chart-bar-jeans','chart-bar-lavender','chart-bar-jeans']);
  expect(container.textContent).not.toContain('Film appearances');

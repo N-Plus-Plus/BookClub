@@ -12,6 +12,8 @@ export const metricsScoreDimensions = metricsRatingKeys.map(key => {
   return {id,label,name,provider,metric,scale};
 });
 export type MetricsScoreDimension = typeof metricsScoreDimensions[number]['id'];
+export type MetricsScoreCategory = 'critic' | 'audience';
+export type PopularityMeasure = 'imdb' | 'audience';
 export interface RankedAppearance extends Appearance { selectedScore: number }
 
 export interface GenreMetric { genre: string; appearances: number; percentage: number; imdbAverage: number | null; imdbScored: number }
@@ -39,10 +41,10 @@ export function withCutoffTies<T>(items: readonly T[],value: (item:T) => number,
   const cutoff = value(items[limit-1]);
   return items.filter((item,index) => index < limit || value(item) === cutoff);
 }
-export function compositeScore(movie: Movie,kind: 'audience' | 'critic'): number | null {
-  const ids: MetricsScoreDimension[] = kind === 'audience' ? ['imdb','letterboxd','metacritic-user','rt-audience','tmdb','trakt'] : ['metacritic','rt-critic','ebert'];
+export function compositeScore(movie: Movie,kind: MetricsScoreCategory): number | null {
+  const dimensions = metricsRatingKeys.map(key => ratingDimensions[key]).filter(d => d.group === kind);
   const scores = scoresFor(movie);
-  const values = metricsScoreDimensions.filter(d => ids.includes(d.id)).flatMap(d => {
+  const values = dimensions.flatMap(d => {
     const observation = scores.find(s => s.provider === d.provider && s.metric === d.metric);
     const value = observation ? scoreValue(observation) : null;
     return value === null ? [] : [value];
@@ -106,13 +108,21 @@ export function uniqueAppearances(rows: Appearance[]): Appearance[] {
   return [...unique.values()];
 }
 export interface PopularAppearance extends Appearance { votes: number }
-function imdbVotes(movie: Movie): number | null {
-  const votes = scoresFor(movie).find(s => s.provider === 'imdb' && s.metric === 'rating')?.vote_count;
-  return typeof votes === 'number' && Number.isFinite(votes) && votes > 0 ? votes : null;
+/** Count only votes on each effective usable observation; never borrow an older snapshot's votes. */
+export function audienceVotes(movie: Movie,measure: PopularityMeasure = 'imdb'): number | null {
+  const dimensions = metricsRatingKeys.map(key => ratingDimensions[key]).filter(d => measure === 'imdb' ? d.id === 'imdb' : d.group === 'audience');
+  const scores = scoresFor(movie);
+  const votes = dimensions.flatMap(d => {
+    const count = scores.find(s => s.provider === d.provider && s.metric === d.metric)?.vote_count;
+    return typeof count === 'number' && Number.isFinite(count) && count > 0 ? [count] : [];
+  });
+  const total = votes.reduce((sum,count) => sum+count,0);
+  return votes.length && Number.isFinite(total) ? total : null;
 }
-export function popularityMetrics(rows: Appearance[]) {
+const imdbVotes = (movie: Movie) => audienceVotes(movie);
+export function popularityMetrics(rows: Appearance[],measure: PopularityMeasure = 'imdb') {
   const qualifying: PopularAppearance[] = rows.flatMap(row => {
-    const votes = imdbVotes(row.movie);
+    const votes = audienceVotes(row.movie,measure);
     return votes !== null ? [{...row,votes}] : [];
   });
   const unique = uniqueAppearances(qualifying) as PopularAppearance[];
@@ -145,22 +155,21 @@ export function tiedExtreme<T>(items: readonly T[],value: (item:T) => number | n
 }
 export function metricsDashboard(rows: Appearance[],all: Appearance[]) {
   const fingerprint=once(()=>genreFingerprint(rows,all)), decades=once(()=>decadeDistribution(rows)), directors=once(()=>directorFingerprint(rows)),
-    ratings=once(()=>ratingsProfile(rows)), popularity=once(()=>popularityMetrics(rows)), extremes=once(()=>extremesCabinet(rows));
+    ratings=once(()=>ratingsProfile(rows)), popularity=once(()=>popularityMetrics(rows)), audiencePopularity=once(()=>popularityMetrics(rows,'audience')), extremes=once(()=>extremesCabinet(rows));
   return {get fingerprint(){return fingerprint();},get decades(){return decades();},get directors(){return directors();},
-    get ratings(){return ratings();},get popularity(){return popularity();},get extremes(){return extremes();}};
+    get ratings(){return ratings();},get popularity(){return popularity();},get audiencePopularity(){return audiencePopularity();},get extremes(){return extremes();}};
 }
 const textOrder = (a: string,b: string) => a < b ? -1 : a > b ? 1 : 0;
 const tie = (a: Appearance,b: Appearance) => textOrder(a.session.event_date,b.session.event_date)
   || textOrder(a.movie.title,b.movie.title) || textOrder(a.session.id,b.session.id)
   || textOrder(a.movie.id,b.movie.id) || a.position-b.position;
-export function rankedMetricsAppearances(rows:Appearance[],id:MetricsScoreDimension,descending:boolean):RankedAppearance[] {
-    const dimension = metricsScoreDimensions.find(d => d.id === id)!;
-    return rows.flatMap(row => {
-      const stored = scoresFor(row.movie).find(s => s.provider === dimension.provider && s.metric === dimension.metric);
-      return stored ? [{...row,selectedScore: scoreValue(stored)! * dimension.scale / 100}] : [];
-    }).sort((a,b) => (descending ? b.selectedScore-a.selectedScore : a.selectedScore-b.selectedScore) || tie(a,b)).slice(0,5);
+export function rankedMetricsAppearances(rows:Appearance[],kind:MetricsScoreCategory,descending:boolean):RankedAppearance[] {
+  return rows.flatMap(row => {
+    const selectedScore = compositeScore(row.movie,kind);
+    return selectedScore === null ? [] : [{...row,selectedScore}];
+  }).sort((a,b) => (descending ? b.selectedScore-a.selectedScore : a.selectedScore-b.selectedScore) || tie(a,b)).slice(0,5);
 }
-export function calculateMetrics(catalog: Catalog, filter: MetricsFilter = {kind: 'all'}, dimensions: {top?: MetricsScoreDimension; bottom?: MetricsScoreDimension} = {}, rows = selectedAppearances(catalog,filter)): Metrics {
+export function calculateMetrics(catalog: Catalog, filter: MetricsFilter = {kind: 'all'}, dimensions: {top?: MetricsScoreCategory; bottom?: MetricsScoreCategory} = {}, rows = selectedAppearances(catalog,filter)): Metrics {
   const scored = rows.filter(a => a.imdb !== null);
   const genreReport=once(() => {
   const groups = new Map<string,Appearance[]>(); let genreCovered = 0;
@@ -171,7 +180,7 @@ export function calculateMetrics(catalog: Catalog, filter: MetricsFilter = {kind
   }
   return {genreCovered,uncategorised:rows.length-genreCovered,genres:[...groups].map(([genre,items]) => ({genre,appearances:items.length,percentage:items.length/rows.length*100,imdbAverage:average(items),imdbScored:items.filter(a=>a.imdb !== null).length})).sort((a,b)=>b.appearances-a.appearances || textOrder(a.genre,b.genre))};
   });
-  const top=once(()=>rankedMetricsAppearances(rows,dimensions.top ?? 'imdb',true)),bottom=once(()=>rankedMetricsAppearances(rows,dimensions.bottom ?? 'imdb',false));
+  const top=once(()=>rankedMetricsAppearances(rows,dimensions.top ?? 'critic',true)),bottom=once(()=>rankedMetricsAppearances(rows,dimensions.bottom ?? 'critic',false));
   const events = catalog.sessions.filter(s => matchesMetricsFilter(s,filter)).length;
   return {events,appearances: rows.length,uniqueFilms: new Set(rows.map(a => a.movie.id)).size,
     imdbAverage: average(rows),imdbScored: scored.length,get genreCovered(){return genreReport().genreCovered;},get uncategorised(){return genreReport().uncategorised;},

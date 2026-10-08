@@ -6,9 +6,9 @@ export function comparisonWidths(ratio: number) {
   const maximum = Math.max(1,selected);
   return {selected:selected/maximum*100,club:100/maximum};
 }
-export function ComparisonBars({label,value,detail,ratio,colour,selectedLabel = 'Selected'}: {label:string;value:string;detail:string;ratio:number;colour:string;selectedLabel?:string}) {
+export function ComparisonBars({label,value,detail,ratio,colour,selectedLabel = 'Selected',clubLabel = 'Club'}: {label:string;value:string;detail:string;ratio:number;colour:string;selectedLabel?:string;clubLabel?:string}) {
   const widths = comparisonWidths(ratio);
-  return <div className="metrics-distribution-row metrics-enriched-row" style={{'--chart-colour':`var(--${colour})`} as CSSProperties}><div className="metrics-distribution-label"><span>{label}</span><strong>{value}</strong></div><div className="metrics-comparison-bars" aria-hidden="true"><div><small>{selectedLabel}</small><div className="metrics-distribution-track"><span style={{width:`${widths.selected}%`}} /></div></div><div><small>Club</small><div className="metrics-distribution-track metrics-club-track"><span style={{width:`${widths.club}%`}} /></div></div></div>{detail && <p className="meta">{detail}</p>}</div>;
+  return <div className="metrics-distribution-row metrics-enriched-row" style={{'--chart-colour':`var(--${colour})`} as CSSProperties}><div className="metrics-distribution-label"><span>{label}</span><strong>{value}</strong></div><div className="metrics-comparison-bars" aria-hidden="true"><div><small>{selectedLabel}</small><div className="metrics-distribution-track"><span style={{width:`${widths.selected}%`}} /></div></div><div><small>{clubLabel}</small><div className="metrics-distribution-track metrics-club-track"><span style={{width:`${widths.club}%`}} /></div></div></div>{detail && <p className="meta">{detail}</p>}</div>;
 }
 export function ratingCircleFills(mean: number) {
   const value = Number.isFinite(mean) ? Math.max(0,Math.min(100,mean)) : 0;

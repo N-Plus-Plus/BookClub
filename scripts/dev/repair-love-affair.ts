@@ -76,7 +76,7 @@ export function loveAffairRepairSql(db: DatabaseSync): {sql: string | null; surv
   changes.push(`DELETE FROM source_scores WHERE movie_id=${q(sourceId)} AND id NOT IN (${retained.map(r=>q(r.id)).join(',') || 'NULL'});`);
   // NOT IN (NULL) would retain everything when there are no legacy observations.
   if(!retained.length) changes[0]=`DELETE FROM source_scores WHERE movie_id=${q(sourceId)};`;
-  for(const table of ['movie_assets','movie_genres','movie_score_checks',...relatedTables.filter(t=>t.startsWith('movie_provider_'))]) if(tables.includes(table)) changes.push(`DELETE FROM ${ident(table)} WHERE movie_id=${q(sourceId)};`);
+  for(const table of ['movie_assets','movie_genres','movie_score_checks',...relatedTables.filter(t=>t.startsWith('movie_provider_') || t.startsWith('movie_maintenance_'))]) if(tables.includes(table)) changes.push(`DELETE FROM ${ident(table)} WHERE movie_id=${q(sourceId)};`);
   changes.push(`DELETE FROM movie_external_ids WHERE movie_id=${q(sourceId)};`);
   if(mode==='merge') {
     for(const t of ['session_movies','builder_movies','movie_import_refs','seen_import_observations','source_scores']) changes.push(`UPDATE ${t} SET movie_id=${q(survivor)} WHERE movie_id=${q(sourceId)};`);

@@ -1,3 +1,5 @@
+import { UnifiedMaintenanceService } from '../unified-maintenance';
+import { unifiedMaintenanceSchema } from '../validation';
 import { json } from '../http';
 import { titleReconcileSchema, selectedMetadataSchema, maintenanceSchema, enrichmentSchema, idSchema } from '../validation';
 import { ScoreService } from '../score-service';
@@ -10,6 +12,14 @@ import { requireAdmin } from '../product-repository';
 import type { RouteContext } from './context';
 
 export async function maintenanceRoutes({request,env,path,method,repo,movies,auth,body}: RouteContext): Promise<Response | undefined> {
+  if(path==='/api/v1/movies/maintenance-coverage' && method==='GET') {
+    requireAdmin(auth.viewer);const after=new URL(request.url).searchParams.get('after');
+    return json(await new UnifiedMaintenanceService(repo,env).status(after===null?null:idSchema.parse(after)));
+  }
+  if(path==='/api/v1/movies/maintenance-provider' && method==='POST') {
+    requireAdmin(auth.viewer);const input=unifiedMaintenanceSchema.parse(await body(request));
+    return json(await new UnifiedMaintenanceService(repo,env).execute(input.intent,input.units,input.startedAt));
+  }
   if (path === '/api/v1/movies/title-authority' && method === 'GET') { requireAdmin(auth.viewer); return json(await new TitleRepository(env.DB).status()); }
   if (path === '/api/v1/movies/reconcile-titles' && method === 'POST') {
     requireAdmin(auth.viewer);

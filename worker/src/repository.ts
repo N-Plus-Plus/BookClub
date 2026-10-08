@@ -1,3 +1,4 @@
+import { CoverageRepository } from './coverage-repository';
 import type { Catalog, CompactCatalog, Cycle, ExternalId, Member, Movie, Score, Session, SessionInput, ManualMovieInput, SavedSearchResult } from '../../shared/types';
 import type { MetadataMovie } from '../../shared/metadata';
 import type { EnrichmentCapture } from '../../shared/enrichment';
@@ -38,10 +39,10 @@ export class Repository {
   async findExternal(provider: string, externalId: string): Promise<string | null> { return this.movieRepository.findExternal(provider,externalId); }
   async setClassic(id: string, classic: boolean) { return this.movieRepository.setClassic(id,classic); }
   async removeClassic(id: string) { return this.movieRepository.removeClassic(id); }
-  async appendScores(id: string, scores: Score[]) { return this.movieRepository.appendScores(id,scores); }
+  async appendScores(id: string, scores: Score[], identity?:ExternalId) { return this.movieRepository.appendScores(id,scores,identity); }
   async importMovie(m: ProviderMovie): Promise<string> { return this.movieRepository.importMovie(m); }
-  async enrichOmdbMetadata(id: string, imdbId: string, metadata: Omit<import('./providers/omdb').OmdbMetadata,'title'> & {title?: string | null}) { return this.movieRepository.enrichOmdbMetadata(id,imdbId,metadata); }
-  async enrichMetadata(id: string, tmdbId: string, m: ProviderMovie, attachment?: {import_source: string; source_refs: string[]}, captureScores = false) { return this.movieRepository.enrichMetadata(id,tmdbId,m,attachment,captureScores); }
+  async enrichOmdbMetadata(id: string, imdbId: string, metadata: Omit<import('./providers/omdb').OmdbMetadata,'title'> & {title?: string | null}, populate = false) { const changed=await this.movieRepository.enrichOmdbMetadata(id,imdbId,metadata,populate); const coverage=new CoverageRepository(this.db); if(await coverage.supported()) await coverage.save(id,'omdb','metadata',{provider:'imdb',external_id:imdbId},Object.entries(metadata).filter(([,v])=>v===null || Array.isArray(v) && !v.length).map(([k])=>k)); return changed; }
+  async enrichMetadata(id: string, tmdbId: string, m: ProviderMovie, attachment?: {import_source: string; source_refs: string[]}, captureScores = false, intent?: 'populate' | 'refresh') { return this.movieRepository.enrichMetadata(id,tmdbId,m,attachment,captureScores,intent); }
   metadataStatements(id: string, m: ProviderMovie, captureScores = false,director = true,titleAuthority = true): D1PreparedStatement[] { return this.movieRepository.metadataStatements(id,m,captureScores,director,titleAuthority); }
   async maintenanceDetails(ids: string[], validateScope = false) { return this.maintenanceRepository.maintenanceDetails(ids,validateScope); }
   async scoreChecks(ids: string[]) { return this.maintenanceRepository.scoreChecks(ids); }

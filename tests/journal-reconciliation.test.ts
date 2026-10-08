@@ -10,12 +10,15 @@ import { missingAnswers } from '../shared/ranking';
 import { ProductRepository } from '../worker/src/product-repository';
 import { disposableD1 } from './d1';
 import { api } from '../frontend/api';
+import { MetricsScreen } from '../frontend/MetricsScreen';
+import { metricsCatalog, selectedAppearances, extremesCabinet, type MetricsFilter } from '../shared/metrics';
 import { useBookClubData } from '../frontend/useBookClubData';
 import type { Catalog, JournalMutationResult, MovieDetail, Rotation } from '../shared/types';
 import type { Env } from '../worker/src/http';
-vi.mock('../frontend/api',()=>({api:{health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),seen:vi.fn()},hasSession:()=>true,ApiClientError:class extends Error {}}));
+vi.mock('../frontend/api',()=>({api:{health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),seen:vi.fn(),metricsEnrichment:vi.fn()},hasSession:()=>true,ApiClientError:class extends Error {}}));
 let local:ReturnType<typeof disposableD1>,repo:Repository,product:ProductRepository,env:Env,root:Root,container:HTMLDivElement,data:ReturnType<typeof useBookClubData>;
-function Probe(){data=useBookClubData(false);return null;}
+let showMetrics=false;
+function Probe(){data=useBookClubData(false);return showMetrics && data.catalog ? h(MetricsScreen,{catalog:data.catalog,viewer:data.viewer,onUpdated:data.refreshData,resource:data.metricsResource}) : null;}
 async function mutation(path:string,method:string,input?:unknown):Promise<JournalMutationResult> {
   const response=await worker.fetch(new Request(`http://local/api/v1${path}`,{method,headers:{'X-BookClub-Dev-Member':'member-2'},...(input?{body:JSON.stringify(input)}:{})}),env);
   expect(response.ok,await response.clone().text()).toBe(true);return (await response.json() as {data:JournalMutationResult}).data;
@@ -23,7 +26,7 @@ async function mutation(path:string,method:string,input?:unknown):Promise<Journa
 async function apply(result:JournalMutationResult){await act(async()=>data.applyJournalMutation(result));}
 const counts=()=>{expect(api.catalog).toHaveBeenCalledOnce();expect(api.rotation).toHaveBeenCalledOnce();};
 beforeEach(async()=>{
-  Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});vi.resetAllMocks();local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));
+  Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});vi.resetAllMocks();showMetrics=false;vi.mocked(api.metricsEnrichment).mockResolvedValue({movies:{}});local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));
   local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-2';UPDATE sessions SET date_precision='exact' WHERE id='demo-2'");repo=new Repository(local.db);product=new ProductRepository(local.db);env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:4173'};
   vi.mocked(api.health).mockResolvedValue({status:'ok',environment:'local',authenticationRequired:false,googleAuthConfigured:false,tmdbConfigured:false,mdblistConfigured:false,omdbConfigured:false,demo:true});
   vi.mocked(api.me).mockResolvedValue({viewer:{id:'member-2',display_name:'Troy',sort_order:2,avatar:2,role:'admin'}});
@@ -138,4 +141,48 @@ it('a stale No response completing after History publication cannot resurrect el
  await act(async()=>finish(stale));
  expect(data.catalog!.movies.find(movie=>movie.id==='bicycle')?.ranking).toMatchObject({seenCount:4,unknownCount:0,eligible:false});
  expect(api.seen).toHaveBeenCalledTimes(2);counts();
+});
+
+it.each([false,true])('Cabinet replaces canonical A with B through History while mounted=%s, preserving active repeats and excluding deleted/catalogue-only films',async mounted=>{
+ const A='bicycle',B='stalker';
+ // Both canonical records remain; A is the oldest active film, B older still.
+ local.sqlite.exec("UPDATE movies SET year=1900 WHERE id='bicycle';UPDATE movies SET year=1890 WHERE id='stalker'");
+ await act(async()=>data.refreshData());
+ const cabinet=(filter:MetricsFilter={kind:'all'})=>extremesCabinet(selectedAppearances(metricsCatalog(data.catalog!),filter));
+ const open=async()=>{showMetrics=true;await act(async()=>root.render(h(Probe)));await act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent==='Records')!.click());};
+ const visible=()=>[...container.querySelectorAll('.metrics-film-extreme a')].map(a=>a.getAttribute('href'));
+ expect(cabinet().oldest?.items.map(r=>r.movie.id)).toEqual([A]);
+ if(mounted){await open();expect(visible()).toContain('#/movie/'+A);}
+ // An older broad read and enrichment result must not restore the replaced lineup.
+ const old=data.catalog!;let finish!:(catalog:Catalog)=>void;
+ vi.mocked(api.catalog).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+ let refresh!:Promise<void>;await act(async()=>{refresh=data.refreshData();});
+ const result=await data.readJournalMutation(()=>mutation('/sessions/demo-3','PUT',{event_date:'2026-09-12',movie_ids:[B,'paris','alien']}));
+ await apply(result);
+ expect(cabinet().oldest?.items.map(r=>r.movie.id)).toEqual([B]);
+ expect(data.catalog!.movies.some(m=>m.id===A)).toBe(true);
+ expect(selectedAppearances(data.catalog!).some(r=>r.movie.id===A)).toBe(false);
+ if(!mounted)await open();
+ expect(visible()).not.toContain('#/movie/'+A);expect(visible()).toContain('#/movie/'+B);
+ await act(async()=>{finish(old);await refresh;});
+ expect(visible()).not.toContain('#/movie/'+A);
+ for(const filter of [{kind:'all' as const},{kind:'classics' as const},...data.catalog!.members.map(m=>({kind:'member' as const,memberId:m.id}))])
+   expect(cabinet(filter)).toEqual(extremesCabinet(selectedAppearances(await repo.catalog(),filter)));
+ await act(async()=>data.refreshData());expect(visible()).not.toContain('#/movie/'+A);
+ // A second qualifying appearance legitimately keeps A eligible until deletion.
+ const repeat=await data.readJournalMutation(()=>mutation('/sessions','POST',{event_date:'2030-01-01',movie_ids:[A]}));await apply(repeat);
+ expect(selectedAppearances(data.catalog!).some(r=>r.movie.id===A)).toBe(true);expect(visible()).toContain('#/movie/'+A);
+ await apply(await mutation('/sessions/'+repeat.session!.id,'DELETE'));
+ expect(visible()).not.toContain('#/movie/'+A);
+ const deleted={...repeat.session!,deleted_at:'2030-01-02'};
+ expect(selectedAppearances({...data.catalog!,sessions:[...data.catalog!.sessions,deleted]}).some(r=>r.movie.id===A)).toBe(false);
+});
+
+it('replacing one A appearance retains A in Cabinet only for identities with another qualifying active appearance',async()=>{
+ const A='bicycle',B='stalker';
+ const repeat=await data.readJournalMutation(()=>mutation('/sessions','POST',{event_date:'2030-01-01',movie_ids:[A]}));await apply(repeat);
+ await apply(await data.readJournalMutation(()=>mutation('/sessions/demo-3','PUT',{event_date:'2026-09-12',movie_ids:[B,'paris','alien']})));
+ const ids=(filter:MetricsFilter)=>new Set(Object.values(extremesCabinet(selectedAppearances(metricsCatalog(data.catalog!),filter))).flatMap(r=>r?.items.map(a=>a.movie.id)??[]));
+ expect(ids({kind:'all'}).has(A)).toBe(true);expect(ids(repeat.session!.kind==='classics'?{kind:'classics'}:{kind:'member',memberId:repeat.session!.host_member_id!}).has(A)).toBe(true);
+ expect(ids({kind:'member',memberId:'member-3'}).has(A)).toBe(false);expect(ids({kind:'member',memberId:'member-3'}).has(B)).toBe(true);
 });

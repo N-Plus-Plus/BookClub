@@ -9,7 +9,7 @@ import { patchCatalogMovie } from '../frontend/seen-answers';
 import { rankMovie } from '../shared/ranking';
 import { api } from '../frontend/api';
 import type { Catalog, Movie, Rotation, Session } from '../shared/types';
-vi.mock('../frontend/api',()=>({api:{saveSession:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),enrichProvider:vi.fn(),scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:['f1'],eligibleDimensions:1,unavailableDimensions:0,unavailableFilms:0}))},ApiClientError:class extends Error {fields=[];}}));
+vi.mock('../frontend/api',()=>({api:{maintenanceCoverage:vi.fn(async()=>({checks:[],negativeScores:[],enrichment:[],unavailable:{tmdb:null,omdb:null,mdblist:null},next:null})),saveSession:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),enrichProvider:vi.fn(),scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:['f1'],eligibleDimensions:1,unavailableDimensions:0,unavailableFilms:0}))},ApiClientError:class extends Error {fields=[];}}));
 let root:Root,container:HTMLDivElement,catalog:Catalog;
 const rotation:Rotation={id:1,cycle_id:null,nominal_slot:5,version:9,updated_at:''};
 const saved=vi.fn();
@@ -59,11 +59,12 @@ it('availability groups cached primary options and equal-weight rent, suppressin
  expect(container.querySelector('.search-row .au-availability')?.textContent).toContain('Stream: Netflix');expect(container.querySelectorAll('.search-row .au-availability')).toHaveLength(1);expect(api.preview).not.toHaveBeenCalled();expect(api.enrichProvider).not.toHaveBeenCalled();
 
 });
-it('Admin renders six independent operations with title/button conventions, providers and accurate AU collection text',async()=>{
+it('Admin renders both groups, twelve cards and accurate AU collection text',async()=>{
  await act(async()=>root.render(h(AdminScreen,{catalog,writesEnabled:true,onMovie:()=>{},onUpdated:async()=>{}})));
- const pairs=[['Populate missing scores','Populate missing scores'],['Refresh scores','Refresh scores'],['Refresh OMDb metadata','Refresh OMDb metadata'],['Fill missing TMDB metadata and artwork','Fill missing TMDB metadata'],['Refresh TMDB enrichment','Refresh TMDB enrichment'],['Refresh MDBList enrichment','Refresh MDBList enrichment']];
- for(const [title,action] of pairs){const heading=[...container.querySelectorAll('h2')].find(heading=>heading.textContent===title)!;expect(heading).toBeTruthy();const section=heading.closest('section')!;expect(section.querySelectorAll('h2')).toHaveLength(1);expect(section.contains(button(action))).toBe(true);expect(section.textContent).toContain('Estimated calls:');expect(section.textContent).toContain('APIs:');}
- expect(container.querySelector('#tmdb-enrichment-heading')?.closest('section')?.textContent).toContain('Australian watch availability');expect(container.querySelector('#mdblist-enrichment-heading')?.closest('section')?.textContent).toContain('Regionless stream/watch fields are excluded');
+ const titles=[...container.querySelectorAll('section.card h3')].map(h=>h.textContent);
+ expect(titles).toEqual(['Populate missing data','Populate missing scores','Populate missing OMDb metadata','Populate missing TMDB metadata and artwork','Populate missing TMDB enrichment','Populate missing MDBList enrichment','Refresh all data','Refresh scores','Refresh OMDb metadata','Refresh TMDB metadata and artwork','Refresh TMDB enrichment','Refresh MDBList enrichment']);
+ for(const title of titles){const heading=[...container.querySelectorAll('h3')].find(h=>h.textContent===title)!;const section=heading.closest('section')!;expect(section.contains(button(title!))).toBe(true);expect(section.textContent).toContain('Estimated API requests:');}
+ expect(container.querySelector('#refresh-tmdb-enrichment-heading')?.closest('section')?.textContent).toContain('Australian watch availability');expect(container.querySelector('#refresh-mdblist-enrichment-heading')?.closest('section')?.textContent).toContain('regionless watch data is excluded');
 });
 
 it('seeds hostless Classics at the first exceptional position and does not attest Sean at the last',async()=>{

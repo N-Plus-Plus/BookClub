@@ -68,11 +68,11 @@ export class MovieRepository {
     ]);
   }
 
-  async appendScores(id: string, scores: Score[]) {
+  async appendScores(id: string, scores: Score[], identity?:ExternalId) {
     await this.assertMovie(id);
     const unique = new Map(scores.map(s => [`${s.provider}:${s.metric}:${s.retrieved_via ?? 'unspecified'}`,s]));
-    const statements = [...unique.values()].map(s => this.db.prepare('INSERT OR IGNORE INTO source_scores(id,movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via,upstream_updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
-      .bind(crypto.randomUUID(),id,s.provider,s.metric,s.raw_value,s.raw_scale,s.normalized_value,s.vote_count,s.fetched_at,s.retrieved_via ?? 'unspecified',s.upstream_updated_at ?? null));
+    const statements = [...unique.values()].map(s => this.db.prepare(`INSERT OR IGNORE INTO source_scores(id,movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via,upstream_updated_at) VALUES(?,${identity ? 'CASE WHEN EXISTS(SELECT 1 FROM movie_external_ids WHERE movie_id=? AND provider=? AND external_id=?) THEN ? ELSE NULL END' : '?'},?,?,?,?,?,?,?,?,?)`)
+      .bind(crypto.randomUUID(),...(identity ? [id,identity.provider,identity.external_id,id] : [id]),s.provider,s.metric,s.raw_value,s.raw_scale,s.normalized_value,s.vote_count,s.fetched_at,s.retrieved_via ?? 'unspecified',s.upstream_updated_at ?? null));
     if (statements.length) await this.db.batch(statements);
   }
 
@@ -102,7 +102,7 @@ export class MovieRepository {
     return id;
   }
 
-  async enrichOmdbMetadata(id: string, imdbId: string, metadata: Omit<import('./providers/omdb').OmdbMetadata,'title'> & {title?: string | null}) {
+  async enrichOmdbMetadata(id: string, imdbId: string, metadata: Omit<import('./providers/omdb').OmdbMetadata,'title'> & {title?: string | null}, populate = false) {
     const director = await this.capabilities.hasDirector();
     const owner = await this.findExternal('imdb',imdbId);
     if (owner !== id) throw new ApiError(409,'IDENTITY_CONFLICT','Stored IMDb identity changed. Refresh before retrying.');
@@ -113,12 +113,12 @@ export class MovieRepository {
     const canonical = (genre: string) => normalizeGenre(genre) ?? genre;
     const desired = new Set(metadata.genres.map(canonical)), existing = new Set(stored.map(canonical));
     const fields = (['year','runtime',...(director ? ['director'] as const : [])] as const)
-      .filter(field => metadata[field] !== null && metadata[field] !== current[field]);
+      .filter(field => metadata[field] !== null && metadata[field] !== current[field] && (!populate || current[field] === null || typeof current[field]==='string' && !current[field].trim()));
     const guard = "EXISTS(SELECT 1 FROM movie_external_ids WHERE movie_id=? AND provider='imdb' AND external_id=?)";
     const statements: D1PreparedStatement[] = [];
     if (fields.length) statements.push(this.db.prepare(`UPDATE movies SET ${fields.map(field => `${field}=?`).join(',')},updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND ${guard} AND (${fields.map(field => `${field} IS NOT ?`).join(' OR ')}) RETURNING id`)
       .bind(...fields.map(field => metadata[field]),id,id,imdbId,...fields.map(field => metadata[field])));
-    if (desired.size) {
+    if (desired.size && (!populate || !existing.size)) {
       for (const genre of stored.filter(g => !desired.has(canonical(g))))
         statements.push(this.db.prepare(`DELETE FROM movie_genres WHERE movie_id=? AND genre=? AND ${guard} RETURNING movie_id`).bind(id,genre,id,imdbId));
       for (const genre of [...desired].filter(g => !existing.has(g)))
@@ -143,8 +143,17 @@ export class MovieRepository {
     return result.slice(0,-1).some(r => r.results.length > 0);
   }
 
-  async enrichMetadata(id: string, tmdbId: string, m: ProviderMovie, attachment?: {import_source: string; source_refs: string[]}, captureScores = false) {
+  async enrichMetadata(id: string, tmdbId: string, m: ProviderMovie, attachment?: {import_source: string; source_refs: string[]}, captureScores = false, intent?: 'populate' | 'refresh') {
     await this.assertMovie(id);
+    if (intent) {
+      const current=(await new (await import('./catalog-repository')).CatalogRepository(this.db,this.capabilities).movieDetails([id]))[0];
+      m={...m};
+      for (const field of ['original_title','year','release_date','runtime','overview','director'] as const) {
+        if (m[field] == null || intent==='populate' && current[field] != null && !(typeof current[field]==='string' && !current[field].trim())) Object.assign(m,{[field]:current[field]});
+      }
+      if (!m.genres.length || intent==='populate' && current.genres.length) m.genres=current.genres;
+      if (intent==='populate') m.assets=m.assets.filter(a=>!current.assets.some(old=>old.provider==='tmdb' && old.asset_type===a.asset_type));
+    }
     if (!m.external_ids.some(e => e.provider === 'tmdb' && e.external_id === tmdbId))
       throw new ApiError(409,'IDENTITY_CONFLICT','TMDB returned a different identity. Owner reconciliation is required.');
     const ids = (await this.db.prepare('SELECT provider,external_id FROM movie_external_ids WHERE movie_id=?').bind(id).all<ExternalId>()).results;
@@ -173,7 +182,7 @@ export class MovieRepository {
       if (/movie_external_ids/.test(String(error))) throw new ApiError(409,'IDENTITY_CONFLICT','External identity conflicts with a canonical film. Owner reconciliation is required.');
       throw error;
     }
-    if (m.enrichment) await this.cacheEnrichment(id,m.enrichment);
+    if (m.enrichment) return this.cacheEnrichment(id,m.enrichment);
   }
 
   // Internal batch builder: callers must validate identity/ownership before executing.

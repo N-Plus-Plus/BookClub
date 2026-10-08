@@ -155,6 +155,12 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .score-abbreviations { width: 100%; min-width: 420px; border-collapse: collapse; font-size: var(--text-metadata); }
 .score-abbreviations th,.score-abbreviations td { padding: var(--space-8); text-align: left; border-bottom: 1px solid var(--asphalt-dark); }
 .score-abbreviations .score-example-column { width: 25%; }
+@media (max-width: 719px) {
+  .score-abbreviations { min-width: 0; }
+  .score-abbreviations .score-example-column,.score-abbreviations th:nth-child(n+3),.score-abbreviations td:nth-child(n+3) { display: none; }
+  .score-abbreviations th { white-space: nowrap; }
+  .score-abbreviations td { overflow-wrap: anywhere; }
+}
 .score-abbreviations th:nth-child(n+3),.score-abbreviations td:nth-child(n+3) { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .source-scores-critic-boundary::before { content: ''; position: absolute; top: 0; bottom: 0; left: var(--critic-divider-offset, calc(var(--space-8) / 2)); width: 1px; background: var(--asphalt); pointer-events: none; }
 .description-disclosure { display: flex; align-items: center; gap: var(--space-12); width: 100%; min-height: var(--target-min); padding: 0; background: transparent; border: 0; color: var(--text-muted); font: inherit; font-size: var(--text-button); font-weight: 600; cursor: pointer; }
@@ -186,3 +192,5 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .film-director { overflow-wrap: anywhere; }
 .film-title-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4) var(--space-12); }
 .film-title-line .movie-title { display: inline; min-width: 0; overflow-wrap: anywhere; }
+
+.maintenance-section + .maintenance-section { margin-block-start: var(--space-16); }

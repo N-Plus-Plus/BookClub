@@ -11,7 +11,7 @@ import { App } from '../../frontend/App';
 
 
 vi.mock('../../frontend/api',() => ({
-  api:{metricsEnrichment:vi.fn(async()=>({movies:{}})),swapRotation:vi.fn(),scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:['f1','f2','f3','f99','saved-7'],eligibleDimensions:30,unavailableDimensions:0,unavailableFilms:0})),maintainMovies:vi.fn(),enrichMetadataSelected:vi.fn(),audit:vi.fn(),deleteSession:vi.fn(),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn(),saveBuilder:vi.fn(),publishBuilder:vi.fn()},
+  api:{maintenanceCoverage:vi.fn(),maintenanceProvider:vi.fn(),metricsEnrichment:vi.fn(async()=>({movies:{}})),swapRotation:vi.fn(),scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:['f1','f2','f3','f99','saved-7'],eligibleDimensions:30,unavailableDimensions:0,unavailableFilms:0})),maintainMovies:vi.fn(),enrichMetadataSelected:vi.fn(),audit:vi.fn(),deleteSession:vi.fn(),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),search:vi.fn(),preview:vi.fn(),detail:vi.fn(),seen:vi.fn(),importMovie:vi.fn(),saveSession:vi.fn(),builders:vi.fn(),saveBuilder:vi.fn(),publishBuilder:vi.fn()},
   ApiClientError:class extends Error {},hasSession:() => true,setUnauthorizedHandler:vi.fn(),setDevMember:vi.fn(),clearSession:vi.fn(),storeSession:vi.fn(),
 }));
 export const movies: Movie[] = Array.from({length:8},(_,i) => ({id:`saved-${i}`,title:`Film ${i}`,year:1998,original_title:null,release_date:null,runtime:100,overview:'Overview',genres:[],assets:[],external_ids:i === 7 ? [{provider:'tmdb',external_id:'107'}] : [],scores:[],seen:[],classic:false,ranking:null}));
@@ -38,6 +38,9 @@ export const search = async () => {
 export const lineup = () => [...harness.container.querySelectorAll('.lineup-list .movie-title')].map(element => element.textContent);
 beforeEach(async () => {
   vi.resetAllMocks();
+  localStorage.clear();
+  vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],unavailable:{tmdb:null,omdb:null,mdblist:null},next:null});
+  vi.mocked(api.maintenanceProvider).mockImplementation(async(_intent,units)=>({results:units.map(u=>({movieId:u.movieId,provider:u.provider,status:'updated',message:'Saved'})),canonicalChanged:true,cacheChanged:false}));
   vi.mocked(api.metricsEnrichment).mockResolvedValue({movies:{}});
   vi.mocked(api.scoreMaintenanceStatus).mockResolvedValue({candidateIds:['f1','f2','f3','f99','saved-7'],eligibleDimensions:30,unavailableDimensions:0,unavailableFilms:0});
   Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});

@@ -10,7 +10,7 @@ export type Member = {movie_id:string;title:string;source_refs:string[]};
 export type Merge = {tmdb_id:string;members:Member[];kind:'existing'|'group';owner_confirmed?:true};
 type Value = string|number|null;
 export type Row = Record<string,Value>;
-export const relatedTables=['movie_score_checks','movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies',...providerEnrichmentTables] as const;
+export const relatedTables=['movie_maintenance_coverage','movie_maintenance_failures','movie_score_checks','movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies',...providerEnrichmentTables] as const;
 export const receiptTable='local_movie_merge_receipts';
 const quote=(s:string)=>'"'+s.replaceAll('"','""')+'"';
 const hash=(op:Merge)=>createHash('sha256').update(JSON.stringify({kind:op.kind,tmdb_id:op.tmdb_id,members:[...op.members].sort((a,b)=>a.movie_id.localeCompare(b.movie_id)).map(m=>({...m,source_refs:[...m.source_refs].sort()}))})).digest('hex');
@@ -169,6 +169,17 @@ export async function applyMerge(db:D1Database,plan:MergePlan,metadata?:Provider
         const fields=Object.keys(row);
         statements.push(db.prepare(`INSERT INTO ${table}(${fields.map(quote).join(',')}) VALUES(${fields.map(()=>'?').join(',')})`).bind(...fields.map(f=>f==='movie_id'?survivor:row[f])));
       }
+    }
+  }
+  // Identity-bound successful coverage follows compatible merged identities; latest domain wins.
+  for(const table of ['movie_maintenance_coverage','movie_maintenance_failures']) {
+    const rows=[...(snapshot[table] ?? [])].sort((a,b)=>String(b.checked_at ?? b.attempted_at).localeCompare(String(a.checked_at ?? a.attempted_at)) || Number(b.movie_id===survivor)-Number(a.movie_id===survivor));
+    const keys=new Set<string>();
+    for(const row of rows) {
+      if(table==='movie_maintenance_coverage' && !snapshot.movie_external_ids.some(i=>i.provider===row.identity_provider && i.external_id===row.external_id)) continue;
+      const key=String(row.provider)+':'+String(row.domain ?? row.operation);if(keys.has(key))continue;keys.add(key);
+      const fields=Object.keys(row),keyColumn=table==='movie_maintenance_coverage'?'domain':'operation';
+      statements.push(db.prepare(`INSERT INTO ${table}(${fields.map(quote).join(',')}) VALUES(${fields.map(()=>'?').join(',')}) ON CONFLICT(movie_id,provider,${keyColumn}) DO UPDATE SET ${fields.filter(f=>f!=='movie_id' && f!=='provider' && f!==keyColumn).map(f=>`${quote(f)}=excluded.${quote(f)}`).join(',')}`).bind(...fields.map(f=>f==='movie_id'?survivor:row[f])));
     }
   }
   for(const table of ['session_movies','builder_movies','movie_import_refs','source_scores','seen_import_observations'])update(table);

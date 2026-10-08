@@ -236,6 +236,10 @@ Migration `0014_session_movie_lookup.sql` only adds a reverse History covering i
 
 Where practical, migrations should be designed so future releases have a clear compatible sequence.
 
+## Unified Admin rollout
+
+Migration 0020 is additive and compatible with the previous Worker. A future authorised release requires a fresh verified backup, additive migration 0020, the Worker exposing maintenance-coverage/maintenance-provider, then the frontend last. Existing metadata/score/enrichment routes remain compatible; the new UI does not substitute an older general crawl if coverage or the coordinated route is absent. Older snapshot exports may omit the two new tables and leave local coverage empty. Migration 0019 retains its separate existing gate and is unchanged. This local implementation does not authorise production migration, provider verification, deployment, commit or push.
+
 ## Applying production migrations
 
 After the fresh backup and compatibility gate are complete, apply the tracked pending migrations to the exact production database:
