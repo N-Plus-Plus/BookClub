@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { rankMovie } from '../../shared/ranking.ts';
 import type { Score, SeenAnswer, Member } from '../../shared/types.ts';
 
-import { configSchema, type ImportConfig } from './config.ts';
+import { configSchema } from './config.ts';
 export { configSchema, type ImportConfig } from './config.ts';
 export type Diagnostic = {code: string; severity: 'info'|'warning'|'review'|'blocker'; sheet: string; row?: number; column?: number; detail: string};
 type Film = {id: string; title: string; year: number | null; external_ids: {provider: string; external_id: string}[]; source_refs: string[]; provisional: boolean};
@@ -157,7 +157,7 @@ export function analyseWorkbook(workbook: ExcelJS.Workbook, rawConfig: unknown) 
   const expectedWatch = [] as string[];
   // Find title column by header, avoiding cached scores/rank columns.
   let watchTitleColumn = /^#?1$/.test(text(cellValue(watch.getCell(1,1))).trim()) && watch.columnCount >= 2 ? 2 : 1;
-  let watchStartRow = watchTitleColumn === 2 ? 1 : 2;
+  const watchStartRow = watchTitleColumn === 2 ? 1 : 2;
   for (let col=1;col<=watch.columnCount;col++) if (/^(title|film|movie)$/i.test(text(cellValue(watch.getCell(1,col))).trim())) watchTitleColumn = col;
   for (let row=watchStartRow;row<=watch.rowCount && expectedWatch.length<20;row++) {
     hasCached(watch,row,watchTitleColumn); const title = text(cellValue(watch.getCell(row,watchTitleColumn))).trim(); if (title) expectedWatch.push(title);

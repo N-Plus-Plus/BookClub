@@ -13,6 +13,6 @@ export default defineConfig(({ command, isPreview, mode }) => {
   publicDir: 'generated/public',
   server: { host: '127.0.0.1', port: 4173, strictPort: true, proxy: mode === 'import-preview' ? undefined : { '/__dev': {target: 'http://127.0.0.1:8790', changeOrigin: false} } },
   build: { outDir: 'dist' },
-  test: { include: ['tests/**/*.test.ts'] },
+  test: { include: ['tests/**/*.test.ts'], maxWorkers: 4 },
 });
 });

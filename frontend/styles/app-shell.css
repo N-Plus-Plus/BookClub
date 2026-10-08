@@ -1,0 +1,84 @@
+/* app-shell: base rules and responsive refinements in their original relative order. */
+.bookclub-shell { max-width: var(--content-wide); margin: 0 auto; padding: max(var(--space-20), env(safe-area-inset-top)) var(--space-18) calc(105px + env(safe-area-inset-bottom)); }
+.site-header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-12); padding-bottom: 26px; border-bottom: 1px solid var(--asphalt-dark); }
+.brand { display: flex; gap: var(--space-10); align-items: center; text-decoration: none; font-size: 1.35rem; font-weight: 700; min-height: var(--target-min); }
+.brand-icon { width: 30px; height: 30px; object-fit: contain; }
+.destination-icon { width: 22px; height: 22px; object-fit: contain; flex: 0 0 auto; }
+.page-heading h1 { display: flex; align-items: center; gap: var(--space-8); }
+.page-heading h1 .destination-icon { width: 1em; height: 1em; }
+.brand small { display: block; font-size: .52rem; letter-spacing: .12em; color: var(--text-muted); }
+.header-tag { font-size: .62rem; letter-spacing: .08em; color: var(--text-muted); text-align: right; }
+.page-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); padding: 28px 0 var(--space-22); }
+.app-layout { position: relative; }
+.page-title-region { min-width: 0; }
+.demo-label { position: absolute; top: .5rem; left: .5rem; z-index: 30; pointer-events: none; display: flex; gap: var(--space-4); align-items: center; font-size: var(--text-eyebrow); line-height: 1; color: var(--straw); margin: 0; white-space: nowrap; }
+.demo-label svg { flex-shrink: 0; }
+.data-sources { border-top: 0; margin-top: 42px; padding-top: var(--space-22); display: grid; gap: var(--space-12); color: var(--text-muted); font-size: calc(var(--text-helper) * .5); max-width: var(--footer-line-width); }
+.data-sources summary { font-size: calc(var(--text-metadata) * .5); }
+.data-sources summary svg { width: 9px; height: 9px; }
+.data-sources h2 { display: flex; align-items: center; gap: var(--space-8); font-size: var(--text-body); }
+.data-sources details[open] > summary { border-bottom: 0; margin-bottom: var(--space-4); }
+.data-sources-content { margin: 0; line-height: 1.4; }
+.data-sources a { display: inline; }
+.data-sources .tmdb-logo { display: inline-block; vertical-align: middle; }
+.tmdb-logo { width: 100px; height: auto; }
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface-base); border-top: 1px solid var(--asphalt); display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); padding: var(--space-8) var(--space-6) calc(var(--space-8) + env(safe-area-inset-bottom)); z-index: 100; }
+.bottom-nav a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-5); padding: var(--space-7) 2px; min-height: 50px; color: var(--text-muted); font-size: .62rem; text-decoration: none; border-radius: var(--radius-container); }
+.bottom-nav a[aria-current=page] { background: var(--surface-active); color: var(--paper); }
+@media (min-width: 720px) {
+  .bookclub-shell { padding-left: var(--space-32); padding-right: var(--space-32); }
+  .bottom-nav { left: 50%; transform: translateX(-50%); max-width: var(--navigation-width); border: 1px solid var(--asphalt); border-bottom: 0; border-radius: var(--radius-container) var(--radius-container) 0 0; }
+}
+
+.sign-in { max-width: var(--content-narrow); margin: 48px auto; }
+.sign-in .card { padding: var(--space-24); }
+.google-sign-in { min-height: var(--target-min); width: 100%; max-width: 100%; background: transparent; border: 0; padding: 0; }
+.account-menu { position: relative; }
+.account-menu-trigger { display: flex; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; border-radius: var(--radius-container); }
+.account-menu-trigger:focus-visible,.navigation-fav:focus-visible { outline: 2px solid var(--focus-outline); outline-offset: 3px; }
+.account-menu-dropdown { left: auto; right: 0; width: max-content; min-width: 120px; background: var(--surface-raised); }
+.account-menu-dropdown .select__option { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-min); font-size: var(--text-body); text-decoration: none; }
+.avatar-onboarding { max-width: var(--content-onboarding); padding-bottom: var(--space-32); }
+.avatar-carousel { --avatar-choice-size: calc(var(--avatar-size) * 3); display: flex; gap: var(--space-16); overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; overscroll-behavior-x: contain; padding-block: var(--space-12); scrollbar-width: none; }
+.avatar-carousel::-webkit-scrollbar { display: none; }
+@media (min-width: 720px) {
+  .avatar-carousel { scrollbar-width: thin; scrollbar-color: var(--asphalt) transparent; }
+  .avatar-carousel::-webkit-scrollbar { display: block; height: var(--space-4); }
+  .avatar-carousel::-webkit-scrollbar-thumb { background: var(--asphalt); }
+  .avatar-carousel::-webkit-scrollbar-track { background: transparent; }
+}
+.avatar-carousel::before,.avatar-carousel::after { content: ''; flex: 0 0 max(0px,calc(50% - var(--avatar-choice-size) / 2 - var(--space-16))); }
+.avatar-carousel .avatar-choice { flex: 0 0 var(--avatar-choice-size); scroll-snap-align: center; opacity: .65; transform: scale(.94); transition: opacity 180ms ease,transform 180ms ease; }
+.avatar-carousel .avatar-choice[aria-pressed=true] { opacity: 1; transform: scale(1); }
+@media (prefers-reduced-motion: reduce) { .avatar-carousel { scroll-behavior: auto; } .avatar-carousel .avatar-choice { transition: none; } }
+.avatar-choice { position: relative; padding: 0; min-width: var(--target-min); min-height: var(--target-min); border: 2px solid var(--asphalt); border-radius: var(--radius-container); overflow: hidden; background: var(--surface-base); cursor: pointer; }
+.avatar-choice img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.avatar-choice[aria-pressed=true] { border-color: var(--paper); outline: 2px solid var(--focus-outline); }
+.avatar-choice svg { position: absolute; bottom: 4px; right: 4px; background: var(--surface-base); border-radius: 50%; }
+.avatar-choice:focus-visible { outline: 3px solid var(--focus-outline); outline-offset: 3px; }
+.sign-in .card { border: 2px solid var(--border-primary); }
+.desktop-navigation { display: none; }
+@media (min-width: 720px) {
+  .app-layout { --drawer-width: 208px; padding-left: var(--drawer-width); }
+  .app-layout.navigation-collapsed { --drawer-width: 72px; }
+  .desktop-navigation { display: flex; flex-direction: column; position: fixed; inset: 0 auto 0 0; width: var(--drawer-width); padding: var(--space-12); background: var(--surface-base); border-right: 1px solid var(--asphalt-dark); z-index: 100; }
+  .navigation-toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-24); }
+  .desktop-navigation .destination-icon { width: 33px; height: 33px; }
+  .navigation-collapsed .desktop-navigation nav a { justify-content: center; padding-inline: 0; }
+  .desktop-navigation nav { display: grid; gap: var(--space-8); }
+  .desktop-navigation nav a { position: relative; display: flex; align-items: center; gap: var(--space-12); min-height: 48px; padding: var(--space-12); text-decoration: none; color: var(--text-secondary); border-radius: var(--radius-container); }
+  .desktop-navigation a[aria-current="page"] { background: var(--surface-active); color: var(--paper); }
+  .desktop-navigation a[aria-current="page"]::before { content: ''; position: absolute; left: calc(-1 * var(--space-8)); top: var(--space-8); bottom: var(--space-8); width: 3px; background: var(--focus-outline); }
+  .navigation-collapsed .navigation-label { display: none; }
+  .navigation-tooltip { display: none; }
+  .navigation-collapsed a:hover .navigation-tooltip,.navigation-collapsed a:focus-visible .navigation-tooltip { display: block; position: absolute; left: 100%; padding: var(--space-12); background: var(--surface-raised); color: var(--paper); white-space: nowrap; }
+  .bottom-nav { display: none; }
+  .bookclub-shell { padding-bottom: var(--space-32); padding-inline: var(--space-24); }
+}
+.page-heading-actions { flex: 0 0 auto; display: flex; justify-content: flex-end; }
+.page-heading-actions .button { width: fit-content; flex: 0 0 auto; white-space: nowrap; }
+
+.local-sign-in { width: 100%; }
+.viewer-controls { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-8); min-width: 0; }
+.viewer-controls .meta { text-align: right; }
+.viewer-controls { align-items: flex-end; }

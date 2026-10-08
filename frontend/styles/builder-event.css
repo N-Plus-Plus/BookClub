@@ -1,0 +1,55 @@
+/* builder-event: base rules and responsive refinements in their original relative order. */
+.event-grid { display: grid; gap: var(--space-20); align-items: start; }
+.lineup-list { padding: 0; list-style: none; display: grid; gap: var(--space-14); margin: var(--space-18) 0 0; }
+.host-options { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.host-option { display: flex; align-items: center; gap: var(--space-7); min-height: var(--target-min); padding: var(--space-8); border: 1px solid var(--asphalt); border-radius: var(--radius-container); font-size: var(--text-compact); cursor: pointer; }
+.host-option input { accent-color: var(--concrete); }
+.two-fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); }
+.search-row { display: flex; align-items: center; gap: var(--space-10); padding-bottom: var(--space-12); border-bottom: 1px solid var(--asphalt-dark); }
+.search-row .movie-row { width: 100%; min-width: 0; }
+.manual-form { padding-top: var(--space-8); }
+.lineup-list li { display: grid; gap: var(--space-8); padding-bottom: var(--space-16); border-bottom: 1px solid var(--asphalt-dark); }
+.lineup-list .button-set { justify-content: flex-end; }
+@media (min-width: 720px) {
+  .event-grid { grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); }
+  .event-lineup { position: sticky; top: 24px; }
+}
+.builder-set-picker { width: min(var(--content-onboarding),calc(100% - var(--space-32))); max-height: calc(100dvh - var(--space-32)); margin: auto; padding: var(--space-24); overflow-y: auto; background: var(--surface-base); color: var(--text-primary); border: 1px solid var(--asphalt); border-radius: var(--radius-container); }
+.builder-set-picker::backdrop { background: rgb(0 0 0 / .7); }
+.builder-set-choices { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-20); }
+.builder-set-choices > li { border-bottom: 1px solid var(--asphalt-dark); padding-bottom: var(--space-20); }
+.builder-set-choices h3 { margin: 0; font-size: var(--text-item-title); }
+.builder-set-choices ol { margin: 0; padding-left: var(--space-24); font-size: var(--text-body); }
+.builder-set-choices .button { justify-self: start; }
+.builder-workflow,.event-workflow { max-width: var(--content-onboarding); margin-inline: auto; }
+.builder-workflow > .button-set .button[data-variant="danger"] { margin-left: auto; }
+
+.builder-delete { border-top: 1px solid var(--asphalt-dark); padding-top: var(--space-16); }
+
+.builder-turn-warning { color: var(--pumpkin-dark); }
+.builder-poster-strip { display: flex; flex-wrap: wrap; justify-content: space-evenly; gap: var(--space-8); min-width: 0; }
+.builder-poster-film { width: 126px; max-width: 100%; min-width: 0; display: grid; gap: var(--space-4); }
+.builder-poster-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: var(--text-metadata); color: var(--text-primary); font-weight: 500; }
+.builder-poster-strip .poster { width: 126px; max-width: 100%; flex-shrink: 0; height: auto; aspect-ratio: 2/3; }
+.builder-lineup li { grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: var(--space-8); }
+.builder-lineup-identity { display: flex; align-items: center; gap: var(--space-8); min-width: 0; }
+.builder-lineup-identity .position { flex: 0 0 2ch; color: var(--text-primary); font-weight: 600; font-size: 1.12rem; }
+.builder-lineup .movie-row { flex: 1; min-width: 0; }
+.builder-lineup .movie-title { overflow-wrap: anywhere; }
+.builder-lineup .button-set { flex-wrap: nowrap; gap: var(--space-4); }
+@media (max-width: 480px) {
+  .builder-lineup .button-set { flex-direction: column; }
+  .builder-lineup .movie-title { font-size: calc(var(--text-movie-title) * .75); }
+  .builder-lineup .poster { width: 40px; height: 60px; }
+}
+
+.builder-editor-actions { flex-wrap: nowrap; gap: var(--space-8); }
+.builder-editor-actions .button { flex: 0 0 auto; width: auto; white-space: nowrap; }
+.builder-editor-actions .button:first-child { margin-right: auto; }
+@media (max-width: 389px) {
+  .builder-editor-actions .button { padding-inline: var(--space-8); gap: var(--space-4); font-size: var(--text-compact); }
+  .builder-editor-actions .button svg { width: 16px; height: 16px; }
+}
+
+.button.builder-result-add { background: var(--emerald); color: #000; border-color: var(--emerald); }
+.button.builder-result-add:hover:not(:disabled) { background: var(--emerald-dark); border-color: var(--emerald-dark); }

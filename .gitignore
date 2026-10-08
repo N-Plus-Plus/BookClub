@@ -10,6 +10,7 @@ worker/.dev.vars*
 !worker/.dev.vars.example
 coverage/
 *.log
+# Transient operation reports, discovery outputs, snapshots and browser evidence.
 .verification/
 OWNER_INFO.md
 scripts/auth/*.local.sql

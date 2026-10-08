@@ -267,7 +267,7 @@ it('keeps ten IMDb films in one MDBList provider request without catalogue reads
 
 it('persists conclusive absence, skips Populate, and reconsiders it on Refresh without changing ranking inputs',async()=>{
  const film=await add('tt0000901');env.TMDB_READ_TOKEN=undefined;
- const fetch=vi.fn(async(url:string,init:RequestInit)=>url.includes('mdblist') ? Response.json([{ids:{imdb:'tt0000901'},ratings:[]}]) : Response.json({Response:'True',Ratings:[]}));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn(async(url:string)=>url.includes('mdblist') ? Response.json([{ids:{imdb:'tt0000901'},ratings:[]}]) : Response.json({Response:'True',Ratings:[]}));vi.stubGlobal('fetch',fetch);
  const repo=new Repository(local.db);
  expect((await repo.scoreMaintenanceStatus()).candidateIds).toContain(film);
  await data(await call('missing',[film]));

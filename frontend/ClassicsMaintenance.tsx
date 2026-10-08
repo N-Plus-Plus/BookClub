@@ -20,7 +20,7 @@ export function ClassicsMaintenance({catalog,writesEnabled,onMovie,onUpdated}: {
   const [runMode,setRunMode] = useState<MaintenanceMode | null>(null);
   const checkpointChanged = (value: OmdbCheckpoint | null) => { saveOmdbCheckpoint(value); setCheckpoint(value); };
   const [status,setStatus] = useState<ScoreMaintenanceStatus | null>(null);
-  useEffect(() => { let mounted = true; api.scoreMaintenanceStatus().then(value => { if (mounted) setStatus(value); }).catch(e => { if (mounted) setError(e instanceof Error ? e.message : 'Could not load score check status.'); }); return () => { mounted = false; }; },[]);
+  useEffect(() => { let mounted = true; api.scoreMaintenanceStatus().then(value => { if (mounted) setStatus(value); }).catch(e => { if (mounted) setError(e instanceof Error ? e.message : 'Could not load score check status.'); }); return () => { mounted = false; }; },[setError]);
   const movies = maintenanceMovies(catalog);
   const resumable = checkpoint ? reconcileOmdbCheckpoint(checkpoint,catalog) : null;
   const start = (operation: MaintenanceMode) => job.execute(async () => {

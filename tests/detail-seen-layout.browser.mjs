@@ -23,11 +23,13 @@ try {
     import { rankMovie } from '/shared/ranking.ts';
     const members = ['Sean','Troy','Matt','Jess'].map((display_name,i) => ({id:'m'+i,display_name,sort_order:i,active:1,avatar:i+1}));
     const root = createRoot(document.getElementById('root'));
+    const movies = new Map();
+    api.detail = async id => movies.get(id);
     window.renderPopulation = left => {
       const movie = {id:'layout-'+left,title:'Film Detail layout fixture',original_title:null,year:1982,runtime:93,release_date:null,director:'Fixture director',genres:['Drama'],overview:'Synthetic Film Detail content for responsive Seen-state verification.',assets:[],external_ids:[],classic:true,scores:[],ranking:null,appearances:[],seen:members.map((m,i) => ({member_id:m.id,seen:i < left ? 0 : 1,updated_at:''}))};
       movie.ranking = rankMovie(movie.scores,movie.seen,members);
-      api.detail = async () => movie;
-      root.render(React.createElement('main',{className:'bookclub-shell'},React.createElement(DetailScreen,{key:movie.id,id:movie.id,members})));
+      movies.set(movie.id,movie);
+      root.render(React.createElement('main',{className:'bookclub-shell','data-population':left},React.createElement(DetailScreen,{key:movie.id,id:movie.id,members})));
     };
     window.renderPopulation(0);
   ` }));
@@ -39,7 +41,7 @@ try {
     await page.setViewportSize({width,height:900});
     for (const left of [0,1,2,3,4]) {
       await page.evaluate(left => window.renderPopulation(left),left);
-      await page.waitForFunction(left => document.querySelectorAll('.detail-seen-column')[0]?.querySelectorAll('.club-identity').length === left,left);
+      await page.waitForFunction(left => document.querySelector('main')?.dataset.population === String(left) && document.querySelectorAll('.detail-seen-column')[0]?.querySelectorAll('.club-identity').length === left,left);
       await page.evaluate(() => document.fonts.ready);
       const geometry = await page.evaluate(() => {
         const rect = el => {const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width};};

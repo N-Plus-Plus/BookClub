@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
+import { applicationCss } from './helpers/application-css';
 import { act, createElement, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { readFileSync } from 'node:fs';
+
+
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { rankMovie } from '../shared/ranking';
 import { SeenScreen } from '../frontend/SeenScreen';
@@ -109,7 +110,7 @@ it('clamps the plot to three fixed lines and toggles More/Less outside the film 
  await act(async()=>refreshCatalog({...catalog,movies:films.map(f=>({...f,overview}))}));
  const summary=()=>container.querySelector('.seen-plot-summary')!;
  expect(summary().textContent).toBe(overview);expect(summary().classList.contains('seen-plot-collapsed')).toBe(true);
- const css=readFileSync('frontend/app.css','utf8');
+ const css=applicationCss();
  const rules=css.match(/\.seen-plot-collapsed\s*\{([^}]+)\}/)![1];
  expect(rules).toMatch(/-webkit-line-clamp:\s*3/);expect(rules).toMatch(/height:\s*4\.8em/);expect(rules).toMatch(/overflow:\s*hidden/);
  const toggle=()=>container.querySelector<HTMLButtonElement>('.seen-plot-toggle')!;

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { readFileSync } from 'node:fs';
+import { applicationCss } from './helpers/application-css';
+
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -179,7 +180,7 @@ it.each([false,true])('keeps History action order with audit=%s followed by iden
 
 it('applies a single row of full-width controls beside a flexible History text column',()=>{
   const stylesheet=document.createElement('style');
-  stylesheet.textContent=readFileSync('frontend/app.css','utf8');
+  stylesheet.textContent=applicationCss();
   const element=document.createElement('div');
   const buttons=['Edit event','Audit event','Delete event'].map(label=>createElement('button',{key:label,'aria-label':label,className:'button button--icon'}));
   element.innerHTML=renderToStaticMarkup(createElement(SessionCard,{variant:'history',session,members,actions:buttons}));
@@ -197,7 +198,7 @@ it('applies a single row of full-width controls beside a flexible History text c
 });
 
 it('keeps the Google render target transparent without changing its sizing',()=>{
- const style=document.createElement('style');style.textContent=readFileSync('frontend/app.css','utf8');document.head.appendChild(style);
+ const style=document.createElement('style');style.textContent=applicationCss();document.head.appendChild(style);
  const wrapper=document.createElement('div');wrapper.className='google-sign-in';
  const injected=document.createElement('iframe');injected.style.width='320px';wrapper.appendChild(injected);document.body.appendChild(wrapper);
  try {

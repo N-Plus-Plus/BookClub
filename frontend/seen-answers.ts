@@ -27,7 +27,16 @@ export function useSeenAnswers(viewerId: string, setCatalog: Dispatch<SetStateAc
   const saveRef = useRef(save); saveRef.current = save;
   const key = (task: SeenSave) => `${task.movieId}:${task.memberId}`;
   const publish = () => { if (mounted.current) setSaves([...latest.current.values()].map(task => ({...task}))); };
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; generation.current++; queue.current = []; latest.current.clear(); catalogReads.current.clear(); }; },[]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      // These are queue/epoch refs, not DOM refs. Cleanup must clear the latest
+      // identity's state and invalidate every pending request at unmount.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      generation.current++; queue.current = []; latest.current.clear(); catalogReads.current.clear();
+    };
+  },[]);
   useEffect(() => {
     if (identity.current === viewerId) return;
     identity.current = viewerId; generation.current++; queue.current = []; latest.current.clear(); catalogReads.current.clear(); publish();

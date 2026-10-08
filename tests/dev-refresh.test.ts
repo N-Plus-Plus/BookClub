@@ -1,3 +1,4 @@
+import { applicationCss } from './helpers/application-css';
 import { describe,it,expect } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -144,7 +145,7 @@ describe('production to local refresh safety',() => {
     expect(app).toContain('onChanged={load}');
     expect(app).toContain('demo={Boolean(health?.demo)} localDevelopment={localDevelopment}');
     expect(readFileSync('frontend/AppShell.tsx','utf8')).toContain('localDevelopment && demo');
-    const css = readFileSync('frontend/app.css','utf8');
+    const css = applicationCss();
     expect(css).toContain('.app-layout { position: relative;');
     expect(css).toMatch(/\.demo-label \{ position: absolute;[^}]*top: \.5rem;[^}]*left: \.5rem;[^}]*color: var\(--straw\);[^}]*margin: 0;/);
     expect(css).toContain('--straw: var(--sunflower)');

@@ -29,6 +29,7 @@ Open **http://localhost:4173/#/home**. The API is **http://localhost:8787/api/v1
 | Production build preview | `corepack pnpm preview` at localhost:4173/ (stop development first) |
 | Targeted tests | `corepack pnpm exec vitest run tests/ranking.test.ts` |
 | Full tests / types | `corepack pnpm test` / `corepack pnpm typecheck` |
+| Correctness lint | `corepack pnpm lint` |
 | Static production preflight | `corepack pnpm prod:check` |
 | Explicit production-to-local snapshot | `corepack pnpm db:refresh-from-prod` (operator credentials, Node 24, stopped local API) |
 
@@ -47,6 +48,8 @@ For explicit local TMDB identity pairing maintenance, stop the local API and run
 ## Deployment
 
 Cloudflare Workers Static Assets hosts the root `/` build at `bookclub.nissen.nexus` using `wrangler.frontend.jsonc`. GitHub remains the canonical source; pushing main deploys nothing. The existing GitHub Pages site may remain temporarily as rollback, but repository publication to Pages is retired. The API is [bookclub-api](https://bookclub-api.troy-nissen.workers.dev), deployed independently. Releases follow [DEPLOYMENT](docs/DEPLOYMENT.md); completing development work does not authorise publication.
+
+Pull requests and pushes to main run the local/static quality gate described in [TESTING](docs/TESTING.md). CI uses fictional build configuration and does not publish or access production. Temporary discovery reports, snapshots and verification evidence belong in ignored `.verification/`.
 
 ## Current limits
 

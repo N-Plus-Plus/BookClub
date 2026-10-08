@@ -12,7 +12,7 @@ import { effectiveScoreSql } from '../worker/src/score-sql';
 import type { SQLInputValue } from 'node:sqlite';
 import worker from '../worker/src/index';
 import type { Env } from '../worker/src/http';
-import type { Movie, Score, Session } from '../shared/types';
+import type { Movie, Score } from '../shared/types';
 let local:ReturnType<typeof disposableD1>,repo:Repository,env:Env;
 beforeEach(() => {
   local=disposableD1(); local.sqlite.exec(readFileSync('worker/seed.sql','utf8')); repo=new Repository(local.db);

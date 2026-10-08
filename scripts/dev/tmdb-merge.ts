@@ -28,11 +28,11 @@ export async function discoverRelationships(db:D1Database) {
   const tables=(await db.prepare("SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all<{name:string;sql:string}>()).results;
   for(const {name,sql} of tables){
     const columns=sql.slice(sql.indexOf('(')+1).split(',');
-    for(const column of columns.filter(c=>/\bREFERENCES\s+["`\[]?movies\b/i.test(c))){
-      const from=column.trim().match(/^["`\[]?([A-Za-z_]\w*)/i)?.[1];
+    for(const column of columns.filter(c=>/\bREFERENCES\s+["`[]?movies\b/i.test(c))){
+      const from=column.trim().match(/^["`[]?([A-Za-z_]\w*)/i)?.[1];
       if(!((relatedTables as readonly string[]).includes(name)&&from==='movie_id')&&!(name===receiptTable&&from==='survivor_movie_id'))throw Error(`Unsupported movie relationship: ${name}.${from??'unknown'}.`);
     }
-    if(columns.some(c=>/^\s*["`\[]?movie_id\b/i.test(c))&&!(relatedTables as readonly string[]).includes(name))throw Error(`Unsupported movie relationship: ${name}.`);
+    if(columns.some(c=>/^\s*["`[]?movie_id\b/i.test(c))&&!(relatedTables as readonly string[]).includes(name))throw Error(`Unsupported movie relationship: ${name}.`);
   }
 }
 export async function rowsFor(db:D1Database,table:string,ids:string[]) {

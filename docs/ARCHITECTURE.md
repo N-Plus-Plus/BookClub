@@ -35,7 +35,7 @@ Only include API sections when APIs actually exist.
 
 - **GitHub repository:** https://github.com/N-Plus-Plus/BookClub
 - **Branch:** `main`; application root is the repository root.
-- **Package manifest:** `package.json`; pinned resolution `pnpm-lock.yaml`. `pnpm-workspace.yaml` permits esbuild/workerd installation scripts.
+- **Package manifest:** `package.json`; pinned resolution `pnpm-lock.yaml`. `pnpm-workspace.yaml` permits esbuild/workerd installation scripts and includes the private `tooling/lint` workspace. typescript-eslint uses that workspace's TypeScript 6 JavaScript compiler API; application type checking retains native TypeScript 7.
 
 ## Hosting and runtime topology
 
@@ -64,6 +64,23 @@ The independently deployed Worker keeps request/security policy in `worker/src/i
 
 Normal development prepares local D1, then runs Vite and a Node supervisor that starts/stops local Wrangler. Vite proxies `/__dev/refresh` to loopback 8790. `frontend/DevTools.tsx`, rendered only on local Admin (never import-preview), and the supervisor support an explicitly confirmed one-way production snapshot replacement; neither is present in production. Member switching and completed local replacement use the full auth-aware bootstrap reload. Development fixes its API to localhost even if root env files specify production.
 
+## Stylesheet ownership
+
+`frontend/main.tsx` loads font faces, canonical `style.css`, then `frontend/app.css`. The root file remains the shared design system: palette, typography foundations, document rules, generic controls/surfaces, utilities and intent styling. The application entry imports these files in an explicit order:
+
+| Order / file under `frontend/styles/` | Responsibility |
+| --- | --- |
+| 1. `shared-content.css` | Application spacing/type tokens, shared film/source-score presentations, forms/actions, surface foundations, loading/error/disclosure primitives |
+| 2. `app-shell.css` | Header/account, page headings, attribution, navigation/drawer, sign-in and avatar onboarding |
+| 3. `home-history.css` | Home summaries/current turn, History archive/cards/audit |
+| 4. `builder-event.css` | Private sets, ordered lineup/editor, Event/search and set-selection dialog |
+| 5. `classics-seen.css` | Classics ranking/filter/counts and personal Seen queue/answers |
+| 6. `detail.css` | Saved Detail/Preview identity, Seen summary and score breakdown |
+| 7. `metrics.css` | Tables, category tabs, analytical charts/profiles/result lists |
+| 8. `admin.css` | Maintenance progress/controls and developer disclosure |
+
+Responsive rules stay beside their owning base rules in their original relative order. Shared surface foundations precede feature refinements, preserving the effective global cascade; no CSS Modules or new styling runtime is involved. `tests/helpers/application-css.ts` expands this same import order for jsdom/source checks. Synthetic browser regression and optional baseline computed-style comparison are described in [TESTING](TESTING.md).
+
 ## Local artwork generation
 
 High-resolution canonical PNGs live in tracked `assets/source/{avatars,buttons,newFav}/`; their bytes remain unchanged. `scripts/assets/manifest.mjs` declares all 20 member choices, Classics avatar, nine navigation/heading images, brand and dedicated favicon. `public/` holds small hand-maintained static files (TMDB SVG). Vite serves/copies only ignored `generated/public/`; source originals never enter `dist/`.
@@ -79,7 +96,7 @@ Normal `dev` delegates preparation once to `dev:ui`; `dev:ui`, `dev:import-previ
 | Area | Owner | Coupling / purpose |
 | --- | --- | --- |
 | Browser API | `frontend/api.ts`, `shared/types.ts` | Sole ordinary browser API client and shared request/response types |
-| UI system | `style.css`, `frontend/app.css`, `frontend/components.tsx`, `frontend/ClubIdentity.tsx` | Preserve root tokens/primitives; extensions use app.css. Lucide and bundled Lexend Deca; no CSS framework. [STYLE](../STYLE.md) owns design decisions. |
+| UI system | `style.css`, `frontend/app.css`, `frontend/styles/`, `frontend/components.tsx`, `frontend/ClubIdentity.tsx` | Preserve root tokens/primitives; app.css explicitly orders owned global styles. Lucide and bundled Lexend Deca; no CSS framework. [STYLE](../STYLE.md) owns design decisions. |
 | Domain | `shared/ranking.ts`, `rating-dimensions.ts`, `catalog-index.ts`, `metrics.ts`, `metrics-enrichment/`, `genres.ts`, `identity.ts`, `metadata.ts`, `artwork.ts` | Ranking policy, canonical rating presentation, snapshot lookups, pure reports, finite genres, identity, maintenance eligibility and poster sizing |
 | Worker boundary | `worker/src/index.ts`, `routes/`, `validation.ts`, `http.ts`, `auth.ts`, `auth-repository.ts` | Central authentication/mutation guard, safe errors, exact CORS and security headers; explicit route-family execution |
 | Persistence/product | `worker/src/repository.ts`, `catalog-repository.ts`, `movie-repository.ts`, `maintenance-repository.ts`, `enrichment-repository.ts`, `title-repository.ts`, `product-repository.ts`, `worker/migrations/` | Delegating compatibility facade; set-based reads; movie writes; maintenance-only selection/state; provider cache/title authority; transactional Builder/rotation/History; versioned schema |
@@ -101,7 +118,7 @@ Normal `dev` delegates preparation once to `dev:ui`; `dev:ui`, `dev:import-previ
 
 `Repository` remains a thin delegating surface for services and local tools. `CatalogRepository` owns catalogue/search/roster/cycle/session reads and selected-film details. `catalog-assembly.ts` retains set-based relationship grouping and shared ranking; transactional read batches and compact/full scope remain unchanged. `MovieRepository` owns identities, manual/imported persistence, scores, Seen, Classics and provider metadata/title/cache integration. `MaintenanceRepository` owns score checks/status, candidate SQL, selected metadata projections and cooldown state; its detail projection reuses CatalogRepository. ProductRepository avoids builder_movies writes when an accepted save retains the identical ordered lineup; changed lineups still replace atomically and every accepted save advances revision. Builder list reads use created_at ASC, id ASC. The UI retains that identical defensive sort because optimistic drafts and autosave callbacks append/merge local sets. Existing Product, Enrichment, Title, Auth and Metrics repositories retain their focused responsibilities.
 
-`movie-projections.ts` shares movie/metadata column vocabulary; `score-sql.ts` shares score columns and effective-selection policy. Query scope/order remain with the owning repository. `metadata-sql.ts` supplies maintenance eligibility SQL. One injected request-scoped `SchemaCapabilities` shares director/enrichment detection between the focused repositories, preserving older-schema behaviour without a cross-request cache.
+`movie-projections.ts` shares movie/metadata column vocabulary; `score-sql.ts` shares score columns and effective-selection policy. Query scope/order remain with the owning repository. `metadata-sql.ts` supplies maintenance eligibility SQL. One injected request-scoped `SchemaCapabilities` shares director/enrichment detection between the focused repositories, preserving older-schema behaviour without a cross-request cache. Current local and import-preview setup apply all migrations, but the supported release contract still includes the 0009 bridge and additive 0016/0017 transitions; [DEPLOYMENT](DEPLOYMENT.md#schema-and-worker-compatibility-gate) and [DATA](DATA.md) own those prerequisites. These probes cannot be retired while that contract remains supported. Dedicated operations report a schema-upgrade requirement before provider work; unsupported missing base schema fails SQL rather than producing a fabricated successful read.
 
 ### Metrics and shared presentation ownership
 

@@ -1,0 +1,9 @@
+/* admin: base rules and responsive refinements in their original relative order. */
+.score-maintenance-progress { appearance: none; border: 0; background: var(--asphalt-dark); accent-color: var(--pumpkin); }
+.score-maintenance-progress::-webkit-progress-bar { background: var(--asphalt-dark); }
+.score-maintenance-progress::-webkit-progress-value { background: var(--pumpkin); }
+.score-maintenance-progress::-moz-progress-bar { background: var(--pumpkin); }
+.enrichment-maintenance .button { white-space: normal; }
+.developer-tools { margin-bottom: var(--space-20); border: 0; font-size: var(--text-body-small); }
+.developer-tools[open] { padding: var(--space-16); background: var(--surface-raised); border: 1px solid var(--asphalt); }
+.developer-tools:not([open]) summary { color: var(--text-muted); }

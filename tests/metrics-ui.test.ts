@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
+import { applicationCss } from './helpers/application-css';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it,vi } from 'vitest';
-import { readFileSync } from 'node:fs';
+
 vi.mock('../frontend/api',() => ({api:{metricsEnrichment:vi.fn().mockResolvedValue({movies:{}})}}));
 import { MetricsScreen } from '../frontend/MetricsScreen';
 import type { Catalog, Movie } from '../shared/types';
@@ -11,7 +12,7 @@ const movie:Movie={id:'a',title:'A film with a long title for the Metrics list',
 const catalog:Catalog={members:[{id:'m',display_name:'Member',active:1,sort_order:1}],movies:[movie],cycles:[],sessions:[{id:'s',movies:[movie,movie],host_member_id:'m',cycle_slot:1,kind:'hosted',event_date:'2000-01-01',legacy_cycle_label:null,cycle_id:null,date_precision:'exact'}]};
 it('uses square popularity dividers and insets only the outer table columns',async()=>{
  Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
- const style=document.createElement('style');style.textContent=readFileSync('frontend/app.css','utf8');document.head.appendChild(style);
+ const style=document.createElement('style');style.textContent=applicationCss();document.head.appendChild(style);
  const container=document.createElement('div');document.body.appendChild(container);const root=createRoot(container);
  try {
   const scored={...movie,scores:movie.scores.map(s=>({...s,vote_count:100}))};

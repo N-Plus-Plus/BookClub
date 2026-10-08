@@ -8,6 +8,7 @@ import { ClubIdentity } from './ClubIdentity';
 import type { Member, Movie, Ranking, Score, Session } from '../shared/types';
 
 const ACTION_ICON_SIZE = 18;
+const dateFormatter = new Intl.DateTimeFormat('en-AU',{day: 'numeric',month: 'long',year: 'numeric'});
 
 export type ActionVariant = 'primary' | 'secondary' | 'tertiary' | 'danger';
 export function Action({ icon: Icon,children,intent,variant,className,...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon?: LucideIcon | string; intent?: string; variant?: ActionVariant }) {
@@ -42,7 +43,7 @@ export function MovieRow({movie,children}: {movie: Movie; children?: ReactNode})
   return <MovieLink movie={movie} className="movie-row"><Poster movie={movie} /><div className="movie-copy"><span className="movie-title">{movie.title}</span><p className="meta">{movie.year ?? 'Year unknown'}{movie.runtime ? ` · ${movie.runtime} min` : ''}</p>{children}</div></MovieLink>;
 }
 export function dateLabel(date: string) {
-  return new Intl.DateTimeFormat('en-AU',{day: 'numeric',month: 'long',year: 'numeric'}).format(new Date(`${date}T12:00:00`));
+  return dateFormatter.format(new Date(`${date}T12:00:00`));
 }
 export function eventDateLabel(event: Pick<Session,'event_date'|'date_precision'>) {
   if (event.date_precision === 'unknown') return 'Date unknown';

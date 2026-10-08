@@ -6,7 +6,7 @@ import { Action, RouteLink } from './components';
 import { ClubIdentity } from './ClubIdentity';
 import { BuilderSetPicker } from './BuilderSetPicker';
 
-export function RotationCard({catalog,rotation,viewer,onUpdated,onUseBuilder}: {catalog: Catalog; rotation: Rotation | null; viewer: Viewer | null; onUpdated: (rotation: Rotation | null) => void; onUseBuilder: (movieIds: string[]) => void}) {
+export function RotationCard({catalog,rotation,viewer,onUseBuilder}: {catalog: Catalog; rotation: Rotation | null; viewer: Viewer | null; onUpdated: (rotation: Rotation | null) => void; onUseBuilder: (movieIds: string[]) => void}) {
   const current = rotation ? effectiveMember(catalog.members,rotation) : undefined;
   const personal = current && viewer?.id === current.id;
   const [choosing,setChoosing] = useState(false);

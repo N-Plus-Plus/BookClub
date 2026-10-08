@@ -5,7 +5,8 @@ import { formatScore100 } from '../presentation';
 
 import type { CatalogMetricsProps, EnrichedReportProps } from './report-types';
 
-const money = (n: number | null) => n === null ? 'No reported data' : new Intl.NumberFormat('en-AU',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1}).format(n);
+const moneyFormatter = new Intl.NumberFormat('en-AU',{style:'currency',currency:'USD',notation:'compact',maximumFractionDigits:1});
+const money = (n: number | null) => n === null ? 'No reported data' : moneyFormatter.format(n);
 
 export function RatingsProfile({dashboard}: Pick<CatalogMetricsProps,'dashboard'>) {
   return <><div className="stack" data-metric="T"><section className="stack"><h3>Ratings Profile</h3><p className="meta">Mean /100 · genuine stored ratings · repeats count</p><div className="metrics-rating-profile">{dashboard.ratings.map(r => <div key={r.id} title={ratingDimension(r.provider,r.metric)?.profileName ?? r.name} aria-label={ratingDimension(r.provider,r.metric)?.profileName ?? r.name}><div className="stack"><div className="metrics-distribution-label"><span>{r.label}</span><strong>Mean {r.mean === null ? '—' : `${formatScore100(r.mean)} / 100`}</strong></div><RatingCircles mean={r.mean ?? 0} colour={r.colour} /><p className="meta">{r.median === null ? 'No scores' : `Median ${formatScore100(r.median)}`}</p></div></div>)}</div></section></div></>;

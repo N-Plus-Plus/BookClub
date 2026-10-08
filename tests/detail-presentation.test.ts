@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { readFileSync } from 'node:fs';
+import { applicationCss } from './helpers/application-css';
+
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -102,7 +103,7 @@ it('removes Detail utility sections while retaining appearances, History and pos
 });
 
 it('scopes responsive full-width overview and fit-content status to Detail and right-aligns Seen',()=>{
-  const css=readFileSync('frontend/app.css','utf8');
+  const css=applicationCss();
   expect(css).toContain('.detail-identity { display: grid; grid-template-columns: auto minmax(0,1fr); }');
   expect(css).toMatch(/\.detail-identity \.detail-overview \{ grid-column: 1 \/ -1;.*font-weight: 300;.*line-height: 1.6;/);
   expect(css).toMatch(/\.detail-classics-status \{ grid-column: 1 \/ -1; width: fit-content;/);

@@ -13,6 +13,8 @@ export function useBookClubData(localLogin:boolean) {
   const [health,setHealth] = useState<Health | null>(null);
   const [rotation,setRotation] = useState<Rotation | null>(null);
   const [viewer,setViewer] = useState<Viewer | null>(null);
+  // Identity changes intentionally replace the authenticated resource lifetime.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const metricsResource=useMemo(()=>new MetricsEnrichmentResource(),[viewer?.id]);
   const metricsResourceRef=useRef(metricsResource);metricsResourceRef.current=metricsResource;
   const seenAnswers = useSeenAnswers(viewer?.id ?? '',setCatalog,api.seen);

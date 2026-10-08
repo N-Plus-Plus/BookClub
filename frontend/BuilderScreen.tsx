@@ -1,7 +1,7 @@
 import type { JournalMutationReader } from './useBookClubData';
 import { catalogIndex } from '../shared/catalog-index';
-import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Film, CalendarCheck, Check, Plus, Save, Trash2 } from 'lucide-react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { ArrowLeft, Film, CalendarCheck, Check, Save, Trash2 } from 'lucide-react';
 import type { JournalMutationResult, BuilderSet, Catalog, FilmCandidate, Movie, Rotation, TmdbPreview, Viewer } from '../shared/types';
 import { effectiveMember } from '../shared/rotation';
 import { localToday } from '../shared/identity';
@@ -28,18 +28,22 @@ export function BuilderScreen({catalog,viewer,rotation,onMovie,onPublished,readJ
   };
   const changeFilms = (next: Movie[]) => { setFilms(next); if (queue.current) queue.current.current = {...queue.current.current,movie_ids:next.map(m => m.id)}; autosave(); };
   const consumedMovie = useRef<Movie | null>(null);
+  const acceptConfirmedMovie = useEffectEvent((movie: Movie) => {
+    const next = [...(queue.current?.current.movie_ids ?? []).map(id => catalogIndex(catalog).movieById.get(id)!).filter(Boolean),movie];
+    changeFilms(next); onConfirmedConsumed?.();
+  });
   useEffect(() => {
     if (!confirmedMovie) { consumedMovie.current = null; return; }
     if (consumedMovie.current !== confirmedMovie) {
       consumedMovie.current = confirmedMovie;
-      const next = [...(queue.current?.current.movie_ids ?? []).map(id => catalogIndex(catalog).movieById.get(id)!).filter(Boolean),confirmedMovie];
-      changeFilms(next); onConfirmedConsumed?.();
+      acceptConfirmedMovie(confirmedMovie);
     }
   },[confirmedMovie,onConfirmedConsumed]);
   const [deleting,setDeleting] = useState(false);
   const [publishing,setPublishing] = useState(false), [date,setDate] = useState(localToday()), [complete,setComplete] = useState(Boolean(rotation)), [cycle,setCycle] = useState(rotation?.cycle_id ?? ''), [slot,setSlot] = useState<number | null>(rotation?.nominal_slot ?? 1);
   const load = async () => { try { const loaded = await api.builders(); setSets(current => [...loaded.filter(set => !current.some(local => local.id === set.id)),...current]); } catch (e) { setError(e instanceof Error ? e.message : 'Could not load Builder.'); } finally { setLoading(false); } };
-  useEffect(() => { if (viewer) void load(); },[viewer?.id]);
+  const viewerId = viewer?.id;
+  useEffect(() => { if (viewerId) void load(); },[viewerId]);
   const open = (set?: BuilderSet) => {
     let draft = set ? queues.current.get(set.id) : undefined;
     if (!draft) {
@@ -57,7 +61,8 @@ export function BuilderScreen({catalog,viewer,rotation,onMovie,onPublished,readJ
     setPublishing(false); setDeleting(false); setError('');
   };
   const lastNewSetRequest = useRef(newSetRequest);
-  useEffect(() => { if (newSetRequest && newSetRequest !== lastNewSetRequest.current) { lastNewSetRequest.current = newSetRequest; open(); } },[newSetRequest]);
+  const openRequestedSet = useEffectEvent(() => open());
+  useEffect(() => { if (newSetRequest && newSetRequest !== lastNewSetRequest.current) { lastNewSetRequest.current = newSetRequest; openRequestedSet(); } },[newSetRequest]);
   useEffect(() => { onEditorChanged?.(Boolean(creating || editing)); },[creating,editing,onEditorChanged]);
   useEffect(() => () => onEditorChanged?.(false),[onEditorChanged]);
   if (!viewer) return <Empty title="Builder is personal">Anonymous local bypass has no signed-in owner. Use a member session to plan privately.</Empty>;

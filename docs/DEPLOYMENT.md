@@ -118,6 +118,8 @@ Before any full production release:
 5. Confirm operator Cloudflare and source-control authentication; inspect both Wrangler configurations.
 6. Run the final local release checks:
 
+   `corepack pnpm lint`
+
    `corepack pnpm test`
 
    `corepack pnpm typecheck`
@@ -136,6 +138,8 @@ Before any full production release:
 9. Resolve release-blocking failures before continuing.
 
 All checks run in the operator environment before publication; no push-triggered release automation is supported.
+
+`.github/workflows/quality.yml` automatically runs lint, type checking, tests, build and static production/frontend configuration checks on pull requests and pushes to main. It uses Node 24, Corepack and pinned pnpm, with fictional public frontend inputs, read-only repository permissions and no production secrets, provider credentials, database access or deployment step. Passing CI does not authorise publication.
 
 ## Commit and push
 
@@ -183,6 +187,8 @@ Do not hard-code an expected migration number in this document. Current source a
 Tracked migrations must remain contiguous and must be applied in their defined order.
 
 ## Schema and Worker compatibility gate
+
+Ordinary local startup and import-preview preparation apply all current migrations. Releases still support the explicit 0009 bridge and additive cache/title transitions below; this is a supported rolling-upgrade contract, not permission to omit migrations from a current local environment. Director/enrichment probes in `SchemaCapabilities`, rotation-column checks and title-authority checks remain necessary until that bridge contract is deliberately retired. Dedicated routes fail with the documented schema-upgrade error before provider calls when their required migration is missing. CI exercises migrated disposable databases and these supported bridge states; it does not verify the production ledger.
 
 Before changing production schema, inspect every pending migration together with:
 

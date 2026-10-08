@@ -1,7 +1,7 @@
 import { describe,expect,it } from 'vitest';
 import { comparisonScopes,emptyEnrichmentMovie,facts,filmEconomics,fingerprint,languageCategories,normaliseAu,australianClassification,positiveMoney,recurringTalent,stackedProfile,talent,tasteDiversity,themes,tiedExtreme,filmExtremes,talentRoles,type MetricsEnrichment,type MetricsEnrichmentMovie } from '../shared/metrics-enrichment';
 import { matchesMetricsFilter,selectedAppearances,type Appearance,type MetricsFilter } from '../shared/metrics';
-import { metricsEvent,metricsFilm,metricsFixture,observation } from './metrics-fixture';
+import { metricsEvent, metricsFilm, metricsFixture } from './metrics-fixture';
 import { metricsEnrichmentFixture } from './metrics-enrichment-fixture';
 const movie = (extra:Partial<MetricsEnrichmentMovie> = {}):MetricsEnrichmentMovie => ({...emptyEnrichmentMovie(),...extra});
 const film = metricsFilm('a'), other = metricsFilm('b'), missing = metricsFilm('c',{director:null});

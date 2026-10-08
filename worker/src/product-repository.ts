@@ -136,7 +136,8 @@ export class ProductRepository {
     }
     await this.validateMovies(input.movie_ids);
     if (!before && input.host_member_id && !await this.db.prepare('SELECT id FROM members WHERE id=? AND active=1').bind(input.host_member_id).first()) throw new ApiError(422,'INVALID_HOST','The event host is unavailable.');
-    let cycleId = input.cycle_id ?? null, slot = input.cycle_slot ?? null;
+    let cycleId = input.cycle_id ?? null;
+    const slot = input.cycle_slot ?? null;
     const kind = input.kind ?? 'hosted', precision = input.date_precision ?? 'exact';
     const statements: D1PreparedStatement[] = [];
     const affectedSessionDates: NonNullable<JournalMutationResult['affectedSessionDates']> = [];

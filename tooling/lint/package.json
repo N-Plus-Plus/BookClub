@@ -1,0 +1,9 @@
+{
+  "name": "@bookclub/lint",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1"
+  }
+}

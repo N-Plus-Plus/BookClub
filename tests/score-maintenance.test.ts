@@ -24,7 +24,7 @@ it('does not retry an unresolved empty rating response or a later network failur
 });
 
 it('discards film details after applying each batch during a 980-film run',async()=>{
- vi.useFakeTimers();let applied=0,maxRetained=0;
+ vi.useFakeTimers();let applied=0;const maxRetained=0;
  const promise=maintainScores({ids:Array.from({length:980},(_,i)=>String(i)),batch:async ids=>({results:ids.map(id=>result(id))}),stopped:()=>false,
  progress:async(run,batch)=>{applied+=batch?.length??0;expect(run).not.toHaveProperty('results');}});
  await vi.runAllTimersAsync();const run=await promise;

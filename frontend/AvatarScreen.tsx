@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, LogOut } from 'lucide-react';
 import type { Viewer } from '../shared/types';
 import { api } from './api';
@@ -7,7 +7,7 @@ export function AvatarScreen({viewer,onClaimed,onLogout,externalError}: {viewer:
   const [available,setAvailable] = useState<number[]>([]), [selected,setSelected] = useState<number | null>(null);
   const [error,setError] = useState(''), [busy,setBusy] = useState(false), [loaded,setLoaded] = useState(false);
   const carousel = useRef<HTMLDivElement>(null);
-  const centredChoice = () => {
+  const centredChoice = useCallback(() => {
     const rail = carousel.current;
     if (!rail) return null;
     const centre = rail.getBoundingClientRect().left + rail.clientWidth / 2;
@@ -18,8 +18,8 @@ export function AvatarScreen({viewer,onClaimed,onLogout,externalError}: {viewer:
       if (!nearest || distance < nearest.distance) nearest = {id: Number(item.dataset.avatar),distance};
     }
     return nearest && nearest.distance <= 2 ? nearest.id : null;
-  };
-  const nominateCentre = () => setSelected(centredChoice());
+  },[]);
+  const nominateCentre = useCallback(() => setSelected(centredChoice()),[centredChoice]);
   const centreChoice = (item: HTMLButtonElement) => {
     const rail = carousel.current;
     if (!rail || busy) return;
@@ -41,7 +41,7 @@ export function AvatarScreen({viewer,onClaimed,onLogout,externalError}: {viewer:
     const observer = new ResizeObserver(nominateCentre);
     observer.observe(rail);
     return () => observer.disconnect();
-  },[available]);
+  },[available,nominateCentre]);
   useEffect(() => {
     const load = async () => { try { setAvailable(await api.avatars()); setLoaded(true); } catch (e) { setError(e instanceof Error ? e.message : 'Could not load avatars.'); } };
     void load();

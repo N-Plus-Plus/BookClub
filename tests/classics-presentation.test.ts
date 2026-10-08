@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { applicationCss } from './helpers/application-css';
 import { readFileSync } from 'node:fs';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -92,7 +93,7 @@ it('uses exact ordered compact Classics scores, omits missing ratings and explan
  expect(items().map(item=>item.getAttribute('title'))).toEqual(['IMDb Rating','Letterboxd Rating','Rotten Tomatoes Audience Score','TMDB Rating','Metacritic Critic Score','Rotten Tomatoes Critic Score']);
  for(const item of items()) expect(item.getAttribute('aria-label')).toBe(`${item.getAttribute('title')}: ${item.textContent?.split(' ').at(-1)}`);
  expect(container.querySelector('.ranking-source-scores')?.textContent).not.toContain('·');
- const style=document.createElement('style');style.textContent=readFileSync('frontend/app.css','utf8');document.head.appendChild(style);
+ const style=document.createElement('style');style.textContent=applicationCss();document.head.appendChild(style);
  try {
   const row=getComputedStyle(container.querySelector('.ranking-source-scores')!);
   expect([row.display,row.width,row.flexWrap,row.justifyContent,row.alignItems]).toEqual(['flex','100%','wrap','space-between','baseline']);
@@ -116,16 +117,16 @@ it.each([0,99,100])('shows only a nonzero Unranked badge with full accessible co
  for(const b of filters) expect(b.getAttribute('aria-label')).toContain(`${count} films`);
  expect(filters.map(b=>b.getAttribute('aria-pressed'))).toEqual(['true','false','false']);
  await click('Seen');expect(filters.map(b=>b.getAttribute('aria-pressed'))).toEqual(['false','false','true']);
- const css=readFileSync('frontend/app.css','utf8');
+ const css=applicationCss();
  for(const [state,token] of [['ranked','grass'],['needs-data','rose'],['seen','mandarin']]) expect(css).toContain(`.classics-count-${state} { background: var(--${token}); }`);
  expect(css).toContain('--mandarin: var(--pumpkin)');expect(css).toContain('font-size: var(--text-eyebrow)');
 });
 
 it('scopes smaller mobile titles to Classics and keeps tabs in one flexible touch strip',()=>{
- const css=readFileSync('frontend/app.css','utf8');
+ const css=applicationCss();
  expect(css).toMatch(/@media \(max-width: 719px\)\s*\{\s*\.classics-ranking-row \.movie-title \{ font-size: calc\(var\(--text-movie-title\) \* \.75\); \}\s*\}/);
  expect(css).toContain('.movie-title { display: block; font-weight: 600; font-size: var(--text-movie-title); }');
- expect(css).toContain('.classics-filters,.metrics-category-tabs { display: flex; flex-wrap: nowrap;');
+ for (const selector of ['.classics-filters','.metrics-category-tabs']) expect(css).toContain(`${selector} { display: flex; flex-wrap: nowrap;`);
  expect(css).toContain('flex: 1 1 0; min-width: 0; min-height: var(--target-min)');
  expect(css).toContain('font-size: var(--text-body); white-space: nowrap;');
  expect(css).toContain('.classics-filters .button svg,.classics-filters .button .action-icon { width: 14.4px; height: 14.4px; }');
@@ -165,7 +166,7 @@ it.each(['Populate Missing Scores','Refresh Scores','Enrich/Refresh Metadata'])(
 });
 
 it('scopes orange progress fill to score maintenance across browser engines',()=>{
- const css=readFileSync('frontend/app.css','utf8'),palette=readFileSync('style.css','utf8');
+ const css=applicationCss(),palette=readFileSync('style.css','utf8');
  expect(palette).toContain('--pumpkin: #fab153;');
  expect(css).toContain('.score-maintenance-progress { appearance: none; border: 0; background: var(--asphalt-dark); accent-color: var(--pumpkin); }');
  expect(css).toContain('.score-maintenance-progress::-webkit-progress-bar { background: var(--asphalt-dark); }');

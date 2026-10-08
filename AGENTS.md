@@ -87,7 +87,7 @@ Do not begin with a full repository audit, dependency upgrade, broad refactor, f
 - Keep pure domain rules separate from transport, persistence, and presentation where the architecture supports it.
 - Report assumptions, limitations, and deferred work honestly.
 
-For user-facing interface work, `STYLE.md` is required reading. Preserve root `style.css`; layout extensions belong in `frontend/app.css`. Follow BookClub-specific interface authority in STYLE.md.
+For user-facing interface work, `STYLE.md` is required reading. Preserve root `style.css`; `frontend/app.css` orders application styles under `frontend/styles/`. Edit the owning stylesheet and retain its cascade order. Follow BookClub-specific interface authority in STYLE.md.
 
 Use UTF-8 and preserve established line endings. Avoid encoding-only changes. Applied SQL migrations are immutable; migration 0005 retains LF and trigger `WHEN` guards required by remote D1 parsing.
 
@@ -186,11 +186,11 @@ Maintain only high-value navigation hints. Inspect `package.json` before running
 
 - **Application entry:** `index.html`, `frontend/main.tsx`, `worker/src/index.ts`.
 - **Frontend orchestration:** `frontend/App.tsx`, `routes.ts`, `AppShell.tsx`, `useHashRoute.ts`, `useBookClubData.ts`, `useFilmInspection.ts` (all under `frontend/`).
-- **UI:** `frontend/`, `style.css`, `frontend/app.css`; sole browser API client `frontend/api.ts`.
+- **UI:** `frontend/`, shared design system `style.css`, ordered `frontend/app.css` entry and owned `frontend/styles/`; ownership in `docs/ARCHITECTURE.md`. Sole browser API client `frontend/api.ts`.
 - **Domain:** `shared/ranking.ts`, `shared/rating-dimensions.ts`, `shared/catalog-index.ts`, `shared/metrics.ts`, `shared/metrics-enrichment/`, `shared/genres.ts`, `shared/identity.ts`; ownership map in `docs/ARCHITECTURE.md`.
-- **Persistence:** `worker/src/*repository.ts`, `worker/migrations/`.
+- **Persistence:** `worker/src/*repository.ts`, `worker/migrations/`; supported rolling-schema contract in `docs/DATA.md` and release gates in `docs/DEPLOYMENT.md`.
 - **Local snapshot:** `scripts/dev/`, development-only `frontend/DevTools.tsx`.
-- **Tests:** `tests/`; Vitest configured in `vite.config.ts`.
+- **Tests:** `tests/`; behavioural App/API suites and focused harnesses in `tests/helpers/`; ownership/commands in `docs/TESTING.md`. Vitest configured in `vite.config.ts`.
 - **Build/deployment:** `dist/` generated; `worker/wrangler.jsonc`; `wrangler.frontend.jsonc`.
 
 ### Canonical commands
@@ -201,7 +201,7 @@ Maintain only high-value navigation hints. Inspect `package.json` before running
 - **Targeted tests:** `corepack pnpm exec vitest run tests/ranking.test.ts`.
 - **Full tests:** `corepack pnpm test`.
 - **Type check:** `corepack pnpm typecheck`.
-- **Lint/format:** Not configured.
+- **Lint:** `corepack pnpm lint`; correctness and React Hooks checks. No formatter.
 - **Local schema:** `corepack pnpm db:migrate`; static production checks: `corepack pnpm prod:check` (no remote access).
 
 Detailed commands and safety boundaries belong in the routed documents.

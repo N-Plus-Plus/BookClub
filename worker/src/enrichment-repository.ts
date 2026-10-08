@@ -59,7 +59,7 @@ export class EnrichmentRepository {
     for (const claim of capture.identities ?? []) statements.push(this.db.prepare('INSERT OR IGNORE INTO movie_external_ids(movie_id,provider,external_id) VALUES(?,?,?)').bind(movieId,claim.provider,claim.external_id));
     const titleSupported=await new TitleRepository(this.db).supported();
     if (titleSupported) statements.push(canonicalTitleStatement(this.db,movieId));
-    let titleChanged=false;
+    let titleChanged:boolean;
     try { const result=await this.db.batch(statements); titleChanged=titleSupported && result.at(-1)!.results.length>0; }
     catch (error) {
       if (String(error).includes('movie_provider_enrichment_state.external_id')) throw new ApiError(409,'IDENTITY_CONFLICT','Stored provider identity changed. Refresh before retrying.');

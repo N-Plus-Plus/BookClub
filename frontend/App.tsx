@@ -56,11 +56,13 @@ export function App() {
   useEffect(()=>{if(resolvedRoute.kind === 'history')historyContext.current=true;},[resolvedRoute.kind]);
   const filmInspection=useFilmInspection(page,catalog,applyMovie);
   const {inspection,confirmedMovie,consumeConfirmedMovie,inspectionError,confirming,inspect,confirmFilm}=filmInspection;
+  const {clear,load:loadData,dispose}=data;
+  const {reset:resetInspection}=filmInspection;
   const resetAuth=useCallback(()=>{
-    data.clear(); filmInspection.reset(); setEventPrefill(null); setNotice(''); setActionError('');
-  },[data.clear,filmInspection.reset]);
-  const load=useCallback(()=>{setActionError('');return data.load();},[data.load]);
-  useEffect(()=>{setUnauthorizedHandler(resetAuth);void load();return()=>{data.dispose();setUnauthorizedHandler();};},[load,resetAuth,data.dispose]);
+    clear(); resetInspection(); setEventPrefill(null); setNotice(''); setActionError('');
+  },[clear,resetInspection]);
+  const load=useCallback(()=>{setActionError('');return loadData();},[loadData]);
+  useEffect(()=>{setUnauthorizedHandler(resetAuth);void load();return()=>{dispose();setUnauthorizedHandler();};},[load,resetAuth,dispose]);
   const signIn = async (credential: string) => {
     if (authBusy) return;
     setAuthBusy(true); setActionError('');

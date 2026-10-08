@@ -31,7 +31,8 @@
     "dev:import-preview:api": "wrangler dev --config worker/wrangler.import-preview.jsonc --env import_preview --local --persist-to worker/.wrangler/import-preview --port 8787",
     "dev:import-preview:ui": "corepack pnpm assets:prepare && vite --mode import-preview",
     "dev:import-preview": "pnpm db:import-preview:prepare && concurrently -k -n ui,api \"pnpm dev:import-preview:ui\" \"pnpm dev:import-preview:api\"",
-    "db:refresh-from-prod": "tsx scripts/dev/refresh-cli.ts"
+    "db:refresh-from-prod": "tsx scripts/dev/refresh-cli.ts",
+    "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
     "@fontsource/lexend-deca": "^5.3.0",
@@ -43,12 +44,16 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261003.1",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "concurrently": "^10.0.5",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "exceljs": "^4.4.0",
+    "globals": "^17.13.0",
     "jsdom": "^26.1.0",
     "sharp": "^0.35.5",
     "tsx": "^4.23.15",

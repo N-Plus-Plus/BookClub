@@ -103,7 +103,7 @@ Periodically prune completed history when it no longer helps future work, but do
 ### Priority 0.5 - Stale/failing tests
 Status: Complete
 
-`tests/event-inspection.test.ts` now waits explicitly for the Admin heading after native Account-link navigation, and for lazy screens before asserting their content.
+`tests/admin-navigation.test.ts` waits explicitly for the Admin heading after native Account-link navigation; App integration suites wait for lazy screens before asserting their content.
 
 ### Priority 3 - Non-movie screen works
 Status: Incomplete

@@ -4,7 +4,7 @@ import { Trash2 } from 'lucide-react';
 import type { Catalog, Movie, MovieDetail, Viewer } from '../shared/types';
 import { RemoveClassicModal } from './RemoveClassicModal';
 import { Action, Empty, RankingCard } from './components';
-export function ClassicsScreen({movies,catalog,viewer,writesEnabled,onMovie}: {catalog?: Catalog; onUpdated?: () => Promise<void>; viewer: Viewer | null; movies: Movie[]; writesEnabled: boolean; onMovie: (m: MovieDetail) => void}) {
+export function ClassicsScreen({movies,viewer,writesEnabled,onMovie}: {catalog?: Catalog; onUpdated?: () => Promise<void>; viewer: Viewer | null; movies: Movie[]; writesEnabled: boolean; onMovie: (m: MovieDetail) => void}) {
   const [removing,setRemoving] = useState<Movie | null>(null);
   const [tab,setTab] = useState('Ranked'), [page,setPage] = useState(1);
   const groups = {Ranked: movies.filter(m => m.ranking?.eligible && m.ranking.rankable), 'Unranked': movies.filter(m => m.ranking?.eligible && !m.ranking.rankable), Seen: movies.filter(m => !m.ranking?.eligible)};

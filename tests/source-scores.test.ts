@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { readFileSync } from 'node:fs';
+import { applicationCss } from './helpers/application-css';
+
 import { act, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
@@ -42,7 +43,7 @@ it.each(['single','batch'] as const)('presents endpoint-specific Letterboxd equi
  expect(renderToStaticMarkup(createElement(SourceScores,{scores,ranking:rankMovie(scores,[],[])}))).toContain('>92</span>');
 });
 it('keeps intrinsic columns and readable typography with graceful wrapping',()=>{
- const style=document.createElement('style');style.textContent=readFileSync('frontend/app.css','utf8');document.head.appendChild(style);
+ const style=document.createElement('style');style.textContent=applicationCss();document.head.appendChild(style);
  const {node}=render(9);document.body.appendChild(node);
  try{
  const row=getComputedStyle(node.firstElementChild!);expect([row.display,row.flexWrap,row.justifyContent]).toEqual(['flex','wrap','space-between']);
@@ -87,7 +88,7 @@ it.each([5,6,7,9])('Home, Classics and Detail share genuine-only presentation wi
 });
 
 it('keeps inline pairs together but allows the shared row to wrap on narrow screens',()=>{
- const style=document.createElement('style');style.textContent=readFileSync('frontend/app.css','utf8');document.head.appendChild(style);
+ const style=document.createElement('style');style.textContent=applicationCss();document.head.appendChild(style);
  const {node}=render(6);document.body.appendChild(node);
  try{expect(getComputedStyle(node.firstElementChild!).flexWrap).toBe('wrap');for(const item of node.firstElementChild!.children)expect(getComputedStyle(item).whiteSpace).toBe('nowrap');}
  finally{node.remove();style.remove();}
