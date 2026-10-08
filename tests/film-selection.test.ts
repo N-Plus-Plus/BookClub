@@ -103,7 +103,7 @@ it('keeps Builder direct additions, ordering, repeated appearances, removal and 
   function Picker() { const [selected,setSelected]=useState<Movie[]>([]); return createElement(FilmPicker,{selected,onSelected:setSelected,onMovie:vi.fn(),historyMovieIds:new Set(['A'])}); }
   await act(async()=>root.render(createElement(Picker)));
   for (const id of ['A','B','A']) {
-    await search(id); expect(container.querySelector('.search-row .badge')?.textContent ?? null).toBe(id==='A'?'Seen It':null); await click(container.querySelector<HTMLElement>(`button[aria-label="Add Film ${id}"]`)!);
+    await search(id); expect(container.querySelector('.search-row .badge')?.textContent ?? null).toBe(id==='A'?'Seen it':null); await click(container.querySelector<HTMLElement>(`button[aria-label="Add Film ${id}"]`)!);
     expect(container.querySelector('.search-row')).toBeNull();
     expect(container.querySelector<HTMLInputElement>('input[maxlength="150"]')!.value).toBe('');
   }
@@ -117,8 +117,9 @@ it('keeps Builder direct additions, ordering, repeated appearances, removal and 
 });
 it('shared search displays only known director metadata without dangling separators',async()=>{
   await act(async()=>root.render(createElement(FilmPicker,{movies:[film('A'),film('B',{director:null}),film('C',{director:'Unknown'})],selected:[],onSelected:vi.fn(),onMovie:vi.fn()})));
-  for (const [id,metadata] of [['A','2001 · Director: Director A'],['B','2001'],['C','2001']]) {
-    await search(id); expect(container.querySelector('.search-row .meta')?.textContent).toBe(metadata);
+  for (const [id,metadata] of [['A','Director A'],['B',null],['C',null]] as const) {
+    await search(id); expect(container.querySelector('.search-row .film-director')?.textContent ?? null).toBe(metadata);
+    expect(container.querySelector('.search-row .meta')?.textContent).toBe('2001 · 111 min');
   }
 });
 
@@ -131,11 +132,11 @@ it('labels only canonical saved active-History results and reflects replaced cat
  vi.mocked(api.search).mockResolvedValue({local:catalog.movies.map(movie=>({id:movie.id,title:movie.title,year:movie.year,tmdbId:null,poster:null})),external:[{provider:'tmdb',externalId:'A',title:'External A',year:2001,poster:null}],lookup:{available:true,message:null}});
  await act(async()=>container.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
  const rows=[...container.querySelectorAll('.search-row')];
- expect(rows).toHaveLength(4);expect(rows[0].querySelector('.badge')?.textContent).toBe('Seen It');
+ expect(rows).toHaveLength(4);expect(rows[0].querySelector('.badge')?.textContent).toBe('Seen it');
  for(const row of rows.slice(1)) expect(row.querySelector('.badge')).toBeNull();
  expect(container.textContent).not.toMatch(/Not Seen|Unseen/);expect(api.preview).not.toHaveBeenCalled();
  catalog={...catalog,sessions:[historySession(unwatched)]};await render();
- expect(rows[0].querySelector('.badge')).toBeNull();expect(rows[1].querySelector('.badge')?.textContent).toBe('Seen It');
+ expect(rows[0].querySelector('.badge')).toBeNull();expect(rows[1].querySelector('.badge')?.textContent).toBe('Seen it');
  expect(api.search).toHaveBeenCalledOnce();
 });
 it.each(['builder','event','classics-event','add-classic'])('passes active History context through %s search',async consumer=>{
@@ -148,6 +149,6 @@ it.each(['builder','event','classics-event','add-classic'])('passes active Histo
  } else {
   await act(async()=>root.render(createElement(EventScreen,{catalog,viewer:null,rotation:consumer==='classics-event'?{id:1,nominal_slot:5,cycle_id:null,version:1,updated_at:''}:null,writesEnabled:true,onMovie:vi.fn(),onSaved:vi.fn()})));
  }
- await search('A');expect(container.querySelector('.search-row .badge')?.textContent).toBe('Seen It');
+ await search('A');expect(container.querySelector('.search-row .badge')?.textContent).toBe('Seen it');
  expect(api.preview).not.toHaveBeenCalled();expect(api.importMovie).not.toHaveBeenCalled();
 });

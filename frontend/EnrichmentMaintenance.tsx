@@ -36,7 +36,7 @@ export function EnrichmentMaintenance({provider,catalog,writesEnabled,onUpdated,
     }
   });
   return <section className="card stack classics-maintenance enrichment-maintenance" aria-labelledby={`${provider}-enrichment-heading`}>
-    <h2 id={`${provider}-enrichment-heading`}>Refresh {label} Enrichment</h2>
+    <h2 id={`${provider}-enrichment-heading`}>Refresh {label} enrichment</h2>
     <MaintenanceOperationDetails operation={provider} estimate={estimateMaintenance(provider,remaining.length ? remaining.flatMap(id=>{const movie=catalogIndex(catalog).movieById.get(id);return movie ? [movie] : [];}) : eligible)} />
     {checkpoint && <p className="meta">{formatCount(checkpoint.completed)} checkpoint films completed · {formatCount(remaining.length)} remaining.</p>}
     <p className="meta">{formatCount(eligible.length)} eligible films · {formatCount(catalog.movies.length-eligible.length)} without a valid {label} identity.</p>
@@ -45,7 +45,7 @@ export function EnrichmentMaintenance({provider,catalog,writesEnabled,onUpdated,
       {busy && <Action icon={Square} onClick={job.requestStop}>Stop after this batch</Action>}
       {checkpoint && !busy && <Action icon={RotateCcw} variant="tertiary" disabled={job.locked} onClick={()=>{checkpointChanged(null);setRun(null);}}>Discard {label} progress</Action>}
     </div>
-    {run && <MaintenanceProgress processed={run.processed} total={run.total} label={`${label} enrichment progress`} className="score-maintenance-progress" summary={<>{formatCount(run.processed)} / {formatCount(run.total)} processed · {formatCount(run.remaining)} remaining · {formatCount(run.updated)} updated · {formatCount(run.noChange)} no change · {formatCount(run.failed)} failures.</>}>
+    {run && <MaintenanceProgress state={run.interrupted || error ? 'interrupted' : 'normal'} processed={run.processed} total={run.total} label={`${label} enrichment progress`} className="score-maintenance-progress" summary={<>{formatCount(run.processed)} / {formatCount(run.total)} processed · {formatCount(run.remaining)} remaining · {formatCount(run.updated)} updated · {formatCount(run.noChange)} no change · {formatCount(run.failed)} failures.</>}>
 
       {run.message && <p className="meta">{run.message}</p>}
       {run.conflicts>0 && <p className="error-message">{formatCount(run.conflicts)} external identity conflicts cached for review. Existing ownership is preserved.</p>}

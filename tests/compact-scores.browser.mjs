@@ -42,7 +42,7 @@ root.render(React.createElement('main',{className:'bookclub-shell'},content));
  await page.waitForFunction(()=>Boolean(window.renderScores));
  await fs.mkdir('.verification/compact-scores',{recursive:true});
  let checks=0;
- for(const width of [320,390,720,1440]){
+ for(const width of [320,390,720,951,1440]){
   await page.setViewportSize({width,height:900});
   for(const screen of ['home','classics','detail','seen'])for(const count of [5,6,7,9]){
    await page.evaluate(({screen,count})=>window.renderScores(screen,count),{screen,count});
@@ -52,7 +52,7 @@ root.render(React.createElement('main',{className:'bookclub-shell'},content));
    assert.equal(await help.count(),1);
    const placement=await page.evaluate(()=>{
     const button=document.querySelector('.source-scores-help').getBoundingClientRect(),row=document.querySelector('.ranking-source-scores').getBoundingClientRect();
-    return {above:button.bottom<=row.top+.5,right:Math.abs(button.right-row.right),target:button.width>=44&&button.height>=44};
+    return {above:button.bottom<=row.top+.5,right:Math.abs(document.querySelector('.source-scores-help svg').getBoundingClientRect().right-row.right),target:button.width>=44&&button.height>=44};
    });
    assert(placement.above&&placement.right<1&&placement.target,JSON.stringify({width,screen,count,placement}));
    await help.focus();await page.keyboard.press('Enter');

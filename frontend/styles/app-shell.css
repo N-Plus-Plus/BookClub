@@ -4,11 +4,11 @@
 .brand { display: flex; gap: var(--space-12); align-items: center; text-decoration: none; font-size: var(--text-brand); font-weight: 600; line-height: var(--leading-heading); min-height: var(--target-min); }
 .brand-icon { width: 45px; height: 45px; flex-shrink: 0; object-fit: contain; }
 .destination-icon { width: 22px; height: 22px; object-fit: contain; flex: 0 0 auto; }
-.page-heading h1 { display: flex; align-items: center; gap: var(--space-8); }
+.page-heading h1 { display: flex; align-items: center; gap: var(--space-16); margin: 0; }
 .page-heading h1 .destination-icon { width: 1em; height: 1em; }
 .brand small { display: block; font-size: var(--text-brand-tagline); font-weight: 600; letter-spacing: .12em; color: var(--text-muted); }
 .header-tag { font-size: var(--text-navigation-micro); letter-spacing: .08em; color: var(--text-muted); text-align: right; }
-.page-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); flex-wrap: wrap; padding: var(--space-32) 0 var(--space-24); }
+.page-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); flex-wrap: wrap; padding: var(--space-24) 0; }
 .app-layout { position: relative; }
 .page-title-region { min-width: 0; }
 .demo-label { position: absolute; top: .5rem; left: .5rem; z-index: 30; pointer-events: none; display: flex; gap: var(--space-4); align-items: center; font-size: var(--text-eyebrow); line-height: 1; color: var(--straw); margin: 0; white-space: nowrap; }
@@ -34,6 +34,8 @@
 .sign-in .card { padding: var(--space-24); }
 .google-sign-in { min-height: var(--target-min); width: 100%; max-width: 100%; background: transparent; border: 0; padding: 0; }
 .account-menu { position: relative; }
+.site-header .viewer-controls { padding-right: var(--space-12); max-width: 50%; }
+.account-menu-trigger .club-identity { max-width: 100%; overflow-wrap: anywhere; }
 .account-menu-trigger { min-width: var(--target-min); min-height: var(--target-min); display: flex; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; border-radius: var(--radius-container); }
 .account-menu-trigger:focus-visible,.navigation-fav:focus-visible { outline: 2px solid var(--focus-outline); outline-offset: 3px; }
 .account-menu-dropdown { left: auto; right: 0; width: max-content; min-width: 120px; background: var(--surface-raised); }
@@ -56,7 +58,6 @@
 .avatar-choice[aria-pressed=true] { border-color: var(--paper); outline: 2px solid var(--focus-outline); }
 .avatar-choice svg { position: absolute; bottom: 4px; right: 4px; background: var(--surface-base); border-radius: 50%; }
 .avatar-choice:focus-visible { outline: 3px solid var(--focus-outline); outline-offset: 3px; }
-.sign-in .card { border: 2px solid var(--border-primary); }
 .desktop-navigation { display: none; }
 @media (min-width: 720px) {
   .app-layout { --drawer-width: 208px; padding-left: var(--drawer-width); }
@@ -75,7 +76,7 @@
   .bottom-nav { display: none; }
   .bookclub-shell { padding-bottom: var(--space-32); padding-inline: var(--space-24); }
 }
-.page-heading-actions { flex: 0 0 auto; display: flex; justify-content: flex-end; }
+.page-heading-actions { flex: 0 0 auto; display: flex; justify-content: flex-end; margin-left: auto; }
 .page-heading-actions .button { width: fit-content; flex: 0 0 auto; white-space: nowrap; }
 
 .local-sign-in { width: 100%; }

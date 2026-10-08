@@ -41,8 +41,21 @@ export function Poster({movie,large = false}: {movie: Pick<Movie,'title'|'assets
 export function MovieLink({movie,children,className = ''}: {movie: Movie; children?: ReactNode; className?: string}) {
   return <a className={`movie-link ${className}`} href={`#/movie/${movie.id}`} aria-label={movie.title}>{children ?? <span className="movie-title">{movie.title}</span>}</a>;
 }
-export function MovieRow({movie,children}: {movie: Movie; children?: ReactNode}) {
-  return <MovieLink movie={movie} className="movie-row"><Poster movie={movie} /><div className="movie-copy"><span className="movie-title">{movie.title}</span><p className="meta">{movie.year ?? 'Year unknown'}{movie.runtime ? ` · ${movie.runtime} min` : ''}</p>{children}</div></MovieLink>;
+type CompactFilm = Pick<Movie,'title'|'year'> & Partial<Pick<Movie,'runtime'|'au_classification'|'director'>>;
+export function FilmInformation({movie,children,titleBadge,titleHeading = false,directorClassName = ''}: {movie: CompactFilm;children?: ReactNode;titleBadge?: ReactNode;titleHeading?: boolean;directorClassName?: string}) {
+  const director = movie.director?.trim();
+  const Title = titleHeading ? 'h3' : 'span';
+  return <div className="movie-copy">{titleBadge ? <div className="film-title-line"><Title className="movie-title">{movie.title}</Title>{titleBadge}</div> : <Title className="movie-title">{movie.title}</Title>}
+    <p className="meta">{movie.year ?? 'Year unknown'}{movie.runtime ? ` · ${movie.runtime} min` : ''}{movie.au_classification ? ` · ${movie.au_classification}` : ''}</p>
+    {director && director.toLowerCase() !== 'unknown' && <p className={`meta film-director ${directorClassName}`.trim()}>{movie.director}</p>}{children}</div>;
+}
+export function MovieRow({movie,children,variant}: {movie: Movie; children?: ReactNode;variant?: 'candidate'}) {
+  return <MovieLink movie={movie} className={`movie-row${variant ? ' candidate-film' : ''}`}><Poster movie={movie} /><FilmInformation movie={movie} directorClassName={variant ? 'candidate-director' : undefined}>{children}</FilmInformation></MovieLink>;
+}
+export function CompactSeenSummary({movie,members = [],showUnknownNames = false,className = ''}: {movie: Movie;members?: readonly Member[];showUnknownNames?: boolean;className?: string}) {
+  const r = movie.ranking!;
+  const unknownNames = showUnknownNames && r.unknownCount > 0 ? members.filter(member => member.active === 1 && !movie.seen.some(answer => answer.member_id === member.id && (answer.seen === 0 || answer.seen === 1))).sort((a,b) => a.sort_order-b.sort_order).map(member => member.display_name) : [];
+  return <p className={`meta compact-seen-summary ${className}`.trim()}>{formatCount(r.seenCount)} Seen · {formatCount(r.unseenCount)} Haven't · {formatCount(r.unknownCount)} Unknown{unknownNames.length > 0 && ` (${unknownNames.join(', ')})`}</p>;
 }
 export function dateLabel(date: string) {
   return dateFormatter.format(new Date(`${date}T12:00:00`));
@@ -55,13 +68,14 @@ export function SessionCard({session,members,actions,dateHeading,variant}: {sess
   const host = members.find(m => m.id === session.host_member_id);
   const home = variant === 'home';
   const identity = session.kind === 'classics' ? <ClubIdentity identity={{kind: 'classics'}} /> : host ? <ClubIdentity identity={{kind: 'member',member: host}} /> : <span>Hosted by a former member</span>;
-  const heading = <><div className="eyebrow">{dateHeading ?? (home || variant === 'history' ? eventDateLabel(session) : <>{eventDateLabel(session)} · {formatCount(session.movies.length)} film{session.movies.length === 1 ? '' : 's'}</>)}</div>
-    <h3>{session.kind === 'classics' ? 'Classics week' : host ? `${possessiveName(host.display_name)} ${home ? 'turn' : 'week'}` : home ? 'Former member’s turn' : 'Former member’s week'}</h3></>;
+  const date = <div className="eyebrow">{dateHeading ?? (home || variant === 'history' ? eventDateLabel(session) : <>{eventDateLabel(session)} · {formatCount(session.movies.length)} film{session.movies.length === 1 ? '' : 's'}</>)}</div>;
+  const title = <h3>{session.kind === 'classics' ? 'Classics week' : host ? `${possessiveName(host.display_name)} ${home ? 'turn' : 'week'}` : home ? 'Former member’s turn' : 'Former member’s week'}</h3>;
+  const heading = home || variant === 'history' ? <>{title}{date}</> : <>{date}{title}</>;
   return <article className={home ? 'card session-card home-session-card' : 'card session-card'}>{variant === 'history' ? <div className="history-event-header"><div className="history-event-heading">{heading}</div><div className="history-event-actions">{actions}<div className="history-event-identity">{identity}</div></div></div> : <>{actions}{home && <div className="home-session-identity">{identity}</div>}{heading}</>}{((!home && variant !== 'history') || session.legacy_cycle_label) && <div className="session-meta">
       {!home && variant !== 'history' && session.kind === 'classics' && <ClubIdentity identity={{kind: 'classics'}} />}
       {!home && variant !== 'history' && session.host_member_id && (members.find(m => m.id === session.host_member_id) ? <ClubIdentity identity={{kind: 'member',member: members.find(m => m.id === session.host_member_id)!}} /> : <span>Hosted by a former member</span>)}
       {session.legacy_cycle_label && <span className="badge">{session.legacy_cycle_label}</span>}</div>}
-    <ol className="film-list">{session.movies.map((movie,i) => <li key={`${movie.id}-${i}`}>{variant === 'history' ? <MovieLink movie={movie} className="movie-row"><span className="position">#{i+1}</span><Poster movie={movie} /><div className="movie-copy"><span className="movie-title">{movie.title}</span><p className="meta">{movie.year ?? 'Year unknown'}{movie.runtime ? ` · ${movie.runtime} min` : ''}{movie.au_classification ? ` · ${movie.au_classification}` : ''}</p>{movie.director && <p className="meta history-film-director">{movie.director}</p>}</div></MovieLink> : <><span className="position">{home ? `#${i+1}` : i+1}</span><MovieRow movie={movie} /></>}</li>)}</ol>
+    <ol className="film-list">{session.movies.map((movie,i) => <li key={`${movie.id}-${i}`}>{variant === 'history' ? <MovieLink movie={movie} className="movie-row"><span className="position">#{i+1}</span><Poster movie={movie} /><FilmInformation movie={movie} directorClassName="history-film-director" /></MovieLink> : <><span className="position">{home ? `#${i+1}` : i+1}</span><MovieRow movie={movie} /></>}</li>)}</ol>
     {session.planned_at && <p className="meta">Planned {new Date(session.planned_at).toLocaleString('en-AU')}</p>}
   </article>;
 }
@@ -108,7 +122,7 @@ export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; s
   return items.length ? <div className="source-scores-summary">
     <Action icon={Info} variant="tertiary" className="source-scores-help" aria-label="Explain score abbreviations" title="Explain score abbreviations" onClick={() => setExplaining(true)} />
     {explaining && <NativeDialog heading="Score abbreviations" id={headingId} closeLabel="Close score abbreviations" onClose={() => setExplaining(false)} autoFocus>
-      <div className="score-glossary-scroll"><table className="score-abbreviations"><thead><tr>{['Abbreviation','Source','Native','Normalised'].map(label=><th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>{sourceRatingKeys.map(key => {const example=glossaryExample(key);return <tr key={key}><th scope="row">{ratingDimensions[key].compactLabel}</th><td>{example.source}</td><td>{example.native}</td><td>{example.normalised}</td></tr>;})}</tbody></table></div>
+      <div className="score-glossary-scroll"><table className="score-abbreviations"><colgroup><col /><col /><col className="score-example-column" /><col className="score-example-column" /></colgroup><thead><tr>{['Abbreviation','Source','Native','Normalised'].map(label=><th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>{sourceRatingKeys.map(key => {const example=glossaryExample(key);return <tr key={key}><th scope="row">{ratingDimensions[key].compactLabel}</th><td>{example.source}</td><td>{example.native}</td><td>{example.normalised}</td></tr>;})}</tbody></table></div>
     </NativeDialog>}
     <p ref={rowRef} className={`meta ranking-source-scores${stacked ? ' ranking-source-scores-stacked' : ''}`}>{items.map(({provider,metric,label,description,value},index) =>
     <span key={`${provider}:${metric}`} className={firstCritic > 0 && index === firstCritic ? 'source-scores-critic-boundary' : undefined} title={description} aria-label={`${description}: ${formatScore100(value)}`}><span>{label}</span>{' '}<span>{formatScore100(value)}</span></span>
@@ -116,11 +130,10 @@ export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; s
 }
 export function RankingScore({movie,compact = false,variant,members = []}: {members?: readonly Member[]; movie: Movie; compact?: boolean; variant?: 'home' | 'classics'}) {
   const r = movie.ranking!;
-  const unknownNames = variant === 'classics' && r.unknownCount > 0 ? members.filter(member => member.active === 1 && !movie.seen.some(answer => answer.member_id === member.id && (answer.seen === 0 || answer.seen === 1))).sort((a,b) => a.sort_order-b.sort_order).map(member => member.display_name) : [];
   return <div className="stack ranking-score">{!variant && <div className="rank-top">
     <span className="badge" data-intent={r.eligible ? 'constructive' : 'destructive'}>{!r.eligible ? 'Disqualified' : r.rankable ? 'Ranked' : 'Needs Data'}</span>
     <strong className="score numeric">{r.finalScore?.toFixed(2) ?? '—'}<small>residual score</small></strong></div>}
-    <p className="meta">{formatCount(r.seenCount)} Seen · {formatCount(r.unseenCount)} No{variant !== 'home' && <> · {formatCount(r.unknownCount)} Unknown{unknownNames.length > 0 && ` (${unknownNames.join(', ')})`}</>}</p>
+    {!variant && <CompactSeenSummary movie={movie} members={members} />}
     {(!compact || variant === 'classics') && <SourceScores ranking={r} scores={movie.scores} />}
     {!variant && <details><summary><Eye size={17} aria-hidden="true" />Score breakdown</summary><div className="breakdown">
       <p>Sum of squares <strong>{r.rawScore?.toFixed(2) ?? 'Incomplete'}</strong></p><p>Unseen multiplier <strong>{r.unseenMultiplier.toFixed(6)}</strong></p>
@@ -130,5 +143,5 @@ export function RankingScore({movie,compact = false,variant,members = []}: {memb
 }
 export function RankingCard({movie,rank,compact = false,variant,action,members}: {members?: readonly Member[]; action?: ReactNode; movie: Movie; rank?: number; compact?: boolean; variant?: 'home' | 'classics'}) {
   const r = movie.ranking!;
-  return <article className={variant === 'home' ? 'card rank-card home-rank-card' : variant === 'classics' ? 'ranking-row classics-ranking-row' : compact ? 'ranking-row' : 'card rank-card'}>{action}<div className="candidate-identity"><span className="rank-number">{rank ? (variant ? `#${rank}` : String(rank).padStart(2,'0')) : r.eligible ? '—' : 'DQ'}</span><MovieRow movie={movie}>{variant === 'classics' && movie.director && <p className="meta candidate-director">{movie.director}</p>}</MovieRow></div><RankingScore movie={movie} compact={compact} variant={variant} members={members} /></article>;
+  return <article className={variant === 'home' ? 'card rank-card home-rank-card' : variant === 'classics' ? 'ranking-row classics-ranking-row' : compact ? 'ranking-row' : 'card rank-card'}>{action}<div className="candidate-identity"><span className="rank-number">{rank ? (variant ? `#${rank}` : String(rank).padStart(2,'0')) : r.eligible ? '—' : 'DQ'}</span><MovieRow movie={movie} variant={variant ? 'candidate' : undefined}>{variant && <CompactSeenSummary movie={movie} members={members} showUnknownNames={variant === 'classics'} className={variant === 'home' ? 'home-candidate-seen' : undefined} />}</MovieRow></div><RankingScore movie={movie} compact={compact} variant={variant} members={members} /></article>;
 }

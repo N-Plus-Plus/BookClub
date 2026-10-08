@@ -6,7 +6,7 @@ import { metricsEvent, metricsFilm } from './metrics-fixture';
 const today = new Date(2026,9,8);
 const cycle = (id: string): Cycle => ({id,ordinal:1,rough_date:'2020-07-05',title:null,import_source:null,import_key:null,created_at:'',updated_at:''});
 const empty = (): Catalog => ({members:[],movies:[],sessions:[],cycles:[]});
-describe('Club Timeline',() => {
+describe('Club timeline',() => {
   it('counts inclusive local calendar dates and formats whole Australian numbers',() => {
     expect(daysActive(new Date(2020,6,5))).toBe(1);
     expect(daysActive(new Date(2020,6,6))).toBe(2);

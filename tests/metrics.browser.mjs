@@ -37,7 +37,7 @@ await fs.mkdir('.verification/metrics',{recursive:true});
 const columns = locator => locator.evaluate(e => getComputedStyle(e).gridTemplateColumns.split(' ').length);
 const overflow = () => page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
 const results = [];
-const tabs = ['Top / Bottom','Fingerprints','General','Averages','Diversity','Standalone','Cabinet'];
+const tabs = ['Top / bottom','Fingerprints','General','Averages','Diversity','Standalone','Cabinet'];
 const assignments = [['E','U','V','W'],['C','F','G','J'],['B','D','K','Y','L'],['M','N','T'],['O','P','R','S'],['H','I'],['X']];
 const tab = name => page.getByRole('tab',{name,exact:true}).click();
 const active = () => page.locator('[role=tab][aria-selected=true]').textContent();
@@ -55,8 +55,8 @@ try {
     const enrichmentRead = page.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/metrics/enrichment'));
     if (width === 320) await page.goto('http://localhost:4173/#/metrics');
     else await page.reload();
-    await page.getByRole('heading',{name:'Top Directors',exact:true}).waitFor();
-    assert.equal(await active(),'Top / Bottom');
+    await page.getByRole('heading',{name:'Top directors',exact:true}).waitFor();
+    assert.equal(await active(),'Top / bottom');
     assert.equal(await page.getByRole('tab').count(),7);
     await enrichmentRead;
     const baseline = requests.length;
@@ -85,7 +85,7 @@ try {
       await check(width,tabs[index]+' bottom');await page.evaluate(()=>scrollTo(0,0));
     }
     assert.equal(found.length,23);assert.equal(new Set(found).size,23);
-    await tab('Top / Bottom');
+    await tab('Top / bottom');
     assert.match(await page.locator('.metrics-popularity-list').first().textContent(),/2,000,000 IMDb votes/);
     assert.match(await page.locator('.metrics-popularity-list').nth(1).textContent(),/12 IMDb votes/);
     for(const list of await page.locator('.metrics-popularity-list').all()) {
@@ -148,7 +148,7 @@ try {
     await countries.evaluate(e=>e.scrollTop=e.scrollHeight);assert(await countries.evaluate(e=>e.scrollTop>0));
     await tab('General');assert.equal(await page.locator('.metrics-scatter').count(),0);assert.doesNotMatch(await page.locator('.metrics-revenue-ratios').textContent(),/unique films have reported/);
     assert.match(await page.locator('.metrics-revenue-ratios a').first().getAttribute('href'),/^#\/movie\//);
-    await tab('Top / Bottom');
+    await tab('Top / bottom');
     const modes=page.locator('.metrics-score-filters').first();
     assert.equal(await modes.locator('button').count(),9);
     assert(await modes.evaluate(e=>{const buttons=[...e.querySelectorAll('button')],active=buttons.find(b=>b.getAttribute('aria-pressed')==='true'),style=getComputedStyle(active);return buttons.every(b=>b.offsetTop===buttons[0].offsetTop) && parseFloat(getComputedStyle(active,'::after').height)>0 && style.borderRadius==='0px';}));
@@ -157,11 +157,11 @@ try {
     const before=await page.evaluate(()=>scrollY);await tab('Fingerprints');assert.equal(await page.evaluate(()=>scrollY),before,'tab click does not move page');
     const selected=page.getByRole('tab',{name:'Fingerprints',exact:true});await selected.focus();await page.keyboard.press('ArrowRight');assert.equal(await active(),'General');
     assert(await page.locator('[role=tab][aria-selected=true]').evaluate(e=>e===document.activeElement && getComputedStyle(e).outlineStyle!=='none'),'visible keyboard focus');
-    await page.keyboard.press('End');assert.equal(await active(),'Cabinet');await page.keyboard.press('Home');assert.equal(await active(),'Top / Bottom');
+    await page.keyboard.press('End');assert.equal(await active(),'Cabinet');await page.keyboard.press('Home');assert.equal(await active(),'Top / bottom');
     assert.equal(requests.length,baseline,'tab/identity/role/score changes generate no API reads');assert.equal(requests.filter(p=>p.endsWith('/metrics/enrichment')).length,1);
     results.push({width,available,overflow:false,filterCalls:requests.length-baseline,tabs:7});
   }
-  sparse=true;await page.setViewportSize({width:390,height:900});await page.reload();await page.getByRole('heading',{name:'Top Directors',exact:true}).waitFor();assert.equal(await active(),'Top / Bottom');await page.locator('.metrics-filters button').nth(1).click();
+  sparse=true;await page.setViewportSize({width:390,height:900});await page.reload();await page.getByRole('heading',{name:'Top directors',exact:true}).waitFor();assert.equal(await active(),'Top / bottom');await page.locator('.metrics-filters button').nth(1).click();
   for(const name of tabs) {await tab(name);await page.getByText('Loading enriched Metrics…',{exact:true}).waitFor({state:'hidden'});await check(390,name+' sparse');await page.screenshot({path:`.verification/metrics/sparse-${tabs.indexOf(name)}-390.png`,fullPage:true});}
   await tab('Standalone');assert.match(await page.locator('.metrics-languages').textContent(),/Unknown.*100.0%/s);
   assert.deepEqual(errors,[]);await fs.writeFile('.verification/metrics/results.json',JSON.stringify({results,partialData:true,errors},null,2));console.log(JSON.stringify({results,partialData:true,errors}));

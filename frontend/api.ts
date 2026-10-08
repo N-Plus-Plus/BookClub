@@ -1,6 +1,6 @@
 import { hydrateCatalog } from '../shared/catalog';
 import { validationFieldLabel } from './presentation';
-import type { Catalog, CompactCatalog, ManualMovieInput, MovieDetail, SearchResponse, JournalMutationResult, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, SelectedMetadataEnrichment, ScoreMaintenance, TmdbPreview } from '../shared/types';
+import type { Catalog, CompactCatalog, ManualMovieInput, MovieDetail, SearchResponse, JournalMutationResult, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, RotationSwapInput, SelectedMetadataEnrichment, ScoreMaintenance, TmdbPreview } from '../shared/types';
 
 const configured = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/,'');
 const base = import.meta.env.DEV ? 'http://localhost:8787' : configured || '';
@@ -76,7 +76,7 @@ export const api = {
   avatars: () => request<number[]>('/avatars'),
   claimAvatar: (avatar: number) => request<Viewer>('/auth/avatar','POST',{avatar}),
   rotation: () => request<Rotation | null>('/rotation'),
-  swapRotation: (input: {target_member_id: string; version: number}) => request<Rotation>('/rotation/swap','POST',input),
+  swapRotation: (input: RotationSwapInput) => request<Rotation>('/rotation/swap','POST',input),
   builders: () => request<BuilderSet[]>('/builders'),
   saveBuilder: (input: BuilderInput,id?: string) => request<BuilderSet>(id ? `/builders/${encodeURIComponent(id)}` : '/builders',id ? 'PUT' : 'POST',input),
   deleteBuilder: (id: string,revision: number) => request(`/builders/${encodeURIComponent(id)}`,'DELETE',{revision}),

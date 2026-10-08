@@ -95,7 +95,7 @@ try {
    if(route==='home'&&width>=720){await page.getByRole('button',{name:'Collapse navigation'}).click();await check(width+' collapsed navigation');}
    if(route==='builder'){await page.getByRole('button',{name:'Open set',exact:true}).click();await check(width+' Builder editor');await page.getByRole('button',{name:'Use set',exact:true}).click();await page.getByRole('heading',{name:'Use Synthetic private set?'}).waitFor();await check(width+' Builder confirmation');}
    if(route==='classics'){await page.getByRole('button',{name:'Add Classic',exact:true}).click();await page.locator('dialog[open]').waitFor();await check(width+' Add Classic dialog');}
-   if(route==='event'){await page.getByRole('textbox',{name:'Search saved films & TMDB'}).fill('film');await page.getByRole('button',{name:'Search',exact:true}).click();await page.getByRole('button',{name:'Next',exact:true}).click();await page.locator('.search-row a[href="#/preview/tmdb/42"]').click();await page.getByRole('button',{name:'Yes, this one!',exact:true}).waitFor();await check(width+' Preview and inspection');}
+   if(route==='event'){await page.getByRole('textbox',{name:'Search films'}).fill('film');await page.getByRole('button',{name:'Search',exact:true}).click();await page.getByRole('button',{name:'Next',exact:true}).click();await page.locator('.search-row a[href="#/preview/tmdb/42"]').click();await page.getByRole('button',{name:'Yes, this one!',exact:true}).waitFor();await check(width+' Preview and inspection');}
    if(route==='metrics'){for(const tab of await page.getByRole('tab').all()){await tab.click();await check(width+' Metrics '+await tab.textContent());}}
   }
  }

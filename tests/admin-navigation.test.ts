@@ -28,10 +28,10 @@ describe('Admin screen and Account navigation',() => {
     expect(harness.container.querySelector('h1')?.textContent).toBe('Admin');
     expect(harness.container.querySelectorAll('main section.card h2')).toHaveLength(7);
     for(const label of ['Populate missing scores','Refresh scores','Refresh OMDb metadata','Fill missing TMDB metadata']) expect(button(label)).toBeTruthy();
-    expect(harness.container.textContent).toContain('Refresh OMDb Metadata');
-    expect(harness.container.textContent).toContain('Fill Missing TMDB Metadata and Artwork');
-    expect(harness.container.textContent).toContain('Refresh TMDB Enrichment');
-    expect(harness.container.textContent).toContain('Refresh MDBList Enrichment');
+    expect(harness.container.textContent).toContain('Refresh OMDb metadata');
+    expect(harness.container.textContent).toContain('Fill missing TMDB metadata and artwork');
+    expect(harness.container.textContent).toContain('Refresh TMDB enrichment');
+    expect(harness.container.textContent).toContain('Refresh MDBList enrichment');
     await click(harness.container.querySelector<HTMLButtonElement>('.account-menu-trigger')!);
     expect(harness.container.querySelector('.account-menu-dropdown')?.textContent).toBe('AdminLogout');
     expect(harness.container.querySelector('.account-menu-dropdown a[href="#/admin"]')).not.toBeNull();
@@ -42,8 +42,8 @@ describe('Admin screen and Account navigation',() => {
       expect(harness.container.querySelector('.classics-maintenance')).toBeNull();
     }
     await navigate('metrics'); expect(button('Fill missing TMDB metadata')).toBeUndefined();
-    await navigate('home'); expect(harness.container.textContent).not.toContain('Admin · swap current turn');
-    await navigate('admin'); expect(harness.container.querySelector('main .card h2')?.textContent).toBe('Admin · swap current turn'); expect(harness.container.querySelector('main .card:first-child details')).toBeNull();
+    await navigate('home'); expect(harness.container.textContent).not.toContain('Swap current turn');
+    await navigate('admin'); expect(harness.container.querySelector('main .card h2')?.textContent).toBe('Swap current turn'); expect(harness.container.querySelector('main .card:first-child details')).toBeNull();
     await navigate('movie/saved-7'); expect(harness.container.textContent).not.toContain('Admin · score maintenance');
     expect(button('Refresh scores')).toBeUndefined();
   });
@@ -126,8 +126,8 @@ it('shows dev tools only on local Admin and reloads identity through bootstrap',
  expect(harness.container.querySelector('.app-layout > .demo-label')?.textContent).toBe('Local disposable database');
  expect(harness.container.querySelector('main .demo-label,.page-heading .demo-label')).toBeNull();
  await navigate('admin');await vi.waitFor(async () => { await flush(); expect(harness.container.querySelector('.developer-tools')).toBeTruthy(); });
- expect(button('Refresh Dev DB from Production')).toBeTruthy();expect(button('Confirm local replacement')).toBeUndefined();
- await click(button('Refresh Dev DB from Production'));expect(button('Confirm local replacement')).toBeTruthy();await click(button('Cancel'));
+ expect(button('Refresh dev DB from production')).toBeTruthy();expect(button('Confirm local replacement')).toBeUndefined();
+ await click(button('Refresh dev DB from production'));expect(button('Confirm local replacement')).toBeTruthy();await click(button('Cancel'));
  const before=[vi.mocked(api.health).mock.calls.length,vi.mocked(api.me).mock.calls.length];
  vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'member'}});
  await act(async()=>{const select=harness.container.querySelector('.developer-tools select')!;Object.assign(select,{value:catalog.members[0].id});select.dispatchEvent(new Event('change',{bubbles:true}));});await flush();

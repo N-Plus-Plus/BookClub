@@ -205,6 +205,8 @@ Migration `0017_canonical_title.sql` adds title authority with fallback classifi
 
 Migration `0018_au_watch_offers.sql` deletes only derived watch rows with NULL/non-AU country; no tables or canonical evidence change. New Worker reads and writes safely on pre-0018 databases with 0016 cache tables, filtering exact AU. Older Workers remain structurally compatible but may repopulate regionless rows: deploy the new AU-filtering API Worker first, then apply ordered 0018 after the normal fresh backup, verify the cache invariant, and publish the frontend last. Keep all earlier bridge/cache/title gates. Older Workers omitting the optional projection remain frontend-compatible. No provider request or automatic enrichment runs as part of migration/release.
 
+Migration `0019_classics_first.sql` adds binary rotation/cycle flags and replaces only rotation/publication guards; existing data defaults to ordinary order. Release the bridge-compatible new API Worker first (Classics swaps fail with SCHEMA_UPGRADE_REQUIRED on older schemas), then apply ordered 0019 after the normal fresh backup/schema checks, then publish the frontend last. Retain earlier migration gates. The old Worker can handle untouched ordinary cycles but must not run once a Classics-first exchange is enabled: it cannot resolve the exceptional identity. Do not roll back to that Worker while an exceptional cycle is active or retained historical exceptional cycles require editing. No rotation exchange or event creation runs as part of migration/deployment.
+
 If pending migrations only add schema or otherwise remain compatible with the currently deployed Worker, the normal order is:
 
 1. backup;

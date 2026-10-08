@@ -72,10 +72,10 @@ it('preserves missing overview fallback',()=>{
 
 it('uses two affirmed Seen columns with no parent heading or unanswered identities',async()=>{
   await render();
-  expect([...container.querySelectorAll('.detail-seen-column h3')].map(node=>node.textContent)).toEqual(["Haven't",'Seen It']);
+  expect([...container.querySelectorAll('.detail-seen-column h3')].map(node=>node.textContent)).toEqual(["Haven't",'Seen it']);
   expect([...container.querySelectorAll('.detail-seen-column')].map(column=>[...column.querySelectorAll('.club-identity')].map(node=>node.textContent))).toEqual([['TROY'],['SEAN']]);
   expect(container.querySelector('.detail-seen-column-yes')).toBeTruthy();
-  expect([...container.querySelectorAll('h2')].map(node=>node.textContent)).not.toContain('Seen It?');
+  expect([...container.querySelectorAll('h2')].map(node=>node.textContent)).not.toContain('Seen it?');
 });
 
 it.each([false,true])('shows score only for a Classics candidate with ranking data (%s)',async(classic)=>{

@@ -28,7 +28,7 @@ try{
   await choices.nth(2).uncheck();await page.getByRole('button',{name:'Save event',exact:true}).click();assert.deepEqual(await page.evaluate(()=>window.saved.movie_ids),['f1','f2']);
   assert(!await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1));await page.screenshot({path:`.verification/p1-product/classics-${width}.png`,fullPage:true});
   await page.goto('http://localhost:4173/?builder#/builder');await page.locator('.au-availability').first().waitFor();
-  assert((await page.locator('.au-availability').first().innerText()).includes('Stream: Netflix'));assert((await page.locator('.au-availability').first().innerText()).includes('Rent: Apple TV'));
+  assert((await page.locator('.au-availability').first().innerText()).includes('Stream: Netflix'));assert((await page.locator('.au-availability').first().innerText()).includes('Rent: Apple'));
   assert(!await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1));await page.screenshot({path:`.verification/p1-product/builder-${width}.png`,fullPage:true});
  }
  assert.deepEqual(errors,[]);console.log('8 AU Builder/Classics responsive scenarios passed at 320/390/720/1440px; no API/provider calls.');

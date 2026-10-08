@@ -7,7 +7,7 @@ import { expect, it,vi } from 'vitest';
 vi.mock('../frontend/api',() => ({api:{metricsEnrichment:vi.fn().mockResolvedValue({movies:{}})}}));
 import { MetricsScreen } from '../frontend/MetricsScreen';
 import type { Catalog, Movie } from '../shared/types';
-const dimensions=[['IMDb','IMDb','imdb','rating',10,8.1,'8.1 / 10'],['LB','Letterboxd','letterboxd','rating',5,4.25,'4.25 / 5'],['MC','Metacritic','metacritic','critic',100,76,'76 / 100'],['MC-U','Metacritic User','metacritic','user',10,7.8,'7.8 / 10'],['Trakt','Trakt','trakt','rating',100,71,'71 / 100'],['Ebert','Roger Ebert','rogerebert','rating',4,3.5,'3.5 / 4'],['RT-A','Rotten Tomatoes - Audience','rottentomatoes','audience',100,82,'82 / 100'],['RT-C','Rotten Tomatoes - Critic','rottentomatoes','critic',100,91,'91 / 100'],['TMDB','TMDB','tmdb','rating',10,7.3,'7.3 / 10']] as const;
+const dimensions=[['IMDb','IMDb','imdb','rating',10,8.1,'8.1 / 10'],['LB','Letterboxd','letterboxd','rating',5,4.25,'4.25 / 5'],['MC','Metacritic','metacritic','critic',100,76,'76 / 100'],['MC-U','Metacritic user','metacritic','user',10,7.8,'7.8 / 10'],['Trakt','Trakt','trakt','rating',100,71,'71 / 100'],['Ebert','Roger Ebert','rogerebert','rating',4,3.5,'3.5 / 4'],['RT-A','Rotten Tomatoes - audience','rottentomatoes','audience',100,82,'82 / 100'],['RT-C','Rotten Tomatoes - critic','rottentomatoes','critic',100,91,'91 / 100'],['TMDB','TMDB','tmdb','rating',10,7.3,'7.3 / 10']] as const;
 const movie:Movie={id:'a',title:'A film with a long title for the Metrics list',year:2000,original_title:null,release_date:null,runtime:null,overview:null,genres:['Drama'],assets:[],external_ids:[],seen:[],classic:false,ranking:null,scores:dimensions.map(([, ,provider,metric,raw_scale,raw_value])=>({provider,metric,raw_scale,raw_value,normalized_value:null,vote_count:null,fetched_at:'2000-01-01',retrieved_via:'mdblist'}))};
 const catalog:Catalog={members:[{id:'m',display_name:'Member',active:1,sort_order:1}],movies:[movie],cycles:[],sessions:[{id:'s',movies:[movie,movie],host_member_id:'m',cycle_slot:1,kind:'hosted',event_date:'2000-01-01',legacy_cycle_label:null,cycle_id:null,date_precision:'exact'}]};
 it('uses square popularity dividers and insets only the outer table columns',async()=>{
@@ -18,7 +18,7 @@ it('uses square popularity dividers and insets only the outer table columns',asy
   const scored={...movie,scores:movie.scores.map(s=>({...s,vote_count:100}))};
   await act(async()=>root.render(createElement(MetricsScreen,{catalog:{...catalog,movies:[scored],sessions:[{...catalog.sessions[0],movies:[scored]}]},viewer:null,onUpdated:async()=>{}})));
   const tab=(label:string)=>act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===label)!.click());
-  await tab('Top / Bottom');
+  await tab('Top / bottom');
   expect(container.querySelectorAll('.metrics-popularity-list')).toHaveLength(2);
   for(const list of container.querySelectorAll('.metrics-popularity-list')) expect(getComputedStyle(list.querySelector('a')!).borderRadius).toBe('0');
   await tab('General');
@@ -36,7 +36,7 @@ it('defaults on each mount, keeps nine selectors independent, displays full head
  const select=async(index:number,label:string)=>act(async()=>{[...sections()[index].querySelectorAll('button')].find(b=>b.textContent===label)!.click();});
  try {
  await mount();
- await tab('Top / Bottom');
+ await tab('Top / bottom');
  for(const section of sections()) {
   expect([...section.querySelectorAll('button')].map(b=>b.textContent)).toEqual(['IMDb','LB','MC-U','RT-A','TMDB','Trakt','Ebert','MC','RT-C']);
   expect(section.querySelector('button[aria-pressed=true]')?.textContent).toBe('IMDb');
@@ -44,7 +44,7 @@ it('defaults on each mount, keeps nine selectors independent, displays full head
  await act(async()=>container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[1].click());
  await tab('General');
  const genres=container.querySelector('.metrics-table')!.textContent;
- await tab('Top / Bottom');
+ await tab('Top / bottom');
  for(const [label,name,,,,,display] of dimensions) {
   await select(0,label);
   expect(sections()[0].querySelector('h2')?.textContent).toBe(`Top 5 by ${name}`);
@@ -61,10 +61,10 @@ it('defaults on each mount, keeps nine selectors independent, displays full head
  }
  await tab('General');
  expect(container.querySelector('.metrics-table')!.textContent).toBe(genres);
- await tab('Top / Bottom');
+ await tab('Top / bottom');
  await act(async()=>root.render(createElement(MetricsScreen,{catalog:{...catalog,movies:[{...movie,scores:movie.scores.filter(s=>s.provider!=='letterboxd')}]},viewer:null,onUpdated:async()=>{}})));
  expect(sections()[0].textContent).toContain('No appearances with Letterboxd scores yet.');
- await act(async()=>root.unmount());root=createRoot(container);await mount();await tab('Top / Bottom');
+ await act(async()=>root.unmount());root=createRoot(container);await mount();await tab('Top / bottom');
  expect(sections().map(s=>s.querySelector('h2')?.textContent)).toEqual(['Top 5 by IMDb','Bottom 5 by IMDb']);
  } finally {await act(async()=>root.unmount());container.remove();}
 });
@@ -78,7 +78,7 @@ it('empty identities preserve report axes and restrained missing states without 
   const tab=(label:string)=>act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===label)!.click());
   await tab('Averages');expect(container.querySelectorAll('.metrics-rating-profile > div')).toHaveLength(9);
   await tab('Cabinet');expect(container.querySelectorAll('.metrics-extremes section')).toHaveLength(16);
-  await tab('Top / Bottom');expect(container.textContent).toContain('No director data for this selection.');
+  await tab('Top / bottom');expect(container.textContent).toContain('No director data for this selection.');
   expect(container.textContent).not.toMatch(/NaN|Infinity|undefined|0 \/ 0/);
  } finally {await act(async()=>root.unmount());}
 });

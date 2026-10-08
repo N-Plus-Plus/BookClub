@@ -31,7 +31,7 @@ const go=async path=>{await page.evaluate(p=>location.hash='/'+p,path);await pag
 const shot=async(name,width)=>{await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:`${out}/${name}-${width}.png`,fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name} ${width}: overflow`);};
 try{
  for(const width of [320,390,720,951,1440]){
-  await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/home');await page.getByRole('heading',{name:'Club Timeline',exact:true}).waitFor();
+  await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/home');await page.getByRole('heading',{name:'Club timeline',exact:true}).waitFor();
   const strips=await page.locator('.home-dashboard .stats-grid').evaluateAll(es=>es.map(e=>({x:e.getBoundingClientRect().x,right:e.getBoundingClientRect().right,columns:getComputedStyle(e).gridTemplateColumns})));
   assert.deepEqual(strips[1],strips[2],'Timeline/Snapshot alignment');assert.deepEqual(strips[0],strips[1],'adjacent strip alignment');
   await shot('home',width);
@@ -41,7 +41,7 @@ try{
   await go('builder');await page.getByRole('button',{name:'Open set',exact:true}).click();const title=page.locator('input[maxlength="300"]');await title.fill('Pending private draft');await shot('builder-editor',width);
   await page.locator('.builder-lineup .movie-link').first().click();await page.getByRole('heading',{name:'Film detail',exact:true}).waitFor();await page.locator('.detail-identity').waitFor();await shot('detail',width);await page.getByRole('button',{name:'Back',exact:true}).click();await title.waitFor();assert.equal(await title.inputValue(),'Pending private draft');
   await page.goForward();await page.getByRole('heading',{name:'Film detail',exact:true}).waitFor();await page.goBack();await title.waitFor();assert.equal(await title.inputValue(),'Pending private draft');
-  await go('metrics');for(const name of ['Top / Bottom','Fingerprints','General','Averages','Diversity','Standalone','Cabinet']){await page.getByRole('tab',{name,exact:true}).click();await shot('metrics-'+name.replaceAll(' / ','-'),width);}
+  await go('metrics');for(const name of ['Top / bottom','Fingerprints','General','Averages','Diversity','Standalone','Cabinet']){await page.getByRole('tab',{name,exact:true}).click();await shot('metrics-'+name.replaceAll(' / ','-'),width);}
   if(width>=720){await page.getByRole('button',{name:'Collapse navigation',exact:true}).click();await shot('collapsed-metrics',width);await page.getByRole('button',{name:'Expand navigation',exact:true}).click();}
   await go('movie/a');await page.reload();await page.getByRole('button',{name:'Back',exact:true}).click();await page.getByRole('heading',{name:'Home',exact:true}).waitFor();
   await page.goto('http://localhost:4173/#/preview/tmdb/42');await page.getByRole('button',{name:'Back',exact:true}).waitFor();await shot('preview-direct',width);await page.getByRole('button',{name:'Back',exact:true}).click();await page.getByRole('heading',{name:'Home',exact:true}).waitFor();

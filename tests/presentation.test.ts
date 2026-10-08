@@ -40,13 +40,13 @@ it.each([
   const element=document.createElement('div'),root=createRoot(element);
   try {
     await act(async()=>root.render(createElement(MetricsScreen,{catalog:data,viewer:null,onUpdated:async()=>{}})));
-    await act(async()=>[...element.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent==='Top / Bottom')!.click());
+    await act(async()=>[...element.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent==='Top / bottom')!.click());
     expect([...element.querySelectorAll('.metrics-film-item p.meta')].map(e=>e.textContent)).toEqual([expected,expected]);
   } finally {await act(async()=>root.unmount());}
 });
 
 it('presents named historical controls without raw turn numbers or nominal terminology',() => {
-  expect([1,2,3,4,5].map(historicalTurnLabel)).toEqual(["Sean's turn","Troy's turn","Matt's turn","Jess' turn",'Classics week']);
+  expect([1,2,3,4,5].map(position=>historicalTurnLabel(position))).toEqual(["Sean's turn","Troy's turn","Matt's turn","Jess' turn",'Classics week']);
   const html=renderToStaticMarkup(createElement(TurnFields,{catalog,rotation,complete:false,onComplete:vi.fn(),cycle:'cycle',onCycle:vi.fn(),slot:1,onSlot:vi.fn()}));
   const element=document.createElement('div');element.innerHTML=html;
   expect([...element.querySelectorAll('[name=cycle_slot] option')].map(e=>e.textContent)).toEqual(['Turn not recorded',"Sean's turn","Troy's turn","Matt's turn","Jess' turn",'Classics week']);
@@ -132,7 +132,7 @@ it('compact ranking shows all six genuine labels and never presents imputation a
  expect(result).not.toMatch(/residual score|Score breakdown/);
  const partial={...movie,scores:movie.scores.slice(0,1),ranking:rankMovie(movie.scores.slice(0,1),[],members)};
  const element=document.createElement('div');element.innerHTML=renderToStaticMarkup(createElement(RankingScore,{movie:partial,variant:'classics',compact:true}));
- expect(element.querySelectorAll('p.meta')[1].textContent).toBe('IMDb 87');
+ expect(element.querySelector('.ranking-source-scores')!.textContent).toBe('IMDb 87');
  expect(element.textContent).not.toContain('using available-score average');
 });
 

@@ -11,7 +11,7 @@ vi.mock('../frontend/api',() => ({api:{metricsEnrichment:vi.fn()}}));
 Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
 afterEach(() => vi.resetAllMocks());
 const assignments = {
-  'Top / Bottom':['E','U','V','W'],Fingerprints:['C','F','G','J'],
+  'Top / bottom':['E','U','V','W'],Fingerprints:['C','F','G','J'],
   'General':['B','D','K','Y','L'],Averages:['M','N','T'],'Diversity':['O','P','R','S'],
   'Standalone':['H','I'],Cabinet:['X'],
 };
@@ -23,7 +23,7 @@ it('renders every metric in exactly one associated active panel, keeps global fi
   try {
     await act(async() => root.render(createElement(StrictMode,null,createElement(MetricsScreen,{catalog:metricsFixture(),viewer:null,onUpdated:async()=>{}}))));
     expect(tabs().map(t => t.textContent)).toEqual(Object.keys(assignments));
-    expect(tabs().find(t => t.getAttribute('aria-selected') === 'true')?.textContent).toBe('Top / Bottom');
+    expect(tabs().find(t => t.getAttribute('aria-selected') === 'true')?.textContent).toBe('Top / bottom');
     const seen:string[]=[];
     for (const [label,codes] of Object.entries(assignments)) {
       await select(label);

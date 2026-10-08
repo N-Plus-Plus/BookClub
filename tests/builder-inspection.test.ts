@@ -44,7 +44,7 @@ describe('Builder inspection and Use set',() => {
     expect(harness.container.querySelector('textarea')).toBeNull();
     await builderSearch(); await click(button('Next'));
     await click(harness.container.querySelector<HTMLAnchorElement>('.search-row a')!);
-    expect(lineup()).toEqual([]); expect(button('Add to Set')).toBeTruthy(); expect(button('Yes, this one!')).toBeUndefined();
+    expect(lineup()).toEqual([]); expect(button('Add to set')).toBeTruthy(); expect(button('Yes, this one!')).toBeUndefined();
     expect(harness.container.querySelector('.builder-workflow')).toBe(editor); expect(editor?.parentElement?.hidden).toBe(true);
     await navigate('builder');
     expect(harness.container.querySelector('.builder-workflow')).toBe(editor);
@@ -62,17 +62,17 @@ describe('Builder inspection and Use set',() => {
     await click(harness.container.querySelector<HTMLElement>('button[aria-label="Add Film 0"]')!);
     const editor=harness.container.querySelector('.builder-workflow');
     await builderSearch(); await click(button('Next'));
-    await click(harness.container.querySelector<HTMLAnchorElement>('.search-row a')!); await act(async () => { button('Add to Set').click(); button('Add to Set').click(); }); await flush();
+    await click(harness.container.querySelector<HTMLAnchorElement>('.search-row a')!); await act(async () => { button('Add to set').click(); button('Add to set').click(); }); await flush();
     expect(window.location.hash).toBe('#/builder'); expect(harness.container.querySelector('.builder-workflow')).toBe(editor);
     expect(lineup()).toEqual(['Film 0','Film 6']);
     expect(harness.container.querySelector<HTMLInputElement>('input[maxlength="150"]')!.value).toBe(''); expect(harness.container.querySelector('.search-row')).toBeNull();
     expect(document.activeElement).toBe(harness.container.querySelector('input[maxlength="150"]'));
     await builderSearch(); expect(harness.container.querySelector('.search-pagination')?.textContent).toContain('Page 1 of 2');
-    await click(harness.container.querySelector<HTMLAnchorElement>('.search-row a')!); await click(button('Add to Set'));
+    await click(harness.container.querySelector<HTMLAnchorElement>('.search-row a')!); await click(button('Add to set'));
     expect(lineup()).toEqual(['Film 0','Film 6','Film 0']); expect(api.importMovie).not.toHaveBeenCalled();
     await click(harness.container.querySelector<HTMLElement>('button[aria-label="Move Film 6 earlier"]')!); expect(lineup()).toEqual(['Film 6','Film 0','Film 0']);
     await click(harness.container.querySelector<HTMLElement>('button[aria-label="Remove Film 6"]')!); expect(lineup()).toEqual(['Film 0','Film 0']);
-    await navigate('home'); await navigate('movie/saved-0'); expect(button('Add to Set')).toBeUndefined();
+    await navigate('home'); await navigate('movie/saved-0'); expect(button('Add to set')).toBeUndefined();
   });
   it('imports only on confirmation, locks repeated submissions, preserves failure for retry and patches catalogue',async () => {
     await openBuilder(); await builderSearch(); await click(button('Next'));
@@ -80,14 +80,14 @@ describe('Builder inspection and Use set',() => {
     await click(harness.container.querySelectorAll<HTMLAnchorElement>('.search-row a')[2]); expect(api.importMovie).not.toHaveBeenCalled();
     let reject!: (error: Error) => void;
     vi.mocked(api.importMovie).mockImplementationOnce(() => new Promise((_resolve,fail) => { reject=fail; }));
-    const add=button('Add to Set'); await act(async () => { add.click(); add.click(); });
+    const add=button('Add to set'); await act(async () => { add.click(); add.click(); });
     expect(api.importMovie).toHaveBeenCalledTimes(1); expect(button('Adding…').disabled).toBe(true);
     await act(async () => reject(new Error('Please retry import.'))); await flush();
     expect(window.location.hash).toBe('#/preview/tmdb/42'); expect(harness.container.textContent).toContain('Please retry import.');
     expect(harness.container.querySelector('.builder-workflow')).toBe(editor); expect(lineup()).toEqual([]);
     expect(harness.container.querySelector<HTMLInputElement>('input[maxlength="150"]')!.value).toBe('film');
     expect(harness.container.querySelector('.search-pagination')?.textContent).toContain('Page 2 of 2');
-    await click(button('Add to Set')); expect(api.importMovie).toHaveBeenLastCalledWith('42'); expect(lineup()).toEqual(['Imported film']);
+    await click(button('Add to set')); expect(api.importMovie).toHaveBeenLastCalledWith('42'); expect(lineup()).toEqual(['Imported film']);
     expect(window.location.hash).toBe('#/builder'); expect(harness.container.querySelector('.search-row')).toBeNull();
     expect(document.activeElement).toBe(harness.container.querySelector('input[maxlength="150"]'));
     vi.mocked(api.builders).mockResolvedValue([{id:'new-set',owner_member_id:'member-2',title:'',notes:'',movie_ids:['canonical-import'],revision:1,created_at:'2026-01-01',updated_at:''}]);
@@ -120,7 +120,7 @@ describe('Builder inspection and Use set',() => {
     vi.mocked(api.catalog).mockResolvedValue({...catalog,members:[...catalog.members.map(m=>kind==='inactive'?{...m,active:0}:m),other]}); vi.mocked(api.rotation).mockResolvedValue(kind==='missing'?null:turn);
     await act(async () => harness.root.unmount()); harness.root=createRoot(harness.container); window.location.hash='/builder'; await act(async () => harness.root.render(createElement(App))); await flush();
     await click(button('New set')); await builderSearch(); await click(harness.container.querySelector<HTMLElement>('button[aria-label="Add Film 0"]')!);
-    expect([...harness.container.querySelectorAll('.builder-editor-actions button')].map(b=>b.textContent)).toEqual(['All sets','Use set','Save set']);
+    expect([...harness.container.querySelectorAll('.builder-editor-actions button')].map(b=>b.textContent)).toEqual(['All sets','Delete set','Use set','Save set']);
     const eligible=kind==='own'||kind==='swapped-own';
     expect(button('Use set').disabled).toBe(!eligible);
     if (!eligible) { await click(button('Use set')); expect(harness.container.querySelector('#publish-heading')).toBeNull(); expect(api.publishBuilder).not.toHaveBeenCalled(); return; }

@@ -64,7 +64,7 @@ it('shares reads across visits and invalidates without allowing an older respons
   const otherAccount=new MetricsEnrichmentResource();await otherAccount.load(next);expect(next).toHaveBeenCalledTimes(2);
 });
 
-it('does no theme work on Top / Bottom, retains visited reports, and treats repeated identity selection as a no-op',async()=>{
+it('does no theme work on Top / bottom, retains visited reports, and treats repeated identity selection as a no-op',async()=>{
   vi.mocked(api.metricsEnrichment).mockResolvedValue(metricsEnrichmentFixture());
   const theme=vi.spyOn(reports,'themeFingerprint'),diversity=vi.spyOn(reports,'tasteDiversity');
   const container=document.createElement('div'),root=createRoot(container);document.body.appendChild(container);

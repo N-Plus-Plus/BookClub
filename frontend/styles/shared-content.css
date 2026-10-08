@@ -135,9 +135,8 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .button[data-intent="constructive"] { --button-text: #102016; }
 .button[data-intent="constructive"]:disabled,.button[data-intent="constructive"][aria-disabled="true"] { --button-colour: #72917c; opacity: 1; }
 .badge:not([data-intent]),.badge[data-intent="neutral"] { --pill-colour: var(--text-secondary); }
-.turn-card { border: 1px solid var(--asphalt); }
 .turn-card-personal { background: var(--surface-raised); }
-.card { border: 1px solid transparent; background: var(--card-surface); }
+.card { border: 1px solid var(--asphalt-dark); background: var(--card-surface); }
 .button[data-variant="secondary"] { --button-colour: var(--text-secondary); background: var(--surface-raised); color: var(--paper); }
 .button[data-variant="tertiary"] { background: transparent; color: var(--text-secondary); }
 .button[data-variant="danger"] { background: transparent; color: #ef9292; }
@@ -151,11 +150,12 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .skeleton-panel { height: 160px; }
 .loading-placeholder { min-height: 400px; }
 .source-scores-summary { position: relative; min-width: 0; width: 100%; }
-.source-scores-help { position: absolute; right: 0; top: calc(-1 * var(--space-8)); transform: translateY(-100%); z-index: 1; color: var(--text-muted); }
+.source-scores-help { position: absolute; right: 0; top: calc(-1 * var(--space-4)); transform: translateY(-100%); justify-content: flex-end; align-items: flex-end; padding: 0 0 var(--space-8); z-index: 1; color: var(--text-muted); }
 .score-glossary-scroll { max-width: 100%; overflow-x: auto; }
 .score-abbreviations { width: 100%; min-width: 420px; border-collapse: collapse; font-size: var(--text-metadata); }
 .score-abbreviations th,.score-abbreviations td { padding: var(--space-8); text-align: left; border-bottom: 1px solid var(--asphalt-dark); }
-.score-abbreviations td:nth-last-child(-n+2) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.score-abbreviations .score-example-column { width: 25%; }
+.score-abbreviations th:nth-child(n+3),.score-abbreviations td:nth-child(n+3) { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .source-scores-critic-boundary::before { content: ''; position: absolute; top: 0; bottom: 0; left: var(--critic-divider-offset, calc(var(--space-8) / 2)); width: 1px; background: var(--asphalt); pointer-events: none; }
 .description-disclosure { display: flex; align-items: center; gap: var(--space-12); width: 100%; min-height: var(--target-min); padding: 0; background: transparent; border: 0; color: var(--text-muted); font: inherit; font-size: var(--text-button); font-weight: 600; cursor: pointer; }
 .description-disclosure::before,.description-disclosure::after { content: ''; flex: 1; border-top: 1px solid var(--asphalt); }
@@ -176,3 +176,13 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 
 /* Keep the absolute score-help target clear of preceding metadata, without adding a help row. */
 .ranking-score:has(.source-scores-summary) > .meta { padding-right: var(--target-min); }
+
+/* Compact candidate information owns metadata/count grouping beside its fixed poster. */
+.candidate-film { align-items: flex-start; }
+.candidate-film .movie-copy { min-height: 84px; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.candidate-film .compact-seen-summary { margin-top: auto; }
+.rank-card:has(.source-scores-summary) .candidate-film .movie-copy > .meta:nth-last-child(-n+2),
+.classics-ranking-row:has(.source-scores-summary) .candidate-film .movie-copy > .meta:nth-last-child(-n+2) { padding-right: var(--target-min); }
+.film-director { overflow-wrap: anywhere; }
+.film-title-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4) var(--space-12); }
+.film-title-line .movie-title { display: inline; min-width: 0; overflow-wrap: anywhere; }

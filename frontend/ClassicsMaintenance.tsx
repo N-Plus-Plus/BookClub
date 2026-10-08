@@ -11,7 +11,7 @@ import { useBulkJobController, MaintenanceProgress } from './bulk-maintenance';
 import { ProviderFeedback } from './maintenance-feedback';
 import { maintainScores, type MaintenanceRun } from './score-maintenance';
 import { freshOmdbCheckpoint, loadOmdbCheckpoint, maintainOmdbMetadata, reconcileOmdbCheckpoint, saveOmdbCheckpoint, type OmdbCheckpoint } from './omdb-maintenance';
-const labels = {missing:'Populate Missing Scores',refresh:'Refresh Scores',metadata:'Refresh OMDb Metadata'};
+const labels = {missing:'Populate missing scores',refresh:'Refresh scores',metadata:'Refresh OMDb metadata'};
 const actions = {missing:'Populate missing scores',refresh:'Refresh scores',metadata:'Refresh OMDb metadata'};
 export function ClassicsMaintenance({catalog,writesEnabled,onMovie,onUpdated}: {
   catalog: Catalog; writesEnabled: boolean; onMovie: (movie: MovieDetail) => void; onUpdated?: () => Promise<void>;
@@ -57,7 +57,7 @@ export function ClassicsMaintenance({catalog,writesEnabled,onMovie,onUpdated}: {
       <div className="button-set action-group-wrap"><Action icon={RefreshCw} disabled={Boolean(mode) || job.locked || !writesEnabled || !candidates.length} onClick={()=>void start(operation)}>{operation==='metadata' && resumable?.remainingIds.length ? `Resume OMDb metadata · ${formatCount(resumable.remainingIds.length)} remaining` : actions[operation]}</Action>
         {operation==='metadata' && checkpoint && !mode && <Action icon={RotateCcw} variant="tertiary" disabled={job.locked} onClick={()=>{checkpointChanged(null);setRun(null);}}>Discard metadata progress</Action>}
         {mode===operation && <Action icon={Square} onClick={job.requestStop}>Stop after this batch</Action>}</div>
-      {run && runMode===operation && <MaintenanceProgress processed={run.processed} total={run.total} label={`${labels[operation]} progress`} className="score-maintenance-progress" summary={<>{mode ? `${labels[operation]}… ` : ''}{formatCount(run.processed)} / {formatCount(run.total)} films processed · {formatCount(run.remaining)} remaining · {formatCount(run.updated)} updated · {formatCount(run.noChange)} {operation==='metadata' ? 'with no change' : 'with no new scores'} · {formatCount(run.failed)} failures.</>}>
+      {run && runMode===operation && <MaintenanceProgress state={run.interrupted || error ? 'interrupted' : 'normal'} processed={run.processed} total={run.total} label={`${labels[operation]} progress`} className="score-maintenance-progress" summary={<>{mode ? `${labels[operation]}… ` : ''}{formatCount(run.processed)} / {formatCount(run.total)} films processed · {formatCount(run.remaining)} remaining · {formatCount(run.updated)} updated · {formatCount(run.noChange)} {operation==='metadata' ? 'with no change' : 'with no new scores'} · {formatCount(run.failed)} failures.</>}>
         {operation==='metadata' && resumed && <p className="meta">Update, no-change and failure counts are for this visit.</p>}{run.message && <p className="meta">{run.message}</p>}{run.providers.some(provider=>provider.status==='failed') && <ProviderFeedback providers={run.providers.filter(provider=>provider.status==='failed')} />}
       </MaintenanceProgress>}
       {error && (runMode===operation || !runMode && operation==='missing') && <p className="error-message" role="alert">{error}</p>}

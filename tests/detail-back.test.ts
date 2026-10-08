@@ -14,7 +14,7 @@ it('returns from ordinary Builder lineup links to the same editor and unsaved dr
   await input(title,'Private pending draft');
   const editor=harness.container.querySelector('.builder-workflow');
   await click(harness.container.querySelector<HTMLAnchorElement>('.builder-lineup .movie-link')!);
-  await vi.waitFor(async()=>{await flush();expect(button('Back')).toBeTruthy();});expect(button('Add to Set')).toBeUndefined();expect(editor?.parentElement?.hidden).toBe(true);
+  await vi.waitFor(async()=>{await flush();expect(button('Back')).toBeTruthy();});expect(button('Add to set')).toBeUndefined();expect(editor?.parentElement?.hidden).toBe(true);
   await click(button('Back'));await vi.waitFor(async()=>{await flush();expect(harness.container.querySelector('h1')?.textContent).toBe('Builder');});
   expect(harness.container.querySelector('.builder-workflow')).toBe(editor);
   expect(title.value).toBe('Private pending draft');expect(lineup()).toEqual(['Film 0']);expect(api.builders).toHaveBeenCalledTimes(1);

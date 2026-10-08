@@ -22,9 +22,9 @@ export function useBulkJobController() {
   };
   return {busy,error,setError,stop,stopRequested,requestStop,execute,locked:lock.busy};
 }
-export function MaintenanceProgress({processed,total,label,className,summary,beforeProgress,children}: {
-  processed:number;total:number;label:string;className?:string;summary:ReactNode;beforeProgress?:ReactNode;children?:ReactNode;
+export function MaintenanceProgress({processed,total,label,className,state = 'normal',summary,beforeProgress,children}: {
+  processed:number;total:number;label:string;className?:string;state?:'normal'|'interrupted';summary:ReactNode;beforeProgress?:ReactNode;children?:ReactNode;
 }) {
   return <div className="stack" role="status"><p className="meta">{summary}</p>{beforeProgress}
-    <progress className={className} max={Math.max(1,total)} value={processed} aria-label={label}/>{children}</div>;
+    <progress data-state={state} className={`maintenance-progress ${className ?? ''}`.trim()} max={Math.max(1,total)} value={processed} aria-label={label}/>{children}</div>;
 }

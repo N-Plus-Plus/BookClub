@@ -60,9 +60,9 @@ export function clubTimeline(catalog: Catalog,today: Date) {
     if (!cycle || !Number.isInteger(cycle.ordinal) || cycle.ordinal < 1) continue;
     const completed = session.completed_turn_version != null;
     const importedFinal = session.cycle_slot === 5 && session.kind === 'classics' && Boolean(cycle.import_source || cycle.import_key);
-    if (session.cycle_slot === 5 && session.kind === 'classics' && (completed || importedFinal)) cyclesCompleted = Math.max(cyclesCompleted,cycle.ordinal);
+    if (session.cycle_slot === 5 && session.kind === (cycle.classics_first ? 'hosted' : 'classics') && (completed || importedFinal)) cyclesCompleted = Math.max(cyclesCompleted,cycle.ordinal);
     // A genuinely completed first turn establishes the next chronological cycle.
-    if (session.cycle_slot === 1 && session.kind === 'hosted' && completed) cyclesCompleted = Math.max(cyclesCompleted,cycle.ordinal-1);
+    if (session.cycle_slot === 1 && session.kind === (cycle.classics_first ? 'classics' : 'hosted') && completed) cyclesCompleted = Math.max(cyclesCompleted,cycle.ordinal-1);
   }
   const watchMinutes = selectedAppearances(catalog).reduce((sum,{movie}) => sum+(movie.runtime ?? 0),0);
   return {daysActive:daysActive(today),cyclesCompleted,watchMinutes};

@@ -40,7 +40,7 @@ window.renderSelection('classics');
   for(const width of [320,390,720,1440]){
     await page.setViewportSize({width,height:900});
     await page.evaluate(()=>window.renderSelection('builder'));
-    const input=page.getByLabel('Search saved films & TMDB');
+    const input=page.getByLabel('Search films');
     for(const id of ['A','B']){
       await input.fill(id);await page.getByRole('button',{name:'Search',exact:true}).click();
       await page.getByRole('button',{name:/^Add /}).click();

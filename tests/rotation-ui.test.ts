@@ -18,18 +18,18 @@ const render = async (rotation=turn,club=catalog) => {await act(async()=>root.re
 const renderSwap = async (rotation=turn,club=catalog) => {await act(async()=>root.render(createElement(RotationSwapCard,{catalog:club,rotation,writesEnabled:true,onUpdated:updated})));};
 const actions = () => [...container.querySelectorAll('.turn-actions .button')].map(e=>e.textContent);
 it('groups heading and effective identity on the left and ordered secondary/constructive actions on the right',async()=>{
- await render();expect(actions()).toEqual(['Plan in Builder','Use from Builder','Record an Event']);
+ await render();expect(actions()).toEqual(['Plan in Builder','Use from Builder','Record an event']);
  expect(container.querySelector('.turn-identity h2')?.textContent).toBe('It is your turn');expect(container.querySelector('.turn-card-area-personal')).toBeTruthy();
  const buttons=container.querySelectorAll('.turn-actions .button');expect(buttons[0].getAttribute('data-variant')).toBe('secondary');expect(buttons[1].getAttribute('data-variant')).toBe('secondary');expect(buttons[2].getAttribute('data-intent')).toBe('constructive');
- expect(container.querySelector('select')).toBeNull();expect(container.textContent).not.toContain('Admin · swap current turn');
- await render({...turn,human_order:{'1':'m3','3':'m1'}});expect(actions()).toEqual(['Record an Event']);expect(container.querySelector('.turn-identity')?.textContent).toContain('MEMBER 3');expect(container.querySelector('.turn-card-area-personal')).toBeNull();
+ expect(container.querySelector('select')).toBeNull();expect(container.textContent).not.toContain('Swap current turn');
+ await render({...turn,human_order:{'1':'m3','3':'m1'}});expect(actions()).toEqual(['Record an event']);expect(container.querySelector('.turn-identity')?.textContent).toContain('MEMBER 3');expect(container.querySelector('.turn-card-area-personal')).toBeNull();
 });
-it('CLSC has Watch Order then constructive Record an Event and no admin swap',async()=>{
- await render({...turn,nominal_slot:5,cycle_id:'cycle'});expect(actions()).toEqual(['View Watch Order','Record an Event']);expect(container.querySelector('details')).toBeNull();
+it('CLSC has Watch Order then constructive Record an event and no admin swap',async()=>{
+ await render({...turn,nominal_slot:5,cycle_id:'cycle'});expect(actions()).toEqual(['View watch order','Record an event']);expect(container.querySelector('details')).toBeNull();
 });
 it('offers only eligible future members and submits the narrow versioned swap with feedback',async()=>{
  const club={...catalog,members:catalog.members.map(m=>({...m,active:m.id==='m4'?0:1})),sessions:[{cycle_id:'cycle',cycle_slot:2,host_member_id:'m2'}] as Catalog['sessions']};
- await renderSwap({...turn,cycle_id:'cycle'},club);expect(container.querySelector('h2')?.textContent).toBe('Admin · swap current turn');
+ await renderSwap({...turn,cycle_id:'cycle'},club);expect(container.querySelector('h2')?.textContent).toBe('Swap current turn');
  expect([...container.querySelectorAll('option')].map(e=>e.value)).toEqual(['','m3']);expect(container.querySelector('textarea')).toBeNull();
  vi.mocked(api.swapRotation).mockResolvedValue({...turn,human_order:{'1':'m3','3':'m1'},version:5});
  await act(async()=>{const select=container.querySelector('select')!;select.value='m3';select.dispatchEvent(new Event('change',{bubbles:true}));});
@@ -41,4 +41,14 @@ it('shows local errors and preserves the selected target',async()=>{
  await act(async()=>{const select=container.querySelector('select')!;select.value='m3';select.dispatchEvent(new Event('change',{bubbles:true}));});
  await act(async()=>container.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
  expect(container.querySelector('[role=alert]')?.textContent).toBe('Current turn changed.');expect(container.querySelector('select')?.value).toBe('m3');expect(updated).not.toHaveBeenCalled();
+});
+
+it('offers a hostless Classics target only before Sean starts the next cycle and reconciles its versioned exchange',async()=>{
+ await renderSwap();expect([...container.querySelectorAll('option')].map(e=>e.value)).toEqual(['','m2','m3','m4','classics']);
+ vi.mocked(api.swapRotation).mockResolvedValue({...turn,classics_first:1,version:5});
+ await act(async()=>{const select=container.querySelector('select')!;select.value='classics';select.dispatchEvent(new Event('change',{bubbles:true}));});
+ await act(async()=>container.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ expect(api.swapRotation).toHaveBeenCalledWith({target_kind:'classics',version:4});expect(updated).toHaveBeenCalledWith({...turn,classics_first:1,version:5});
+ await render({...turn,classics_first:1});expect(actions()).toEqual(['View watch order','Record an event']);
+ await render({...turn,classics_first:1,nominal_slot:5,cycle_id:'cycle'});expect(actions()).toEqual(['Plan in Builder','Use from Builder','Record an event']);
 });

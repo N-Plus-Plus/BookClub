@@ -50,7 +50,7 @@ it.each([true,false])('infers all active members from History, regardless of Cla
 it('suppresses Seen for films outside Classics without History appearances',async()=>{
  const movie={...film(1),classic:false,appearances:[]};vi.mocked(api.detail).mockResolvedValue(movie);
  await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members})));
- expect(container.querySelector('.detail-seen-summary')).toBeNull();expect(container.textContent).not.toContain('Seen It?');expect(api.seen).not.toHaveBeenCalled();
+ expect(container.querySelector('.detail-seen-summary')).toBeNull();expect(container.textContent).not.toContain('Seen it?');expect(api.seen).not.toHaveBeenCalled();
 });
 
 it('omits maintenance on all Classics tabs and includes History in Admin bulk work',async()=>{
@@ -62,7 +62,7 @@ it('omits maintenance on all Classics tabs and includes History in Admin bulk wo
  await render();
  for (const tab of ['Ranked','Unranked','Seen']) {
   await click(tab);expect(container.querySelectorAll('.classics-maintenance')).toHaveLength(0);
-  expect(container.querySelector('.ranking-list details')).toBeNull();expect(container.textContent).not.toContain('Populate Missing Scores');
+  expect(container.querySelector('.ranking-list details')).toBeNull();expect(container.textContent).not.toContain('Populate missing scores');
  }
  await act(async()=>root.render(createElement(AdminScreen,{catalog,writesEnabled:true,onMovie,onUpdated:async()=>{}})));
  vi.mocked(api.maintainMovies).mockImplementation(async(_mode,ids)=>({results:ids.map(id=>({movie:{...catalog.movies.find(m=>m.id===id)!,appearances:[]},providers:[{provider:'mdblist',status:'success',count:3,message:'Saved'}]}))}));
@@ -126,7 +126,7 @@ it('scopes compact film titles and shares the tab and count families',()=>{
  const css=applicationCss();
  expect(css).toMatch(/@media \(max-width: 719px\)\s*\{\s*\.classics-ranking-row \.movie-title \{ --text-movie-title: var\(--text-film-compact\); \}\s*\}/);
  for (const selector of ['.classics-filters','.metrics-category-tabs']) expect(css).toContain(`${selector} { display: flex; flex-wrap: nowrap;`);
- expect(css).toContain('.classics-filters .tab-control { flex: 1 0 auto; min-width: 0; }');
+ expect(css).toContain('.classics-filters .tab-control { flex: 1 0 auto; min-width: 0; font-size: var(--text-body); }');
  expect(css).toContain('.tab-control,.button.tab-control');
  expect(css).toContain('.tab-control[aria-pressed=true]::after,.tab-control[aria-selected=true]::after');
  expect(css).toContain('bottom: 0; height: 3px; background: var(--focus-outline)');
@@ -165,17 +165,17 @@ it.each(['Populate missing scores','Refresh scores','Refresh OMDb metadata'])('k
 it('scopes orange progress fill to score maintenance across browser engines',()=>{
  const css=applicationCss(),palette=readFileSync('style.css','utf8');
  expect(palette).toContain('--pumpkin: #fab153;');
- expect(css).toContain('.score-maintenance-progress { appearance: none; border: 0; background: var(--asphalt-dark); accent-color: var(--pumpkin); }');
- expect(css).toContain('.score-maintenance-progress::-webkit-progress-bar { background: var(--asphalt-dark); }');
- for(const engine of ['webkit-progress-value','moz-progress-bar']) expect(css).toContain(`.score-maintenance-progress::-${engine} { background: var(--pumpkin); }`);
+ expect(css).toContain('.maintenance-progress { appearance: none; border: 0; background: var(--asphalt-dark); accent-color: var(--progress-fill, var(--pumpkin)); }');
+ expect(css).toContain('.maintenance-progress::-webkit-progress-bar { background: var(--asphalt-dark); }');
+ for(const engine of ['webkit-progress-value','moz-progress-bar']) expect(css).toContain(`.maintenance-progress::-${engine} { background: var(--progress-fill, var(--pumpkin)); }`);
  expect(css).toContain('progress { width: 100%; height: 10px; accent-color: var(--concrete); }');
 });
 
 it.each([
- {answered:['m1','m2'],summary:'0 Seen · 2 No · 2 Unknown (Sean, Matt)'},
- {answered:['m1','m2','m3'],summary:'0 Seen · 3 No · 1 Unknown (Matt)'},
- {answered:['m1','m2','m3','m4'],summary:'0 Seen · 4 No · 0 Unknown'},
- {answered:[],summary:'0 Seen · 0 No · 4 Unknown (Troy, Jess, Sean, Matt)'},
+ {answered:['m1','m2'],summary:'0 Seen · 2 Haven\'t · 2 Unknown (Sean, Matt)'},
+ {answered:['m1','m2','m3'],summary:'0 Seen · 3 Haven\'t · 1 Unknown (Matt)'},
+ {answered:['m1','m2','m3','m4'],summary:'0 Seen · 4 Haven\'t · 0 Unknown'},
+ {answered:[],summary:'0 Seen · 0 Haven\'t · 4 Unknown (Troy, Jess, Sean, Matt)'},
 ])('identifies active Unknown voters from explicit answers: $summary',async({answered,summary})=>{
  const roster=members.map((member,index)=>({...member,display_name:['Troy','Jess','Sean','Matt','Inactive'][index]})).reverse();
  const seen=answered.map(member_id=>({member_id,seen:0,updated_at:''}));
@@ -183,7 +183,7 @@ it.each([
  const originalRoster=roster.map(member=>member.id);
  await act(async()=>root.render(createElement(ClassicsScreen,{catalog:{movies:[movie],members:roster,sessions:[],cycles:[]},movies:[movie],viewer:null,writesEnabled:false,onMovie:vi.fn()})));
  if(movie.ranking.unknownCount>0) await click('Unranked');
- const summaryText=container.querySelector('.ranking-score > .meta')?.textContent;
+ const summaryText=container.querySelector('.candidate-film .compact-seen-summary')?.textContent;
  expect(summaryText).toBe(summary);expect(summaryText).not.toContain('Inactive');
  expect(roster.map(member=>member.id)).toEqual(originalRoster);
 });

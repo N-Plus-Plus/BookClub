@@ -130,3 +130,12 @@ it('History permissions enforce stored host edits and admin-only delete/audit wi
  expect((await call('/sessions/'+s.id+'/audit','GET',undefined,2)).status).toBe(200);
  expect((await call('/sessions/'+s.id,'DELETE',undefined,2)).status).toBe(200);expect(await turn()).toEqual(before);
 });
+
+it('accepts only the administrator versioned Classics target contract',async()=>{
+ local.sqlite.exec('UPDATE club_rotation SET nominal_slot=1,cycle_id=NULL,version=version+1');const version=(await turn()).version;
+ expect((await call('/rotation/swap','POST',{target_kind:'classics',version},1)).status).toBe(403);
+ expect((await call('/rotation/swap','POST',{target_kind:'classics',target_member_id:'member-3',version},2)).status).toBe(422);
+ expect((await call('/rotation/swap','POST',{target_kind:'classics',version},2)).status).toBe(200);
+ expect(await turn()).toMatchObject({classics_first:1,nominal_slot:1,cycle_id:null});
+ expect((await call('/rotation/swap','POST',{target_kind:'classics',version},2)).status).toBe(409);
+});

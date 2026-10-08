@@ -21,7 +21,7 @@ export async function productRoutes({request,path,method,repo,product,auth,body}
     if (id && builderMatch?.[2] === 'publish' && method === 'POST') {
       const {revision,...input} = publishSchema.parse(await body(request));
       const result: JournalMutationResult = {};
-      const sessionId = await product.publishBuilder(actor,id,revision,{...input,movie_ids: [],kind: input.cycle_slot === 5 ? 'classics' : 'hosted',date_precision: 'exact'},result);
+      const sessionId = await product.publishBuilder(actor,id,revision,{...input,movie_ids: [],date_precision: 'exact'},result);
       result.session = await repo.session(sessionId);
       return json(result,201);
     }

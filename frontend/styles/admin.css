@@ -1,8 +1,8 @@
 /* admin: base rules and responsive refinements in their original relative order. */
-.score-maintenance-progress { appearance: none; border: 0; background: var(--asphalt-dark); accent-color: var(--pumpkin); }
-.score-maintenance-progress::-webkit-progress-bar { background: var(--asphalt-dark); }
-.score-maintenance-progress::-webkit-progress-value { background: var(--pumpkin); }
-.score-maintenance-progress::-moz-progress-bar { background: var(--pumpkin); }
+.maintenance-progress { appearance: none; border: 0; background: var(--asphalt-dark); accent-color: var(--progress-fill, var(--pumpkin)); }
+.maintenance-progress::-webkit-progress-bar { background: var(--asphalt-dark); }
+.maintenance-progress::-webkit-progress-value { background: var(--progress-fill, var(--pumpkin)); }
+.maintenance-progress::-moz-progress-bar { background: var(--progress-fill, var(--pumpkin)); }
 .admin-screen .button-set { align-items: flex-start; }
 .developer-tools { margin-bottom: var(--space-20); border: 0; font-size: var(--text-metadata); }
 .developer-tools[open] { padding: var(--space-16); background: var(--surface-raised); border: 1px solid var(--asphalt); }
@@ -10,3 +10,7 @@
 
 .maintenance-details { display: grid; gap: var(--space-8); }
 .maintenance-details p { margin: 0; overflow-wrap: anywhere; }
+
+.rotation-swap-form > .button[type="submit"] { align-self: flex-start; width: fit-content; }
+
+.maintenance-progress[data-state="interrupted"] { --progress-fill: var(--ruby); }

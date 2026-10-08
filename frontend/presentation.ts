@@ -1,18 +1,20 @@
 import { ratingDimension } from '../shared/rating-dimensions';
 import type { Member, Rotation } from '../shared/types';
-import { effectiveMember } from '../shared/rotation';
+import { effectiveMember, isClassicsTurn } from '../shared/rotation';
 
 export function possessiveName(name: string) {
   return `${name}${/s$/i.test(name) ? "'" : "'s"}`;
 }
 
 // Historical order is independent of the actual host or current swaps.
-export function historicalTurnLabel(position: number | null | undefined) {
+export function historicalTurnLabel(position: number | null | undefined,classicsFirst = false) {
+  if (classicsFirst && position === 1) return 'Classics week';
+  if (classicsFirst && position === 5) return "Sean's turn";
   return [...['Sean','Troy','Matt','Jess'].map(name => `${possessiveName(name)} turn`), 'Classics week'][(position ?? 0) - 1] ?? 'Turn not recorded';
 }
 
 export function currentTurnLabel(members: Member[], rotation: Rotation) {
-  if (rotation.nominal_slot === 5) return 'Classics week';
+  if (isClassicsTurn(rotation)) return 'Classics week';
   const member = effectiveMember(members,rotation);
   return member ? `${possessiveName(member.display_name)} turn` : 'Member unavailable';
 }

@@ -1,6 +1,6 @@
-import type { Member, BuilderInput, BuilderSet, HistoryAudit, Rotation, SessionInput, Viewer, JournalMutationResult, Cycle } from '../../shared/types';
+import type { Member, BuilderInput, BuilderSet, HistoryAudit, Rotation, SessionInput, Viewer, JournalMutationResult, Cycle, RotationSwapInput } from '../../shared/types';
 import { ApiError } from './http';
-import { effectiveMember, swapTargets } from '../../shared/rotation';
+import { effectiveMember, swapTargets, isClassicsTurn, canSwapClassics, humanPosition } from '../../shared/rotation';
 
 const conflict = (message: string) => new ApiError(409,'STATE_CONFLICT',message);
 const missing = () => new ApiError(404,'NOT_FOUND','Record not found.');
@@ -49,22 +49,31 @@ export class ProductRepository {
     const row = await this.db.prepare('SELECT * FROM club_rotation WHERE id=1').first<Omit<Rotation,'human_order'> & {human_order?:string}>();
     return row ? {...row,human_order:JSON.parse(row.human_order ?? '{}') as Record<string,string>} : null;
   }
-  async swapRotation(actor: Viewer, input: {target_member_id: string; version: number}) {
+  async swapRotation(actor: Viewer, input: RotationSwapInput) {
+    requireAdmin(actor);
     const columns = await this.db.prepare('PRAGMA table_info(club_rotation)').all<{name:string}>();
-    if (!columns.results.some(column => column.name === 'human_order'))
+    if (!columns.results.some(column => column.name === 'human_order') || input.target_kind === 'classics' && !columns.results.some(column => column.name === 'classics_first'))
       throw new ApiError(503,'SCHEMA_UPGRADE_REQUIRED','Turn swaps require the pending database upgrade. Try again after deployment.');
     const before = await this.rotation();
     if (!before || before.version !== input.version) throw conflict('Current turn changed. Reload before swapping.');
     const members = (await this.db.prepare('SELECT * FROM members').all<Member>()).results;
-    const sessions = (await this.db.prepare('SELECT cycle_id,cycle_slot,host_member_id,deleted_at FROM sessions WHERE cycle_id=? AND deleted_at IS NULL').bind(before.cycle_id).all<{cycle_id:string;cycle_slot:number;host_member_id:string|null;deleted_at:null}>()).results;
+    const sessions = (await this.db.prepare('SELECT cycle_id,cycle_slot,host_member_id,deleted_at,completed_turn_version FROM sessions WHERE cycle_id=? OR completed_turn_version>=?').bind(before.cycle_id,before.version).all<import('../../shared/types').Session>()).results;
     const current = effectiveMember(members,before);
-    const target = swapTargets(members,before,sessions).find(target => target.member.id === input.target_member_id);
-    if (!current || !target) throw new ApiError(422,'INVALID_SWAP','Choose an active member with a future, uncompleted turn and no Event this cycle.');
-    const order = {...before.human_order,[before.nominal_slot]:target.member.id,[target.slot]:current.id};
-    await this.batch([
-      this.db.prepare("UPDATE club_rotation SET human_order=?,version=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=1").bind(JSON.stringify(order),input.version+1),
-      this.audit(actor,null,'rotation',{before,after:{...before,human_order:order,version:input.version+1},swap:{current_member_id:current.id,target_member_id:target.member.id,target_slot:target.slot}}),
-    ]);
+    if (input.target_kind === 'classics') {
+      if (!canSwapClassics(members,before,sessions)) throw new ApiError(422,'INVALID_SWAP','Classics can move first only before Sean starts an untouched next cycle.');
+      await this.batch([
+        this.db.prepare("UPDATE club_rotation SET classics_first=1,version=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=1").bind(input.version+1),
+        this.audit(actor,null,'rotation',{before,after:{...before,classics_first:1,version:input.version+1},swap:{current_member_id:current!.id,target_kind:'classics',target_slot:5}}),
+      ]);
+    } else {
+      const target = swapTargets(members,before,sessions).find(target => target.member.id === input.target_member_id);
+      if (!current || !target) throw new ApiError(422,'INVALID_SWAP','Choose an active member with a future, uncompleted turn and no Event this cycle.');
+      const order = {...before.human_order,[humanPosition(before,before.nominal_slot)]:target.member.id,[humanPosition(before,target.slot)]:current.id};
+      await this.batch([
+        this.db.prepare("UPDATE club_rotation SET human_order=?,version=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=1").bind(JSON.stringify(order),input.version+1),
+        this.audit(actor,null,'rotation',{before,after:{...before,human_order:order,version:input.version+1},swap:{current_member_id:current.id,target_member_id:target.member.id,target_slot:target.slot}}),
+      ]);
+    }
     return this.rotation();
   }
   async builders(owner: string): Promise<BuilderSet[]> {
@@ -126,13 +135,13 @@ export class ProductRepository {
     if (existingId && input.complete_turn) throw new ApiError(422,'INVALID_COMPLETION','An existing History event cannot complete a new turn.');
     if (before) {
       input = {...input,kind:before.kind as SessionInput['kind'],host_member_id:before.host_member_id as string | null};
-    } else if (!builder) {
+    } else if (!builder || input.complete_turn) {
       const current = await this.rotation();
       if (!current) throw new ApiError(409,'CURRENT_TURN_UNAVAILABLE','The current turn is unavailable. Ask an administrator to initialise rotation.');
       const members = (await this.db.prepare('SELECT * FROM members').all<Member>()).results;
       const member = effectiveMember(members,current);
-      if (current.nominal_slot !== 5 && !member) throw new ApiError(422,'CURRENT_HOST_UNAVAILABLE','The current turn has no active member. Ask an administrator to correct the rotation roster.');
-      input = {...input,kind:current.nominal_slot === 5 ? 'classics' : 'hosted',host_member_id:member?.id ?? null};
+      if ((!builder || current.classics_first) && !isClassicsTurn(current) && !member) throw new ApiError(422,'CURRENT_HOST_UNAVAILABLE','The current turn has no active member. Ask an administrator to correct the rotation roster.');
+      if (!builder || current.classics_first) input = {...input,kind:isClassicsTurn(current) ? 'classics' : 'hosted',host_member_id:member?.id ?? null};
     }
     await this.validateMovies(input.movie_ids);
     if (!before && input.host_member_id && !await this.db.prepare('SELECT id FROM members WHERE id=? AND active=1').bind(input.host_member_id).first()) throw new ApiError(422,'INVALID_HOST','The event host is unavailable.');
@@ -152,7 +161,9 @@ export class ProductRepository {
         input = {...input,new_cycle: {rough_date: input.event_date}};
       }
     }
-    if (slot === 5 ? kind !== 'classics' : slot !== null && kind !== 'hosted') throw new ApiError(422,'INVALID_SLOT','Classics week requires a Classics event; a member’s turn requires a hosted event.');
+    const cycleIdentity = cycleId ? await this.db.prepare('SELECT * FROM cycles WHERE id=?').bind(cycleId).first<Cycle>() : null;
+    const classicsFirst = turn?.classics_first ?? cycleIdentity?.classics_first ?? 0;
+    if (slot === (classicsFirst ? 1 : 5) ? kind !== 'classics' : slot !== null && kind !== 'hosted') throw new ApiError(422,'INVALID_SLOT','Classics week requires a Classics event; a member’s turn requires a hosted event.');
     if (kind === 'classics' && input.host_member_id) throw new ApiError(422,'INVALID_HOST','Classics is hostless.');
     if (!before && kind === 'hosted' && slot !== null && slot <= 4) {
       const nominal = await this.db.prepare('SELECT id FROM members WHERE sort_order=?').bind(slot).first<{id: string}>();
@@ -161,14 +172,16 @@ export class ProductRepository {
     if (cycleId && slot !== null && await this.db.prepare('SELECT id FROM sessions WHERE cycle_id=? AND cycle_slot=? AND deleted_at IS NULL AND id<>?').bind(cycleId,slot,existingId ?? '').first())
       throw conflict('This turn already has an active History event in the selected cycle. Choose another turn or review History.');
     if (input.new_cycle) {
-      if (slot !== 1 || kind !== 'hosted' || precision !== 'exact' || input.new_cycle.rough_date !== input.event_date) throw new ApiError(422,'INVALID_ANCHOR','A new cycle begins with Sean’s turn and its exact event date as the cycle anchor.');
+      if (slot !== 1 || kind !== (classicsFirst ? 'classics' : 'hosted') || precision !== 'exact' || input.new_cycle.rough_date !== input.event_date) throw new ApiError(422,'INVALID_ANCHOR','A new cycle begins with its first turn and its exact event date as the cycle anchor.');
       cycleId = crypto.randomUUID();
-      statements.push(this.db.prepare('INSERT INTO cycles(id,ordinal,rough_date,title) SELECT ?,COALESCE(?,COALESCE(MAX(ordinal),0)+1),?,? FROM cycles').bind(cycleId,input.new_cycle.ordinal ?? null,input.event_date,input.new_cycle.title || null));
+      statements.push(classicsFirst
+        ? this.db.prepare('INSERT INTO cycles(id,ordinal,rough_date,title,classics_first) SELECT ?,COALESCE(?,COALESCE(MAX(ordinal),0)+1),?,?,1 FROM cycles').bind(cycleId,input.new_cycle.ordinal ?? null,input.event_date,input.new_cycle.title || null)
+        : this.db.prepare('INSERT INTO cycles(id,ordinal,rough_date,title) SELECT ?,COALESCE(?,COALESCE(MAX(ordinal),0)+1),?,? FROM cycles').bind(cycleId,input.new_cycle.ordinal ?? null,input.event_date,input.new_cycle.title || null));
     } else if (cycleId) {
       const cycle = await this.db.prepare('SELECT rough_date FROM cycles WHERE id=?').bind(cycleId).first<{rough_date: string}>();
       if (!cycle) throw new ApiError(422,'INVALID_CYCLE','Choose an existing cycle.');
       if (slot === 1 && precision === 'exact' && cycle.rough_date !== input.event_date) {
-        if (!existingId || before?.cycle_slot !== 1 || before?.cycle_id !== cycleId || !input.correct_anchor) throw new ApiError(422,'INVALID_ANCHOR','Sean’s turn establishes the cycle anchor. Confirm an anchor correction when editing its event date, or choose the matching cycle.');
+        if (!existingId || before?.cycle_slot !== 1 || before?.cycle_id !== cycleId || !input.correct_anchor) throw new ApiError(422,'INVALID_ANCHOR','The first turn establishes the cycle anchor. Confirm an anchor correction when editing its event date, or choose the matching cycle.');
         if (await this.db.prepare('SELECT id FROM sessions WHERE cycle_id=? AND cycle_slot=1 AND id<>? AND deleted_at IS NULL').bind(cycleId,existingId).first()) throw conflict('This cycle has multiple records for Sean’s turn. Ask an administrator to resolve them before correcting its anchor.');
         statements.push(this.db.prepare("UPDATE cycles SET rough_date=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").bind(input.event_date,cycleId));
         const references = (await this.db.prepare("SELECT id,event_date FROM sessions WHERE cycle_id=? AND date_precision='cycle_rough' AND deleted_at IS NULL AND id<>?").bind(cycleId,existingId).all<{id: string; event_date: string}>()).results;
@@ -203,7 +216,9 @@ export class ProductRepository {
     const builder = await this.builder(actor.id,id);
     if (builder.revision !== revision) throw conflict('Builder changed. Refresh before publishing.');
     if (!builder.movie_ids.length) throw new ApiError(422,'EMPTY_BUILDER','Add at least one film.');
-    return this.saveSession({...input,movie_ids: builder.movie_ids,host_member_id: input.kind === 'classics' ? null : actor.id},actor,undefined,builder,effects);
+    const cycle = input.cycle_id ? await this.db.prepare('SELECT * FROM cycles WHERE id=?').bind(input.cycle_id).first<Cycle>() : null;
+    const hostless = input.cycle_slot === (cycle?.classics_first ? 1 : 5);
+    return this.saveSession({...input,kind:hostless ? 'classics' : 'hosted',movie_ids: builder.movie_ids,host_member_id: hostless ? null : actor.id},actor,undefined,builder,effects);
   }
   async deleteSession(actor: Viewer | null, id: string) {
     requireAdmin(actor);

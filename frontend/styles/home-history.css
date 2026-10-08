@@ -4,7 +4,7 @@
 .welcome p:not(.eyebrow) { font-size: var(--text-metadata); color: var(--text-secondary); margin-bottom: var(--space-24); max-width: 26ch; }
 .welcome-icon { display: none; color: var(--asphalt); align-self: center; }
 .stats-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }
-.stat { padding: var(--space-16) var(--space-8); display: flex; flex-direction: column; gap: var(--space-6); text-decoration: none; }
+.stat { padding: var(--space-16) var(--space-8) var(--space-16) var(--space-16); display: flex; flex-direction: column; gap: var(--space-6); text-decoration: none; }
 .stat strong { font-size: var(--text-stat-number); font-weight: 500; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .stat span { font-size: var(--text-stat-label); color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .stat-link:hover { background: var(--surface-hover); }
@@ -15,7 +15,7 @@
   .welcome { padding: var(--space-32); }
   .welcome p:not(.eyebrow) { max-width: none; }
   .welcome-icon { display: block; width: 130px; height: 130px; margin-right: 35px; }
-  .stat { padding: var(--space-20); }
+  .stat { padding: var(--space-20) var(--space-20) var(--space-20) var(--space-32); }
   .stat strong { font-size: var(--text-stat-number-wide); }
   .stat span { font-size: var(--text-stat-label-wide); }
 }
@@ -30,7 +30,6 @@
 .turn-identity .club-avatar { width: 80px; height: 80px; }
 .turn-identity .club-identity { font-size: var(--text-section-heading); }
 .session-meta .club-avatar { width: 36px; height: 36px; }
-.session-card { border-color: var(--asphalt-dark); }
 .stats-grid { gap: 0; padding-block: var(--space-16); border-block: 1px solid var(--asphalt-dark); }
 .stats-grid .stat { border: 0; background: transparent; border-radius: 0; }
 .stats-grid .stat + .stat { border-left: 1px solid var(--asphalt-dark); }
@@ -50,8 +49,9 @@
 .history-event .movie-title { font-size: var(--text-subsection-heading); overflow-wrap: anywhere; }
 .history-event .position { min-width: 2ch; }
 .history-cycle-context { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-20); }
-.history-cycle-order { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
-.history-cycle-turn { display: inline-flex; align-items: center; gap: var(--space-8); }
+.history-cycle-order { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-8); margin-left: auto; max-width: 100%; text-align: right; }
+.history-cycle-turn { display: inline-flex; align-items: center; gap: var(--space-8); min-width: 0; overflow-wrap: anywhere; }
+.history-cycle-turn svg { flex-shrink: 0; }
 .home-session-card { display: flow-root; }
 .home-session-identity { float: right; margin: 0 0 var(--space-12) var(--space-12); max-width: 40%; }
 .home-session-identity .club-identity { flex-direction: column; text-align: center; overflow-wrap: anywhere; }
@@ -64,7 +64,6 @@
 
 .history-event-identity { max-width: 12ch; overflow-wrap: anywhere; }
 .history-event-identity .club-avatar { width: 36px; height: 36px; }
-.home-dashboard .turn-card,.home-dashboard .home-rank-card { border-color: var(--asphalt-dark); }
 
 .dashboard-grid { display: grid; gap: var(--space-20); align-items: start; }
 @media (min-width: 720px) {
@@ -73,3 +72,5 @@
 @media (min-width: 720px) and (max-width: 950px) {
   .dashboard-grid { grid-template-columns: minmax(0,1fr); }
 }
+
+.home-session-card .movie-title + .meta,.history-event .movie-title + .meta { margin-top: var(--space-4); }

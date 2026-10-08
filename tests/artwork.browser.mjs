@@ -44,7 +44,7 @@ try {
       await page.goto(`http://localhost:4173/#/${screen}`);await page.locator('.data-sources').waitFor();
       if(screen==='builder') {
         await page.getByRole('button',{name:'New set',exact:true}).click();
-        await page.getByLabel('Search saved films & TMDB').fill('fixture');await page.getByRole('button',{name:'Search',exact:true}).click();
+        await page.getByLabel('Search films').fill('fixture');await page.getByRole('button',{name:'Search',exact:true}).click();
       }
       if(screen==='metrics') await page.getByRole('heading',{name:'Genre detail',exact:true}).waitFor();
       else {

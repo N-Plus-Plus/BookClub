@@ -57,7 +57,7 @@ afterEach(async()=>{await act(async()=>root.unmount());container.remove();vi.uns
 
 it('keeps Home and denied Admin out of heavy modules, preserves the shell during loading and reuses enrichment across visits',async()=>{
   await mount('home');
-  expect(container.textContent).toContain('Quick Facts');
+  expect(container.textContent).toContain('Quick facts');
   expect(chunks.metricsLoaded).not.toHaveBeenCalled();expect(chunks.adminLoaded).not.toHaveBeenCalled();
   await navigate('admin');
   expect(container.querySelector('h1')?.textContent).toBe('Page not found');
@@ -80,7 +80,7 @@ it('keeps Home and denied Admin out of heavy modules, preserves the shell during
   expect(container.querySelector('.loading-placeholder')).not.toBeNull();
   expect(container.querySelector('.account-menu-trigger')).not.toBeNull();
   await act(async()=>chunks.adminReady());await waitFor('main section.card');
-  expect(container.textContent).toContain('Refresh OMDb Metadata');
+  expect(container.textContent).toContain('Refresh OMDb metadata');
 });
 it('renders a direct Metrics entry and a fresh authenticated Admin entry',async()=>{
   chunks.metricsReady();chunks.adminReady();
@@ -94,6 +94,6 @@ it('renders a direct Metrics entry and a fresh authenticated Admin entry',async(
 it('keeps direct member Admin entry denied even after its chunk has loaded',async()=>{
   await mount('admin');
   expect(container.querySelector('h1')?.textContent).toBe('Page not found');
-  expect(container.textContent).not.toContain('Refresh OMDb Metadata');
+  expect(container.textContent).not.toContain('Refresh OMDb metadata');
   expect(api.scoreMaintenanceStatus).not.toHaveBeenCalled();
 });

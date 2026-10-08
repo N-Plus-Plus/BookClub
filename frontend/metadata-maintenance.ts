@@ -2,7 +2,7 @@ import { formatRetryDuration } from './retry-duration';
 import { MAINTENANCE_IDLE_MS, METADATA_MAINTENANCE_BATCH_SIZE } from '../shared/score-maintenance';
 import type { SelectedMetadataEnrichment } from '../shared/types';
 
-export interface MetadataRun { remaining: number; unidentified: number; processed: number; updated: number; failed: number; failure: string; total: number; message: string }
+export interface MetadataRun { interrupted?: boolean; remaining: number; unidentified: number; processed: number; updated: number; failed: number; failure: string; total: number; message: string }
 /** Queue eligibility is frozen before the first request. Retain only aggregate progress. */
 export async function maintainMetadata(options: {
   ids: string[]; unidentified: number; batch: (ids: string[]) => Promise<SelectedMetadataEnrichment>; stopped: () => boolean;
@@ -15,7 +15,7 @@ export async function maintainMetadata(options: {
     let batch: SelectedMetadataEnrichment;
     try { batch = await options.batch(selected); }
     catch (error) {
-      run = {...run,message:`${error instanceof Error ? error.message : 'Metadata request failed.'} Partial updates may have been saved. Resume later to check remaining work.`};
+      run = {...run,interrupted:true,message:`${error instanceof Error ? error.message : 'Metadata request failed.'} Partial updates may have been saved. Resume later to check remaining work.`};
       await options.progress(run); return run;
     }
     const failures = batch.results.filter(r => r.status === 'failed' || r.status === 'conflict');
@@ -23,8 +23,8 @@ export async function maintainMetadata(options: {
     run = {...run,remaining:ids.length-processed,processed,
       updated:run.updated+batch.results.filter(r => r.status === 'success').length,failed:run.failed+failures.length,
       failure:failures.slice(0,1).map(r => `${r.provider} · ${r.status}: ${r.message}${r.retryAfter !== undefined ? ` Retry after at least ${formatRetryDuration(r.retryAfter)}.` : ''}`).join(''),message:''};
-    if (failures.length) run.message = 'Stopped after a failed update. Completed updates are saved; review the failure and resume later.';
-    else if (batch.results.length < selected.length) run.message = 'Stopped because this batch made no progress. Review remaining films before resuming.';
+    if (failures.length) { run.interrupted = true; run.message = 'Stopped after a failed update. Completed updates are saved; review the failure and resume later.'; }
+    else if (batch.results.length < selected.length) { run.interrupted = true; run.message = 'Stopped because this batch made no progress. Review remaining films before resuming.'; }
     else if (!run.remaining) run.message = 'All queued metadata is checked. Films without a valid TMDB identity need identification first.';
     await options.progress(run);
     if (run.message || options.stopped()) break;

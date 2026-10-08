@@ -23,6 +23,7 @@
 .candidate-identity { display: flex; gap: var(--space-12); align-items: center; min-width: 0; }
 .candidate-identity .movie-row { flex: 1; min-width: 0; }
 .ranking-row .ranking-score { gap: var(--space-8); }
+
 .ranking-row .rank-number { min-width: 2.5ch; }
 .ranking-row .rank-top { gap: var(--space-8); }
 @media (min-width: 720px) {
@@ -47,7 +48,7 @@
   .classics-ranking-row .movie-title { --text-movie-title: var(--text-film-compact); }
 }
 .classics-filters { display: flex; flex-wrap: nowrap; gap: var(--space-4); }
-.classics-filters .tab-control { flex: 1 0 auto; min-width: 0; }
+.classics-filters .tab-control { flex: 1 0 auto; min-width: 0; font-size: var(--text-body); }
 .classics-count-ranked { background: var(--grass); }
 .classics-count-needs-data { background: var(--rose); }
 .classics-count-seen { background: var(--mandarin); }
@@ -72,3 +73,6 @@
 }
 
 .seen-content section:has(> .source-scores-summary) .answer-copy > .meta:last-child { padding-right: var(--target-min); }
+
+/* Candidate metadata stays beside the poster; genuine sources occupy the lower row. */
+.classics-ranking-row { grid-template-columns: minmax(0,1fr); }

@@ -34,7 +34,7 @@ export interface Session {
   planned_at?: string | null; published_by?: string | null; completed_turn_version?: number | null;
   cycle_id: string | null; kind: 'hosted' | 'classics'; date_precision: 'exact' | 'cycle_rough' | 'unknown'; cycle_slot: number | null;
 }
-export interface Cycle { id: string; ordinal: number; rough_date: string; title: string | null; import_source: string | null; import_key: string | null; created_at: string; updated_at: string }
+export interface Cycle { classics_first?: number; id: string; ordinal: number; rough_date: string; title: string | null; import_source: string | null; import_key: string | null; created_at: string; updated_at: string }
 export interface CycleInput { rough_date: string; title?: string; ordinal?: number }
 export interface MovieDetail extends Movie { appearances: { id: string; event_date: string; date_precision: Session['date_precision']; kind: Session['kind']; host_member_id: string | null; position: number }[] }
 export interface Catalog { members: Member[]; movies: Movie[]; sessions: Session[]; cycles: Cycle[] }
@@ -48,7 +48,8 @@ export interface TmdbPreview {
   release_date: string | null; runtime: number | null; overview: string | null; genres: string[]; assets: Asset[]; director: string | null;
 }
 export type FilmCandidate = {kind: 'local'; movie: SavedSearchResult} | {kind: 'external'; movie: SearchResult};
-export interface Rotation { id: number; cycle_id: string | null; nominal_slot: number; version: number; updated_at: string; human_order?: Record<string,string> }
+export type RotationSwapInput = {version:number} & ({target_member_id:string;target_kind?:never} | {target_kind:'classics';target_member_id?:never});
+export interface Rotation { id: number; cycle_id: string | null; nominal_slot: number; version: number; updated_at: string; human_order?: Record<string,string>; classics_first?: number }
 export interface BuilderSet { id: string; owner_member_id: string; title: string | null; notes: string | null; created_at: string; updated_at: string; revision: number; movie_ids: string[] }
 export interface BuilderInput { title?: string; notes?: string; movie_ids: string[]; revision?: number }
 export interface BuilderPublishInput { revision: number; event_date: string; cycle_id: string | null; cycle_slot: number; complete_turn: boolean; turn_version?: number; new_cycle?: CycleInput }

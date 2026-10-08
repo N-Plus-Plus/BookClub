@@ -70,6 +70,8 @@ describe('History cycle archive',() => {
     expect(cards[1].querySelector('.eyebrow')?.textContent).toBe('Cycle started 30 August 2026');
     expect(cards[0].querySelector('.eyebrow')?.textContent).toBe('1 September 2026');
     expect(cards[0].querySelector('h3')?.textContent).toBe("Member 2's week");
+    expect(cards[0].querySelector('h3')?.nextElementSibling?.className).toBe('eyebrow');
+    expect([...harness.container.querySelectorAll('.archive-tools label')].map(e=>e.firstChild?.textContent)).toEqual(['Cycle','Host']);
     expect(cards[0].querySelector('.film-list a .position')?.textContent).toBe('#1');
     const context = harness.container.querySelector('.history-cycle-context')!;
     expect(context.textContent).toBe('Cycle starting: 30 August 2026Member 2Member 2');
@@ -78,6 +80,7 @@ describe('History cycle archive',() => {
     expect([...cards[0].querySelectorAll('.film-list a')].map(node => node.getAttribute('href'))).toEqual(movies.slice(0,3).map(movie => `#/movie/${movie.id}`));
     await act(async () => { harness.root.render(createElement(SessionCard,{variant:'home',session:data.sessions[0],members:data.members})); });
     expect(harness.container.querySelector('h3')?.textContent).toBe("Member 2's turn");
+    expect(harness.container.querySelector('h3')?.nextElementSibling?.className).toBe('eyebrow');
     expect(harness.container.querySelector('.position')?.textContent).toBe('#1');
     expect(harness.container.querySelector('.eyebrow')?.textContent).toBe('Cycle started 30 August 2026');
     await mountHistory({...data,sessions:[{...data.sessions[0],kind:'classics',host_member_id:null}]});
@@ -93,13 +96,14 @@ it('Home shows only the top two eligible rankable Classics with summary scores',
   await act(async()=>harness.root.unmount());harness.root=createRoot(harness.container);
   vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:pool,sessions:[{id:'last',event_date:'2026-01-01',date_precision:'exact',host_member_id:'member-2',kind:'hosted',cycle_id:null,cycle_slot:2,legacy_cycle_label:null,movies:pool.slice(0,2)}]});
   window.location.hash='/home';await act(async()=>harness.root.render(createElement(App)));await flush();
-  expect([...harness.container.querySelectorAll('.section-title h2')].map(e=>e.textContent)).toEqual(['Last turn','Next Classics','Quick Facts','Club Timeline','Classics Snapshot']);
+  expect([...harness.container.querySelectorAll('.section-title h2')].map(e=>e.textContent)).toEqual(['Last turn','Next Classics','Quick facts','Club timeline','Classics snapshot']);
   const home=harness.container.querySelector('.home-dashboard')!;
   expect([...home.children].map(e=>e.className)).toEqual(['turn-card-area turn-card-area-personal','dashboard-grid','stack home-quick-facts','stack','stack']);
   const snapshot=home.children[4];
   expect(snapshot.querySelector('.stat-link svg')).toBeNull();
   expect([...home.querySelectorAll('.home-quick-facts .stat strong')].map(e=>e.textContent)).toEqual(['1','2','8.00']);
-  expect(snapshot.querySelector('.section-title a')?.getAttribute('href')).toBe('#/classics');
+  expect(snapshot.querySelector('.section-title a')).toBeNull();
+  expect(home.querySelector('.dashboard-grid > section:last-child .section-title a')?.getAttribute('href')).toBe('#/classics');
   expect([...snapshot.querySelectorAll('.stat strong')].map(e=>e.textContent)).toEqual(['3','1','0']);
   expect([...snapshot.querySelectorAll('.stat > span')].map(e=>e.textContent)).toEqual(['Eligible Classics','Already seen by all','Missing answers']);
   expect(snapshot.querySelector('.stat-link')?.getAttribute('href')).toBe('#/seen');
@@ -107,7 +111,7 @@ it('Home shows only the top two eligible rankable Classics with summary scores',
   const top=sortClassics(pool).filter(m=>m.ranking?.eligible&&m.ranking.rankable).slice(0,2);
   expect([...cards].map(e=>e.querySelector('a')?.getAttribute('href'))).toEqual(top.map(m=>'#/movie/'+m.id));
   expect([...cards].map(e=>e.querySelector('.rank-number')?.textContent)).toEqual(['#1','#2']);
-  for(const card of cards){expect(card.textContent).toContain('0 Seen · 1 No');expect([...card.querySelectorAll('.ranking-source-scores > span')].map(node=>node.textContent)).toEqual(['IMDb 80','RT-A 90','RT-C 85']);expect(card.textContent).not.toMatch(/Ranked|Unknown|residual score|Score breakdown/);expect(card.querySelector('details,.score,.badge')).toBeNull();}
+  for(const card of cards){expect(card.querySelectorAll('.home-candidate-seen')).toHaveLength(1);expect(card.querySelector('.home-candidate-seen')?.parentElement?.className).toBe('movie-copy');expect(card.querySelector('.ranking-score > .meta')).toBeNull();expect(card.textContent).toContain("0 Seen · 1 Haven't · 0 Unknown");expect([...card.querySelectorAll('.ranking-source-scores > span')].map(node=>node.textContent)).toEqual(['IMDb 80','RT-A 90','RT-C 85']);expect(card.textContent).not.toMatch(/Ranked|residual score|Score breakdown/);expect(card.querySelector('details,.score,.badge')).toBeNull();}
   expect(harness.container.querySelector('.home-session-card .eyebrow')?.textContent).toBe('1 January 2026');
   await navigate('classics');expect(harness.container.querySelector('.ranking-row .score, .ranking-row details')).toBeNull();expect(harness.container.querySelector('.ranking-row')?.textContent).toContain('IMDb 80');
 });
@@ -147,10 +151,10 @@ it('History preserves stored film order while reversing cycles, events, jump and
  await click(button('Re-sort'));await act(async()=>harness.root.unmount());harness.root=createRoot(harness.container);await act(async()=>harness.root.render(createElement(App)));await flush();expect(cycles()[0]).toBe('cycle-c12');
 });
 
-it('Home renders Quick Facts, Club Timeline and Classics Snapshot in order',async () => {
+it('Home renders Quick facts, Club timeline and Classics snapshot in order',async () => {
   await navigate('home');
   const sections = [...harness.container.querySelectorAll('.home-dashboard section')].filter(section => section.querySelector('.stats-grid'));
-  expect(sections.map(section => section.querySelector('h2')?.textContent)).toEqual(['Quick Facts','Club Timeline','Classics Snapshot']);
-  expect([...sections[1].querySelectorAll('.stat span')].map(node => node.textContent)).toEqual(['Days Active','Cycles Completed','Watch Time']);
+  expect(sections.map(section => section.querySelector('h2')?.textContent)).toEqual(['Quick facts','Club timeline','Classics snapshot']);
+  expect([...sections[1].querySelectorAll('.stat span')].map(node => node.textContent)).toEqual(['Days active','Cycles completed','Watch time']);
   expect(sections.every(section => section.querySelectorAll('.stat').length === 3)).toBe(true);
 });

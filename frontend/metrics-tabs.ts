@@ -1,5 +1,5 @@
 export const metricsTabs = [
-  {id:'top-bottom',label:'Top / Bottom',metrics:['E','U','V','W']},
+  {id:'top-bottom',label:'Top / bottom',metrics:['E','U','V','W']},
   {id:'fingerprints',label:'Fingerprints',metrics:['C','F','G','J']},
   {id:'general',label:'General',metrics:['B','D','K','Y','L']},
   {id:'averages',label:'Averages',metrics:['M','N','T']},

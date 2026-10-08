@@ -41,7 +41,7 @@ const measure=async(selector,target)=>page.evaluate(({selector,target})=>new Pro
  });
 }),{selector,target});
 try{
- await page.goto(`${process.env.BOOKCLUB_METRICS_URL || 'http://localhost:4173'}/#/home`);await page.getByRole('heading',{name:'Quick Facts',exact:true}).waitFor();
+ await page.goto(`${process.env.BOOKCLUB_METRICS_URL || 'http://localhost:4173'}/#/home`);await page.getByRole('heading',{name:'Quick facts',exact:true}).waitFor();
  const results=[];
  for(const width of [390,1440]){
   await page.setViewportSize({width,height:900});
@@ -52,8 +52,8 @@ try{
    results.push(await measure('nav a[href="#/metrics"]','Metrics'));assert.equal(reads,1);release();
   }
   await page.getByRole('tab',{name:'Fingerprints',exact:true}).click();await page.getByText('Loading enriched Metrics…',{exact:true}).waitFor({state:'hidden'});
-  await page.getByRole('tab',{name:'Top / Bottom',exact:true}).click();
-  for(const name of ['Fingerprints','General','Averages','Diversity','Standalone','Cabinet','Top / Bottom']){
+  await page.getByRole('tab',{name:'Top / bottom',exact:true}).click();
+  for(const name of ['Fingerprints','General','Averages','Diversity','Standalone','Cabinet','Top / bottom']){
    const id=await page.getByRole('tab',{name,exact:true}).getAttribute('id');
    results.push({...await measure(`[id="${id}"]`,name),width});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

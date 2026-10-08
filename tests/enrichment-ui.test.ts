@@ -24,12 +24,12 @@ it.each(['TMDB','MDBList'])('%s runs remain interactive, disable other maintenan
   const ids=vi.mocked(api.enrichProvider).mock.calls[0][1];
   await act(async()=>resolve({results:ids.map(movieId=>({movieId,status:'updated',message:'Saved'})),canonicalChanged:false}));
   expect(container.textContent).toContain(`${ids.length} / 11 processed`);expect(container.textContent).toContain('Stopped. Completed updates are saved');expect(button(`Refresh ${other} enrichment`).disabled).toBe(false);
-  const checkpoint=JSON.parse(localStorage.getItem(`bookclub.${label==='TMDB'?'tmdb':'mdblist'}-enrichment.v1`)!);expect(checkpoint.completed).toBe(ids.length);expect(checkpoint.remainingIds).toHaveLength(11-ids.length);expect(updated).toHaveBeenCalledTimes(label==='TMDB'?1:0);expect(cacheChanged).toHaveBeenCalledOnce();
+  const checkpoint=JSON.parse(localStorage.getItem(`bookclub.${label==='TMDB'?'tmdb':'mdblist'}-enrichment.v1`)!);expect(checkpoint.completed).toBe(ids.length);expect(checkpoint.remainingIds).toHaveLength(11-ids.length);expect(updated).toHaveBeenCalledTimes(label==='TMDB'?1:0);expect(cacheChanged).toHaveBeenCalledOnce();expect(container.querySelector('progress')?.getAttribute('data-state')).toBe('normal');
 });
 it('refreshes shared data once only when canonical IDs changed and shows local provider errors/quota',async()=>{
   vi.mocked(api.enrichProvider).mockResolvedValue({results:[{movieId:'film-0',status:'updated',message:'Saved'},{movieId:'film-1',status:'failed',blocking:true,message:'Provider unavailable',retryAfter:60}],canonicalChanged:true,quota:{'X-RateLimit-Remaining':'25'},stopped:true});await render();
   await act(async()=>button('Refresh TMDB enrichment').click());
-  expect(updated).toHaveBeenCalledTimes(1);expect(container.querySelector('#tmdb-enrichment-heading')?.closest('section')?.textContent).toContain('Provider unavailable');expect(container.textContent).toContain('25');
+  expect(updated).toHaveBeenCalledTimes(1);expect(container.querySelector('#tmdb-enrichment-heading')?.closest('section')?.textContent).toContain('Provider unavailable');expect(container.textContent).toContain('25');expect(container.querySelector('progress')?.getAttribute('data-state')).toBe('interrupted');expect(container.querySelector('progress')?.getAttribute('value')).toBe('2');
   expect(container.querySelector('#mdblist-enrichment-heading')?.closest('section')?.textContent).not.toContain('Provider unavailable');
 });
 it('navigation/unmount stops after accepted pending batch and remount offers Resume',async()=>{

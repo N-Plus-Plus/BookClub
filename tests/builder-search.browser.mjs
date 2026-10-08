@@ -25,22 +25,22 @@ try {
  `}));
  await fs.mkdir('.verification/builder-search',{recursive:true});
  const overflow=()=>page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
- const search=async()=>{await page.getByRole('textbox',{name:'Search saved films & TMDB'}).fill('film');await page.getByRole('button',{name:'Search',exact:true}).click();await page.locator('.search-row').first().waitFor();};
- for(const width of [320,390,720,1440]) {
+ const search=async()=>{await page.getByRole('textbox',{name:'Search films'}).fill('film');await page.getByRole('button',{name:'Search',exact:true}).click();await page.locator('.search-row').first().waitFor();};
+ for(const width of [320,390,720,951,1440]) {
   await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/builder');await page.reload();await page.getByRole('button',{name:'New set'}).click();
   await page.getByRole('textbox',{name:'Private title (optional)'}).fill('A saved set with a longer title');assert.equal(await page.getByRole('textbox',{name:'Private note (optional)'}).count(),0);
   assert.deepEqual(await page.locator('.builder-editor-actions button').allTextContents(),['All sets','Use set','Save set']);
   const dock=await page.locator('.builder-editor-actions').evaluate(e=>{const row=e.getBoundingClientRect(),buttons=[...e.querySelectorAll('button')].map(b=>b.getBoundingClientRect());return buttons[0].left>=row.left && Math.abs(buttons[2].right-row.right)<1 && buttons.every(b=>Math.abs(b.top-buttons[0].top)<1) && buttons[0].right<=buttons[1].left && buttons[1].right<=buttons[2].left;});assert(dock);
-  await search();assert.equal(await page.locator('.search-row .meta').first().textContent(),'1999');assert.equal(await page.locator('.search-row .meta').nth(1).textContent(),'1999 · Director: Jane Smith');
+  await search();assert.equal(await page.locator('.search-row .meta').first().textContent(),'1999 · 110 min');assert.equal(await page.locator('.search-row .film-director').first().textContent(),'Jane Smith');
   assert.equal(await overflow(),false);await page.screenshot({path:'.verification/builder-search/'+width+'-editor.png',fullPage:true});
-  await page.getByRole('button',{name:'Next',exact:true}).click();await page.locator('.search-row a').first().click();await page.getByRole('button',{name:'Add to Set',exact:true}).waitFor();
-  const geometry=await page.locator('.page-heading').evaluate(e=>{const title=e.querySelector('h1').getBoundingClientRect(),action=e.querySelector('button').getBoundingClientRect();return {titleRight:title.right,titleTop:title.top,titleBottom:title.bottom,actionLeft:action.left,actionTop:action.top,actionBottom:action.bottom,actionWidth:action.width,headingWidth:e.getBoundingClientRect().width};});
-  assert(geometry.actionLeft>=geometry.titleRight);assert(geometry.actionTop<geometry.titleBottom&&geometry.actionBottom>geometry.titleTop);assert(geometry.actionWidth<geometry.headingWidth);assert.equal(await overflow(),false);
+  await page.getByRole('button',{name:'Next',exact:true}).click();await page.locator('.search-row a').first().click();await page.getByRole('button',{name:'Add to set',exact:true}).waitFor();
+  const geometry=await page.locator('.page-heading').evaluate(e=>{const title=e.querySelector('h1').getBoundingClientRect(),action=e.querySelector('button').getBoundingClientRect();return {titleRight:title.right,titleTop:title.top,titleBottom:title.bottom,actionLeft:action.left,actionTop:action.top,actionBottom:action.bottom,actionWidth:action.width,actionRight:action.right,headingRight:e.getBoundingClientRect().right,headingWidth:e.getBoundingClientRect().width};});
+  if(geometry.actionTop<geometry.titleBottom){assert(geometry.actionLeft>=geometry.titleRight);assert(geometry.actionBottom>geometry.titleTop);}else{assert(Math.abs(geometry.actionRight-geometry.headingRight)<1);}assert(geometry.actionWidth<geometry.headingWidth);assert.equal(await overflow(),false);
   await page.screenshot({path:'.verification/builder-search/'+width+'-detail.png',fullPage:true});
-  await page.goBack();await page.getByRole('button',{name:'Save set',exact:true}).waitFor();assert.equal(await page.getByRole('textbox',{name:'Search saved films & TMDB'}).inputValue(),'film');assert.match(await page.locator('.search-pagination').textContent(),/Page 2 of 2/);
-  await page.locator('.search-row a').first().click();await page.getByRole('button',{name:'Add to Set',exact:true}).click();await page.getByRole('button',{name:'Save set',exact:true}).waitFor();
-  assert.equal(await page.getByRole('textbox',{name:'Search saved films & TMDB'}).inputValue(),'');assert.equal(await page.locator('.search-row').count(),0);
-  assert.equal(await page.getByRole('textbox',{name:'Search saved films & TMDB'}).evaluate(e=>e===document.activeElement),true);
+  await page.goBack();await page.getByRole('button',{name:'Save set',exact:true}).waitFor();assert.equal(await page.getByRole('textbox',{name:'Search films'}).inputValue(),'film');assert.match(await page.locator('.search-pagination').textContent(),/Page 2 of 2/);
+  await page.locator('.search-row a').first().click();await page.getByRole('button',{name:'Add to set',exact:true}).click();await page.getByRole('button',{name:'Save set',exact:true}).waitFor();
+  assert.equal(await page.getByRole('textbox',{name:'Search films'}).inputValue(),'');assert.equal(await page.locator('.search-row').count(),0);
+  assert.equal(await page.getByRole('textbox',{name:'Search films'}).evaluate(e=>e===document.activeElement),true);
   assert.equal(await page.getByRole('textbox',{name:'Private note (optional)'}).count(),0);
   await search();await page.getByRole('button',{name:'Add Film 1',exact:true}).click();await page.getByRole('button',{name:'Move Film 1 earlier',exact:true}).click();assert.deepEqual(await page.locator('.lineup-list .movie-title').allTextContents(),['Film 1','Film 6']);assert.equal(await overflow(),false);
   await page.screenshot({path:'.verification/builder-search/'+width+'-lineup.png',fullPage:true});await page.getByRole('button',{name:'Remove Film 1',exact:true}).click();
@@ -50,9 +50,9 @@ try {
   assert.equal(await page.locator('.builder-turn-warning').count(),0);assert.equal(await page.getByRole('button',{name:'Use set',exact:true}).isDisabled(),false);
   await page.screenshot({path:'.verification/builder-search/'+width+'-use-set.png',fullPage:true});
   await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));assert.equal(await overflow(),false);
-  await page.goto('http://localhost:4173/#/event');await search();assert.equal(await page.locator('.search-row .meta').first().textContent(),'1999');assert.equal(await overflow(),false);
-  await page.locator('.search-row a').first().click();await page.getByRole('button',{name:'Yes, this one!',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Add to Set',exact:true}).count(),0);await page.getByRole('button',{name:'Yes, this one!',exact:true}).click();await page.getByRole('button',{name:'Save event',exact:true}).waitFor();assert.equal(await page.getByRole('textbox',{name:'Search saved films & TMDB'}).evaluate(e=>e===document.activeElement),true);
-  await page.goto('http://localhost:4173/#/classics');await page.getByRole('button',{name:'Add Classic',exact:true}).click();await search();assert.equal(await page.locator('.search-row .meta').first().textContent(),'1999');assert.equal(await page.locator('.search-row .meta').nth(1).textContent(),'1999 · Director: Jane Smith');assert.equal(await overflow(),false);
+  await page.goto('http://localhost:4173/#/event');await search();assert.equal(await page.locator('.search-row .meta').first().textContent(),'1999 · 110 min');assert.equal(await overflow(),false);
+  await page.locator('.search-row a').first().click();await page.getByRole('button',{name:'Yes, this one!',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Add to set',exact:true}).count(),0);await page.getByRole('button',{name:'Yes, this one!',exact:true}).click();await page.getByRole('button',{name:'Save event',exact:true}).waitFor();assert.equal(await page.getByRole('textbox',{name:'Search films'}).evaluate(e=>e===document.activeElement),true);
+  await page.goto('http://localhost:4173/#/classics');await page.getByRole('button',{name:'Add Classic',exact:true}).click();await search();assert.equal(await page.locator('.search-row .meta').first().textContent(),'1999 · 110 min');assert.equal(await page.locator('.search-row .film-director').first().textContent(),'Jane Smith');assert.equal(await overflow(),false);
   await page.screenshot({path:'.verification/builder-search/'+width+'-classic-search.png',fullPage:true});
   await page.goto('http://localhost:4173/?other-turn=1#/builder');await page.getByRole('button',{name:'New set'}).click();await search();await page.locator('.builder-result-add').first().click();assert.equal(await page.getByRole('button',{name:'Use set',exact:true}).isDisabled(),true);await page.screenshot({path:'.verification/builder-search/'+width+'-other-turn.png',fullPage:true});
   console.log(width+'px Builder/detail/Use set/Event/Add Classic passed');

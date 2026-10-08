@@ -3,6 +3,7 @@ import type { EnrichmentBatch, EnrichmentProvider } from '../shared/enrichment';
 import { MAINTENANCE_IDLE_MS } from '../shared/score-maintenance';
 import type { MaintenanceCheckpoint } from './maintenance-checkpoint';
 export interface EnrichmentRun {
+  interrupted?: boolean;
   processed: number; total: number; remaining: number; updated: number; noChange: number; failed: number;
   conflicts: number; failure: string; message: string; canonicalChanged: boolean; quota?: Record<string,string>;
 }
@@ -29,12 +30,12 @@ export async function maintainEnrichment(options: {
         updated:run.updated+batch.results.filter(r=>r.status==='updated').length,noChange:run.noChange+batch.results.filter(r=>r.status==='no_change').length,
         failed:run.failed+failed.length,conflicts:run.conflicts+conflicts,canonicalChanged:run.canonicalChanged || batch.canonicalChanged,quota:batch.quota ?? run.quota,
         failure:failed.length ? `${failed[0].message}${failed[0].retryAfter===undefined ? '' : ` Retry after at least ${formatRetryDuration(failed[0].retryAfter)}.`}` : run.failure};
-      if (batch.stopped || failed.some(r=>r.blocking!==false || r.retryAfter!==undefined)) run.message='Stopped. Completed updates are saved; review the provider status before resuming.';
+      if (batch.stopped || failed.some(r=>r.blocking!==false || r.retryAfter!==undefined)) { run.interrupted = true; run.message = 'Stopped. Completed updates are saved; review the provider status before resuming.'; }
       options.progress(run);
       if (run.message || options.stopped()) break;
       if (offset+size<ids.length) await new Promise(resolve=>setTimeout(resolve,MAINTENANCE_IDLE_MS));
     } catch (error) {
-      run={...run,message:error instanceof Error ? error.message : 'Enrichment failed. Saved work is retained; resume later.'};options.progress(run);return run;
+      run={...run,interrupted:true,message:error instanceof Error ? error.message : 'Enrichment failed. Saved work is retained; resume later.'};options.progress(run);return run;
     }
   }
   run={...run,message:run.message || (options.stopped() ? 'Stopped. Completed updates are saved; resume to continue.' : run.failed ? 'Finished with failures. Saved work is retained; resume to retry failed films.' : 'All queued enrichment is cached.')};

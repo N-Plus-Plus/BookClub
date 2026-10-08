@@ -23,7 +23,7 @@ export function HistoryEvidence({json,catalog}: {json: string; catalog: Catalog}
       {Object.hasOwn(data,'kind') && <p className="meta">Event: {data.kind === 'classics' ? 'Classics week' : `${possessiveName(memberName(data.host_member_id))} week`}</p>}
       {Object.hasOwn(data,'host_member_id') && <p className="meta">Host: {data.host_member_id ? memberName(data.host_member_id) : 'Hostless'}</p>}
       {Object.hasOwn(data,'cycle_id') && <p className="meta">Cycle: {cycleName(data.cycle_id)}</p>}
-      {Object.hasOwn(data,'cycle_slot') && <p className="meta">Historical turn: {historicalTurnLabel(typeof data.cycle_slot === 'number' ? data.cycle_slot : null)}</p>}
+      {Object.hasOwn(data,'cycle_slot') && <p className="meta">Historical turn: {historicalTurnLabel(typeof data.cycle_slot === 'number' ? data.cycle_slot : null,Boolean(catalog.cycles.find(c=>c.id===data.cycle_id)?.classics_first))}</p>}
       {films && <><p className="meta">Film lineup{!films.length ? ': No films' : ''}</p>{films.length > 0 && <ol>{films.map((id,i) => <li key={i}>{catalogIndex(catalog).movieById.get(id)?.title ?? 'Unavailable film'}</li>)}</ol>}</>}
       {data.complete_turn === true && <p className="meta">Current turn completed.</p>}
       {data.complete_turn === false && <p className="meta">Current turn not completed.</p>}
@@ -37,8 +37,8 @@ export function HistoryEvidence({json,catalog}: {json: string; catalog: Catalog}
   return <div className="stack">
     <details><summary>Change evidence</summary><div className="stack">
       {snapshot(changes.before,'Before')}{snapshot(changes.after,'After')}
-      {turnPosition !== null && <section className="stack"><h4>Turn before this event</h4><p className="meta">{currentTurnLabel(catalog.members,{nominal_slot:turnPosition,human_order:order} as Rotation)} · {cycleName(turn.cycle_id)}</p>
-        {Object.keys(order).length > 0 && <><p className="meta">Cycle turn order</p><ol>{[1,2,3,4].map(position => <li key={position}>{currentTurnLabel(catalog.members,{nominal_slot:position,human_order:order} as Rotation)}</li>)}</ol></>}
+      {turnPosition !== null && <section className="stack"><h4>Turn before this event</h4><p className="meta">{currentTurnLabel(catalog.members,{nominal_slot:turnPosition,human_order:order,classics_first:turn.classics_first === 1 ? 1 : 0} as Rotation)} · {cycleName(turn.cycle_id)}</p>
+        {(Object.keys(order).length > 0 || turn.classics_first === 1) && <><p className="meta">Cycle turn order</p><ol>{[1,2,3,4,5].map(position => <li key={position}>{currentTurnLabel(catalog.members,{nominal_slot:position,human_order:order,classics_first:turn.classics_first === 1 ? 1 : 0} as Rotation)}</li>)}</ol></>}
       </section>}
       {planned && Number.isFinite(planned.getTime()) && <p className="meta">Planned: {planned.toLocaleString('en-AU')}</p>}
       {changes.cycle_anchor_correction === true && <p className="meta">Cycle anchor corrected; reference dates follow the new anchor.</p>}
