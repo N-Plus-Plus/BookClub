@@ -1,6 +1,5 @@
 import { useRef } from 'react';
 import type { MetricsEnrichment } from '../shared/metrics-enrichment';
-import { prepareMetricsEnrichment } from '../shared/metrics-enrichment';
 
 /** One authenticated App lifetime; no storage, polling or cross-account cache. */
 export class MetricsEnrichmentResource {
@@ -13,7 +12,9 @@ export class MetricsEnrichmentResource {
   peek() { return this.data; }
   load(read: () => Promise<MetricsEnrichment>) {
     if (!this.pending) {
-      const pending=read().then(result=>{
+      const pending=read().then(async result=>{
+        // Preparation stays behind the Metrics boundary; the read still starts immediately.
+        const {prepareMetricsEnrichment}=await import('../shared/metrics-enrichment');
         const data=prepareMetricsEnrichment(result);
         if(this.pending === pending)this.data=data;
         return data;

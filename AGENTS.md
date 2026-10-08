@@ -185,6 +185,7 @@ Maintain only high-value navigation hints. Inspect `package.json` before running
 ### Key paths
 
 - **Application entry:** `index.html`, `frontend/main.tsx`, `worker/src/index.ts`.
+- **Frontend orchestration:** `frontend/App.tsx`, `routes.ts`, `AppShell.tsx`, `useHashRoute.ts`, `useBookClubData.ts`, `useFilmInspection.ts` (all under `frontend/`).
 - **UI:** `frontend/`, `style.css`, `frontend/app.css`; sole browser API client `frontend/api.ts`.
 - **Domain:** `shared/ranking.ts`, `shared/metrics.ts`, `shared/genres.ts`, `shared/identity.ts`.
 - **Persistence:** `worker/src/*repository.ts`, `worker/migrations/`.

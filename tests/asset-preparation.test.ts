@@ -5,7 +5,7 @@ import sharp from 'sharp';
 import {expect, it} from 'vitest';
 import {prepareAssets} from '../scripts/assets/prepare.mjs';
 import {imageAssets, imageRecipe} from '../scripts/assets/manifest.mjs';
-import {destinations} from '../frontend/Navigation';
+import {pageDefinitions} from '../frontend/routes';
 import {identityPresentation} from '../shared/identity';
 
 it('generates, reuses, invalidates and repairs persistent derivatives without enlarging or dropping alpha', async () => {
@@ -52,11 +52,9 @@ it('generates, reuses, invalidates and repairs persistent derivatives without en
 
 it('covers all runtime paths, dynamic avatar choices and every retained canonical source', async () => {
   const outputPaths = new Set(imageAssets.map(asset => asset.output));
-  for (const {image} of destinations) expect(outputPaths.has(`buttons/${image}`)).toBe(true);
-  const app = await readFile('frontend/App.tsx', 'utf8');
-  // Heading fallbacks are literals; navigation destinations are the six config entries above.
-  for (const match of app.matchAll(/'([\w]+\.png)'/g)) expect(outputPaths.has(`buttons/${match[1]}`)).toBe(true);
-  expect(app).toContain('newFav/fav1.png');
+  for (const {image} of pageDefinitions) expect(outputPaths.has(`buttons/${image}`)).toBe(true);
+  const shell = await readFile('frontend/AppShell.tsx', 'utf8');
+  expect(shell).toContain('newFav/fav1.png');
   expect(outputPaths.has('newFav/fav1.png')).toBe(true);
   expect(await readFile('frontend/main.tsx', 'utf8')).toContain('BASE_URL}favicon.png');
   expect(outputPaths.has('favicon.png')).toBe(true);

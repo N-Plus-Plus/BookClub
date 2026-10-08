@@ -133,9 +133,13 @@ Do not use Priority 0.5 for application regressions, production blockers, or fea
 
 If the current task explicitly includes updating stale tests, update them instead of deferring them.
 
+## Frontend route and loading checks
+
+`tests/routes.test.ts` protects canonical route kinds, dynamic IDs, headings/images and both Navigation surfaces against drift. `tests/app-lazy-routes.test.ts` delays real Metrics/Admin module loading to verify Home's module boundary, shell-visible LoadingView, member denial before and after Admin loads, direct authenticated entries and enrichment reuse across route visits. App integration navigation waits for lazy content before asserting feature controls; Account-link assertions wait for the actual heading transition. Existing inspection, Seen, rotation and shell-title tests protect controller extraction behaviour.
+
 ## Artwork pipeline checks
 
-`tests/asset-preparation.test.ts` uses disposable synthetic transparent PNGs to cover clean generation, persistent cache reuse after output removal, content/dimension/recipe invalidation, corrupted cache repair, concurrent serialization, stale-output pruning, aspect ratio and no enlargement. Runtime coverage checks navigation/heading literals, dynamically constructed member/Classics paths, chooser IDs and Lucide-only Action callers against the manifest and retained source inventory. `tests/prod-check.test.ts` prepares from an empty disposable cache/output with copied canonical sources before a real Vite build, checks every shipped derivative's dimensions/format, and rejects originals and obsolete files. `corepack pnpm assets:prepare --report` provides cache counters and source/output payload totals.
+`tests/asset-preparation.test.ts` uses disposable synthetic transparent PNGs to cover clean generation, persistent cache reuse after output removal, content/dimension/recipe invalidation, corrupted cache repair, concurrent serialization, stale-output pruning, aspect ratio and no enlargement. Runtime coverage checks canonical route images and extracted shell artwork, dynamically constructed member/Classics paths, chooser IDs and Lucide-only Action callers against the manifest and retained source inventory. `tests/prod-check.test.ts` prepares from an empty disposable cache/output with copied canonical sources before a real Vite build, checks every shipped derivative's dimensions/format, and rejects originals and obsolete files. `corepack pnpm assets:prepare --report` provides cache counters and source/output payload totals.
 
 ## Test environments
 

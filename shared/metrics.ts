@@ -1,20 +1,9 @@
-import type { Catalog, Movie, Session, Score } from './types';
-import { latestScores, scoreValue } from './ranking';
+import type { Catalog, Movie } from './types';
+import { scoreValue } from './ranking';
 import { normalizedGenres } from './genres';
+import { scoresFor, average, matchesMetricsFilter, selectedAppearances, type Appearance, type MetricsFilter } from './metrics-summary';
+export { metricsCatalog, metricsSummary, matchesMetricsFilter, selectedAppearances, type Appearance, type MetricsFilter } from './metrics-summary';
 
-// Only immutable analytical snapshots opt into score caching; ordinary mutable fixtures remain uncached.
-const resolvedScores = new WeakMap<Movie,Score[]>();
-const snapshots = new WeakMap<Catalog,Catalog>();
-export function metricsCatalog(source: Catalog): Catalog {
-  const existing = snapshots.get(source); if (existing) return existing;
-  const movies = source.movies.map(movie => {
-    const snapshot = {...movie}; resolvedScores.set(snapshot,latestScores(movie.scores)); return snapshot;
-  });
-  const byId = new Map(movies.map(movie => [movie.id,movie]));
-  const catalog = {...source,movies,sessions:source.sessions.map(session => ({...session,movies:session.movies.map(movie => byId.get(movie.id) ?? movie)}))};
-  snapshots.set(source,catalog); return catalog;
-}
-const scoresFor = (movie: Movie) => resolvedScores.get(movie) ?? latestScores(movie.scores);
 const once = <T>(calculate: () => T) => { let ready = false, value: T; return () => {if (!ready) {value=calculate();ready=true;} return value;}; };
 
 export const metricsScoreDimensions = [
@@ -31,11 +20,6 @@ export const metricsScoreDimensions = [
 export type MetricsScoreDimension = typeof metricsScoreDimensions[number]['id'];
 export interface RankedAppearance extends Appearance { selectedScore: number }
 
-export type MetricsFilter = {kind: 'all'} | {kind: 'member'; memberId: string} | {kind: 'classics'};
-export function matchesMetricsFilter(session: Session,filter: MetricsFilter): boolean {
-  return !session.deleted_at && (filter.kind === 'all' || (filter.kind === 'classics' ? session.kind === 'classics' : session.kind === 'hosted' && session.host_member_id === filter.memberId));
-}
-export interface Appearance { movie: Movie; session: Session; position: number; imdb: number | null }
 export interface GenreMetric { genre: string; appearances: number; percentage: number; imdbAverage: number | null; imdbScored: number }
 export interface Metrics {
   events: number; appearances: number; uniqueFilms: number; imdbAverage: number | null; imdbScored: number;
@@ -164,32 +148,10 @@ export function metricsDashboard(rows: Appearance[],all: Appearance[]) {
   return {get fingerprint(){return fingerprint();},get decades(){return decades();},get directors(){return directors();},
     get ratings(){return ratings();},get popularity(){return popularity();},get extremes(){return extremes();}};
 }
-/** Home needs counts and the genuine IMDb mean, without rankings or genre reports. */
-export function metricsSummary(catalog: Catalog) {
-  const rows=selectedAppearances(catalog);
-  return {events:catalog.sessions.filter(session=>matchesMetricsFilter(session,{kind:'all'})).length,appearances:rows.length,imdbAverage:average(rows)};
-}
-const average = (rows: Appearance[]) => {
-  const scores = rows.flatMap(a => a.imdb === null ? [] : [a.imdb]);
-  return scores.length ? scores.reduce((sum,n) => sum+n,0)/scores.length : null;
-};
 const textOrder = (a: string,b: string) => a < b ? -1 : a > b ? 1 : 0;
 const tie = (a: Appearance,b: Appearance) => textOrder(a.session.event_date,b.session.event_date)
   || textOrder(a.movie.title,b.movie.title) || textOrder(a.session.id,b.session.id)
   || textOrder(a.movie.id,b.movie.id) || a.position-b.position;
-export function selectedAppearances(catalog: Catalog, filter: MetricsFilter = {kind: 'all'}): Appearance[] {
-  const sessions = catalog.sessions.filter(s => matchesMetricsFilter(s,filter));
-  const canonical = new Map(catalog.movies.map(m => [m.id,m]));
-  const imdbByMovie = new Map<string,number | null>();
-  return sessions.flatMap(session => session.movies.map((film,i): Appearance => {
-    const movie = canonical.get(film.id) ?? film;
-    if (!imdbByMovie.has(movie.id)) {
-      const score = scoresFor(movie).find(s => s.provider === 'imdb' && s.metric === 'rating');
-      imdbByMovie.set(movie.id,score ? scoreValue(score)!/10 : null);
-    }
-    return {session,movie,position: i+1,imdb: imdbByMovie.get(movie.id)!};
-  }));
-}
 export function rankedMetricsAppearances(rows:Appearance[],id:MetricsScoreDimension,descending:boolean):RankedAppearance[] {
     const dimension = metricsScoreDimensions.find(d => d.id === id)!;
     return rows.flatMap(row => {

@@ -142,7 +142,8 @@ describe('production to local refresh safety',() => {
     expect(app).toContain("localLogin && health?.environment === 'local' && !health.authenticationRequired");
     expect(app).toContain('isAdminPage && DevTools && localDevelopment && catalog');
     expect(app).toContain('onChanged={load}');
-    expect(app).toContain('localDevelopment && health?.demo');
+    expect(app).toContain('demo={Boolean(health?.demo)} localDevelopment={localDevelopment}');
+    expect(readFileSync('frontend/AppShell.tsx','utf8')).toContain('localDevelopment && demo');
     const css = readFileSync('frontend/app.css','utf8');
     expect(css).toContain('.app-layout { position: relative;');
     expect(css).toMatch(/\.demo-label \{ position: absolute;[^}]*top: \.5rem;[^}]*left: \.5rem;[^}]*color: var\(--straw\);[^}]*margin: 0;/);

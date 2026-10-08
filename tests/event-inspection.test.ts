@@ -22,6 +22,9 @@ let root: Root, container: HTMLDivElement;
 const flush = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve,0)); }); };
 const navigate = async (route: string) => {
   await act(async () => { window.location.hash = `/${route}`; window.dispatchEvent(new HashChangeEvent('hashchange')); }); await flush();
+  if (route === 'metrics' || route === 'admin' && container.querySelector('h1')?.textContent === 'Admin') {
+    await vi.waitFor(async()=>{await flush();expect(container.querySelector('main .loading-placeholder')).toBeNull();});
+  }
 };
 const button = (text: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === text)!;
 const click = async (element: HTMLElement) => { expect(element).toBeTruthy(); await act(async () => { element.click(); }); await flush(); };
@@ -373,6 +376,7 @@ describe('Admin screen and Account navigation',() => {
     expect([...container.querySelectorAll('.account-menu-dropdown .select__option')].map(item=>item.textContent)).toEqual(['Admin','Logout']);
     await click(container.querySelector<HTMLAnchorElement>('.account-menu-dropdown a[href="#/admin"]')!);
     expect(window.location.hash).toBe('#/admin');
+    await vi.waitFor(async()=>{await flush();expect(container.querySelector('h1')?.textContent).toBe('Admin');});
     expect(container.querySelector('h1')?.textContent).toBe('Admin');
     expect(container.querySelector('.account-menu-dropdown')).toBeNull();
   });

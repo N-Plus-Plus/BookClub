@@ -101,14 +101,23 @@ Periodically prune completed history when it no longer helps future work, but do
 ## Current roadmap
 
 ### Priority 0.5 - Stale/failing tests
-Status: Incomplete
+Status: Complete
 
-- `tests/event-inspection.test.ts`, “navigates from the admin Account link and closes the dropdown”: hash becomes `#/admin` but the immediate heading assertion intermittently sees Home. Existing browser verification confirms navigation and menu dismissal; the jsdom helper waits only one timer tick after a native link click. Wait explicitly for the hashchange/render before asserting. Recheck timing versus a genuine navigation regression during maintenance.
+`tests/event-inspection.test.ts` now waits explicitly for the Admin heading after native Account-link navigation, and for lazy screens before asserting their content.
 
 ### Priority 3 - Non-movie screen works
 Status: Incomplete
 
 Support non-movie screen works such as television series, miniseries and anthology episodes, including provider identity modelling and UI behaviour.
+
+Depends on: None
+
+### Priority 4 - Metrics first-entry performance follow-up
+Status: Incomplete
+
+Revisit first-entry scheduling only if production measurement or future data growth makes the first visit perceptibly slower. Compare immediate enrichment prefetch with paint-first / idle-prefetch alternatives, preserving cross-route caching and lazy per-category calculations.
+
+Reason: Production navigation into and out of Metrics is fast; scheduling changes now would be premature optimisation.
 
 Depends on: None
 
