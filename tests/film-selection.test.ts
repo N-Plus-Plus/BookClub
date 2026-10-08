@@ -2,13 +2,16 @@
 import { act, createElement, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
-import type { Catalog, Movie, MovieDetail } from '../shared/types';
+import type { Catalog, Movie, MovieDetail, Session } from '../shared/types';
 import { rankMovie, missingAnswers } from '../shared/ranking';
 import { AddClassicModal } from '../frontend/AddClassicModal';
 import { ClassicsScreen } from '../frontend/ClassicsScreen';
+import { catalogIndex } from '../shared/catalog-index';
+import { EventScreen } from '../frontend/EventScreen';
+import { BuilderScreen } from '../frontend/BuilderScreen';
 import { FilmPicker } from '../frontend/FilmPicker';
 import { api } from '../frontend/api';
-vi.mock('../frontend/api',() => ({api:{search:vi.fn(),detail:vi.fn(),preview:vi.fn(),importMovie:vi.fn(),classic:vi.fn()}}));
+vi.mock('../frontend/api',() => ({api:{search:vi.fn(),detail:vi.fn(),preview:vi.fn(),importMovie:vi.fn(),classic:vi.fn(),builders:vi.fn()}}));
 const members = [{id:'member',display_name:'Member',sort_order:1,active:1}];
 const film = (id: string, extra: Partial<MovieDetail> = {}): MovieDetail => ({id,title:`Film ${id}`,original_title:null,year:2001,runtime:111,director:`Director ${id}`,overview:`Plot ${id}`,release_date:null,genres:[],assets:[],external_ids:[],scores:[],seen:[],classic:false,ranking:null,appearances:[],...extra});
 let root: Root, container: HTMLDivElement;
@@ -18,7 +21,7 @@ const search = async (id: string) => {
   vi.mocked(api.search).mockResolvedValue({local:[{id,title:`Film ${id}`,year:2001,tmdbId:null,poster:null}],external:[],lookup:{available:true,message:null}});
   const input = container.querySelector<HTMLInputElement>('input[maxlength="150"]')!;
   await act(async()=>{ Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,id); input.dispatchEvent(new Event('input',{bubbles:true})); });
-  await act(async()=>container.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  await act(async()=>input.closest('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
 };
 const select = async (id: string) => {
   await search(id);
@@ -34,6 +37,7 @@ beforeEach(()=>{
   HTMLDialogElement.prototype.close = function () { this.open = false; };
   container=document.createElement('div'); document.body.appendChild(container); root=createRoot(container);
   vi.mocked(api.detail).mockImplementation(async id=>film(id));
+  vi.mocked(api.builders).mockResolvedValue([]);
 });
 afterEach(async()=>{await act(async()=>root.unmount());container.remove();});
 async function open(movies: Movie[] = []) {
@@ -96,10 +100,10 @@ it('previews without import, then reuses the canonical import result; preserves 
   expect(api.classic).toHaveBeenCalledTimes(1);
 });
 it('keeps Builder direct additions, ordering, repeated appearances, removal and navigation links',async()=>{
-  function Picker() { const [selected,setSelected]=useState<Movie[]>([]); return createElement(FilmPicker,{selected,onSelected:setSelected,onMovie:vi.fn()}); }
+  function Picker() { const [selected,setSelected]=useState<Movie[]>([]); return createElement(FilmPicker,{selected,onSelected:setSelected,onMovie:vi.fn(),historyMovieIds:new Set(['A'])}); }
   await act(async()=>root.render(createElement(Picker)));
   for (const id of ['A','B','A']) {
-    await search(id); await click(container.querySelector<HTMLElement>(`button[aria-label="Add Film ${id}"]`)!);
+    await search(id); expect(container.querySelector('.search-row .badge')?.textContent ?? null).toBe(id==='A'?'Seen It':null); await click(container.querySelector<HTMLElement>(`button[aria-label="Add Film ${id}"]`)!);
     expect(container.querySelector('.search-row')).toBeNull();
     expect(container.querySelector<HTMLInputElement>('input[maxlength="150"]')!.value).toBe('');
   }
@@ -116,4 +120,34 @@ it('shared search displays only known director metadata without dangling separat
   for (const [id,metadata] of [['A','2001 · Director: Director A'],['B','2001'],['C','2001']]) {
     await search(id); expect(container.querySelector('.search-row .meta')?.textContent).toBe(metadata);
   }
+});
+
+const historySession=(movie:Movie,deleted=false):Session=>({id:'event',event_date:'2001-01-01',date_precision:'exact',kind:'hosted',host_member_id:'member',cycle_id:null,cycle_slot:null,legacy_cycle_label:null,movies:[movie],deleted_at:deleted?'2002-01-01':null});
+it('labels only canonical saved active-History results and reflects replaced catalogue evidence',async()=>{
+ const watched=film('A'),unwatched=film('B',{seen:[{member_id:'member',seen:1,updated_at:''}]}),deleted=film('C');
+ let catalog:Catalog={movies:[watched,unwatched,deleted],members,sessions:[historySession(watched),{...historySession(deleted,true),id:'deleted'}],cycles:[]};
+ const render=()=>act(async()=>root.render(createElement(FilmPicker,{selected:[],onSelected:vi.fn(),onMovie:vi.fn(),historyMovieIds:catalogIndex(catalog).historyMovieIds})));
+ await render();
+ vi.mocked(api.search).mockResolvedValue({local:catalog.movies.map(movie=>({id:movie.id,title:movie.title,year:movie.year,tmdbId:null,poster:null})),external:[{provider:'tmdb',externalId:'A',title:'External A',year:2001,poster:null}],lookup:{available:true,message:null}});
+ await act(async()=>container.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ const rows=[...container.querySelectorAll('.search-row')];
+ expect(rows).toHaveLength(4);expect(rows[0].querySelector('.badge')?.textContent).toBe('Seen It');
+ for(const row of rows.slice(1)) expect(row.querySelector('.badge')).toBeNull();
+ expect(container.textContent).not.toMatch(/Not Seen|Unseen/);expect(api.preview).not.toHaveBeenCalled();
+ catalog={...catalog,sessions:[historySession(unwatched)]};await render();
+ expect(rows[0].querySelector('.badge')).toBeNull();expect(rows[1].querySelector('.badge')?.textContent).toBe('Seen It');
+ expect(api.search).toHaveBeenCalledOnce();
+});
+it.each(['builder','event','classics-event','add-classic'])('passes active History context through %s search',async consumer=>{
+ const movie=film('A');const catalog:Catalog={movies:[movie],members,sessions:[historySession(movie)],cycles:[]};
+ if(consumer==='builder') {
+  await act(async()=>root.render(createElement(BuilderScreen,{catalog,viewer:{id:'member',display_name:'Member',sort_order:1,avatar:1,role:'member'},rotation:null,onMovie:vi.fn(),onPublished:vi.fn()})));
+  await act(async()=>root.render(createElement(BuilderScreen,{catalog,viewer:{id:'member',display_name:'Member',sort_order:1,avatar:1,role:'member'},rotation:null,onMovie:vi.fn(),onPublished:vi.fn(),newSetRequest:1})));
+ } else if(consumer==='add-classic') {
+  await act(async()=>root.render(createElement(AddClassicModal,{catalog,onMovie:vi.fn(),onClose:vi.fn()})));
+ } else {
+  await act(async()=>root.render(createElement(EventScreen,{catalog,viewer:null,rotation:consumer==='classics-event'?{id:1,nominal_slot:5,cycle_id:null,version:1,updated_at:''}:null,writesEnabled:true,onMovie:vi.fn(),onSaved:vi.fn()})));
+ }
+ await search('A');expect(container.querySelector('.search-row .badge')?.textContent).toBe('Seen It');
+ expect(api.preview).not.toHaveBeenCalled();expect(api.importMovie).not.toHaveBeenCalled();
 });

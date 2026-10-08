@@ -2,7 +2,7 @@
 
 This file records user-approved future work for the project.
 
-Do not add speculative feature work automatically. Add, reprioritise, complete, or remove roadmap items when the user explicitly asks, or when the user agrees that deferred work should be recorded here.
+Do not add speculative feature work automatically. Add, reprioritise, or remove roadmap items when the user explicitly asks, or when the user agrees that deferred work should be recorded here.
 
 Agents may add genuine Priority 0 blockers and evidence-based Priority 0.5 stale/failing tests under the rules below.
 
@@ -53,7 +53,7 @@ An agent may add Priority 0 without asking only when it discovers a genuine bloc
 
 Keep agent-added blockers narrowly scoped.
 
-When resolved, remove the blocker from the active roadmap unless retaining it is specifically useful.
+When resolved, remove the blocker from the active roadmap.
 
 User-assigned Priority 0 work does not need to satisfy the blocker-only rule.
 
@@ -81,10 +81,10 @@ The detailed handling rule lives in [TESTING](docs/TESTING.md).
 
 When asked to recall, show, or summarise outstanding roadmap work:
 
-1. list incomplete items only unless completed work is requested;
+1. list active items only;
 2. sort ascending: Priority 0, 0.5, 1, 2, 3, and so on;
 3. preserve stable order between items sharing a priority unless the user changes it;
-4. show only the first **five** incomplete entries by default;
+4. show only the first **five** entries by default;
 5. keep each entry brief;
 6. show more only when asked.
 
@@ -94,52 +94,29 @@ Priority 0.5 maintenance items appear after Priority 0 and before Priority 1 fea
 
 ## Completion
 
-When ordinary roadmap work is completed:
+When roadmap work is completed, remove it from the active roadmap rather than retaining a completed-work history.
 
-- mark it complete rather than immediately deleting it;
-- preserve the original priority;
-- add only a brief completion note if context would otherwise be lost.
+ROADMAP.md describes outstanding work, not a changelog.
 
-Periodically prune completed history when it no longer helps future work.
-
-Priority 0.5 stale/failing-test entries are the exception: remove them once corrected rather than retaining completed test-history entries.
+If completed work contains durable information that future agents still need, place that information in the appropriate current authority such as ARCHITECTURE, DATA, CONTRACTS, INTEGRATIONS, TESTING or DEPLOYMENT rather than preserving the completed roadmap entry.
 
 ## Current roadmap
-
-### Priority 1 - Australian streaming availability
-Status: Incomplete
-
-Capture and surface where a film can currently be watched in Australia, with Builder as the primary initial consumer. Store and display Australian availability only; availability from other regions is not useful to BookClub and should not be retained. Distinguish subscription/free/ad-supported access from rental or purchase where useful, using the existing watch-offer model where suitable.
-
-Depends on: None
-
-### Priority 1 - Admin operations redesign
-Status: Incomplete
-
-Rework Admin into a self-documenting operations console. Apart from Swap Turn, each maintenance action should have its own card, title and consistently phrased button. Each card should explain which external APIs may be contacted, relevant provider or BookClub limits, the current number of eligible films, the estimated provider-call count or range for the run, exactly what data will be collected or refreshed, and whether the operation fills blanks, refreshes all eligible records or invokes conditional fallbacks.
-
-Depends on: None
-
-### Priority 1 - Streamlined Classics event attestation
-Status: Incomplete
-
-When recording the current Classics turn, prefill the top three eligible Ranked Classics. The first two should be selected and locked; the third should be prefilled but optional. Committing the event should publish only the selected films through the normal Event/History workflow and apply the History Seen-by-all invariant automatically.
-
-If fewer than three eligible Ranked Classics exist, prefill only those available rather than substituting Unranked films.
-
-Depends on: None
 
 ### Priority 2 - Specialist film enrichment
 Status: Incomplete
 
-Expand enrichment only where additional external information would materially improve discovery, Builder, Film Detail or Metrics. Potential areas include awards and richer structured thematic or descriptive metadata. New sources should have a clear product use rather than being collected simply because the data exists.
+Expand enrichment only where additional external information would materially improve discovery, Builder, Film Detail or Metrics. Potential areas include awards and richer structured thematic or descriptive metadata.
+
+New sources or fields should have a clear product use rather than being collected simply because the data exists.
 
 Depends on: None
 
 ### Priority 2 - Metrics information architecture and mobile navigation
 Status: Incomplete
 
-Revisit Metrics organisation now that the underlying reports and performance architecture are mature. The existing horizontal category tabs are too long for comfortable mobile use, so reconsider the report groupings and navigation model rather than merely shrinking or scrolling the tabs. Reports may be regrouped, merged, added or retired where that produces a clearer set of useful analytical views. Introduce charts or richer visualisations only where they improve understanding.
+Revisit Metrics organisation now that the underlying reports and performance architecture are mature. The existing horizontal category tabs are too long for comfortable mobile use, so reconsider the report groupings and navigation model rather than merely shrinking or scrolling the tabs.
+
+Reports may be regrouped, merged, added or retired where that produces a clearer set of useful analytical views. Introduce charts or richer visualisations only where they improve understanding.
 
 Preserve the existing Metrics caching, lazy calculation and performance architecture.
 
@@ -161,26 +138,63 @@ Prefer shared formatting helpers, styles or components where equivalent presenta
 
 Depends on: None
 
+### Priority 2 - Data Health and Exceptions
+Status: Incomplete
+
+Add an Admin-facing view that makes records requiring human attention easy to find without needing to diagnose them through code or ad hoc queries.
+
+Surface actionable exceptions such as missing IMDb or TMDB identities, identity conflicts, unresolved metadata, missing artwork, stale or incomplete enrichment, failed or inconclusive provider checks, and similar data-quality conditions already represented by BookClub.
+
+The purpose is diagnosis and navigation to the affected films, not another bulk-maintenance engine. Reuse existing authoritative status and cache evidence rather than independently redefining provider health.
+
+Depends on: None
+
 ### Priority 3 - Non-movie screen works
 Status: Incomplete
 
-Support non-movie screen works such as television series, miniseries and anthology episodes. Address provider identity, canonical records, runtime/year/title presentation, search/import behaviour and appropriate UI treatment rather than simply allowing television records into the existing movie model.
+Support non-movie screen works such as television series, miniseries and anthology episodes.
+
+Address provider identity, canonical records, runtime/year/title presentation, search/import behaviour and appropriate UI treatment rather than simply allowing television records into the existing movie model.
+
+Depends on: None
+
+### Priority 3 - Personal member retrospective
+Status: Incomplete
+
+Provide a lightweight retrospective for an individual BookClub member using existing History, film and Metrics data.
+
+Potentially useful measures include turns hosted, films brought, accumulated runtime and characteristic genres, directors or other meaningful patterns. Keep this focused on interesting personal history rather than introducing competitive scoring between members.
+
+Prefer deriving the view from existing data and Metrics primitives rather than creating new persisted aggregates.
 
 Depends on: None
 
 ### Priority 4 - Metrics first-entry performance follow-up
 Status: Incomplete
 
-Revisit Metrics first-entry scheduling only if production measurement or future catalogue growth makes the first visit perceptibly slower. Compare the current immediate enrichment prefetch with paint-first or idle-prefetch alternatives while preserving cross-route caching and lazy per-category calculations.
+Revisit Metrics first-entry scheduling only if production measurement or future catalogue growth makes the first visit perceptibly slower.
+
+Compare the current immediate enrichment prefetch with paint-first or idle-prefetch alternatives while preserving cross-route caching and lazy per-category calculations.
 
 Current production navigation is fast, so this remains deliberately deferred.
+
+Depends on: None
+
+### Priority 4 - History search
+Status: Incomplete
+
+Add a lightweight way to search BookClub History by film title so a user can quickly answer questions such as whether and when a film was previously watched.
+
+Use the existing canonical History data and preserve current History ordering/filtering behaviour. Additional useful fields such as year or director may support identification, but avoid turning History into a general-purpose catalogue search.
 
 Depends on: None
 
 ### Priority 5 - Cross-device freshness
 Status: Incomplete
 
-Improve how an already-open BookClub session notices legitimate changes made from another device or browser. Prefer lightweight approaches such as refresh-on-focus or age-based revalidation before considering continuous polling. The goal is to reduce surprising stale screens without adding unnecessary background traffic or synchronisation complexity.
+Improve how an already-open BookClub session notices legitimate changes made from another device or browser.
+
+Prefer lightweight approaches such as refresh-on-focus or age-based revalidation before considering continuous polling. The goal is to reduce surprising stale screens without adding unnecessary background traffic or synchronisation complexity.
 
 Depends on: None
 

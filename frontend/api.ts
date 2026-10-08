@@ -1,7 +1,6 @@
 import { hydrateCatalog } from '../shared/catalog';
-import { METADATA_MAINTENANCE_BATCH_SIZE } from '../shared/score-maintenance';
 import { validationFieldLabel } from './presentation';
-import type { Catalog, CompactCatalog, ManualMovieInput, MovieDetail, SearchResponse, JournalMutationResult, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, MetadataEnrichment, SelectedMetadataEnrichment, ScoreMaintenance, TmdbPreview } from '../shared/types';
+import type { Catalog, CompactCatalog, ManualMovieInput, MovieDetail, SearchResponse, JournalMutationResult, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, SelectedMetadataEnrichment, ScoreMaintenance, TmdbPreview } from '../shared/types';
 
 const configured = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/,'');
 const base = import.meta.env.DEV ? 'http://localhost:8787' : configured || '';
@@ -58,12 +57,11 @@ export const api = {
   scoreMaintenanceStatus: () => request<import('../shared/types').ScoreMaintenanceStatus>('/movies/maintenance-status'),
   maintainMovies: (mode: import('../shared/score-maintenance').MaintenanceMode,movie_ids: string[]) => request<ScoreMaintenance>('/movies/maintain','POST',{mode,movie_ids}),
   enrichProvider: (provider: import('../shared/enrichment').EnrichmentProvider,movie_ids: string[]) => request<import('../shared/enrichment').EnrichmentBatch>('/movies/enrich-provider-selected','POST',{provider,movie_ids}),
-  enrichMetadata: (limit = METADATA_MAINTENANCE_BATCH_SIZE) => request<MetadataEnrichment>('/movies/enrich-metadata','POST',{limit:Math.min(limit,METADATA_MAINTENANCE_BATCH_SIZE)}),
   enrichMetadataSelected: async (movie_ids: string[]): Promise<SelectedMetadataEnrichment> => {
     try { return await request<SelectedMetadataEnrichment>('/movies/enrich-metadata-selected','POST',{movie_ids}); }
     catch (error) {
       if (!(error instanceof ApiClientError) || ![404,405,501].includes(error.status)) throw error;
-      return api.enrichMetadata(movie_ids.length);
+      throw new ApiClientError(error.status,'Selected-film metadata enrichment is unavailable. The API Worker may need updating; update it before retrying to process only the selected films.');
     }
   },
   me: () => request<{viewer: Viewer | null}>('/auth/me'),

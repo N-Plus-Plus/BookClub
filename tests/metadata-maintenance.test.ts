@@ -99,16 +99,18 @@ describe('Fill missing TMDB metadata action', () => {
     expect(api.enrichMetadataSelected).toHaveBeenCalledOnce();expect(refresh).toHaveBeenCalledOnce();
     expect(hooks.values[5]).toMatchObject({updated:2,remaining:3,message:expect.stringContaining('Stopped.')});
   });
-  it.each(['network','provider','empty'])('refreshes once after %s failure, retaining partial progress', async kind => {
+  it.each(['network','compatibility','provider','empty'])('refreshes once after %s failure, retaining partial progress', async kind => {
     vi.useFakeTimers();
     try {
       const request=vi.mocked(api.enrichMetadataSelected); request.mockResolvedValueOnce(response(['f0','f1']));
       if(kind==='network') request.mockRejectedValueOnce(new Error('API unreachable'));
+      else if(kind==='compatibility') request.mockRejectedValueOnce(new Error('Selected-film metadata enrichment is unavailable. The API Worker may need updating; update it before retrying to process only the selected films.'));
       else if(kind==='provider') request.mockResolvedValueOnce({results:[{movieId:'f2',title:'Film',provider:'tmdb',status:'failed',message:'Cooling down',retryAfter:60}]});
       else request.mockResolvedValueOnce({results:[]});
       const refresh=vi.fn(async()=>{}); screen(refresh,data)[0].onClick(); await vi.runAllTimersAsync();
       expect(request).toHaveBeenCalledTimes(2);expect(refresh).toHaveBeenCalledOnce();
       expect(hooks.values[5]).toMatchObject({updated:2,message:expect.any(String)});
+      if(kind==='compatibility') { expect(hooks.values[5]).toMatchObject({processed:2,remaining:3,message:expect.stringContaining('API Worker may need updating')}); expect(request.mock.calls.map(([ids])=>ids)).toEqual([['f0','f1'],['f2','f3']]); }
       if(kind==='provider') expect(hooks.values[5]).toMatchObject({failed:1,failure:expect.stringContaining('1 min')});
     } finally {vi.useRealTimers();}
   });

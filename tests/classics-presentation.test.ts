@@ -172,3 +172,20 @@ it('scopes orange progress fill to score maintenance across browser engines',()=
  for(const engine of ['webkit-progress-value','moz-progress-bar']) expect(css).toContain(`.score-maintenance-progress::-${engine} { background: var(--pumpkin); }`);
  expect(css).toContain('progress { width: 100%; height: 10px; accent-color: var(--concrete); }');
 });
+
+it.each([
+ {answered:['m1','m2'],summary:'0 Seen · 2 No · 2 Unknown (Sean, Matt)'},
+ {answered:['m1','m2','m3'],summary:'0 Seen · 3 No · 1 Unknown (Matt)'},
+ {answered:['m1','m2','m3','m4'],summary:'0 Seen · 4 No · 0 Unknown'},
+ {answered:[],summary:'0 Seen · 0 No · 4 Unknown (Troy, Jess, Sean, Matt)'},
+])('identifies active Unknown voters from explicit answers: $summary',async({answered,summary})=>{
+ const roster=members.map((member,index)=>({...member,display_name:['Troy','Jess','Sean','Matt','Inactive'][index]})).reverse();
+ const seen=answered.map(member_id=>({member_id,seen:0,updated_at:''}));
+ const movie={...film(1),seen,ranking:rankMovie(scores,seen,roster)};
+ const originalRoster=roster.map(member=>member.id);
+ await act(async()=>root.render(createElement(ClassicsScreen,{catalog:{movies:[movie],members:roster,sessions:[],cycles:[]},movies:[movie],viewer:null,writesEnabled:false,onMovie:vi.fn()})));
+ if(movie.ranking.unknownCount>0) await click('Unranked');
+ const summaryText=container.querySelector('.ranking-score > .meta')?.textContent;
+ expect(summaryText).toBe(summary);expect(summaryText).not.toContain('Inactive');
+ expect(roster.map(member=>member.id)).toEqual(originalRoster);
+});

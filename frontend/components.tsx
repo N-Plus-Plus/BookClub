@@ -113,12 +113,13 @@ export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; s
     <span key={`${provider}:${metric}`} className={firstCritic > 0 && index === firstCritic ? 'source-scores-critic-boundary' : undefined} title={description} aria-label={`${description}: ${formatScore100(value)}`}><span>{label}</span>{' '}<span>{formatScore100(value)}</span></span>
   )}</p></div> : null;
 }
-export function RankingScore({movie,compact = false,variant}: {movie: Movie; compact?: boolean; variant?: 'home' | 'classics'}) {
+export function RankingScore({movie,compact = false,variant,members = []}: {members?: readonly Member[]; movie: Movie; compact?: boolean; variant?: 'home' | 'classics'}) {
   const r = movie.ranking!;
+  const unknownNames = variant === 'classics' && r.unknownCount > 0 ? members.filter(member => member.active === 1 && !movie.seen.some(answer => answer.member_id === member.id && (answer.seen === 0 || answer.seen === 1))).sort((a,b) => a.sort_order-b.sort_order).map(member => member.display_name) : [];
   return <div className="stack ranking-score">{!variant && <div className="rank-top">
     <span className="badge" data-intent={r.eligible ? 'constructive' : 'destructive'}>{!r.eligible ? 'Disqualified' : r.rankable ? 'Ranked' : 'Needs Data'}</span>
     <strong className="score numeric">{r.finalScore?.toFixed(2) ?? '—'}<small>residual score</small></strong></div>}
-    <p className="meta">{r.seenCount} Seen · {r.unseenCount} No{variant !== 'home' && <> · {r.unknownCount} Unknown</>}</p>
+    <p className="meta">{r.seenCount} Seen · {r.unseenCount} No{variant !== 'home' && <> · {r.unknownCount} Unknown{unknownNames.length > 0 && ` (${unknownNames.join(', ')})`}</>}</p>
     {(!compact || variant === 'classics') && <SourceScores ranking={r} scores={movie.scores} />}
     {!variant && <details><summary><Eye size={17} aria-hidden="true" />Score breakdown</summary><div className="breakdown">
       <p>Sum of squares <strong>{r.rawScore?.toFixed(2) ?? 'Incomplete'}</strong></p><p>Unseen multiplier <strong>{r.unseenMultiplier.toFixed(6)}</strong></p>
@@ -126,7 +127,7 @@ export function RankingScore({movie,compact = false,variant}: {movie: Movie; com
       {r.warnings.map(w => <small key={w}>{w}</small>)}{!r.eligible && <p>Excluded from watch order: all active members Seen, or no active roster.</p>}
     </div></details>}</div>;
 }
-export function RankingCard({movie,rank,compact = false,variant,action}: {action?: ReactNode; movie: Movie; rank?: number; compact?: boolean; variant?: 'home' | 'classics'}) {
+export function RankingCard({movie,rank,compact = false,variant,action,members}: {members?: readonly Member[]; action?: ReactNode; movie: Movie; rank?: number; compact?: boolean; variant?: 'home' | 'classics'}) {
   const r = movie.ranking!;
-  return <article className={variant === 'home' ? 'card rank-card home-rank-card' : variant === 'classics' ? 'ranking-row classics-ranking-row' : compact ? 'ranking-row' : 'card rank-card'}>{action}<div className="candidate-identity"><span className="rank-number">{rank ? (variant ? `#${rank}` : String(rank).padStart(2,'0')) : r.eligible ? '—' : 'DQ'}</span><MovieRow movie={movie}>{variant === 'classics' && movie.director && <p className="meta candidate-director">{movie.director}</p>}</MovieRow></div><RankingScore movie={movie} compact={compact} variant={variant} /></article>;
+  return <article className={variant === 'home' ? 'card rank-card home-rank-card' : variant === 'classics' ? 'ranking-row classics-ranking-row' : compact ? 'ranking-row' : 'card rank-card'}>{action}<div className="candidate-identity"><span className="rank-number">{rank ? (variant ? `#${rank}` : String(rank).padStart(2,'0')) : r.eligible ? '—' : 'DQ'}</span><MovieRow movie={movie}>{variant === 'classics' && movie.director && <p className="meta candidate-director">{movie.director}</p>}</MovieRow></div><RankingScore movie={movie} compact={compact} variant={variant} members={members} /></article>;
 }

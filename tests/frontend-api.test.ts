@@ -67,14 +67,14 @@ it('uses a human historical turn label in Builder validation errors while retain
   await expect(api.publishBuilder('set',{revision:0,event_date:'2026-01-01',cycle_id:null,cycle_slot:1,complete_turn:false})).rejects.toMatchObject({fields,message:'Historical turn: Choose a cycle for this historical turn.'});
 });
 
-it('bounds browser TMDB maintenance to two films and retains ordinary request timeouts',async()=>{
+it('sends selected metadata IDs with maintenance timeouts and retains ordinary request timeouts',async()=>{
  vi.stubEnv('DEV',true);
  const timeout=vi.spyOn(AbortSignal,'timeout');
  const fetch=vi.fn(async(_url:string,_init:RequestInit)=>Response.json({data:{members:[],movies:[],sessions:[],cycles:[]}}));vi.stubGlobal('fetch',fetch);
  try {
   const {api}=await import('../frontend/api');
-  await api.enrichMetadata();await api.enrichMetadata(10);await api.enrichMetadata(1);
-  expect(fetch.mock.calls.map(([,init])=>JSON.parse(init.body as string).limit)).toEqual([2,2,1]);
+  await api.enrichMetadataSelected(['one','two']);await api.enrichMetadataSelected(['three','four']);await api.enrichMetadataSelected(['five']);
+  expect(fetch.mock.calls.map(([,init])=>JSON.parse(init.body as string).movie_ids)).toEqual([['one','two'],['three','four'],['five']]);
   await api.catalog();await api.me();await api.seen('film','member',true);
   expect(timeout.mock.calls.map(([ms])=>ms)).toEqual([105000,105000,105000,15000,15000,15000]);
  } finally {timeout.mockRestore();}
@@ -92,19 +92,17 @@ it('hydrates compact references and falls back only when an older Worker lacks t
   fetch.mockResolvedValueOnce(Response.json({error:{message:'Database unavailable.'}},{status:500}));await expect(api.catalog()).rejects.toMatchObject({status:500});expect(fetch).toHaveBeenCalledTimes(4);
 });
 
-it.each([404,405,501])('falls back to legacy TMDB metadata only for unavailable selected route (%s)',async status=>{
+it.each([404,405,501])('reports Worker incompatibility without general metadata selection (%s)',async status=>{
   vi.stubEnv('DEV',true);
   const fetch=vi.fn().mockResolvedValueOnce(new Response('Older Worker',{status})).mockResolvedValueOnce(Response.json({data:{results:[],remaining:0,unidentified:4}}));vi.stubGlobal('fetch',fetch);
-  const {api}=await import('../frontend/api'); await api.enrichMetadataSelected(['one','two']);
-  expect(fetch).toHaveBeenCalledTimes(2);
+  const {api}=await import('../frontend/api'); await expect(api.enrichMetadataSelected(['one','two'])).rejects.toMatchObject({status,message:expect.stringContaining('API Worker may need updating')});
+  expect(fetch).toHaveBeenCalledOnce();
   expect(fetch.mock.calls[0][0]).toContain('/movies/enrich-metadata-selected');
   expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({movie_ids:['one','two']});
-  expect(fetch.mock.calls[1][0]).toMatch(/\/movies\/enrich-metadata$/);
-  expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({limit:2});
 });
 it.each([401,403,409,422,429,500,503])('does not fall back after selected metadata error %s',async status=>{
   vi.stubEnv('DEV',true);const fetch=vi.fn().mockResolvedValue(Response.json({error:{message:'Failed'}},{status}));vi.stubGlobal('fetch',fetch);
-  const {api}=await import('../frontend/api');await expect(api.enrichMetadataSelected(['one'])).rejects.toMatchObject({status});expect(fetch).toHaveBeenCalledOnce();
+  const {api}=await import('../frontend/api');await expect(api.enrichMetadataSelected(['one'])).rejects.toMatchObject({status,message:'Failed'});expect(fetch).toHaveBeenCalledOnce();
 });
 it('normal selected metadata requests never invoke the legacy route',async()=>{
   vi.stubEnv('DEV',true);const fetch=vi.fn(async(_url:string)=>Response.json({data:{results:[]}}));vi.stubGlobal('fetch',fetch);
