@@ -43,10 +43,10 @@ it('renders both Admin maintenance groups in sentence case without changing prov
   vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'admin'}});
   await remount(); await navigate('admin');
   expect(headingTexts('main section.card h2,main section.card h3')).toEqual([
-    'Swap current turn','Populate missing data','Populate missing scores','Populate missing OMDb metadata','Populate missing TMDB metadata and artwork','Populate missing TMDB enrichment','Populate missing MDBList enrichment',
-    'Refresh all data','Refresh scores','Refresh OMDb metadata','Refresh TMDB metadata and artwork','Refresh TMDB enrichment','Refresh MDBList enrichment',
+    'Swap current turn','Populate missing data','Populate missing scores','Populate missing OMDb metadata','Populate missing TMDB metadata and artwork','Populate missing TMDB enrichment','Populate missing MDBList enrichment','Populate missing TMDB collections','Populate missing OMDb awards',
+    'Refresh all data','Refresh scores','Refresh OMDb metadata','Refresh TMDB metadata and artwork','Refresh TMDB enrichment','Refresh MDBList enrichment','Refresh TMDB collections','Refresh OMDb awards',
   ]);
-  expect([...harness.container.querySelectorAll('.utility-disclosure summary')].map(node => node.textContent)).toEqual(Array(12).fill('Data collected and safeguards'));
+  expect([...harness.container.querySelectorAll('.utility-disclosure summary')].map(node => node.textContent)).toEqual(Array(16).fill('Data collected and safeguards'));
 });
 
 it('renders both composite categories/directions, all Metrics tabs and Cabinet roles without recasing canonical identities',async () => {
@@ -54,7 +54,7 @@ it('renders both composite categories/directions, all Metrics tabs and Cabinet r
   expect(headingTexts()).not.toContain('Top directors');
   expect(headingTexts()).toContain('Top 5 highest critic scores');
   expect(headingTexts()).toContain('Top 5 most popular · IMDb');
-  expect([...harness.container.querySelectorAll('[role=tab]')].map(node => node.textContent)).toEqual(['Top 5','Tastes','Breakdowns','Records']);
+  expect([...harness.container.querySelectorAll('[role=tab]')].map(node => node.textContent)).toEqual(['Top 5','Tastes','Breakdowns','Records','Staging']);
   const expectedSources = [['Critics','Critics'],['Audience','Audience']];
   for (const [index,direction] of ['Top','Bottom'].entries()) {
     for (const [label,name] of expectedSources) {

@@ -1,3 +1,4 @@
+import { parseAwards } from '../../../shared/provider-evidence';
 import { ProviderError } from './http';
 import { usableTitle } from '../../../shared/titles';
 import type { Score } from '../../../shared/types';
@@ -40,7 +41,7 @@ export class OmdbProvider {
     if (data && typeof data === 'object' && 'imdbID' in data && data.imdbID !== id) throw new ProviderError('OMDb','not_found','OMDb returned a different IMDb identity. Owner review is required.');
     const metadata=parseOmdbMetadata(data);
     if (!(data && typeof data === 'object' && 'imdbID' in data && data.imdbID === id)) metadata.title=null;
-    return {scores:parseOmdb(data),metadata};
+    return {scores:parseOmdb(data),metadata,awards:data && typeof data==='object' && 'imdbID' in data && data.imdbID===id ? parseAwards('Awards' in data ? data.Awards : undefined,id,new Date().toISOString()) : undefined};
   }
   async scores(id: string) { return (await this.details(id)).scores; }
 }

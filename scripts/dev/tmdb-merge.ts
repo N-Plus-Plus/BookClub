@@ -4,13 +4,14 @@ import { createHash } from 'node:crypto';
 import { Repository } from '../../worker/src/repository.ts';
 import { near } from './pair-tmdb.ts';
 import type { ProviderMovie } from '../../worker/src/providers/types.ts';
+import { providerEvidenceRelationships, providerEvidenceTables } from '../../shared/provider-evidence';
 import { providerEnrichmentTables } from '../../shared/enrichment';
 
 export type Member = {movie_id:string;title:string;source_refs:string[]};
 export type Merge = {tmdb_id:string;members:Member[];kind:'existing'|'group';owner_confirmed?:true};
 type Value = string|number|null;
 export type Row = Record<string,Value>;
-export const relatedTables=['movie_maintenance_coverage','movie_maintenance_failures','movie_score_checks','movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies',...providerEnrichmentTables] as const;
+export const relatedTables=[...providerEvidenceRelationships,'movie_maintenance_coverage','movie_maintenance_failures','movie_score_checks','movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies',...providerEnrichmentTables] as const;
 export const receiptTable='local_movie_merge_receipts';
 const quote=(s:string)=>'"'+s.replaceAll('"','""')+'"';
 const hash=(op:Merge)=>createHash('sha256').update(JSON.stringify({kind:op.kind,tmdb_id:op.tmdb_id,members:[...op.members].sort((a,b)=>a.movie_id.localeCompare(b.movie_id)).map(m=>({...m,source_refs:[...m.source_refs].sort()}))})).digest('hex');
@@ -172,7 +173,13 @@ export async function applyMerge(db:D1Database,plan:MergePlan,metadata?:Provider
     }
   }
   // Identity-bound successful coverage follows compatible merged identities; latest domain wins.
-  for(const table of ['movie_maintenance_coverage','movie_maintenance_failures']) {
+  for(const table of providerEvidenceTables) {
+    if(!snapshot[table]) continue;
+    const row=[...snapshot[table]].filter(r=>snapshot.movie_external_ids.some(i=>i.provider===r.identity_provider && i.external_id===r.external_id)).sort((a,b)=>String(b.checked_at).localeCompare(String(a.checked_at)) || Number(b.movie_id===survivor)-Number(a.movie_id===survivor))[0];
+    statements.push(db.prepare(`DELETE FROM ${table} WHERE movie_id=?`).bind(survivor));
+    if(row) {const fields=Object.keys(row);statements.push(db.prepare(`INSERT INTO ${table}(${fields.map(quote).join(',')}) VALUES(${fields.map(()=>'?').join(',')})`).bind(...fields.map(f=>f==='movie_id'?survivor:row[f])));}
+  }
+  for(const table of ['movie_maintenance_coverage','movie_maintenance_failures','movie_maintenance_evidence_failures']) {
     const rows=[...(snapshot[table] ?? [])].sort((a,b)=>String(b.checked_at ?? b.attempted_at).localeCompare(String(a.checked_at ?? a.attempted_at)) || Number(b.movie_id===survivor)-Number(a.movie_id===survivor));
     const keys=new Set<string>();
     for(const row of rows) {
@@ -227,6 +234,7 @@ export async function applyMerge(db:D1Database,plan:MergePlan,metadata?:Provider
   for(const table of ['movie_genres','seen_states'])statements.push(db.prepare(`DELETE FROM ${table} WHERE movie_id IN (${removedWhere})`).bind(...removed));
   for(const id of removed)statements.push(db.prepare('DELETE FROM movies WHERE id=?').bind(id));
   await db.batch(statements);
+  if(metadata?.collection) await repo.cacheCollection(survivor,metadata.collection);
   if (metadata?.enrichment) await repo.cacheEnrichment(survivor,metadata.enrichment);
 }
 

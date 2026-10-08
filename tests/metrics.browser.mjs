@@ -58,7 +58,7 @@ try {
     else await page.reload();
     await page.getByRole('heading',{name:'Top 5 highest critic scores',exact:true}).waitFor();
     assert.equal(await active(),'Top 5');
-    assert.equal(await page.getByRole('tab').count(),4);
+    assert.equal(await page.getByRole('tab').count(),5);
     await enrichmentRead;
     const baseline = requests.length;
     const geometry = await page.evaluate(()=>{
@@ -197,7 +197,7 @@ try {
     const before=await page.evaluate(()=>scrollY);await tab('Tastes');assert.equal(await page.evaluate(()=>scrollY),before,'tab click does not move page');
     const selected=page.getByRole('tab',{name:'Tastes',exact:true});await selected.focus();await page.keyboard.press('ArrowRight');assert.equal(await active(),'Breakdowns');
     assert(await page.locator('[role=tab][aria-selected=true]').evaluate(e=>e===document.activeElement && getComputedStyle(e).outlineStyle!=='none'),'visible keyboard focus');
-    await page.keyboard.press('End');assert.equal(await active(),'Records');await page.keyboard.press('Home');assert.equal(await active(),'Top 5');
+    await page.keyboard.press('End');assert.equal(await active(),'Staging');await page.keyboard.press('Home');assert.equal(await active(),'Top 5');
     assert.equal(requests.length,baseline,'tab/identity/role/score changes generate no API reads');assert.equal(requests.filter(p=>p.endsWith('/metrics/enrichment')).length,1);
     results.push({width,available,overflow:false,filterCalls:requests.length-baseline,tabs:tabs.length});
   }

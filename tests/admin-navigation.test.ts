@@ -23,10 +23,10 @@ describe('Admin screen and Account navigation',() => {
     expect(button('Populate missing scores')).toBeUndefined();
     expect(harness.container.textContent).not.toContain('Scores and OMDb metadata');
   });
-  it('renders twelve maintenance operations and Swap Turn only on Admin and keeps them out of navigation and member screens',async()=>{
+  it('renders sixteen maintenance operations and Swap Turn only on Admin and keeps them out of navigation and member screens',async()=>{
     await asAdmin(); await navigate('admin');
     expect(harness.container.querySelector('h1')?.textContent).toBe('Admin');
-    expect(harness.container.querySelectorAll('main section.card h2,main section.card h3')).toHaveLength(13);
+    expect(harness.container.querySelectorAll('main section.card h2,main section.card h3')).toHaveLength(17);
     for(const label of ['Populate missing scores','Refresh scores','Refresh OMDb metadata','Populate missing TMDB metadata and artwork']) expect(button(label)).toBeTruthy();
     expect(harness.container.textContent).toContain('Refresh OMDb metadata');
     expect(harness.container.textContent).toContain('Populate missing TMDB metadata and artwork');
@@ -60,7 +60,7 @@ describe('Admin screen and Account navigation',() => {
   it('runs both moved maintenance actions and retains their live feedback',async()=>{
     const movie=movies[7];
     vi.mocked(api.catalog).mockResolvedValue({...catalog,sessions:[{id:'event',movies:[movie],event_date:'2030-01-01',date_precision:'exact',host_member_id:'member-2',kind:'hosted',cycle_id:null,cycle_slot:null,legacy_cycle_label:null}]});
-    vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],unavailable:{tmdb:null,mdblist:'Not configured.',omdb:'Not configured.'},next:null});
+    vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],evidence:[],evidenceSupported:true,unavailable:{tmdb:null,mdblist:'Not configured.',omdb:'Not configured.'},next:null});
     vi.mocked(api.enrichMetadataSelected).mockResolvedValue({results:[{movieId:movie.id,title:movie.title,provider:'tmdb',status:'success',message:'Updated.'}]});
     await asAdmin(); await navigate('admin');
     const bootstrapCalls=[vi.mocked(api.health).mock.calls.length,vi.mocked(api.me).mock.calls.length],catalogCalls=vi.mocked(api.catalog).mock.calls.length;
@@ -104,7 +104,7 @@ describe('Admin screen and Account navigation',() => {
   it('keeps provider failures and cooldown feedback beside both Admin maintenance sections',async()=>{
     const movie=movies[7];
     vi.mocked(api.catalog).mockResolvedValue({...catalog,sessions:[{id:'event',movies:[movie],event_date:'2030-01-01',date_precision:'exact',host_member_id:'member-2',kind:'hosted',cycle_id:null,cycle_slot:null,legacy_cycle_label:null}]});
-    vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],unavailable:{tmdb:null,mdblist:'Not configured.',omdb:'Not configured.'},next:null});
+    vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],evidence:[],evidenceSupported:true,unavailable:{tmdb:null,mdblist:'Not configured.',omdb:'Not configured.'},next:null});
     vi.mocked(api.maintenanceProvider).mockImplementation(async(_intent,units)=>({results:units.map(u=>({movieId:u.movieId,provider:u.provider,status:'failed',message:u.operations.includes('scores')?'Score quota reached.':'Artwork quota reached.',retryAfter:120})),canonicalChanged:false,cacheChanged:false,stopped:true}));
     await asAdmin(); await navigate('admin');
     await click(button('Refresh scores'));

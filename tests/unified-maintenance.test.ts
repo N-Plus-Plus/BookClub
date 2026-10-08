@@ -31,9 +31,9 @@ function upstream(empty=false) {
       const body=JSON.parse(String(init?.body));
       return Response.json(body.ids.map((imdb:string)=>({...mdbEnrichmentFixture(imdb,Number(imdb.slice(2))),ids:{imdb,tmdb:Number(imdb.slice(2))},keywords:empty?[]:[{id:1,name:'keyword'}],ratings:empty?[]:mdbEnrichmentFixture().ratings})));
     }
-    if(url.hostname==='www.omdbapi.com') {counters.omdb++;return Response.json({Response:'True',imdbID:url.searchParams.get('i'),Title:empty?'N/A':'OMDb title',Year:empty?'N/A':'2000',Runtime:empty?'N/A':'100 min',Director:empty?'N/A':'A director',Genre:empty?'N/A':'Drama',imdbRating:empty?'N/A':'8',Metascore:empty?'N/A':'80'});}
+    if(url.hostname==='www.omdbapi.com') {counters.omdb++;return Response.json({Response:'True',imdbID:url.searchParams.get('i'),Awards:empty?'N/A':'2 wins & 3 nominations.',Title:empty?'N/A':'OMDb title',Year:empty?'N/A':'2000',Runtime:empty?'N/A':'100 min',Director:empty?'N/A':'A director',Genre:empty?'N/A':'Drama',imdbRating:empty?'N/A':'8',Metascore:empty?'N/A':'80'});}
     counters.tmdb++;const id=Number(url.pathname.split('/').at(-1));
-    const tmdb=tmdbEnrichmentFixture(id);tmdb.external_ids.imdb_id=`tt${String(id).padStart(7,'0')}`;
+    const tmdb={...tmdbEnrichmentFixture(id),belongs_to_collection:null};tmdb.external_ids.imdb_id=`tt${String(id).padStart(7,'0')}`;
     if(empty)Object.assign(tmdb,{production_countries:[],spoken_languages:[],production_companies:[],credits:{cast:[],crew:[]},keywords:{keywords:[]},release_dates:{results:[]},budget:0,revenue:0,popularity:0,tagline:null,vote_average:null,vote_count:0,original_title:null,runtime:null,genres:[]});
     return Response.json(tmdb);
   }));
@@ -44,7 +44,7 @@ it('coordinates 36 refresh films with reproducible request savings and preserves
   const startedAt=new Date().toISOString();
   for(const batch of plan.batches) {const result=await service.execute('refresh',batch,startedAt);expect(result.results).toHaveLength(batch.length);expect(result.stopped).toBeUndefined();}
   expect(counters).toEqual({mdblist:4,omdb:36,tmdb:36});
-  const naive=36+36+36+4+4;expect(naive).toBe(116);expect(Object.values(counters).reduce((a,b)=>a+b,0)).toBe(76);
+  const naive=36+36+36+36+36+4+4;expect(naive).toBe(188);expect(Object.values(counters).reduce((a,b)=>a+b,0)).toBe(76);
   for(const c of plan.calls) {expect(counters[c.provider]).toBeGreaterThanOrEqual(c.min);expect(counters[c.provider]).toBeLessThanOrEqual(c.max);}
   expect((await repo.movieDetails(['film-001']))[0].scores.length).toBe(6);
 });

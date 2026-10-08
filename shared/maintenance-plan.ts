@@ -4,13 +4,15 @@ import { missingLiveScoreDimensions, requiredScores } from './ranking';
 import { enrichmentIdentity } from './enrichment';
 import { tmdbMetadataIsStale } from './metadata';
 
-export const maintenanceOperations = ['scores','omdb-metadata','tmdb-metadata','tmdb-enrichment','mdblist-enrichment'] as const;
+export const maintenanceOperations = ['scores','omdb-metadata','tmdb-metadata','tmdb-enrichment','mdblist-enrichment','tmdb-collections','omdb-awards'] as const;
 export type MaintenanceOperation = typeof maintenanceOperations[number];
 export type MaintenanceIntent = 'populate' | 'refresh';
 export type MaintenanceProvider = 'mdblist' | 'omdb' | 'tmdb';
 export type CoverageCategory = 'present' | 'unchecked' | 'checked_unavailable' | 'stale' | 'unidentifiable' | 'unavailable_provider' | 'inconclusive';
 export interface ProviderCoverage { movie_id:string; provider:string; domain:string; identity_provider:string; external_id:string; checked_at:string; absent:string[] }
 export interface MaintenanceCoverage {
+  evidence?:ProviderCoverage[];
+  evidenceSupported?:boolean;
   failures?:{movie_id:string;provider:string;operation:string;attempted_at:string}[];
   checks:ProviderCoverage[];
   unavailable:Record<MaintenanceProvider,string | null>;
@@ -40,14 +42,15 @@ export function operationCoverage(movie:Movie,operation:MaintenanceOperation,cov
     const missing=missingLiveScoreDimensions(movie.scores);
     return !missing.length ? 'present' : missing.every(key=>coverage.negativeScores.some(c=>c.movie_id===movie.id && c.score_key===key)) ? 'checked_unavailable' : 'unchecked';
   }
-  const check=operation.endsWith('enrichment') ? coverage.enrichment.find(c=>c.movie_id===movie.id && c.provider===provider && c.identity_provider===identity.provider && c.external_id===identity.external_id)
+  const evidenceOperation=operation==='tmdb-collections' || operation==='omdb-awards';
+  const check=evidenceOperation ? coverage.evidence?.find(c=>c.movie_id===movie.id && c.domain===(operation==='tmdb-collections'?'collections':'awards') && c.identity_provider===identity.provider && c.external_id===identity.external_id) : operation.endsWith('enrichment') ? coverage.enrichment.find(c=>c.movie_id===movie.id && c.provider===provider && c.identity_provider===identity.provider && c.external_id===identity.external_id)
     : provider==='omdb' ? matchingCheck(coverage,movie.id,provider,'metadata',identity) : movie.tmdb_metadata_checked_at && (movie.tmdb_artwork_checked_at || ['poster','backdrop'].every(type=>movie.assets.some(a=>a.provider==='tmdb' && a.asset_type===type))) ? {checked_at:movie.tmdb_metadata_checked_at} : undefined;
   if (!check) return coverage.failures?.some(f=>f.movie_id===movie.id && f.operation===operation) ? 'inconclusive' : 'unchecked';
   if(operation==='omdb-metadata' && 'absent' in check) {
     const gaps=[...(!movie.year?['year']:[]),...(!movie.runtime?['runtime']:[]),...(!movie.director?.trim()?['director']:[]),...(!movie.genres.length?['genres']:[])];
     if(gaps.some(field=>!check.absent.includes(field))) return 'unchecked';
   }
-  const absent=operation==='omdb-metadata' ? !movie.year || !movie.runtime || !movie.director || !movie.genres.length
+  const absent=evidenceOperation ? ('absent' in check && check.absent.length>0) : operation==='omdb-metadata' ? !movie.year || !movie.runtime || !movie.director || !movie.genres.length
     : operation==='tmdb-metadata' ? !movie.overview || !movie.original_title || !movie.release_date || !movie.runtime || !movie.director || !movie.genres.length || !movie.assets.some(a=>a.provider==='tmdb' && a.asset_type==='poster') || !movie.assets.some(a=>a.provider==='tmdb' && a.asset_type==='backdrop') : ('unavailable_families' in check && Number(check.unavailable_families)>0);
   return absent ? 'checked_unavailable' : tmdbMetadataIsStale(check.checked_at) ? 'stale' : 'present';
 }

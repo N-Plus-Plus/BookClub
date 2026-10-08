@@ -19,7 +19,7 @@ it('keeps new films out of a frozen checkpoint and removes deleted/unsupported i
 });
 it('reconciles lost responses against successful durable checks without replaying refreshed stores',()=>{
   const saved=checkpoint(),movie=catalog.movies[0],id=movie.id;
-  const resumed=reconcileUnifiedCheckpoint(saved,{...catalog,movies:catalog.movies.map(m=>m.id===id?{...m,tmdb_metadata_checked_at:'2026-02-01',tmdb_artwork_checked_at:'2026-02-01'}:m)}, {...coverage,enrichment:[{movie_id:id,provider:'tmdb',identity_provider:'tmdb',external_id:'1',checked_at:'2026-02-01'}],checks:[{movie_id:id,provider:'tmdb',domain:'scores',identity_provider:'tmdb',external_id:'1',checked_at:'2026-02-01',absent:[]}]});
+  const resumed=reconcileUnifiedCheckpoint(saved,{...catalog,movies:catalog.movies.map(m=>m.id===id?{...m,tmdb_metadata_checked_at:'2026-02-01',tmdb_artwork_checked_at:'2026-02-01'}:m)}, {...coverage,evidence:[{movie_id:id,provider:'tmdb',domain:'collections',identity_provider:'tmdb',external_id:'1',checked_at:'2026-02-01',absent:['collections']}],enrichment:[{movie_id:id,provider:'tmdb',identity_provider:'tmdb',external_id:'1',checked_at:'2026-02-01'}],checks:[{movie_id:id,provider:'tmdb',domain:'scores',identity_provider:'tmdb',external_id:'1',checked_at:'2026-02-01',absent:[]}]});
   expect(resumed.pending.some(u=>u.movieId===id && u.provider==='tmdb')).toBe(false);
   expect(resumed.pending.some(u=>u.movieId===id && u.provider==='mdblist')).toBe(true);
 });

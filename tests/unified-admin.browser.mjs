@@ -17,7 +17,7 @@ import '/node_modules/@fontsource/lexend-deca/400.css';import '/node_modules/@fo
 import {App} from '/frontend/App.tsx';import {metricsFixture} from '/tests/metrics-fixture.ts';import {api} from '/frontend/api.ts';
 const catalog=metricsFixture();catalog.members.forEach((m,i)=>m.avatar=i+1);catalog.movies=Array.from({length:24},(_,i)=>({...catalog.movies[0],id:'film-'+i,title:'Film '+i,classic:true,scores:[],external_ids:[{provider:'tmdb',external_id:String(i+1)},{provider:'imdb',external_id:'tt'+String(i+1).padStart(7,'0')}],tmdb_metadata_checked_at:null,tmdb_artwork_checked_at:null}));catalog.sessions=[];
 api.health=async()=>({status:'ok',environment:'test',authenticationRequired:true,demo:false});api.me=async()=>({viewer:{...catalog.members[0],role:'admin'}});api.catalog=async()=>catalog;api.rotation=async()=>({id:1,nominal_slot:1,cycle_id:null,version:0,updated_at:''});api.builders=async()=>[];
-api.maintenanceCoverage=async()=>({checks:[],negativeScores:[],enrichment:[],unavailable:{tmdb:null,omdb:null,mdblist:null},next:null});
+api.maintenanceCoverage=async()=>({checks:[],negativeScores:[],enrichment:[],evidence:[],evidenceSupported:true,unavailable:{tmdb:null,omdb:null,mdblist:null},next:null});
 window.calls=[];api.maintenanceProvider=async(intent,units)=>new Promise(resolve=>{window.calls.push({intent,units});window.finishBatch=(failed=false)=>{window.finishBatch=null;resolve({results:units.map((u,i)=>({movieId:u.movieId,provider:u.provider,status:failed&&i===1?'failed':'updated',message:failed&&i===1?'Synthetic provider failure':'Saved',...(failed&&i===1?{retryAfter:60}:{})})),canonicalChanged:true,cacheChanged:true,requests:units[0].provider==='mdblist'?1:units.length,stopped:failed});};});
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
 `}));
@@ -25,8 +25,8 @@ try {
  for(const width of [320,390,720,1440]) {
   await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/admin');await page.evaluate(()=>localStorage.clear());await page.reload();
   await page.getByRole('heading',{name:'Swap current turn',exact:true}).waitFor();await page.getByRole('button',{name:'Populate missing data',exact:true}).waitFor();
-  assert.equal(await page.locator('main section.card').count(),13);assert.equal(await page.evaluate(()=>window.calls.length),0);
-  const headings=await page.locator('main section.card h2,main section.card h3').allTextContents();assert.equal(headings[0],'Swap current turn');assert.equal(headings[1],'Populate missing data');assert.equal(headings[7],'Refresh all data');
+  assert.equal(await page.locator('main section.card').count(),17);assert.equal(await page.evaluate(()=>window.calls.length),0);
+  const headings=await page.locator('main section.card h2,main section.card h3').allTextContents();assert.equal(headings[0],'Swap current turn');assert.equal(headings[1],'Populate missing data');assert.equal(headings[9],'Refresh all data');
   for(const title of ['Populate missing data','Refresh all data']) {
    await page.getByRole('button',{name:title,exact:true}).click();await page.getByRole('dialog').waitFor();assert((await page.getByRole('dialog').innerText()).includes('Estimated API requests:'));assert.equal(await page.evaluate(()=>window.calls.length),0);await page.getByRole('button',{name:'Cancel',exact:true}).click();
   }

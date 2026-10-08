@@ -4,9 +4,11 @@ import { ApiError } from '../http';
 import { record } from './ratings';
 import { providerJson } from './http';
 import { parseTmdbEnrichment } from './enrichment';
+import { parseCollection } from '../../../shared/provider-evidence';
 import { usableTitle } from '../../../shared/titles';
 
 interface TmdbFilm {
+  belongs_to_collection?: unknown;
   id: number; title: string; original_title: string; release_date?: string; runtime?: number;
   overview?: string; poster_path?: string; backdrop_path?: string; genres?: { name: string }[];
   vote_average: number; vote_count: number; external_ids?: { imdb_id?: string };
@@ -44,13 +46,18 @@ export class TmdbProvider implements MovieSearchProvider, MovieMetadataProvider,
       external_ids: [{ provider: 'tmdb', external_id: String(m.id) }, ...(m.external_ids?.imdb_id ? [{ provider: 'imdb', external_id: m.external_ids.imdb_id }] : [])],
       assets: [ ...(m.poster_path ? [{ provider: 'tmdb', asset_type: 'poster' as const, reference: `https://image.tmdb.org/t/p/w500${m.poster_path}`, width: null, height: null, preferred: 1 }] : []),
         ...(m.backdrop_path ? [{ provider: 'tmdb', asset_type: 'backdrop' as const, reference: `https://image.tmdb.org/t/p/w1280${m.backdrop_path}`, width: null, height: null, preferred: 1 }] : []) ],
-      scores: score ? [score] : [], fetched_at, enrichment:parseTmdbEnrichment(m,fetched_at) };
+      scores: score ? [score] : [], fetched_at, collection:parseCollection(m.belongs_to_collection,id,fetched_at), enrichment:parseTmdbEnrichment(m,fetched_at) };
   }
   private movie(id: string) {
     return this.request<TmdbFilm>(`movie/${encodeURIComponent(id)}?append_to_response=external_ids,credits,keywords,release_dates,watch/providers`);
   }
   async enrichment(id: string) {
-    return parseTmdbEnrichment(await this.movie(id),new Date().toISOString());
+    return (await this.enrichmentDetails(id)).enrichment;
+  }
+  async enrichmentDetails(id:string) {
+    const movie=await this.movie(id),at=new Date().toISOString();
+    if(String(movie.id)!==id) throw new ApiError(409,'IDENTITY_CONFLICT','TMDB returned a different identity.');
+    return {enrichment:parseTmdbEnrichment(movie,at),collection:parseCollection(movie.belongs_to_collection,id,at)};
   }
   async preview(id: string): Promise<TmdbPreview> {
     const m = await this.request<TmdbFilm>(`movie/${encodeURIComponent(id)}?append_to_response=credits`);

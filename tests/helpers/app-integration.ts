@@ -39,7 +39,7 @@ export const lineup = () => [...harness.container.querySelectorAll('.lineup-list
 beforeEach(async () => {
   vi.resetAllMocks();
   localStorage.clear();
-  vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],unavailable:{tmdb:null,omdb:null,mdblist:null},next:null});
+  vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],evidence:[],evidenceSupported:true,unavailable:{tmdb:null,omdb:null,mdblist:null},next:null});
   vi.mocked(api.maintenanceProvider).mockImplementation(async(_intent,units)=>({results:units.map(u=>({movieId:u.movieId,provider:u.provider,status:'updated',message:'Saved'})),canonicalChanged:true,cacheChanged:false}));
   vi.mocked(api.metricsEnrichment).mockResolvedValue({movies:{}});
   vi.mocked(api.scoreMaintenanceStatus).mockResolvedValue({candidateIds:['f1','f2','f3','f99','saved-7'],eligibleDimensions:30,unavailableDimensions:0,unavailableFilms:0});

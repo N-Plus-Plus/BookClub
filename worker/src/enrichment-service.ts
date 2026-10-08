@@ -41,7 +41,9 @@ export class EnrichmentService {
       for (const movie of movies) {
         const identity=enrichmentIdentity(movie.external_ids,provider); if (!identity) continue;
         try {
-          const capture=await call(()=>tmdb.enrichment(identity.external_id));
+          const detail=await call(()=>tmdb.enrichmentDetails(identity.external_id));
+          await this.repo.cacheCollection(movie.id,detail.collection);
+          const capture=detail.enrichment;
           if (capture && capture.identity.external_id!==identity.external_id) throw new ApiError(409,'IDENTITY_CONFLICT','TMDB returned a different identity.');
           await save(movie.id,capture);
         } catch (error) { failed(movie.id,error); }

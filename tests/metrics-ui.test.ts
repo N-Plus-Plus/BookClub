@@ -65,7 +65,7 @@ it('empty identities preserve report axes and restrained missing states without 
   expect(container.textContent).toContain('No appearances with critic scores yet.');
   const tab=(label:string)=>act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===label)!.click());
   await tab('Breakdowns');expect(container.querySelectorAll('.metrics-rating-profile > div')).toHaveLength(9);
-  await tab('Records');expect(container.querySelectorAll('.metrics-extremes section')).toHaveLength(16);
+  await tab('Records');expect(container.querySelectorAll('.metrics-extremes section')).toHaveLength(20);
   await tab('Top 5');expect(container.textContent).toContain('No qualifying evidence for this selection.');
   expect(container.textContent).not.toMatch(/NaN|Infinity|undefined|0 \/ 0/);
  } finally {await act(async()=>root.unmount());}

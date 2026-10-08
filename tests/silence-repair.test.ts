@@ -4,6 +4,7 @@ import {silenceRepairSql,sourceId} from '../scripts/dev/repair-silence';
 import {Repository} from '../worker/src/repository';
 import {parseTmdbEnrichment} from '../worker/src/providers/enrichment';
 import {tmdbEnrichmentFixture} from './enrichment-fixtures';
+import {parseCollection,parseAwards} from '../shared/provider-evidence';
 let local:ReturnType<typeof disposableD1>;
 beforeEach(()=>{
   local=disposableD1();
@@ -26,6 +27,9 @@ const target=()=>{
 };
 it.each([false,true])('repairs identity and relationships without wrong-provider contamination (merge=%s)',async merge=>{
   if(merge)target();
+  const repo=new Repository(local.db);
+  await repo.cacheCollection(sourceId,parseCollection({id:7,name:'Wrong series'},'1064810','2026-01-01T00:00:00Z'));
+  if(merge) {await repo.cacheCollection('correct',parseCollection(null,'274','2026-01-02T00:00:00Z'));await repo.cacheAwards('correct',parseAwards('N/A','tt0102926','2026-01-02T00:00:00Z'));}
   await new Repository(local.db).cacheEnrichment(sourceId,parseTmdbEnrichment({...tmdbEnrichmentFixture(1064810),title:'Silence of the Lambs'},'2026-10-07T00:00:00Z')!);
   const plan=silenceRepairSql(local.sqlite),id=merge?'correct':sourceId;
   expect(local.sqlite.prepare('SELECT title_source FROM movies WHERE id=?').get(sourceId)?.title_source).toBe('tmdb');
@@ -40,6 +44,9 @@ it.each([false,true])('repairs identity and relationships without wrong-provider
   for(const t of ['movie_assets','movie_genres','movie_score_checks','movie_provider_metadata','movie_provider_enrichment_state','movie_provider_credits'])expect(local.sqlite.prepare(`SELECT * FROM ${t}`).all()).toEqual([]);
   const receipt=JSON.parse(String(local.sqlite.prepare('SELECT snapshot_json FROM movie_identity_merge_receipts').get()!.snapshot_json));
   expect(receipt.source_scores).toHaveLength(2);expect(receipt.movie_provider_credits).toHaveLength(21);
+  expect(receipt.movie_provider_collections).toHaveLength(merge?2:1);
+  expect(local.sqlite.prepare('SELECT collection_id FROM movie_provider_collections').all()).toEqual(merge?[{collection_id:null}]:[]);
+  expect(local.sqlite.prepare('SELECT awards_text FROM movie_provider_awards').all()).toEqual(merge?[{awards_text:null}]:[]);
   expect(local.sqlite.prepare('SELECT title_source FROM movies WHERE id=?').get(id)?.title_source).toBe(merge?'manual':'legacy-spreadsheet');
   expect(local.sqlite.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
 });

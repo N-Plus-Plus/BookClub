@@ -53,7 +53,7 @@ export function MetricsScreen({catalog:sourceCatalog,resource}: {catalog: Catalo
     {category === 'top-bottom' && <TopBottomMetrics catalog={catalog} rows={rows} dashboard={dashboard} topDimension={topDimension} bottomDimension={bottomDimension} setTopDimension={setTopDimension} setBottomDimension={setBottomDimension} topRows={topRows} bottomRows={bottomRows} popularityMeasure={popularityMeasure} setPopularityMeasure={setPopularityMeasure} />}
     {category === 'fingerprints' && <GenreFingerprint filter={filter} dashboard={dashboard} contributions={contributions} />}
     {category === 'general' && <GeneralMetrics dashboard={dashboard} metrics={metrics} contributions={contributions} />}
-    {category === 'extremes' && <ExtremesMetrics rows={rows} dashboard={dashboard} enrichment={enrichment} />}
+    {category === 'extremes' && <ExtremesMetrics catalog={catalog} rows={rows} dashboard={dashboard} enrichment={enrichment} />}
     <EnrichedMetrics category={category} catalog={catalog} all={all} rows={rows} filter={filter} dashboard={dashboard} {...enrichment} />
     </div>
   </div>;

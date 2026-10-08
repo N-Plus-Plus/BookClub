@@ -240,6 +240,10 @@ Where practical, migrations should be designed so future releases have a clear c
 
 Migration 0020 is additive and compatible with the previous Worker. A future authorised release requires a fresh verified backup, additive migration 0020, the Worker exposing maintenance-coverage/maintenance-provider, then the frontend last. Existing metadata/score/enrichment routes remain compatible; the new UI does not substitute an older general crawl if coverage or the coordinated route is absent. Older snapshot exports may omit the two new tables and leave local coverage empty. Migration 0019 retains its separate existing gate and is unchanged. This local implementation does not authorise production migration, provider verification, deployment, commit or push.
 
+## Collections and awards rollout
+
+Migration `0021_collections_awards.sql` adds two successful-evidence tables and a separate failure-observation table, leaving 0020's operation constraint and all historical records unchanged. The prior Worker ignores them. For a future authorised release: fresh verified backup and existing compatibility gates, additive 0021 schema first, matching API Worker, frontend last. Ordinary metadata/score/enrichment capture capability-detects pre-0021 schemas and continues without new evidence; Metrics retains its older projection. Requests explicitly selecting collections/awards fail before upstream calls without 0021. The new Admin disables maintenance if matching evidence coverage/schema support is absent. Old five-operation requests and frozen v1 checkpoints remain compatible; resuming old aggregate progress never expands its stored operation scope. No crawl, provider call, local snapshot refresh or production mutation runs as part of migration or deployment. Snapshot copying permits the three new destination-only tables when the source predates 0021. Earlier bridge/cache/title/rotation gates remain unchanged.
+
 ## Applying production migrations
 
 After the fresh backup and compatibility gate are complete, apply the tracked pending migrations to the exact production database:

@@ -54,7 +54,7 @@ export class ScoreService {
     if (failures?.has('omdb')) providers.push(this.suppressed('omdb',failures.get('omdb')!));
     else if (!omdb.configured) providers.push({provider:'omdb',status:'skipped',count:0,message:'Not configured.'});
     else if (!omdbUseful) providers.push({provider:'omdb',status:'skipped',count:0,message:'No missing score OMDb can supply.'});
-    else try { const detail = await omdb.details(imdb!.external_id); const scores = detail.scores; if (refresh || missingOnly) await this.repo.enrichOmdbMetadata(movie.id,imdb!.external_id,detail.metadata); else await this.repo.cacheProviderTitle(movie.id,'omdb',detail.metadata.title,imdb!,new Date().toISOString()); snapshots.push(...scores); providers.push({provider:'omdb',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { if (failures && this.providerWide(error)) failures.set('omdb',error); providers.push(failure('omdb',error)); }
+    else try { const detail = await omdb.details(imdb!.external_id); const scores = detail.scores; await this.repo.cacheAwards(movie.id,detail.awards); if (refresh || missingOnly) await this.repo.enrichOmdbMetadata(movie.id,imdb!.external_id,detail.metadata); else await this.repo.cacheProviderTitle(movie.id,'omdb',detail.metadata.title,imdb!,new Date().toISOString()); snapshots.push(...scores); providers.push({provider:'omdb',status:'success',count:scores.length,message:scores.length?'Scores captured.':'No usable ratings supplied.'}); } catch (error) { if (failures && this.providerWide(error)) failures.set('omdb',error); providers.push(failure('omdb',error)); }
     const tmdb = movie.external_ids.find(e => e.provider === 'tmdb' && /^[1-9]\d{0,9}$/.test(e.external_id));
     const tmdbMissing = this.needs(refresh ? {...movie,scores:[]} : movie,snapshots).includes('tmdb:rating') && (!eligible || eligible.includes('tmdb:rating'));
     if (!tmdbMissing) providers.push({provider:'tmdb',status:'skipped',count:0,message:'TMDB rating already available.'});
@@ -62,6 +62,7 @@ export class ScoreService {
     else if (!this.env.TMDB_READ_TOKEN || !tmdb) providers.push({provider:'tmdb',status:'skipped',count:0,message:!tmdb ? 'A valid TMDB identity is required.' : 'Not configured.'});
     else try {
       const detail = await this.providerCall('tmdb',() => new TmdbProvider(this.env.TMDB_READ_TOKEN!,this.limits('tmdb')).details(tmdb.external_id));
+      await this.repo.cacheCollection(movie.id,detail.collection);
       if (detail.enrichment) await this.repo.cacheEnrichment(movie.id,detail.enrichment);
       else await this.repo.cacheProviderTitle(movie.id,'tmdb',detail.title,tmdb,detail.fetched_at);
       const scores=detail.scores; snapshots.push(...scores);
@@ -119,6 +120,7 @@ export class ScoreService {
       else if (!omdb.configured || !imdb) result = {provider:'omdb',status:'skipped',count:0,message:!imdb ? 'A valid IMDb identity is required.' : 'Not configured.'};
       else try {
         const detail = await omdb.details(imdb.external_id);
+        await this.repo.cacheAwards(movie.id,detail.awards);
         const changed = await this.repo.enrichOmdbMetadata(movie.id,imdb.external_id,detail.metadata);
         result = {provider:'omdb',status:'success',count:changed ? 1 : 0,message:changed ? 'Available IMDb metadata refreshed.' : 'IMDb metadata is unchanged.'};
       } catch (error) { if (this.providerWide(error)) failures.set('omdb',error); result = failure('omdb',error); }

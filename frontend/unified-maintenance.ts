@@ -1,4 +1,4 @@
-import { matchingCheck, planMaintenance, type MaintenanceBatchResult, type MaintenanceCoverage, type MaintenanceIntent, type MaintenanceOperation, type MaintenancePlan, type MaintenanceUnit } from '../shared/maintenance-plan';
+import { maintenanceOperations, matchingCheck, planMaintenance, type MaintenanceBatchResult, type MaintenanceCoverage, type MaintenanceIntent, type MaintenanceOperation, type MaintenancePlan, type MaintenanceUnit } from '../shared/maintenance-plan';
 import { formatRetryDuration } from './retry-duration';
 import type { Catalog } from '../shared/types';
 import { MAINTENANCE_IDLE_MS } from '../shared/score-maintenance';
@@ -13,10 +13,10 @@ export function loadUnifiedCheckpoint(key:string,storage?:Pick<Storage,'getItem'
   try {
     storage ??= globalThis.localStorage;
     const value=JSON.parse(storage.getItem(key) ?? 'null');if(!value) return null;
-    if(value.version!==1 || !['populate','refresh'].includes(value.intent) || !['all','scores','omdb-metadata','tmdb-metadata','tmdb-enrichment','mdblist-enrichment'].includes(value.operation)
+    if(value.version!==1 || !['populate','refresh'].includes(value.intent) || !['all',...maintenanceOperations].includes(value.operation)
       || typeof value.startedAt!=='string' || !Number.isFinite(Date.parse(value.startedAt)) || !Number.isSafeInteger(value.completed) || value.completed<0 || value.completed>300000
       || !Array.isArray(value.pending) || value.pending.length>300000 || !value.pending.every((u:MaintenanceUnit)=>validId(u.movieId) && ['mdblist','omdb','tmdb'].includes(u.provider) && u.identity && ['imdb','tmdb'].includes(u.identity.provider) && typeof u.identity.external_id==='string' && /^(tt\d{7,10}|[1-9]\d{0,9})$/.test(u.identity.external_id)
-        && Array.isArray(u.operations) && u.operations.length && u.operations.every(o=>o==='scores' || ['omdb-metadata','tmdb-metadata','tmdb-enrichment','mdblist-enrichment'].includes(o) && o.startsWith(u.provider)))
+        && Array.isArray(u.operations) && u.operations.length && u.operations.every(o=>o==='scores' || maintenanceOperations.includes(o) && o.startsWith(u.provider)))
       || new Set(value.pending.map(unitKey)).size!==value.pending.length || Object.keys(value).some(k=>!['version','intent','operation','startedAt','pending','completed'].includes(k))) throw new Error('Invalid checkpoint');
     // Copy only authorised fields; no arbitrary stored payload is forwarded.
     return {version:1,intent:value.intent,operation:value.operation,startedAt:value.startedAt,completed:value.completed,pending:value.pending.map((u:MaintenanceUnit)=>({movieId:u.movieId,provider:u.provider,identity:{provider:u.identity.provider,external_id:u.identity.external_id},operations:[...u.operations]}))};
@@ -28,13 +28,14 @@ export function reconcileUnifiedCheckpoint(saved:UnifiedCheckpoint,catalog:Catal
   const current=planMaintenance(catalog,{...coverage,unavailable:{omdb:null,tmdb:null,mdblist:null}},saved.intent,operations);
   const byKey=new Map(current.units.map(u=>[unitKey(u),u]));
   const pending=saved.pending.flatMap(old=>{
-    const unit=byKey.get(unitKey(old));if(!unit) return [];
+    const unit=byKey.get(unitKey(old));if(!unit || unit.identity.provider!==old.identity.provider || unit.identity.external_id!==old.identity.external_id) return [];
     const movie=catalog.movies.find(m=>m.id===unit.movieId)!;
     const operations=unit.operations.filter(o=>old.operations.includes(o)).filter(o=>{
       if(saved.intent!=='refresh') return true;
       const at=o==='scores' ? matchingCheck(coverage,unit.movieId,unit.provider,'scores',unit.identity)?.checked_at
         : o==='omdb-metadata' ? matchingCheck(coverage,unit.movieId,'omdb','metadata',unit.identity)?.checked_at
         : o==='tmdb-metadata' ? movie.tmdb_metadata_checked_at && movie.tmdb_artwork_checked_at ? (movie.tmdb_metadata_checked_at<movie.tmdb_artwork_checked_at?movie.tmdb_metadata_checked_at:movie.tmdb_artwork_checked_at) : undefined
+        : o==='tmdb-collections' || o==='omdb-awards' ? coverage.evidence?.find(c=>c.movie_id===unit.movieId && c.domain===(o==='tmdb-collections'?'collections':'awards') && c.identity_provider===unit.identity.provider && c.external_id===unit.identity.external_id)?.checked_at
         : coverage.enrichment.find(c=>c.movie_id===unit.movieId && c.provider===unit.provider && c.identity_provider===unit.identity.provider && c.external_id===unit.identity.external_id)?.checked_at;
       return !at || Date.parse(at)<Date.parse(saved.startedAt);
     });

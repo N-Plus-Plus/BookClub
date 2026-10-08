@@ -2,6 +2,7 @@ import type { ExternalId, ManualMovieInput, Score } from '../../shared/types';
 import type { EnrichmentCapture } from '../../shared/enrichment';
 import { normalizeGenre } from '../../shared/genres';
 import type { ProviderMovie } from './providers/types';
+import { ProviderEvidenceRepository } from './provider-evidence-repository';
 import { EnrichmentRepository } from './enrichment-repository';
 import { TitleRepository, providerTitleStatement, canonicalTitleStatement } from './title-repository';
 import { ApiError } from './http';
@@ -98,6 +99,7 @@ export class MovieRepository {
       }
     }
     await this.db.batch(statements);
+    await new ProviderEvidenceRepository(this.db).save(id,'collections',m.collection);
     if (m.enrichment) await this.cacheEnrichment(id,m.enrichment);
     return id;
   }
@@ -182,6 +184,7 @@ export class MovieRepository {
       if (/movie_external_ids/.test(String(error))) throw new ApiError(409,'IDENTITY_CONFLICT','External identity conflicts with a canonical film. Owner reconciliation is required.');
       throw error;
     }
+    await new ProviderEvidenceRepository(this.db).save(id,'collections',m.collection);
     if (m.enrichment) return this.cacheEnrichment(id,m.enrichment);
   }
 

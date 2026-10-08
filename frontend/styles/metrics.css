@@ -1,4 +1,47 @@
 /* metrics: base rules and responsive refinements in their original relative order. */
+.metrics-staging { min-width: 0; }
+.staging-report { min-width: 0; }
+.staging-report h3 { overflow-wrap: anywhere; }
+.staging-chart-row { display: grid; grid-template-columns: minmax(0,7rem) minmax(0,1fr); gap: var(--space-12); align-items: center; }
+.staging-chart-row > * { min-width: 0; }
+.staging-paired { display: grid; gap: var(--space-8); }
+.staging-score-track { height: var(--space-12); background: var(--asphalt); }
+.staging-score-track > span { display: block; height: 100%; }
+.staging-cycles { max-height: 60rem; overflow-y: auto; scrollbar-gutter: stable; scroll-snap-type: y proximity; }
+.staging-cycle { min-height: 12rem; box-sizing: border-box; padding: var(--space-16); border-bottom: 1px solid var(--asphalt); scroll-snap-align: start; }
+.staging-axis { display: flex; justify-content: space-between; gap: var(--space-8); color: var(--text-secondary); font-size: var(--text-metadata); font-variant-numeric: tabular-nums; }
+.staging-interval { position: relative; height: 2rem; margin-inline: var(--space-4); background: linear-gradient(var(--asphalt),var(--asphalt)) center/100% 1px no-repeat; }
+.staging-interval-band { position: absolute; top: 35%; height: 30%; min-width: 2px; background: var(--jeans); }
+.staging-interval-mean,.staging-net-marker { position: absolute; top: 10%; height: 80%; width: 3px; transform: translateX(-50%); background: var(--paper); }
+.staging-diverging { position: relative; height: 2rem; background: linear-gradient(var(--asphalt),var(--asphalt)) center/1px 100% no-repeat; }
+.staging-critic-side,.staging-audience-side { position: absolute; top: 25%; height: 50%; }
+.staging-critic-side { right: 50%; background: var(--rose); }
+.staging-audience-side { left: 50%; background: var(--lavender); }
+.staging-matrix-scroll { overflow-x: auto; max-width: 100%; isolation: isolate; }
+.staging-matrix { width: 100%; min-width: 650px; table-layout: fixed; border-collapse: separate; border-spacing: var(--space-4); font-size: var(--text-metadata); }
+.staging-matrix th,.staging-matrix td { padding: var(--space-8); overflow-wrap: anywhere; text-align: center; }
+.staging-matrix tbody th { position: sticky; left: 0; z-index: 1; background: var(--surface-base); }
+.staging-matrix td { background: color-mix(in srgb,var(--lavender) calc(var(--heat)*70%),var(--surface-base)); }
+.staging-matrix [data-diagonal=true] { background: var(--asphalt); }
+.staging-matrix [data-emphasis=true] { outline: 1px solid var(--lavender); outline-offset: -1px; }
+.staging-ranking { padding: 0; margin: 0; list-style: none; }
+.staging-ranking li { display: flex; align-items: start; justify-content: space-between; gap: var(--space-12); padding-block: var(--space-12); border-bottom: 1px solid var(--asphalt); }
+.staging-ranking li > span { min-width: 0; overflow-wrap: anywhere; }
+.staging-ranking li > strong { flex-shrink: 0; font-size: var(--text-metadata); }
+.staging-ranking .meta,.staging-block { display: block; }
+.staging-data-row { padding-block: var(--space-12); border-bottom: 1px solid var(--asphalt); overflow-wrap: anywhere; }
+.staging-identities { display: flex; flex-wrap: wrap; gap: var(--space-12); padding-block: var(--space-8); }
+.staging-film-links { display: block; overflow-wrap: anywhere; }
+.staging-awards-row,.staging-awards-header { display: grid; grid-template-columns: minmax(0,1fr) 5rem 7rem; gap: var(--space-12); padding-block: var(--space-12); border-bottom: 1px solid var(--asphalt); overflow-wrap: anywhere; }
+.staging-mobile-label { display: none; }
+.metrics-reception-record,.metrics-viewed-record { padding: var(--space-16); min-width: 0; }
+@container member-content (max-width: 500px) {
+  .staging-chart-row { grid-template-columns: minmax(0,1fr); }
+  .staging-awards-header { display: none; }
+  .staging-awards-row { grid-template-columns: minmax(0,1fr); gap: var(--space-4); }
+  .staging-mobile-label { display: inline; }
+  .staging-cycle { padding-inline: var(--space-4); }
+}
 .metrics-filters { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: var(--space-8); }
 .metrics-filters button { min-height: var(--control-answer-height); min-width: 0; padding: var(--space-8) var(--space-4); border: 1px solid var(--asphalt); border-radius: var(--radius-container); background: var(--surface-base); color: var(--text-secondary); }
 .metrics-filters button[aria-pressed=true] { background: var(--surface-active); color: var(--paper); border-color: var(--text-secondary); }

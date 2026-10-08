@@ -1,3 +1,5 @@
+import { ProviderEvidenceRepository } from './provider-evidence-repository';
+import type { CollectionEvidence, AwardsEvidence } from '../../shared/provider-evidence';
 import { CoverageRepository } from './coverage-repository';
 import type { Catalog, CompactCatalog, Cycle, ExternalId, Member, Movie, Score, Session, SessionInput, ManualMovieInput, SavedSearchResult } from '../../shared/types';
 import type { MetadataMovie } from '../../shared/metadata';
@@ -21,6 +23,9 @@ export class Repository {
     this.movieRepository = new MovieRepository(db,this.capabilities);
     this.maintenanceRepository = new MaintenanceRepository(db,this.capabilities,this.catalogRepository);
   }
+  providerEvidenceSupported() { return new ProviderEvidenceRepository(this.db).supported(); }
+  async cacheCollection(id:string,evidence:CollectionEvidence | undefined) { return new ProviderEvidenceRepository(this.db).save(id,'collections',evidence); }
+  async cacheAwards(id:string,evidence:AwardsEvidence | undefined) { return new ProviderEvidenceRepository(this.db).save(id,'awards',evidence); }
   enrichmentSupported() { return this.capabilities.enrichmentSupported(); }
   async searchMovies(query: string, tmdbIds: string[] = []): Promise<SavedSearchResult[]> { return this.catalogRepository.searchMovies(query,tmdbIds); }
   async catalog(): Promise<Catalog> { return this.catalogRepository.catalog(); }

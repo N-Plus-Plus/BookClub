@@ -6,6 +6,7 @@ import { Repository } from '../worker/src/repository';
 import type { ProviderMovie } from '../worker/src/providers/types';
 import { parseTmdbEnrichment, parseMdbEnrichment } from '../worker/src/providers/enrichment';
 import { tmdbEnrichmentFixture, mdbEnrichmentFixture } from './enrichment-fixtures';
+import { parseCollection, parseAwards } from '../shared/provider-evidence';
 let local:ReturnType<typeof disposableD1>;
 const a={movie_id:'a',title:'Fictional Film',source_refs:['Should Watch:2']};
 const b={movie_id:'b',title:'Fictional Film!',source_refs:['Tracker:2:2']};
@@ -62,10 +63,16 @@ it('chooses richest survivor deterministically and TMDB owner overrides richness
 it('preserves complete provider cache sets and archives source cache during explicitly requested identity merges',async()=>{
   local.sqlite.exec("INSERT INTO movie_external_ids VALUES('a','imdb','tt0000042');INSERT INTO movie_external_ids VALUES('b','tmdb','42')");
   const repo=new Repository(local.db);
+  await repo.cacheAwards('a',parseAwards('3 wins & 5 nominations.','tt0000042','2026-01-01T00:00:00Z'));
+  await repo.cacheCollection('b',parseCollection(null,'42','2026-01-02T00:00:00Z'));
   await repo.cacheEnrichment('a',parseMdbEnrichment({...mdbEnrichmentFixture(),title:a.title},{provider:'imdb',external_id:'tt0000042'},'2026-10-07T00:00:00Z')!);
   await repo.cacheEnrichment('b',parseTmdbEnrichment({...tmdbEnrichmentFixture(),title:b.title,'watch/providers':{results:{AU:{flatrate:[{provider_id:8,provider_name:'AU service'}]}}}},'2026-10-07T00:00:00Z')!);
   await repo.cacheProviderTitle('a','omdb',a.title,{provider:'imdb',external_id:'tt0000042'},'2026-10-08T00:00:00Z');
   const plan=await planMerge(local.db,{tmdb_id:'42',members:[a],kind:'existing'});await applyMerge(local.db,plan);
+  expect(local.sqlite.prepare('SELECT movie_id,wins,nominations FROM movie_provider_awards').get()).toEqual({movie_id:'b',wins:3,nominations:5});
+  expect(local.sqlite.prepare('SELECT movie_id,collection_id FROM movie_provider_collections').get()).toEqual({movie_id:'b',collection_id:null});
+  const evidenceReceipt=JSON.parse(String(local.sqlite.prepare('SELECT snapshot_json FROM local_movie_merge_receipts').get()!.snapshot_json));
+  expect(evidenceReceipt.movie_provider_awards).toHaveLength(1);expect(evidenceReceipt.movie_provider_collections).toHaveLength(1);
   expect(local.sqlite.prepare("SELECT title,title_source FROM movies WHERE id='b'").get()).toEqual({title:a.title,title_source:'omdb'});
   expect(local.sqlite.prepare('SELECT provider FROM movie_provider_metadata ORDER BY provider').all()).toEqual([{provider:'mdblist'},{provider:'omdb'},{provider:'tmdb'}]);
   expect(local.sqlite.prepare('SELECT movie_id,provider FROM movie_provider_enrichment_state ORDER BY provider').all()).toEqual([{movie_id:'b',provider:'mdblist'},{movie_id:'b',provider:'tmdb'}]);
@@ -119,6 +126,9 @@ it('provider cooldown stops subsequent calls and preflight writes neither receip
 });
 it('authorised removal preserves receipt evidence, removes its appearance only, and rolls back a failed deletion',async()=>{
  addDurable();local.sqlite.exec("UPDATE movies SET title='The Untamed' WHERE id='b';DELETE FROM builder_movies;DELETE FROM classics WHERE movie_id='b';DELETE FROM classics_seed_allocations WHERE movie_id='b'");
+ local.sqlite.exec("INSERT INTO movie_external_ids VALUES('b','tmdb','42'),('b','imdb','tt0000042')");
+ const repo=new Repository(local.db);await repo.cacheCollection('b',parseCollection(null,'42','2026-01-01T00:00:00Z'));await repo.cacheAwards('b',parseAwards('N/A','tt0000042','2026-01-01T00:00:00Z'));
+ local.sqlite.exec("DELETE FROM movie_external_ids WHERE movie_id='b'");
  const op={...b,title:'The Untamed',appearance_count:1,classic:false,confirmation:'owner_confirmed' as const,action:'remove_from_active_catalogue' as const};
  const plan=await planRemoval(local.db,op),before=await captureBaseline(local.db);
  local.sqlite.exec("CREATE TRIGGER fail_remove BEFORE DELETE ON movies BEGIN SELECT RAISE(ABORT,'test failure');END");
@@ -126,6 +136,8 @@ it('authorised removal preserves receipt evidence, removes its appearance only, 
  local.sqlite.exec('DROP TRIGGER fail_remove');await applyRemoval(local.db,plan);
  expect(local.sqlite.prepare('SELECT movie_id,position FROM session_movies').all()).toEqual([{movie_id:'a',position:2}]);expect(local.sqlite.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
  const receipt=local.sqlite.prepare('SELECT snapshot_json FROM local_movie_removal_receipts').get()!;expect(JSON.parse(String(receipt.snapshot_json)).source_scores).toHaveLength(1);expect((await planRemoval(local.db,op)).already).toBe(true);
+ expect(JSON.parse(String(receipt.snapshot_json)).movie_provider_collections).toHaveLength(1);expect(JSON.parse(String(receipt.snapshot_json)).movie_provider_awards).toHaveLength(1);
+ expect(local.sqlite.prepare('SELECT count(*) AS n FROM movie_provider_collections').get()?.n).toBe(0);expect(local.sqlite.prepare('SELECT count(*) AS n FROM movie_provider_awards').get()?.n).toBe(0);
 });
 it('blocks unapproved or unexpectedly related removals; final pairing records provider scores from its sole detail response',async()=>{
  const op={...a,title:'Time',appearance_count:0,classic:false,confirmation:'owner_confirmed' as const,action:'remove_from_active_catalogue' as const};

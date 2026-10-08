@@ -1,3 +1,6 @@
+import { ReceptionRecords, ClassicsViewedRecords } from './ReceptionRecords';
+import { Fragment } from 'react';
+import type { Catalog } from '../../shared/types';
 import { formatCount } from '../../shared/format';
 import { useMemo } from 'react';
 
@@ -11,7 +14,7 @@ import { talentRoles, recurringTalent, type MetricsEnrichment } from '../../shar
 import type { Appearance } from '../../shared/metrics';
 import type { CatalogMetricsProps } from './report-types';
 
-export function ExtremesMetrics({rows,dashboard,enrichment}: Pick<CatalogMetricsProps,'rows'|'dashboard'|'enrichment'>) {
+export function ExtremesMetrics({catalog,rows,dashboard,enrichment}: Pick<CatalogMetricsProps,'rows'|'dashboard'|'enrichment'> & {catalog?:Catalog}) {
   const countLabel = (value: number) => Number.isInteger(value) ? formatCount(value) : value.toLocaleString('en-AU');
   const extremes = dashboard.extremes;
   const filmCabinet = [
@@ -26,7 +29,7 @@ export function ExtremesMetrics({rows,dashboard,enrichment}: Pick<CatalogMetrics
     {label:'Most popular',report:extremes.mostPopular,value:extremes.mostPopular ? `${countLabel(extremes.mostPopular.value)} IMDb votes` : null},
     {label:'Most obscure',report:extremes.mostObscure,value:extremes.mostObscure ? `${countLabel(extremes.mostObscure.value)} IMDb votes` : null},
   ];
-  return <><div className="stack" data-metric="X"><section className="stack metrics-section"><h2>Records</h2><div className="metrics-extremes">{filmCabinet.map((item) => <section className="stack metrics-film-extreme" key={item.label}><h3>{item.label}</h3>{item.report ? <><strong>{item.report.items.length > 1 ? `${formatCount(item.report.items.length)}-way tie · ` : ''}{item.value}</strong>{<MetricsResults label={item.label} pageSize={item.report.items.length > 20 ? 5 : 20} items={item.report.items} render={row => <MovieLink key={row.movie.id} movie={row.movie} className="metrics-poster-film"><Poster movie={row.movie} large /><div><span className="movie-title">{row.movie.title}</span><p className="meta">{row.movie.year ?? 'Year unknown'}</p>{row.movie.director && <p className="meta">{row.movie.director}</p>}</div></MovieLink>} />}</> : <p className="meta">No data for this selection.</p>}</section>)}<CreatorExtremes rows={rows} data={enrichment.data} /></div></section></div></>;
+  return <><div className="stack" data-metric="X"><section className="stack metrics-section"><h2>Records</h2><div className="metrics-extremes">{filmCabinet.map((item,index) => <Fragment key={item.label}><section className="stack metrics-film-extreme" key={item.label}><h3>{item.label}</h3>{item.report ? <><strong>{item.report.items.length > 1 ? `${formatCount(item.report.items.length)}-way tie · ` : ''}{item.value}</strong>{<MetricsResults label={item.label} pageSize={item.report.items.length > 20 ? 5 : 20} items={item.report.items} render={row => <MovieLink key={row.movie.id} movie={row.movie} className="metrics-poster-film"><Poster movie={row.movie} large /><div><span className="movie-title">{row.movie.title}</span><p className="meta">{row.movie.year ?? 'Year unknown'}</p>{row.movie.director && <p className="meta">{row.movie.director}</p>}</div></MovieLink>} />}</> : <p className="meta">No data for this selection.</p>}</section>{index===3&&<ReceptionRecords rows={rows}/>}</Fragment>)}<CreatorExtremes rows={rows} data={enrichment.data} />{catalog&&<ClassicsViewedRecords catalog={catalog}/>}</div></section></div></>;
 }
 
 export function CreatorExtremes({rows,data}: {rows:Appearance[];data:MetricsEnrichment}) {

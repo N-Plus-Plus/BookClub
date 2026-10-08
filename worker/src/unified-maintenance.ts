@@ -40,6 +40,7 @@ export class UnifiedMaintenanceService {
       || new Set(units.map(u=>u.movieId)).size!==units.length) throw new ApiError(422,'INVALID_LIMIT','Choose one bounded provider batch.');
     const movies=await this.repo.maintenanceDetails(units.map(u=>u.movieId));
     const coverage=await this.coverage.read(this.repo,this.env,units.map(u=>u.movieId));
+    if(units.some(u=>u.operations.includes('tmdb-collections') || u.operations.includes('omdb-awards')) && !coverage.evidenceSupported) throw new ApiError(503,'SCHEMA_UPGRADE_REQUIRED','Collections and awards maintenance requires migration 0021.');
     // Scope validation is still owned by the selected-film loader.
     const scoreIds=units.filter(u=>u.operations.includes('scores')).map(u=>u.movieId);
     if(scoreIds.length) await this.repo.maintenanceDetails(scoreIds,true);
@@ -73,7 +74,8 @@ export class UnifiedMaintenanceService {
       if(operations.includes('scores') && provider!=='mdblist') {
         const baseline=intent==='refresh' ? movie.scores.filter(s=>Date.parse(s.fetched_at)>=Date.parse(startedAt)) : movie.scores;
         const missing=missingLiveScoreDimensions(baseline).filter(key=>intent==='refresh' || !coverage.negativeScores.some(c=>c.movie_id===movie.id && c.score_key===key));
-        if(!providerKeys[provider].some(key=>missing.includes(key))) operations=operations.filter(o=>o!=='scores');
+        const prior=matchingCheck(coverage,movie.id,provider,'scores',unit.identity);
+        if(!providerKeys[provider].some(key=>missing.includes(key) && (intent==='refresh' || !prior?.absent.includes(key)))) operations=operations.filter(o=>o!=='scores');
       }
       if(!operations.length) response.results.push({movieId:unit.movieId,provider,status:'skipped',message:'No outstanding provider work.'});
       else pending.push({...unit,operations});
@@ -118,25 +120,30 @@ export class UnifiedMaintenanceService {
     } else for(const unit of pending) {
       const movie=movies.find(m=>m.id===unit.movieId)!;
       try {
-        let scores:Score[]=[],conflicts=0,changed=false;
+        let scores:Score[]=[],conflicts=0,changed=false,evidenceValid=false;
         if(provider==='omdb') {
           const detail=await omdb.details(unit.identity.external_id);scores=detail.scores;
+          evidenceValid=Boolean(detail.awards);changed=await this.repo.cacheAwards(movie.id,detail.awards);response.cacheChanged ||= changed;
           // Score fallback retains canonical fill behaviour without overwriting populated fields in Populate.
-          changed=await this.repo.enrichOmdbMetadata(movie.id,unit.identity.external_id,detail.metadata,intent==='populate');
-          response.canonicalChanged ||= changed;
+          const metadataChanged=await this.repo.enrichOmdbMetadata(movie.id,unit.identity.external_id,detail.metadata,intent==='populate');
+          changed ||= metadataChanged;response.canonicalChanged ||= metadataChanged;
 
         } else {
           const detail=await call(()=>new TmdbProvider(this.env.TMDB_READ_TOKEN!,limits).details(unit.identity.external_id));scores=detail.scores;
+          evidenceValid=Boolean(detail.collection);changed=await this.repo.cacheCollection(movie.id,detail.collection);response.cacheChanged ||= changed;
           if(unit.operations.includes('scores')) {await this.scoreEvidence(movie,unit,scores,coverage,intent,startedAt);response.canonicalChanged ||= scores.length>0;}
           if(unit.operations.includes('tmdb-metadata')) {
-            const cached=await this.repo.enrichMetadata(movie.id,unit.identity.external_id,detail,undefined,false,intent);
-            changed=fingerprint(movie)!==fingerprint((await this.repo.selectedMetadataMovies([movie.id]))[0]);
-            response.canonicalChanged ||= changed || Boolean(cached?.canonicalChanged);response.cacheChanged ||= Boolean(cached?.changed);changed ||= Boolean(cached?.changed);
+            const cached=await this.repo.enrichMetadata(movie.id,unit.identity.external_id,{...detail,collection:undefined},undefined,false,intent);
+            const metadataChanged=fingerprint(movie)!==fingerprint((await this.repo.selectedMetadataMovies([movie.id]))[0]);
+            changed ||= metadataChanged;
+            response.canonicalChanged ||= metadataChanged || Boolean(cached?.canonicalChanged);response.cacheChanged ||= Boolean(cached?.changed);changed ||= Boolean(cached?.changed);
             if(unit.operations.includes('tmdb-enrichment') && !detail.enrichment) throw new ApiError(503,'INVALID_PROVIDER_RESPONSE','TMDB enrichment is incomplete. Canonical results are saved.');
 
           } else {conflicts=await saveCache(movie.id,detail.enrichment,unit.operations.includes('tmdb-enrichment'));changed ||= Boolean(cacheChanges.get(movie.id));}
         }
         if(provider==='omdb' && unit.operations.includes('scores')) {await this.scoreEvidence(movie,unit,scores,coverage,intent,startedAt);response.canonicalChanged ||= scores.length>0;}
+        if(unit.operations.includes('tmdb-collections') && !evidenceValid) throw new ApiError(503,'INVALID_PROVIDER_RESPONSE','TMDB collection evidence is incomplete. Valid results are retained.');
+        if(unit.operations.includes('omdb-awards') && !evidenceValid) throw new ApiError(503,'INVALID_PROVIDER_RESPONSE','OMDb awards evidence is incomplete. Valid results are retained.');
         await this.coverage.failure(movie.id,provider,unit.operations,false);
         response.results.push({movieId:movie.id,provider,status:changed || scores.length && unit.operations.includes('scores')?'updated':'no_change',message:'Validated provider information saved.',conflicts});
       } catch(error) {await fail(unit,error);}

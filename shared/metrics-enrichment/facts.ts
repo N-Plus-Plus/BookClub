@@ -3,6 +3,8 @@ import type { Appearance } from '../metrics-summary';
 
 /** Read-only analytical projection, deliberately separate from Movie and Catalog. */
 export interface MetricsEnrichmentMovie {
+  collection?: {status:'not_checked'|'inconclusive'|'checked_none'|'checked_present';external_id:string | null;checked_at:string | null;collection_id:number | null;collection_name:string | null};
+  awards?: {status:'not_checked'|'inconclusive'|'checked_unavailable'|'checked_unquantified'|'checked_quantified';external_id:string | null;checked_at:string | null;awards_text:string | null;wins:number | null;nominations:number | null};
   metadata: { original_language: string | null; budget: number | null; revenue: number | null } | null;
   countries: { code: string; name: string | null }[];
   languages: { code: string; name: string | null; english_name: string | null }[];

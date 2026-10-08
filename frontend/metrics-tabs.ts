@@ -3,5 +3,6 @@ export const metricsTabs = [
   {id:'fingerprints',label:'Tastes',metrics:['C','F','O','P','R','S']},
   {id:'general',label:'Breakdowns',metrics:['B','D','Y','K','M','N','T']},
   {id:'extremes',label:'Records',metrics:['X']},
+  {id:'staging',label:'Staging',metrics:[]},
 ] as const;
 export type MetricsTab = typeof metricsTabs[number]['id'];

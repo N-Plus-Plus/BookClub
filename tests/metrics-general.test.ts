@@ -51,7 +51,7 @@ it('General has six ordered reports, one contributor under every filter, stable 
   const node=document.createElement('div'),root=createRoot(node);
   try {
     await act(async()=>root.render(createElement(MetricsScreen,{catalog,viewer:null,onUpdated:async()=>{}})));
-    expect([...node.querySelectorAll('[role=tab]')].map(tab=>tab.textContent)).toEqual(['Top 5','Tastes','Breakdowns','Records']);
+    expect([...node.querySelectorAll('[role=tab]')].map(tab=>tab.textContent)).toEqual(['Top 5','Tastes','Breakdowns','Records','Staging']);
     await act(async()=>[...node.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(tab=>tab.textContent==='Breakdowns')!.click());
     expect([...node.querySelectorAll('.metrics-panel h2,.metrics-panel h3')].map(value=>value.textContent)).toEqual(['Contribution by host','Release decades','Genre detail','Australian classification','Median reported budget / revenue','Ratings profile']);
     expect(node.querySelectorAll('.metrics-classification-row')).toHaveLength(5);expect(node.querySelectorAll('.metrics-economics-row')).toHaveLength(5);

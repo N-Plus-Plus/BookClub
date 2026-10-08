@@ -7,7 +7,8 @@ import { DiversityMetrics } from './metrics/Diversity';
 import { TopFiveEnrichment } from './metrics/TopBottom';
 import { RefreshCw } from 'lucide-react';
 import { Action } from './components';
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
+const Staging = lazy(() => import('./metrics/Staging'));
 import type { Catalog } from '../shared/types';
 import { type Appearance, type MetricsFilter, type metricsDashboard } from '../shared/metrics';
 import { comparisonScopes, contributorScopes, filterContributorScopes, medianEconomicsComparison, topFrequency, themeFingerprint, tasteDiversity, type MetricsEnrichment, type TalentRole, metricsTalentReader } from '../shared/metrics-enrichment';
@@ -19,6 +20,7 @@ export function EnrichedMetrics({category,catalog,all,rows,filter,data,status,re
   const [role,setRole] = useState<TalentRole>('Cast');
   const cached=useMetricsReports([catalog,all,rows,filter,data]);
   const scopes = category==='fingerprints'?cached('scopes',()=>comparisonScopes(catalog,all,filter)):[];
+  const stagingCache=category==='staging'?cached('stagingCache',()=>new Map<string,unknown>()):undefined;
   const isAll = filter.kind === 'all';
   const emptyReport={covered:0,distinct:0,values:[]};
   const themeReport = category === 'fingerprints' && !isAll ? cached('themes',()=>themeFingerprint(rows,all,data)) : emptyReport;
@@ -33,6 +35,7 @@ export function EnrichedMetrics({category,catalog,all,rows,filter,data,status,re
   const diversity = category === 'fingerprints' ? cached('diversity',()=>(['countries','languages','directors','cast'] as const).map(dimension=>({dimension,values:scopes.map(s=>({label:s.label,...tasteDiversity(s.rows,data,dimension)}))}))) : [];
 
   return <>{status !== 'ready' && <div role="status" className="stack"><p className="meta">{status === 'loading' ? 'Loading enriched Metrics…' : 'Enriched Metrics could not load. Existing Metrics remains available.'}</p>{status === 'error' && <Action icon={RefreshCw} onClick={retry}>Retry enriched Metrics</Action>}</div>}
+    {category === 'staging' && <Suspense fallback={<p role="status" className="meta">Loading Staging reports…</p>}><Staging reportCache={stagingCache} catalog={catalog} all={all} rows={rows} filter={filter} data={data}/></Suspense>}
     {category === 'fingerprints' && <EnrichedFingerprints isAll={isAll} themeReport={themeReport} signatures={signatures} />}
     {category === 'general' && <><ClassificationChart data={data} scopes={contributors} /><MedianEconomics economics={filterContributorScopes(economics.groups,filter)} maximum={economics.maximum} /><RatingsProfile dashboard={dashboard} /></>}
     {category === 'fingerprints' && <DiversityMetrics diversity={diversity} />}
