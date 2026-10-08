@@ -37,6 +37,28 @@ it('places Detail overview and informational status below poster and metadata, p
   expect(preview.querySelector('.film-identity-metadata')?.textContent).toContain(movie.overview);
 });
 
+it.each([
+  [['m1'], 'Brought by Troy'],
+  [['m1','m0'], 'Brought by Sean and Troy'],
+  [['m3','m0','m1','m0'], 'Brought by Sean, Troy and Jess'],
+])('attributes non-Classics films to unique stored History hosts (%s)',async(hostIds,label)=>{
+  const appearances:MovieDetail['appearances']=hostIds.map((host_member_id,i)=>({id:'event-'+i,event_date:'2026-01-01',date_precision:'exact',kind:'hosted',host_member_id,position:1}));
+  appearances.push({id:'classics',event_date:'2026-01-02',date_precision:'exact',kind:'classics',host_member_id:null,position:1});
+  await render({...movie,classic:false,appearances});
+  expect(container.querySelector('.detail-classics-status')?.textContent).toBe(label);
+});
+
+it('omits attribution when no History participant can be identified',async()=>{
+  await render({...movie,classic:false});
+  expect(container.querySelector('.detail-classics-status')).toBeNull();
+});
+
+it('retains historical attribution to an inactive participant',async()=>{
+  vi.mocked(api.detail).mockResolvedValue({...movie,classic:false,appearances:[{id:'event',event_date:'2026-01-01',date_precision:'exact',kind:'hosted',host_member_id:'m3',position:1}]});
+  await act(async()=>root.render(createElement(DetailScreen,{id:movie.id,members:members.map(member=>({...member,active:member.id==='m3'?0:1}))})));
+  expect(container.querySelector('.detail-classics-status')?.textContent).toBe('Brought by Jess');
+});
+
 it.each([[188,'3 hrs, 8 mins'],[93,'1 hr, 33 mins'],[47,'47 mins'],[60,'1 hr'],[61,'1 hr, 1 min'],[120,'2 hrs'],[1,'1 min']])('formats runtime %s without a standalone year', (runtime,label)=>{
   const html=renderToStaticMarkup(createElement(FilmIdentity,{movie:{...movie,runtime},variant:'detail'}));
   const element=document.createElement('div');element.innerHTML=html;
