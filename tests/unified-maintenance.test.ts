@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { disposableD1 } from './d1';
 import { Repository } from '../worker/src/repository';
 import { UnifiedMaintenanceService } from '../worker/src/unified-maintenance';
-import { planMaintenance, type MaintenanceCoverage } from '../shared/maintenance-plan';
+import { operationCoverage, planMaintenance, type MaintenanceCoverage, type MaintenanceOperation } from '../shared/maintenance-plan';
 import { tmdbEnrichmentFixture, mdbEnrichmentFixture } from './enrichment-fixtures';
 import type { Env } from '../worker/src/http';
 
@@ -128,4 +128,89 @@ it('recognises stored TMDB artwork as positive evidence when an older artwork ma
   const coverage=await service.status(null);
   expect(planMaintenance(catalog,coverage,'populate',['tmdb-metadata']).units).toHaveLength(0);
   movie.assets.pop();expect(planMaintenance(catalog,coverage,'populate',['tmdb-metadata']).units).toHaveLength(1);
+});
+
+it.each([
+  {name:'usable',fields:{Year:'2000',Runtime:'100 min',Director:'Director',Genre:'Drama'},absent:['title']},
+  {name:'unavailable',fields:{Year:'N/A',Runtime:'N/A',Director:'N/A',Genre:'N/A'},absent:['title','year','runtime','director','genres']},
+  {name:'partial',fields:{Year:'2000',Runtime:'N/A',Director:'Director',Genre:'N/A'},absent:['title','runtime','genres']},
+])('persists $name OMDb metadata coverage and excludes completed films from the next Populate plan',async({fields,absent})=>{
+  const {repo,service,local}=fixture();
+  const fetch=vi.fn(async()=>Response.json({Response:'True',imdbID:'tt0000001',Title:'N/A',...fields}));
+  vi.stubGlobal('fetch',fetch);
+  const catalog=await repo.catalog(),coverage=await service.status(null);
+  const unit=planMaintenance(catalog,coverage,'populate',['omdb-metadata']).units[0];
+  const result=await service.execute('populate',[unit],new Date().toISOString());
+  expect(result.results[0].status).toBe(absent.includes('year')?'no_change':'updated');
+  const saved=await service.status(null),updated=await repo.catalog();
+  expect(saved.checks).toEqual([expect.objectContaining({movie_id:unit.movieId,provider:'omdb',domain:'metadata',identity_provider:'imdb',external_id:'tt0000001',absent})]);
+  expect(saved.checks[0].checked_at).toEqual(expect.any(String));
+  expect(operationCoverage(updated.movies[0],'omdb-metadata',saved)).toBe(absent.includes('runtime')?'checked_unavailable':'present');
+  expect(planMaintenance(updated,saved,'populate',['omdb-metadata']).units).toEqual([]);
+  // A stale browser batch also rechecks durable eligibility before making a request.
+  expect((await service.execute('populate',[unit],new Date().toISOString())).results[0].status).toBe('skipped');
+  expect(fetch).toHaveBeenCalledOnce();
+  expect(planMaintenance(updated,saved,'refresh',['omdb-metadata']).units).toHaveLength(1);
+  expect(local.sqlite.prepare('SELECT count(*) AS n FROM source_scores').get()?.n).toBe(0);
+});
+
+it.each([{operations:['scores','omdb-metadata']},{operations:['scores']}] as {operations:MaintenanceOperation[]}[])('records metadata and scores from one OMDb response for operations $operations',async({operations})=>{
+  const {repo,service}=fixture();
+  const fetch=vi.fn(async()=>Response.json({Response:'True',imdbID:'tt0000001',Title:'N/A',Year:'N/A',Runtime:'N/A',Director:'N/A',Genre:'N/A',imdbRating:'8',Metascore:'80',Ratings:[{Source:'Rotten Tomatoes',Value:'80%'}]}));
+  vi.stubGlobal('fetch',fetch);
+  const unit=planMaintenance(await repo.catalog(),await service.status(null),'populate',operations).units.find(u=>u.provider==='omdb')!;
+  expect((await service.execute('populate',[unit],new Date().toISOString())).results[0].status).toBe('updated');
+  const saved=await service.status(null),catalog=await repo.catalog();
+  expect(saved.checks).toEqual(expect.arrayContaining([
+    expect.objectContaining({provider:'omdb',domain:'metadata',external_id:'tt0000001',absent:['title','year','runtime','director','genres']}),
+    expect.objectContaining({provider:'omdb',domain:'scores',external_id:'tt0000001',absent:[]}),
+  ]));
+  expect(catalog.movies[0].scores).toHaveLength(3);
+  expect(planMaintenance(catalog,saved,'populate',['scores','omdb-metadata']).units.filter(u=>u.provider==='omdb')).toEqual([]);
+  expect(fetch).toHaveBeenCalledOnce();
+});
+
+it('records an unchanged successful OMDb metadata check without changing canonical metadata',async()=>{
+  const {repo,service,local}=fixture();
+  local.sqlite.exec("UPDATE movies SET year=2000,runtime=100,director='Director',updated_at='2000-01-01';INSERT INTO movie_genres VALUES('film-001','Drama')");
+  const before=local.sqlite.prepare('SELECT * FROM movies').get();
+  vi.stubGlobal('fetch',vi.fn(async()=>Response.json({Response:'True',imdbID:'tt0000001',Title:'N/A',Year:'2000',Runtime:'100 min',Director:'Director',Genre:'Drama'})));
+  const unit=planMaintenance(await repo.catalog(),await service.status(null),'populate',['omdb-metadata']).units[0];
+  expect((await service.execute('populate',[unit],new Date().toISOString())).results[0].status).toBe('no_change');
+  expect(local.sqlite.prepare('SELECT * FROM movies').get()).toEqual(before);
+  expect((await service.status(null)).checks).toEqual([expect.objectContaining({domain:'metadata',absent:['title']})]);
+  expect(planMaintenance(await repo.catalog(),await service.status(null),'populate',['omdb-metadata']).units).toEqual([]);
+});
+
+it.each(['network','not found','invalid response','provider identity conflict','raced identity conflict','metadata persistence','coverage persistence'])('does not record successful OMDb metadata coverage after %s failure',async failure=>{
+  const {repo,service,local}=fixture();
+  const unit=planMaintenance(await repo.catalog(),await service.status(null),'populate',['omdb-metadata']).units[0];
+  if(failure==='metadata persistence') local.sqlite.exec("CREATE TRIGGER reject_metadata BEFORE UPDATE ON movies BEGIN SELECT RAISE(ABORT,'fictional persistence failure'); END");
+  if(failure==='coverage persistence') local.sqlite.exec("CREATE TRIGGER reject_coverage BEFORE INSERT ON movie_maintenance_coverage BEGIN SELECT RAISE(ABORT,'fictional coverage failure'); END");
+  const fetch=vi.fn(async()=>{
+    if(failure==='network') throw new Error('fictional network failure');
+    if(failure==='not found') return Response.json({Response:'False',Error:'Movie not found!'});
+    if(failure==='invalid response') return Response.json({unexpected:'inconclusive'});
+    if(failure==='raced identity conflict') local.sqlite.exec("UPDATE movie_external_ids SET external_id='tt0000002' WHERE provider='imdb'");
+    return Response.json({Response:'True',imdbID:failure==='provider identity conflict'?'tt0000002':'tt0000001',Title:'N/A',Year:'2000',Runtime:'100 min',Director:'Director',Genre:'Drama'});
+  });
+  vi.stubGlobal('fetch',fetch);
+  expect((await service.execute('populate',[unit],new Date().toISOString())).results[0].status).toBe('failed');
+  const saved=await service.status(null),catalog=await repo.catalog();
+  expect(saved.checks).toEqual([]);
+  expect(saved.failures).toEqual([expect.objectContaining({provider:'omdb',operation:'omdb-metadata'})]);
+  expect(operationCoverage(catalog.movies[0],'omdb-metadata',saved)).toBe('inconclusive');
+  expect(planMaintenance(catalog,saved,'populate',['omdb-metadata']).units).toHaveLength(1);
+  expect(fetch).toHaveBeenCalledOnce();
+});
+
+it('preserves an earlier OMDb metadata check when Refresh persistence fails and allows explicit Refresh retry',async()=>{
+  const {repo,service,local}=fixture();upstream(true);
+  const unit=planMaintenance(await repo.catalog(),await service.status(null),'populate',['omdb-metadata']).units[0];
+  await service.execute('populate',[unit],new Date().toISOString());
+  local.sqlite.exec("UPDATE movie_maintenance_coverage SET checked_at='2000-01-01T00:00:00.000Z';CREATE TRIGGER reject_coverage BEFORE INSERT ON movie_maintenance_coverage BEGIN SELECT RAISE(ABORT,'fictional coverage failure'); END");
+  const before=(await service.status(null)).checks;
+  expect((await service.execute('refresh',[unit],new Date().toISOString())).results[0].status).toBe('failed');
+  expect((await service.status(null)).checks).toEqual(before);
+  expect(planMaintenance(await repo.catalog(),await service.status(null),'refresh',['omdb-metadata']).units).toHaveLength(1);
 });
