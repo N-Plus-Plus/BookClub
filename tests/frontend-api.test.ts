@@ -111,3 +111,13 @@ it('normal selected metadata requests never invoke the legacy route',async()=>{
   const {api}=await import('../frontend/api');await api.enrichMetadataSelected(['one']);await api.enrichMetadataSelected(['two']);
   expect(fetch.mock.calls.every(call=>call[0].endsWith('/movies/enrich-metadata-selected'))).toBe(true);
 });
+
+it('journal API methods return authoritative effects directly and issue only their mutation request',async()=>{
+  vi.stubEnv('DEV',true);const result={session:{id:'event'},cycle:{id:'cycle'},rotation:{version:2},affectedSessionDates:[{id:'rough',event_date:'2030-01-01',has_audit:true}]};
+  const fetch=vi.fn(async(_url:string)=>Response.json({data:result}));vi.stubGlobal('fetch',fetch);const {api}=await import('../frontend/api');
+  expect(await api.saveSession({event_date:'2030-01-01',movie_ids:['film']})).toEqual(result);
+  expect(await api.saveSession({event_date:'2030-01-01',movie_ids:['film']},'event')).toEqual(result);
+  expect(await api.publishBuilder('builder',{revision:1,event_date:'2030-01-01',cycle_id:null,cycle_slot:1,complete_turn:true})).toEqual(result);
+  expect(await api.deleteSession('event')).toEqual(result);expect(await api.restoreSession('event')).toEqual(result);
+  expect(fetch.mock.calls.map(([url])=>url)).toEqual(['/sessions','/sessions/event','/builders/builder/publish','/sessions/event','/sessions/event/restore'].map(path=>'http://localhost:8787/api/v1'+path));expect(fetch).toHaveBeenCalledTimes(5);
+});

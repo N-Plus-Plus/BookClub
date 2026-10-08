@@ -9,6 +9,7 @@ try {
   page.on('pageerror', error => console.error(error.message));
   await page.route('**/*', route => ['localhost','127.0.0.1'].includes(new URL(route.request().url()).hostname) ? route.fallback() : route.abort());
   await page.route('**/api/v1/**', route => route.abort());
+  await page.route(/\/frontend\/api\.ts(?:\?.*)?$/,route=>route.fulfill({contentType:'text/javascript',body:`export const api=globalThis.__reviewApi ??= {};export class ApiClientError extends Error {}`}));
   await page.route(/\/frontend\/main\.tsx(?:\?.*)?$/, route => route.fulfill({contentType:'text/javascript',body:`
 import React from '/node_modules/.vite/deps/react.js';
 import ReactDOM from '/node_modules/.vite/deps/react-dom_client.js';
@@ -41,7 +42,7 @@ root.render(React.createElement('main',{className:'bookclub-shell'},content));
   await page.setViewportSize({width,height:900});
   for(const screen of ['home','classics','detail'])for(const count of [5,6,7,9]){
    await page.evaluate(({screen,count})=>window.renderScores(screen,count),{screen,count});
-   await page.waitForFunction(count=>document.querySelectorAll('.ranking-source-scores > span').length===count,count);
+   await page.waitForFunction(count=>document.querySelectorAll('.ranking-source-scores > span').length===count,count).catch(async error=>{console.error({width,screen,count,body:await page.locator('body').innerText()});throw error;});
    await page.evaluate(()=>document.fonts.ready);
    const result=await page.evaluate(()=>{
     const row=document.querySelector('.ranking-source-scores');

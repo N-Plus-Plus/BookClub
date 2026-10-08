@@ -1,4 +1,4 @@
-import type { Member, BuilderInput, BuilderSet, HistoryAudit, Rotation, SessionInput, Viewer } from '../../shared/types';
+import type { Member, BuilderInput, BuilderSet, HistoryAudit, Rotation, SessionInput, Viewer, JournalMutationResult, Cycle } from '../../shared/types';
 import { ApiError } from './http';
 import { effectiveMember, swapTargets } from '../../shared/rotation';
 
@@ -69,7 +69,7 @@ export class ProductRepository {
   }
   async builders(owner: string): Promise<BuilderSet[]> {
     const results = await this.db.batch([
-      this.db.prepare('SELECT * FROM builder_sets WHERE owner_member_id=? ORDER BY updated_at DESC,id').bind(owner),
+      this.db.prepare('SELECT * FROM builder_sets WHERE owner_member_id=? ORDER BY created_at ASC,id').bind(owner),
       this.db.prepare('SELECT bm.* FROM builder_movies bm JOIN builder_sets b ON b.id=bm.builder_id WHERE b.owner_member_id=? ORDER BY bm.position').bind(owner),
     ]);
     const films = results[1].results as {builder_id: string; movie_id: string}[];
@@ -94,15 +94,20 @@ export class ProductRepository {
     if (rows.results.length !== unique.length) throw new ApiError(422,'INVALID_MOVIE','Choose saved films.');
   }
   async saveBuilder(owner: string, input: BuilderInput, id: string = crypto.randomUUID(), existing = false) {
+    let replaceLineup = true;
     if (existing) {
       const before = await this.builder(owner,id);
+      replaceLineup = before.movie_ids.length !== input.movie_ids.length || before.movie_ids.some((movie,i) => movie !== input.movie_ids[i]);
       if (input.revision !== before.revision) throw conflict('This Builder changed. Refresh before saving.');
     }
     await this.validateMovies(input.movie_ids);
     const statements = existing ? [this.db.prepare(`UPDATE builder_sets SET title=?,notes=?,revision=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND owner_member_id=?`)
-      .bind(input.title || null,input.notes || null,input.revision!+1,id,owner),this.db.prepare('DELETE FROM builder_movies WHERE builder_id=? AND EXISTS(SELECT 1 FROM builder_sets WHERE id=? AND owner_member_id=?)').bind(id,id,owner)]
+      .bind(input.title || null,input.notes || null,input.revision!+1,id,owner)]
       : [this.db.prepare('INSERT INTO builder_sets(id,owner_member_id,title,notes) VALUES(?,?,?,?)').bind(id,owner,input.title || null,input.notes || null)];
-    statements.push(...input.movie_ids.map((movie,i) => this.db.prepare('INSERT INTO builder_movies(builder_id,movie_id,position) VALUES(?,?,?)').bind(id,movie,i+1)));
+    if (replaceLineup) {
+      if (existing) statements.push(this.db.prepare('DELETE FROM builder_movies WHERE builder_id=? AND EXISTS(SELECT 1 FROM builder_sets WHERE id=? AND owner_member_id=?)').bind(id,id,owner));
+      statements.push(...input.movie_ids.map((movie,i) => this.db.prepare('INSERT INTO builder_movies(builder_id,movie_id,position) VALUES(?,?,?)').bind(id,movie,i+1)));
+    }
     await this.batch(statements); return this.builder(owner,id);
   }
   async deleteBuilder(owner: string, id: string, revision: number) {
@@ -111,7 +116,7 @@ export class ProductRepository {
     const removed = await this.db.prepare('DELETE FROM builder_sets WHERE id=? AND owner_member_id=? AND revision=? RETURNING id').bind(id,owner,revision).first();
     if (!removed) throw conflict('This Builder changed. Refresh before deleting.');
   }
-  async saveSession(input: SessionInput, actor: Viewer | null, existingId?: string, builder?: BuilderSet) {
+  async saveSession(input: SessionInput, actor: Viewer | null, existingId?: string, builder?: BuilderSet, effects?: JournalMutationResult) {
     const before = existingId ? await this.db.prepare('SELECT * FROM sessions WHERE id=? AND deleted_at IS NULL').bind(existingId).first<Record<string,unknown>>() : null;
     if (existingId && !before) throw missing();
     if (before) {
@@ -134,6 +139,7 @@ export class ProductRepository {
     let cycleId = input.cycle_id ?? null, slot = input.cycle_slot ?? null;
     const kind = input.kind ?? 'hosted', precision = input.date_precision ?? 'exact';
     const statements: D1PreparedStatement[] = [];
+    const affectedSessionDates: NonNullable<JournalMutationResult['affectedSessionDates']> = [];
     let turn: Rotation | null = null;
     if (input.complete_turn) {
       turn = await this.rotation();
@@ -165,6 +171,7 @@ export class ProductRepository {
         if (await this.db.prepare('SELECT id FROM sessions WHERE cycle_id=? AND cycle_slot=1 AND id<>? AND deleted_at IS NULL').bind(cycleId,existingId).first()) throw conflict('This cycle has multiple records for Sean’s turn. Ask an administrator to resolve them before correcting its anchor.');
         statements.push(this.db.prepare("UPDATE cycles SET rough_date=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").bind(input.event_date,cycleId));
         const references = (await this.db.prepare("SELECT id,event_date FROM sessions WHERE cycle_id=? AND date_precision='cycle_rough' AND deleted_at IS NULL AND id<>?").bind(cycleId,existingId).all<{id: string; event_date: string}>()).results;
+        affectedSessionDates.push(...references.map(reference => ({id:reference.id,event_date:input.event_date,has_audit:true as const})));
         for (const reference of references) statements.push(
           this.db.prepare("UPDATE sessions SET event_date=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").bind(input.event_date,reference.id),
           this.audit(actor,reference.id,'edit',{before: {event_date: reference.event_date},after: {event_date: input.event_date},cycle_anchor_correction: true,rotation_unchanged: true}));
@@ -183,13 +190,19 @@ export class ProductRepository {
       ON CONFLICT(movie_id,member_id) DO UPDATE SET seen=1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')`).bind(movie));
     const oldFilms = before ? (await this.db.prepare('SELECT movie_id,position FROM session_movies WHERE session_id=? ORDER BY position').bind(id).all()).results : null;
     statements.push(this.audit(actor,id,existingId ? 'edit' : 'create',{before: before ? {...before,films: oldFilms} : null,after: {...input,cycle_id: cycleId},planned_at: builder?.created_at ?? before?.planned_at ?? null,turn_before: turn,rotation_unchanged: Boolean(existingId),requires_rotation_review: Boolean(existingId && before?.completed_turn_version != null)}));
-    await this.batch(statements); return id;
+    await this.batch(statements);
+    if (effects) {
+      if (cycleId) effects.cycle = await this.db.prepare('SELECT * FROM cycles WHERE id=?').bind(cycleId).first<Cycle>() ?? undefined;
+      if (affectedSessionDates.length) effects.affectedSessionDates = affectedSessionDates;
+      if (turn) effects.rotation = await this.rotation();
+    }
+    return id;
   }
-  async publishBuilder(actor: Viewer, id: string, revision: number, input: SessionInput) {
+  async publishBuilder(actor: Viewer, id: string, revision: number, input: SessionInput, effects?: JournalMutationResult) {
     const builder = await this.builder(actor.id,id);
     if (builder.revision !== revision) throw conflict('Builder changed. Refresh before publishing.');
     if (!builder.movie_ids.length) throw new ApiError(422,'EMPTY_BUILDER','Add at least one film.');
-    return this.saveSession({...input,movie_ids: builder.movie_ids,host_member_id: input.kind === 'classics' ? null : actor.id},actor,undefined,builder);
+    return this.saveSession({...input,movie_ids: builder.movie_ids,host_member_id: input.kind === 'classics' ? null : actor.id},actor,undefined,builder,effects);
   }
   async deleteSession(actor: Viewer | null, id: string) {
     requireAdmin(actor);

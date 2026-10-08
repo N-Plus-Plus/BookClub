@@ -254,7 +254,7 @@ describe('History cycle archive',() => {
     expect(button('Previous').disabled).toBe(true); expect(button('Next').disabled).toBe(true);
   });
   it('keeps icon actions inside their card, audit evidence below that card, cached audit and delete behaviour',async () => {
-    vi.mocked(api.audit).mockResolvedValue([]); vi.mocked(api.deleteSession).mockResolvedValue({ok:true} as Awaited<ReturnType<typeof api.deleteSession>>);
+    vi.mocked(api.audit).mockResolvedValue([]); vi.mocked(api.deleteSession).mockResolvedValue({removedSessionId:'event-0-1'});
     const onChanged = await mountHistory();
     const event = container.querySelector<HTMLElement>('.history-event')!;
     const actions = event.querySelectorAll<HTMLElement>('.session-card .history-event-actions > .button');
@@ -266,9 +266,10 @@ describe('History cycle archive',() => {
     expect(event.querySelector('.audit-inline')?.previousElementSibling?.classList.contains('session-card')).toBe(true);
     expect(container.querySelectorAll('.audit-inline')).toHaveLength(1);
     await click(actions[1]); await click(actions[1]); expect(api.audit).toHaveBeenCalledTimes(1);
-    vi.spyOn(window,'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const confirm=vi.spyOn(window,'confirm');
     await click(actions[2]); expect(api.deleteSession).not.toHaveBeenCalled();
-    await click(actions[2]); expect(api.deleteSession).toHaveBeenCalledWith('event-0-1'); expect(onChanged).toHaveBeenCalledOnce();
+    await click(button('Cancel'));expect(api.deleteSession).not.toHaveBeenCalled();
+    await click(actions[2]);await click(button('Remove event'));expect(confirm).not.toHaveBeenCalled(); expect(api.deleteSession).toHaveBeenCalledWith('event-0-1'); expect(onChanged).toHaveBeenCalledOnce();
     vi.restoreAllMocks();
   });
   it('uses concise History dates and ordered Film Detail links alongside compact Home headings',async () => {
@@ -458,13 +459,13 @@ it('keeps App-owned Seen saves serial through navigation and exposes failures fo
  expect(container.querySelector('[role="alert"]')).toBeNull();
 });
 
-it('Event save performs one shared-data reconciliation without repeating bootstrap health or auth',async()=>{
+it('Event save reconciles the returned session without follow-up catalogue or rotation reads',async()=>{
  await search();await click(container.querySelector<HTMLAnchorElement>('.search-row a')!);await click(button('Yes, this one!'));
  await input(container.querySelector<HTMLInputElement>('input[name="event_date"]')!,'2030-01-01');
  await click(container.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
- vi.mocked(api.saveSession).mockResolvedValue({id:'new-event',movies:[movies[0]],event_date:'2030-01-01',host_member_id:'member-2',kind:'hosted',date_precision:'exact',cycle_id:null,cycle_slot:null,legacy_cycle_label:null});
+ vi.mocked(api.saveSession).mockResolvedValue({session:{id:'new-event',movies:[movies[0]],event_date:'2030-01-01',host_member_id:'member-2',kind:'hosted',date_precision:'exact',cycle_id:null,cycle_slot:null,legacy_cycle_label:null}});
  await click(button('Save event'));await flush();
- expect(api.saveSession).toHaveBeenCalledOnce();expect(api.catalog).toHaveBeenCalledTimes(2);expect(api.rotation).toHaveBeenCalledTimes(2);
+ expect(api.saveSession).toHaveBeenCalledOnce();expect(api.catalog).toHaveBeenCalledOnce();expect(api.rotation).toHaveBeenCalledOnce();expect(container.textContent).toContain('Film 0');
  expect(api.health).toHaveBeenCalledOnce();expect(api.me).toHaveBeenCalledOnce();
 });
 it('App applies the returned rotation swap without catalogue, rotation, health or auth reloads',async()=>{

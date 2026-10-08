@@ -10,8 +10,8 @@ import type { Member, Movie, Ranking, Score, Session } from '../shared/types';
 const ACTION_ICON_SIZE = 18;
 
 export type ActionVariant = 'primary' | 'secondary' | 'tertiary' | 'danger';
-export function Action({ icon: Icon,children,intent,variant,...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon?: LucideIcon | string; intent?: string; variant?: ActionVariant }) {
-  return <button type="button" className={children == null ? 'button button--icon' : 'button'} data-intent={intent ?? (variant === 'primary' ? 'constructive' : undefined)} data-variant={variant ?? (intent ? undefined : 'secondary')} {...props}>{Icon && (typeof Icon === 'string' ? <img className="action-icon" src={`${import.meta.env.BASE_URL}buttons/${Icon}`} width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} alt="" /> : <Icon size={ACTION_ICON_SIZE} aria-hidden="true" />)}{children}</button>;
+export function Action({ icon: Icon,children,intent,variant,className,...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon?: LucideIcon | string; intent?: string; variant?: ActionVariant }) {
+  return <button type="button" className={[children == null ? 'button button--icon' : 'button',className].filter(Boolean).join(' ')} data-intent={intent ?? (variant === 'primary' ? 'constructive' : undefined)} data-variant={variant ?? (intent ? undefined : 'secondary')} {...props}>{Icon && (typeof Icon === 'string' ? <img className="action-icon" src={`${import.meta.env.BASE_URL}buttons/${Icon}`} width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} alt="" /> : <Icon size={ACTION_ICON_SIZE} aria-hidden="true" />)}{children}</button>;
 }
 export function RouteLink({ to,icon: Icon,children,variant = 'secondary' }: {to: string; icon: LucideIcon; children: ReactNode; variant?: ActionVariant}) {
   return <a className="button" data-variant={variant} data-intent={variant === 'primary' ? 'constructive' : undefined} href={`#/${to}`}><Icon size={ACTION_ICON_SIZE} aria-hidden="true" />{children}</a>;
@@ -76,6 +76,7 @@ export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; s
     return value != null ? [{provider,metric,label,description,value}] : [];
   });
   const firstCritic = items.findIndex(item => ratingDimension(item.provider,item.metric)?.group === 'critic');
+  const structure = items.map(item => `${item.provider}:${item.metric}`).join('|') + `:${firstCritic}`;
   const rowRef = useRef<HTMLParagraphElement>(null);
   useLayoutEffect(() => {
     const row = rowRef.current;
@@ -97,7 +98,7 @@ export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; s
     observer.observe(row);
     for (const item of row.children) observer.observe(item);
     return () => observer.disconnect();
-  });
+  },[structure]);
   const stacked = items.length > 6;
   return items.length ? <p ref={rowRef} className={`meta ranking-source-scores${stacked ? ' ranking-source-scores-stacked' : ''}`}>{items.map(({provider,metric,label,description,value},index) =>
     <span key={`${provider}:${metric}`} className={firstCritic > 0 && index === firstCritic ? 'source-scores-critic-boundary' : undefined} title={description} aria-label={`${description}: ${formatScore100(value)}`}><span>{label}</span>{' '}<span>{formatScore100(value)}</span></span>

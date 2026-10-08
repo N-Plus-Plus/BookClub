@@ -1,3 +1,4 @@
+import { executeProvider, quotaCooldown } from './providers/execution';
 import type { Movie, ProviderResult, RefreshResult, Score } from '../../shared/types';
 import { ApiError, type Env } from './http';
 import { Repository } from './repository';
@@ -28,20 +29,12 @@ export class ScoreService {
     return {provider,status:'skipped',count:0,blocking:true,message:`Skipped after ${provider} became unavailable during this enrichment operation.`,...(error.retryAfter === undefined ? {} : {retryAfter:error.retryAfter})};
   }
   private async providerCall<T>(provider: string, call: () => Promise<T>): Promise<T> {
-    const wait = await this.repo.providerCooldown(provider);
-    if (wait !== null) throw new ProviderError(provider,'rate_limited',`${provider} is cooling down after a rate limit. Try later.`,wait);
-    try { return await call(); }
-    catch (error) {
-      if (error instanceof ProviderError && error.kind === 'rate_limited') await this.repo.setProviderCooldown(provider,error.retryAfter ?? 60);
-      throw error;
-    }
+    return executeProvider(this.repo,provider,call);
   }
   private limits(provider: string) {
     return async (headers: Headers) => {
       if (headers.get('X-RateLimit-Remaining') !== '0') return;
-      const reset = Number(headers.get('X-RateLimit-Reset'));
-      const seconds = Number.isFinite(reset) && reset > Date.now()/1000 ? Math.ceil(reset-Date.now()/1000) : 60;
-      await this.repo.setProviderCooldown(provider,Math.min(seconds,86400));
+      await this.repo.setProviderCooldown(provider,quotaCooldown(headers));
     };
   }
   private needs(movie: Movie, snapshots: Score[]) { return missingLiveScoreDimensions([...movie.scores,...snapshots]); }

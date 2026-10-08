@@ -1,3 +1,4 @@
+import { executeProvider } from './providers/execution';
 import { Repository } from './repository';
 import { ApiError, type Env } from './http';
 import { TmdbProvider } from './providers/tmdb';
@@ -14,11 +15,7 @@ export { metadataGaps } from '../../shared/metadata';
 export class MovieService {
   constructor(private repo: Repository, private env: Env) {}
   private async tmdb<T>(call: () => Promise<T>, readOnly = false): Promise<T> {
-    const cooldown = this.repo as Repository & { providerCooldown?: (provider:string) => Promise<number|null>; setProviderCooldown?: (provider:string,seconds:number) => Promise<void> };
-    const wait = cooldown.providerCooldown ? await cooldown.providerCooldown('tmdb',readOnly) : null;
-    if (wait !== null) throw new ProviderError('TMDB','rate_limited','TMDB is cooling down after a rate limit. Try later.',wait);
-    try { return await call(); }
-    catch (error) { if (!readOnly && error instanceof ProviderError && error.kind === 'rate_limited' && cooldown.setProviderCooldown) await cooldown.setProviderCooldown('tmdb',error.retryAfter ?? 60); throw error; }
+    return executeProvider(this.repo,'tmdb',call,{readOnly,provider:'TMDB',cooldownMessage:'TMDB is cooling down after a rate limit. Try later.'});
   }
   async enrichMetadata(limit: number): Promise<MetadataEnrichment> {
     if (!Number.isInteger(limit) || limit < 1 || limit > 10) throw new ApiError(422,'INVALID_LIMIT','Choose a limit from 1 to 10.');

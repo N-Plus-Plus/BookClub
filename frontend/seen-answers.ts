@@ -32,8 +32,8 @@ export function useSeenAnswers(viewerId: string, setCatalog: Dispatch<SetStateAc
     if (identity.current === viewerId) return;
     identity.current = viewerId; generation.current++; queue.current = []; latest.current.clear(); catalogReads.current.clear(); publish();
   },[viewerId]);
-  const reconcile = (movie: Movie, catalog: Catalog) => {
-    for (const task of latest.current.values()) if (task.movieId === movie.id) movie = withAnswer(movie,task,catalog);
+  const reconcile = (movie: Movie, catalog: Catalog, intentions:Iterable<SeenSave> = latest.current.values()) => {
+    for (const task of intentions) if (task.movieId === movie.id) movie = withAnswer(movie,task,catalog);
     return movie;
   };
   const drain = async () => {
@@ -86,10 +86,13 @@ export function useSeenAnswers(viewerId: string, setCatalog: Dispatch<SetStateAc
   // before that older snapshot arrives. Drop this temporary map after the read.
   const beginCatalogRead = () => {
     const intentions = new Map(latest.current); catalogReads.current.add(intentions);
-    return {apply:(catalog:Catalog) => {
+    const retained = () => {
       for (const [key,task] of latest.current) intentions.set(key,task);
-      return reconcileCatalog(catalog,intentions.values());
-    },release:() => { catalogReads.current.delete(intentions); }};
+      return intentions.values();
+    };
+    return {apply:(catalog:Catalog) => reconcileCatalog(catalog,retained()),
+      reconcileMovie:(movie:Movie,catalog:Catalog) => reconcile(movie,catalog,retained()),
+      release:() => { catalogReads.current.delete(intentions); }};
   };
   return {answer,retry,reconcile,reconcileCatalog,beginCatalogRead,pending:saves.filter(s => s.status !== 'failed').length,failures:saves.filter(s => s.status === 'failed')};
 }

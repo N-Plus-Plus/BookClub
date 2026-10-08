@@ -133,6 +133,12 @@ Do not use Priority 0.5 for application regressions, production blockers, or fea
 
 If the current task explicitly includes updating stale tests, update them instead of deferring them.
 
+## Shared workflow and journal regression coverage
+
+`shared-workflows.test.ts` protects stable SourceScores observer setup/cleanup, Action class merging, pagination boundaries, dialog Cancel/busy/focus lifecycle and synchronous bulk-controller exclusion/re-entry/release/stop. Existing metadata/score/enrichment suites retain queue, checkpoint, resume and failure feedback coverage. `provider-execution.test.ts` covers common read-only/writable cooldown gates and bounded quota parsing; provider/bulk/enrichment suites protect credential independence, reserve, not-found continuation, suppression and call counts. `product-api.test.ts` uses disposable SQLite relation-write triggers to prove identical Builder lineups skip deletes/inserts while ordered changes replace atomically.
+
+`journal-reconciliation.test.ts` combines the real Worker/disposable D1 with the frontend data hook to cover create/edit/publish/delete/restore, cycle creation, anchor date/audit patches, canonical movie/Seen/ranking reconciliation, older catalogue/rotation races, in-flight and already-confirmed newer Seen intentions, released mutation leases and explicit Metrics invalidation. Successful product mutations must make zero follow-up catalog/compact or rotation calls; bootstrap reads remain one each. App integration and API/performance suites cover consumers and response contracts. No live services or data are used.
+
 ## Frontend route and loading checks
 
 `tests/routes.test.ts` protects canonical route kinds, dynamic IDs, headings/images and both Navigation surfaces against drift. `tests/app-lazy-routes.test.ts` delays real Metrics/Admin module loading to verify Home's module boundary, shell-visible LoadingView, member denial before and after Admin loads, direct authenticated entries and enrichment reuse across route visits. App integration navigation waits for lazy content before asserting feature controls; Account-link assertions wait for the actual heading transition. Existing inspection, Seen, rotation and shell-title tests protect controller extraction behaviour.
@@ -179,13 +185,13 @@ Local demo data lives in `worker/seed.sql`; `seed_runs` makes startup idempotent
 | Type checking | `corepack pnpm typecheck` (root plus Worker TS projects) |
 | Linting | Not configured; do not invent a command |
 | Build / compile verification | `corepack pnpm build`; static config `corepack pnpm prod:check`; add `--frontend` for process public build vars |
-| Smoke testing | `node scripts/smoke.mjs` (local write smoke); `corepack pnpm exec tsx scripts/dev/smoke.ts` (disposable local CRUD) |
+| Smoke testing | `corepack pnpm exec tsx scripts/dev/smoke.ts` (disposable local CRUD) |
 
 Keep these commands aligned with the actual manifests/tooling.
 
 ## Current test structure
 
-Vitest is configured in `vite.config.ts`, selecting `tests/**/*.test.ts`. No lint/formatter or standalone Vitest config exists. Event inspection component tests use the test-only jsdom 26 environment and React act with mocked APIs; they require no browser automation, local servers, provider credentials or real data.
+Vitest is configured in `vite.config.ts`, selecting `tests/**/*.test.ts`. No lint/formatter or standalone Vitest config exists. Browser scripts importing TypeScript modules (including metrics-performance.browser.mjs) run via `corepack pnpm exec tsx`; other configured synthetic browser scripts run with Node against local Vite. They block external/provider traffic. Event inspection component tests use the test-only jsdom 26 environment and React act with mocked APIs; they require no browser automation, local servers, provider credentials or real data.
 
 | Coverage | Files under `tests/` |
 | --- | --- |
@@ -226,6 +232,8 @@ History/Classic corrections: `tests/history-classics.test.ts` covers universal e
 
 `tests/builder-autosave.test.ts` uses deferred saves to prove serial revision handoff, intermediate-state coalescing, current-text flush, dirty failure retention/retry and final-revision publication ordering. `event-inspection.test.ts` additionally covers History reverse cycles/events/jump with immutable numbered film order, page/filter/navigation/reload, AU metadata separators, heading New set, title-blur creation without keystroke saves, absence of the note editor and preservation of stored notes, optimistic failure recovery, queued All sets and first-four poster previews. Ranking tests also protect Unranked ordering without partial No boosts, stable seed ties and unrated-last placement. `history-classification.test.ts` uses disposable D1 to prove shared Metrics AU resolution, one set query, omitted absent evidence, older-schema compatibility and zero provider calls/writes.
 
+`node tests/shared-controls.browser.mjs` uses synthetic History with all network/API traffic blocked to check pagination, event identity, native-dialog focus/Cancel/Escape, busy closure guards, exactly one delete request and mobile/desktop overflow at 320/390/720/1440px. `node tests/compact-scores.browser.mjs` checks 48 Home/Classics/Detail width/source-count cases, including exact divider position, inline/stacked wrapping and no page overflow. Both keep screenshots ignored under `.verification/`.
+
 `node tests/home-history-builder.browser.mjs` uses local Vite and optional Playwright with synthetic App/API fixtures and blocked external/API requests. It checks Home order/Quick Facts/icon-free Missing answers/faint borders, History Re-sort/jump/back/classification, 33px drawer icons in both drawer states, Builder creation-date ordering preserved through edits and new saves, heading action/poster count/centering, 126×189px posters with centred ellipsised titles, half-size attribution without a footer divider, emerald Plus, numbering/right-column actions, long-title wrapping and no page overflow at 320/390/720/1440px. Screenshots/results stay ignored under `.verification/home-history-builder/`.
 
 ## Optional local rendered and persistence checks
@@ -246,7 +254,7 @@ Both use optional locally installed Playwright: `BOOKCLUB_PLAYWRIGHT_MODULE` (de
 
 Artwork: `corepack pnpm exec tsx tests/artwork-snapshot.ts`, then `node tests/artwork.browser.mjs` with Vite running. The helper reads an existing local SQLite snapshot, copies it into memory and mocks at most ten selected TMDB details responses. Its source SQLite filename is currently fixed to the ordinary local emulator layout; verify availability before running. Browser intercepts APIs/images, checks 390/900/1440px contexts and missing/failed fallback, including no page-load enrichment. No real provider or production call is made.
 
-`node scripts/smoke.mjs` creates labelled local movie/event data; use disposable local state. `corepack pnpm exec tsx scripts/dev/smoke.ts` checks catalog/derived screens, local member/admin and Builder/Seen CRUD, deleting its Builder and restoring Seen afterwards. Read scripts before use; cleanup does not make the execution path read-only. Do not connect any smoke to production without explicit authority.
+`scripts/smoke.mjs` is not a current validation command: it omits the required manual-film title and personal identities for guarded Event/Seen writes. Its journal-response reads use the current contract, but its remaining fixture/auth assumptions require a separate update before use. `corepack pnpm exec tsx scripts/dev/smoke.ts` checks catalog/derived screens, local member/admin and Builder/Seen CRUD, deleting its Builder and restoring Seen afterwards. Read scripts before use; cleanup does not make the execution path read-only. Do not connect any smoke to production without explicit authority.
 
 Historical UI audits are [reference evidence](UI_AUDIT_POST_ALIGNMENT.md), not assertions that their findings persist in current source. Reverify before adopting an old diagnosis.
 

@@ -1,7 +1,7 @@
 import { hydrateCatalog } from '../shared/catalog';
 import { METADATA_MAINTENANCE_BATCH_SIZE } from '../shared/score-maintenance';
 import { validationFieldLabel } from './presentation';
-import type { Catalog, CompactCatalog, ManualMovieInput, MovieDetail, SearchResponse, Session, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, MetadataEnrichment, SelectedMetadataEnrichment, ScoreMaintenance, TmdbPreview } from '../shared/types';
+import type { Catalog, CompactCatalog, ManualMovieInput, MovieDetail, SearchResponse, JournalMutationResult, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, MetadataEnrichment, SelectedMetadataEnrichment, ScoreMaintenance, TmdbPreview } from '../shared/types';
 
 const configured = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/,'');
 const base = import.meta.env.DEV ? 'http://localhost:8787' : configured || '';
@@ -74,7 +74,7 @@ export const api = {
   preview: (externalId: string, signal?: AbortSignal) => request<TmdbPreview>(`/movies/preview/tmdb/${encodeURIComponent(externalId)}`,'GET',undefined,true,signal),
   createMovie: (input: ManualMovieInput) => request<MovieDetail>('/movies','POST',input),
   importMovie: (externalId: string) => request<MovieDetail>('/movies/import','POST',{provider: 'tmdb',externalId}),
-  saveSession: (input: SessionInput,id?: string) => request<Session>(id ? `/sessions/${encodeURIComponent(id)}` : '/sessions',id ? 'PUT' : 'POST',input),
+  saveSession: (input: SessionInput,id?: string) => request<JournalMutationResult>(id ? `/sessions/${encodeURIComponent(id)}` : '/sessions',id ? 'PUT' : 'POST',input),
   avatars: () => request<number[]>('/avatars'),
   claimAvatar: (avatar: number) => request<Viewer>('/auth/avatar','POST',{avatar}),
   rotation: () => request<Rotation | null>('/rotation'),
@@ -82,9 +82,9 @@ export const api = {
   builders: () => request<BuilderSet[]>('/builders'),
   saveBuilder: (input: BuilderInput,id?: string) => request<BuilderSet>(id ? `/builders/${encodeURIComponent(id)}` : '/builders',id ? 'PUT' : 'POST',input),
   deleteBuilder: (id: string,revision: number) => request(`/builders/${encodeURIComponent(id)}`,'DELETE',{revision}),
-  publishBuilder: (id: string,input: BuilderPublishInput) => request<Session>(`/builders/${encodeURIComponent(id)}/publish`,'POST',input),
-  deleteSession: (id: string) => request(`/sessions/${encodeURIComponent(id)}`,'DELETE'),
-  restoreSession: (id: string) => request(`/sessions/${encodeURIComponent(id)}/restore`,'POST'),
+  publishBuilder: (id: string,input: BuilderPublishInput) => request<JournalMutationResult>(`/builders/${encodeURIComponent(id)}/publish`,'POST',input),
+  deleteSession: (id: string) => request<JournalMutationResult>(`/sessions/${encodeURIComponent(id)}`,'DELETE'),
+  restoreSession: (id: string) => request<JournalMutationResult>(`/sessions/${encodeURIComponent(id)}/restore`,'POST'),
   audit: (id: string) => request<HistoryAudit[]>(`/sessions/${encodeURIComponent(id)}/audit`),
   removeClassic: (id: string) => request<MovieDetail>(`/movies/${encodeURIComponent(id)}/classics`,'DELETE'),
   classic: (id: string,classic: boolean) => request<MovieDetail>(`/movies/${encodeURIComponent(id)}/classics`,'PUT',{classic}),

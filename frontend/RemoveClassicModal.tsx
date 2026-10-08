@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { NativeDialog } from './NativeDialog';
+import { useRef, useState } from 'react';
 import { Trash2, X } from 'lucide-react';
 import type { Movie, MovieDetail } from '../shared/types';
 import { api } from './api';
 import { Action, Poster } from './components';
 export function RemoveClassicModal({movie,onMovie,onClose}: {movie: Movie; onMovie: (movie: MovieDetail) => void; onClose: () => void}) {
-  const dialog = useRef<HTMLDialogElement>(null), inFlight = useRef(false);
+  const inFlight = useRef(false);
   const [busy,setBusy] = useState(false), [error,setError] = useState('');
-  useEffect(() => { const element = dialog.current!; element.showModal(); return () => element.close(); },[]);
   const remove = async () => {
     if (inFlight.current) return;
     inFlight.current = true; setBusy(true); setError('');
@@ -15,12 +15,12 @@ export function RemoveClassicModal({movie,onMovie,onClose}: {movie: Movie; onMov
     finally { inFlight.current = false; setBusy(false); }
   };
   const r = movie.ranking!;
-  return <dialog ref={dialog} className="builder-set-picker" aria-labelledby="remove-classic-heading" onCancel={e => { e.preventDefault(); if (!busy) onClose(); }}><div className="stack">
-    <div className="section-title"><h2 id="remove-classic-heading">Remove from Classics</h2><Action icon={X} aria-label="Close confirmation" disabled={busy} onClick={onClose} /></div>
+  return <NativeDialog heading="Remove from Classics" id="remove-classic-heading" closeLabel="Close confirmation" onClose={onClose} busy={busy}>
+
     <div className="movie-row"><Poster movie={movie} /><div className="movie-copy"><h3 className="movie-title">{movie.title}</h3><p className="meta">{movie.year ?? 'Year unknown'}</p><p className="meta">{r.seenCount} Seen · {r.unseenCount} No · {r.unknownCount} Unknown</p></div></div>
     <p>Remove this film from Classics and clear its Seen / Not Seen answers. Active History appearances still prove Seen by everyone.</p>
     <p className="meta">The film, scores, metadata, external IDs, artwork and History remain.</p>
     {error && <p role="alert" className="error-message">{error}</p>}
     <div className="button-set"><Action icon={X} disabled={busy} onClick={onClose}>Cancel</Action><Action icon={Trash2} variant="danger" disabled={busy} onClick={() => void remove()}>{busy ? 'Removing…' : 'Remove from Classics'}</Action></div>
-  </div></dialog>;
+  </NativeDialog>;
 }

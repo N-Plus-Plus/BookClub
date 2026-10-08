@@ -79,6 +79,7 @@ it('compact transport resolves ordered references and removes obsolete captures 
   expect(json.match(/"title":"Arrival"/g)).toHaveLength(1);
   expect(local.sqlite.prepare("SELECT count(*) AS count FROM source_scores WHERE movie_id='arrival'").get()!.count).toBeGreaterThan(hydrated.movies.find(m=>m.id==='arrival')!.scores.length);
 });
+const sessionMutation=async(path:string,method:string,input:unknown)=>(await call<import('../shared/types').JournalMutationResult>(path,method,input)).session!;
 it('all partial and single-film routes, Event responses and Builder publication work with catalog disabled',async () => {
   const before=await repo.catalog();const forbidden=vi.spyOn(Repository.prototype,'catalog').mockRejectedValue(new Error('Full catalogue forbidden'));
   expect(await call('/members')).toEqual(before.members);expect(await call('/cycles')).toEqual(before.cycles);
@@ -87,11 +88,11 @@ it('all partial and single-film routes, Event responses and Builder publication 
   await call('/movies/arrival');await call('/movies/arrival/seen/member-1','PUT',{seen:false});await call('/movies/arrival/classics','PUT',{classic:true});
   await call('/movies/arrival/refresh-scores','POST');await call('/movies','POST',{title:'Manual fixture'});
   await call('/movies/import','POST',{provider:'tmdb',externalId:'329865'}); // stored identity reuse; no provider request
-  const event=await call<Session>('/sessions','POST',{event_date:'2001-01-01',movie_ids:['arrival','moon','arrival'],complete_turn:false});
+  const event=await sessionMutation('/sessions','POST',{event_date:'2001-01-01',movie_ids:['arrival','moon','arrival'],complete_turn:false});
   expect(event.movies.map(m=>m.id)).toEqual(['arrival','moon','arrival']);
-  const replaced=await call<Session>(`/sessions/${event.id}`,'PUT',{event_date:'2001-01-02',movie_ids:['moon']});expect(replaced.movies.map(m=>m.id)).toEqual(['moon']);
+  const replaced=await sessionMutation(`/sessions/${event.id}`,'PUT',{event_date:'2001-01-02',movie_ids:['moon']});expect(replaced.movies.map(m=>m.id)).toEqual(['moon']);
   const builder=await new ProductRepository(local.db).saveBuilder('member-1',{movie_ids:['arrival','moon']});
-  const published=await call<Session>(`/builders/${builder.id}/publish`,'POST',{revision:0,event_date:'2001-01-03',cycle_id:null,cycle_slot:1,complete_turn:false});
+  const published=await sessionMutation(`/builders/${builder.id}/publish`,'POST',{revision:0,event_date:'2001-01-03',cycle_id:null,cycle_slot:1,complete_turn:false});
   expect(published.movies.map(m=>m.id)).toEqual(['arrival','moon']);
   await call('/classics/enrich','POST',{limit:2});
   env.TMDB_READ_TOKEN='mock-only';vi.stubGlobal('fetch',vi.fn(async()=>Response.json({id:42,title:'Mock import',original_title:'Mock import',release_date:'2000-01-01',runtime:90,overview:'Fixture',genres:[],credits:{crew:[]},external_ids:{},vote_average:7,vote_count:5})));

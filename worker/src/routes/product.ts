@@ -1,3 +1,4 @@
+import type { JournalMutationResult } from '../../../shared/types';
 import { ApiError, json } from '../http';
 import { idSchema, sessionSchema } from '../validation';
 
@@ -19,8 +20,10 @@ export async function productRoutes({request,path,method,repo,product,auth,body}
     if (!id && method === 'POST') return json(await product.saveBuilder(actor.id,builderSchema.parse(await body(request))),201);
     if (id && builderMatch?.[2] === 'publish' && method === 'POST') {
       const {revision,...input} = publishSchema.parse(await body(request));
-      const sessionId = await product.publishBuilder(actor,id,revision,{...input,movie_ids: [],kind: input.cycle_slot === 5 ? 'classics' : 'hosted',date_precision: 'exact'});
-      return json(await repo.session(sessionId),201);
+      const result: JournalMutationResult = {};
+      const sessionId = await product.publishBuilder(actor,id,revision,{...input,movie_ids: [],kind: input.cycle_slot === 5 ? 'classics' : 'hosted',date_precision: 'exact'},result);
+      result.session = await repo.session(sessionId);
+      return json(result,201);
     }
     if (id && !builderMatch?.[2]) {
       if (method === 'GET') return json(await product.builder(actor.id,id));
@@ -33,14 +36,16 @@ export async function productRoutes({request,path,method,repo,product,auth,body}
   if (historyAction) {
     const id = idSchema.parse(historyAction[1]);
     if (historyAction[2] === 'audit' && method === 'GET') { requireAdmin(auth.viewer); return json(await product.auditTrail(id)); }
-    if (historyAction[2] === 'restore' && method === 'POST') { await product.restoreSession(requireAdmin(auth.viewer),id); return json({restored: true}); }
+    if (historyAction[2] === 'restore' && method === 'POST') { await product.restoreSession(requireAdmin(auth.viewer),id); return json({session:await repo.session(id)} satisfies JournalMutationResult); }
   }
   const sessionMatch = path.match(/^\/api\/v1\/sessions\/([^/]+)$/);
-  if (sessionMatch && method === 'DELETE') { await product.deleteSession(auth.viewer,idSchema.parse(sessionMatch[1])); return json({deleted: true}); }
+  if (sessionMatch && method === 'DELETE') { await product.deleteSession(auth.viewer,idSchema.parse(sessionMatch[1])); return json({removedSessionId:sessionMatch[1]} satisfies JournalMutationResult); }
   if ((path === '/api/v1/sessions' && method === 'POST') || (sessionMatch && method === 'PUT')) {
     const input = sessionSchema.parse(await body(request));
-    const id = await product.saveSession(input,auth.viewer,sessionMatch ? idSchema.parse(sessionMatch[1]) : undefined);
-    return json(await repo.session(id),sessionMatch ? 200 : 201);
+    const result: JournalMutationResult = {};
+    const id = await product.saveSession(input,auth.viewer,sessionMatch ? idSchema.parse(sessionMatch[1]) : undefined,undefined,result);
+    result.session = await repo.session(id);
+    return json(result,sessionMatch ? 200 : 201);
   }
   return undefined;
 }

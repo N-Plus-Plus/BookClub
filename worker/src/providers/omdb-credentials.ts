@@ -1,3 +1,4 @@
+import { executeProvider } from './execution';
 import type { Env } from '../http';
 import type { Repository } from '../repository';
 import { ProviderError } from './http';
@@ -14,13 +15,10 @@ export class OmdbCredentials {
       if (!key) continue;
       let error = this.unavailable.get(identity);
       if (!error) {
-        const wait = await this.repo.providerCooldown(identity);
-        if (wait !== null) error = new ProviderError('OMDb','rate_limited','omdb is cooling down after a rate limit. Try later.',wait);
-        else try { return await new OmdbProvider(key,this.limits(identity)).details(id); }
+        try { return await executeProvider(this.repo,identity,() => new OmdbProvider(key,this.limits(identity)).details(id),{provider:'OMDb',cooldownMessage:'omdb is cooling down after a rate limit. Try later.'}); }
         catch (caught) {
           if (!(caught instanceof ProviderError) || !['credentials','rate_limited'].includes(caught.kind)) throw caught;
           error = caught;
-          if (error.kind === 'rate_limited') await this.repo.setProviderCooldown(identity,error.retryAfter ?? 60);
         }
         this.unavailable.set(identity,error);
       }

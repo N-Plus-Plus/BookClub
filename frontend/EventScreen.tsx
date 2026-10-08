@@ -1,7 +1,8 @@
+import type { JournalMutationReader } from './useBookClubData';
 import { catalogIndex } from '../shared/catalog-index';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Save } from 'lucide-react';
-import type { Catalog, FilmCandidate, Movie, Rotation, Session, TmdbPreview, Viewer } from '../shared/types';
+import type { JournalMutationResult, Catalog, FilmCandidate, Movie, Rotation, Session, TmdbPreview, Viewer } from '../shared/types';
 import { localToday } from '../shared/identity';
 import { api, ApiClientError } from './api';
 import { Action } from './components';
@@ -9,7 +10,7 @@ import { eventHost } from '../shared/event-host';
 import { FilmPicker } from './FilmPicker';
 import { TurnFields } from './TurnFields';
 import { routeEventValidation } from './event-validation';
-export function EventScreen({catalog,writesEnabled,onMovie,onSaved,rotation,initial,prefillMovieIds,onPrefillConsumed,onInspect,confirmedMovie,onConfirmedConsumed}: {catalog: Catalog; writesEnabled: boolean; onMovie: (m: Movie) => void; onSaved: (s: Session) => void; rotation: Rotation | null; viewer: Viewer | null; initial?: Session; prefillMovieIds?: string[] | null; onPrefillConsumed?: () => void; onInspect?: (candidate: FilmCandidate, preview?: TmdbPreview, pending?: Promise<TmdbPreview>) => void; confirmedMovie?: Movie | null; onConfirmedConsumed?: () => void}) {
+export function EventScreen({catalog,writesEnabled,onMovie,onSaved,readJournalMutation = operation=>operation(),rotation,initial,prefillMovieIds,onPrefillConsumed,onInspect,confirmedMovie,onConfirmedConsumed}: {catalog: Catalog; writesEnabled: boolean; onMovie: (m: Movie) => void; onSaved: (s: JournalMutationResult) => void;readJournalMutation?:JournalMutationReader; rotation: Rotation | null; viewer: Viewer | null; initial?: Session; prefillMovieIds?: string[] | null; onPrefillConsumed?: () => void; onInspect?: (candidate: FilmCandidate, preview?: TmdbPreview, pending?: Promise<TmdbPreview>) => void; confirmedMovie?: Movie | null; onConfirmedConsumed?: () => void}) {
   const [date,setDate] = useState(initial?.event_date ?? localToday());
   const [cycle,setCycle] = useState(initial ? initial.cycle_id ?? '' : rotation?.cycle_id ?? ''), [slot,setSlot] = useState<number | null>(initial ? initial.cycle_slot : rotation?.nominal_slot ?? null), [complete,setComplete] = useState(!initial);
   const [precision,setPrecision] = useState<Session['date_precision']>(initial?.date_precision ?? 'exact');
@@ -53,7 +54,7 @@ export function EventScreen({catalog,writesEnabled,onMovie,onSaved,rotation,init
     if (Object.keys(failures).length) { invalid(Object.entries(failures).map(([path,message]) => ({path,message}))); return; }
     setFields({});
     setBusy(true); setError('');
-    try { const identity = eventHost(catalog.members,rotation,initial); onSaved(await api.saveSession({event_date: date,...identity,date_precision: precision,movie_ids: selected.map(m => m.id),cycle_slot: slot,correct_anchor: correctAnchor,complete_turn: complete,...(complete ? {turn_version: rotation?.version} : {}),...(cycle === 'new' ? {new_cycle: {rough_date: date}} : {cycle_id: cycle || null})},initial?.id)); }
+    try { const identity = eventHost(catalog.members,rotation,initial); onSaved(await readJournalMutation(()=>api.saveSession({event_date: date,...identity,date_precision: precision,movie_ids: selected.map(m => m.id),cycle_slot: slot,correct_anchor: correctAnchor,complete_turn: complete,...(complete ? {turn_version: rotation?.version} : {}),...(cycle === 'new' ? {new_cycle: {rough_date: date}} : {cycle_id: cycle || null})},initial?.id))); }
     catch (e) { if (e instanceof ApiClientError && e.fields.length) invalid(e.fields); else setError(e instanceof Error ? e.message : 'Could not save event.'); } finally { setBusy(false); }
   };
   return <div ref={workflow} className="event-workflow stack"><form id="event-form" noValidate className="stack" onSubmit={e => void save(e)}><section className="card stack"><label className="input-label">Actual event date<input name="event_date" aria-invalid={Boolean(fields.event_date)} aria-describedby={fields.event_date ? 'error-event_date' : undefined} className="field__input" type="date" required value={date} onChange={e => setDate(e.target.value)} /></label>{fieldError('event_date')}

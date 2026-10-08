@@ -1,24 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { RefreshCw, Square } from 'lucide-react';
 import type { Catalog } from '../shared/types';
 import { api } from './api';
 import { Action } from './components';
 import { maintainMetadata, type MetadataRun } from './metadata-maintenance';
 import { metadataCandidate, metadataQueue, tmdbIdentity } from '../shared/metadata';
-import { useBulkMaintenanceLock } from './bulk-maintenance';
+import { useBulkJobController, MaintenanceProgress } from './bulk-maintenance';
 
 export function MetadataMaintenance({catalog,onUpdated,writesEnabled=true}: {catalog: Catalog; onUpdated: () => Promise<void>;writesEnabled?:boolean}) {
-  const lock=useBulkMaintenanceLock();
-  const [busy,setBusy] = useState(false), [error,setError] = useState('');
+  const job=useBulkJobController();
+  const {busy,error,setError,stop}=job;
   const [result,setResult] = useState<MetadataRun | null>(null);
-  const stop = useRef(false), active = useRef(false);
-  useEffect(() => () => { stop.current = true; },[]);
   const remaining = busy && result ? result.remaining : catalog.movies.filter(metadataCandidate).length;
   const unidentified = busy && result ? result.unidentified : catalog.movies.filter(m => !tmdbIdentity(m)).length;
-  const maintain = async () => {
-    if (active.current || !lock.acquire()) return;
-    active.current = true; stop.current = false;
-    setBusy(true); setError(''); setResult(null);
+  const maintain = () => job.execute(async () => { setError(''); setResult(null);
     try {
       await maintainMetadata({ids: metadataQueue(catalog.movies),unidentified:catalog.movies.filter(m => !tmdbIdentity(m)).length,
         batch: ids => api.enrichMetadataSelected(ids),stopped: () => stop.current,progress: async run => {
@@ -28,19 +23,18 @@ export function MetadataMaintenance({catalog,onUpdated,writesEnabled=true}: {cat
     finally {
       try { await onUpdated(); }
       catch (e) { setError(`${e instanceof Error ? e.message : 'Could not refresh BookClub.'} Completed updates are saved; refresh or resume later.`); }
-      finally { active.current = false; setBusy(false); lock.release(); }
+
     }
-  };
+  });
   return <section className="card stack" aria-labelledby="tmdb-maintenance-heading"><h2 id="tmdb-maintenance-heading">TMDB metadata and artwork</h2>
       <p className="meta">Fetch missing artwork and unchecked or stale metadata from stored TMDB identities. Requests run in bounded batches. History and ratings are preserved.</p>
       <p className="meta">{remaining} identified films remaining · {unidentified} films without a valid TMDB identity.</p>
-      <div className="button-set"><Action icon={RefreshCw} disabled={busy || lock.busy || !writesEnabled || !remaining} onClick={() => void maintain()}>Fill missing metadata</Action>
-        {busy && <Action icon={Square} onClick={() => { stop.current = true; }}>Stop after this batch</Action>}</div>
+      <div className="button-set"><Action icon={RefreshCw} disabled={busy || job.locked || !writesEnabled || !remaining} onClick={() => void maintain()}>Fill missing metadata</Action>
+        {busy && <Action icon={Square} onClick={job.requestStop}>Stop after this batch</Action>}</div>
       {busy && <p className="meta" role="status">Filling metadata… completed batches are saved.</p>}
-      {result && <div role="status" className="stack"><p className="meta">{result.processed} / {result.total} processed this run · {result.updated} successfully updated · {result.failed} failures.</p>
-        {result.message && <p className="meta">{result.message}</p>}
-        <progress max={Math.max(1,result.total)} value={result.processed} aria-label="TMDB maintenance progress" />
-        {result.failure && <p className="error-message">{result.failure}</p>}</div>}
+      {result && <MaintenanceProgress processed={result.processed} total={result.total} label="TMDB maintenance progress" summary={<>{result.processed} / {result.total} processed this run · {result.updated} successfully updated · {result.failed} failures.</>} beforeProgress={result.message && <p className="meta">{result.message}</p>}>
+
+        {result.failure && <p className="error-message">{result.failure}</p>}</MaintenanceProgress>}
       {error && <p className="error-message" role="alert">{error}</p>}
   </section>;
 }

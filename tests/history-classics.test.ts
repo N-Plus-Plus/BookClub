@@ -15,7 +15,7 @@ const allSeen=(id:string)=>expect(states(id)).toEqual([1,2,3,4].map(i=>({member_
 it.each([2,5])('saves every film all Seen for hosted/Classics slot %i, overrides No and excludes former members',async slot=>{
  local.sqlite.exec(`UPDATE club_rotation SET nominal_slot=${slot},version=version+1; DELETE FROM seen_states WHERE movie_id IN ('moon','alien'); INSERT INTO seen_states(movie_id,member_id,seen) VALUES('moon','member-1',0)`);
  const response=await call('/sessions','POST',save);expect(response.status,await response.clone().text()).toBe(201);
- allSeen('moon');allSeen('alien');const {data}=await response.json() as {data:{id:string}};
+ allSeen('moon');allSeen('alien');const {data:{session:data}}=await response.json() as {data:{session:{id:string}}};
  for(let i=0;i<2;i++) expect((await call(`/sessions/${data.id}`,'PUT',{...save,movie_ids:['moon','arrival']})).status).toBe(200);
  allSeen('moon');allSeen('arrival');allSeen('alien');
  expect((await call(`/sessions/${data.id}`,'DELETE')).status).toBe(200);allSeen('moon');

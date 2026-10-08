@@ -10,6 +10,7 @@ import type { Catalog, SelectedMetadataEnrichment } from '../shared/types';
 // Exercise the actual screen handlers with deterministic hook state and no browser.
 const hooks = vi.hoisted(() => ({values: [] as unknown[], cursor: 0, cleanup: undefined as (() => void) | undefined}));
 vi.mock('react', async importOriginal => ({...await importOriginal<typeof import('react')>(),
+  useContext: () => ({busy:false,acquire:()=>true,release:()=>{}}),
   useState: (initial: unknown) => {
     const index = hooks.cursor++;
     if (!(index in hooks.values)) hooks.values[index] = initial;
@@ -23,7 +24,6 @@ vi.mock('react', async importOriginal => ({...await importOriginal<typeof import
   useEffect: (effect: () => () => void) => { hooks.cleanup ??= effect(); },
 }));
 vi.mock('../frontend/api', () => ({api: {enrichMetadataSelected: vi.fn()}}));
-vi.mock('../frontend/bulk-maintenance',()=>({useBulkMaintenanceLock:()=>({busy:false,acquire:()=>true,release:()=>{}})}));
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   const promise = new Promise<T>(done => { resolve = done; });
@@ -81,7 +81,7 @@ describe('Fill missing metadata action', () => {
       const refresh=vi.fn(async()=>{});
       screen(refresh,data)[0].onClick(); await vi.runAllTimersAsync();
       expect(api.enrichMetadataSelected).toHaveBeenCalledTimes(3); expect(refresh).toHaveBeenCalledOnce();
-      expect(hooks.values[2]).toMatchObject({total:5,processed:5,remaining:0,updated:5});
+      expect(hooks.values[5]).toMatchObject({total:5,processed:5,remaining:0,updated:5});
       hooks.cursor=0;
       const refreshed={...catalog,movies:[{...catalog.movies[0],director:'Director',tmdb_metadata_checked_at:new Date().toISOString(),tmdb_artwork_checked_at:new Date().toISOString()},{...catalog.movies[0],id:'unidentified',external_ids:[]}]};
       const tree=JSON.stringify(MetadataMaintenance({catalog:refreshed,onUpdated:refresh}));
@@ -95,9 +95,9 @@ describe('Fill missing metadata action', () => {
     const refresh=vi.fn(async()=>{}); screen(refresh,data)[0].onClick();
     if(kind==='Stop') screen(refresh,data).find(a=>a.children==='Stop after this batch')!.onClick(); else hooks.cleanup!();
     pending.resolve(response(['f0','f1']));
-    await vi.waitFor(()=>expect(hooks.values[0]).toBe(false));
+    await vi.waitFor(()=>expect(hooks.values[2]).toBe(false));
     expect(api.enrichMetadataSelected).toHaveBeenCalledOnce();expect(refresh).toHaveBeenCalledOnce();
-    expect(hooks.values[2]).toMatchObject({updated:2,remaining:3,message:expect.stringContaining('Stopped.')});
+    expect(hooks.values[5]).toMatchObject({updated:2,remaining:3,message:expect.stringContaining('Stopped.')});
   });
   it.each(['network','provider','empty'])('refreshes once after %s failure, retaining partial progress', async kind => {
     vi.useFakeTimers();
@@ -108,8 +108,8 @@ describe('Fill missing metadata action', () => {
       else request.mockResolvedValueOnce({results:[]});
       const refresh=vi.fn(async()=>{}); screen(refresh,data)[0].onClick(); await vi.runAllTimersAsync();
       expect(request).toHaveBeenCalledTimes(2);expect(refresh).toHaveBeenCalledOnce();
-      expect(hooks.values[2]).toMatchObject({updated:2,message:expect.any(String)});
-      if(kind==='provider') expect(hooks.values[2]).toMatchObject({failed:1,failure:expect.stringContaining('60 seconds')});
+      expect(hooks.values[5]).toMatchObject({updated:2,message:expect.any(String)});
+      if(kind==='provider') expect(hooks.values[5]).toMatchObject({failed:1,failure:expect.stringContaining('60 seconds')});
     } finally {vi.useRealTimers();}
   });
   it('freshly checked queued films are skipped and do not stop the run',async()=>{

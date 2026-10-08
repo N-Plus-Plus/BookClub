@@ -242,6 +242,8 @@ Confirm the intended release has no unexpected pending migrations.
 
 If migration output is ambiguous or reports failure, stop. Do not automatically retry a potentially partially-completed production mutation. Inspect the resulting immutable state and follow [DATA](DATA.md).
 
+Journal mutation reconciliation requires the JournalMutationResult API responses; deploy the matching Worker before this frontend. No migration is needed. The previous frontend callbacks ignore the mutation body and retain their broad refresh, so Worker-first rollout preserves those workflows.
+
 OMDb metadata idempotency requires the API Worker; browser-local resume requires the frontend. Release both for the complete behaviour, with Worker first under the normal schema/API compatibility gates. This feature requires no schema migration; independently pending migrations retain their own release gates.
 
 ## Deploying the production API Worker

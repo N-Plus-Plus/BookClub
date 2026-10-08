@@ -9,6 +9,7 @@ import { missingAnswers } from '../shared/ranking';
 let local: ReturnType<typeof disposableD1>, env: Env;
 const call = (path: string,method='GET',body?: unknown) => worker.fetch(new Request(`http://api/api/v1${path}`,{method,headers:{'X-BookClub-Dev-Member':'member-1'},...(body===undefined?{}:{body:JSON.stringify(body)})}),env);
 const data = async <T>(response: Response): Promise<T> => { expect(response.ok,await response.clone().text()).toBe(true);return (await response.json() as {data:T}).data; };
+async function sessionData(response:Response):Promise<Session> { const result=await data<Session | import('../shared/types').JournalMutationResult>(response); return 'session' in result ? result.session! : result as Session; }
 beforeEach(()=>{local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:5173'};});
 afterEach(()=>{local.sqlite.close();vi.unstubAllGlobals();});
 describe('cycles and membership',()=>{
@@ -34,17 +35,17 @@ describe('cycles and membership',()=>{
   });
   it('creates a slot-1 anchored cycle atomically and preserves film order',async()=>{
     local.sqlite.exec('UPDATE club_rotation SET nominal_slot=1,cycle_id=NULL,version=version+1');
-    const s=await data<Session>(await call('/sessions','POST',{event_date:'2000-02-01',kind:'hosted',host_member_id:'member-1',new_cycle:{rough_date:'2000-02-01',title:'Fictional cycle'},date_precision:'exact',cycle_slot:1,movie_ids:['arrival','moon','arrival']}));
+    const s=await sessionData(await call('/sessions','POST',{event_date:'2000-02-01',kind:'hosted',host_member_id:'member-1',new_cycle:{rough_date:'2000-02-01',title:'Fictional cycle'},date_precision:'exact',cycle_slot:1,movie_ids:['arrival','moon','arrival']}));
     expect(s.date_precision).toBe('exact');expect(s.movies.map(m=>m.id)).toEqual(['arrival','moon','arrival']);
     const c=await data<Catalog>(await call('/catalog'));expect(c.cycles.find(x=>x.id===s.cycle_id)?.rough_date).toBe('2000-02-01');
     expect((await call('/sessions','POST',{event_date:'2000-02-02',cycle_id:s.cycle_id,date_precision:'cycle_rough',movie_ids:['moon']})).status).toBe(422);
   });
   it('allows exact dates and derives new Event kind/host from the current turn',async()=>{
-    const s=await data<Session>(await call('/sessions','POST',{event_date:'2026-10-01',kind:'classics',cycle_id:'demo-cycle-a',date_precision:'exact',movie_ids:['moon']}));expect(s.host_member_id).toBeNull();
-    expect((await data<Session>(await call('/sessions','POST',{event_date:'2026-10-01',kind:'classics',host_member_id:'member-1',movie_ids:['moon']}))).host_member_id).toBeNull();
+    const s=await sessionData(await call('/sessions','POST',{event_date:'2026-10-01',kind:'classics',cycle_id:'demo-cycle-a',date_precision:'exact',movie_ids:['moon']}));expect(s.host_member_id).toBeNull();
+    expect((await sessionData(await call('/sessions','POST',{event_date:'2026-10-01',kind:'classics',host_member_id:'member-1',movie_ids:['moon']}))).host_member_id).toBeNull();
     local.sqlite.exec('UPDATE club_rotation SET nominal_slot=2,version=version+1');
-    expect((await data<Session>(await call('/sessions','POST',{event_date:'2026-10-01',kind:'hosted',movie_ids:['moon']}))).host_member_id).toBe('member-2');
-    const old=await data<Session>(await call('/sessions','POST',{event_date:'2026-10-01',movie_ids:['moon']}));expect(old).toMatchObject({kind:'hosted',date_precision:'exact',cycle_id:null});
+    expect((await sessionData(await call('/sessions','POST',{event_date:'2026-10-01',kind:'hosted',movie_ids:['moon']}))).host_member_id).toBe('member-2');
+    const old=await sessionData(await call('/sessions','POST',{event_date:'2026-10-01',movie_ids:['moon']}));expect(old).toMatchObject({kind:'hosted',date_precision:'exact',cycle_id:null});
     expect((await call('/sessions','POST',{event_date:'2026-10-01',cycle_id:'missing',movie_ids:['moon']})).status).toBe(422);
   });
   it('keeps seeds stable across removal/readdition; allocates without reuse',async()=>{

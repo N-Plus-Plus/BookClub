@@ -11,6 +11,7 @@ try {
   const errors=[]; page.on('pageerror',error=>{ errors.push(error.message); console.error(error.message); });
   await page.route('**/*',route=>['localhost','127.0.0.1'].includes(new URL(route.request().url()).hostname)?route.fallback():route.abort());
   await page.route('**/api/v1/**',route=>route.abort());
+  await page.route(/\/frontend\/api\.ts(?:\?.*)?$/,route=>route.fulfill({contentType:'text/javascript',body:`export const api=globalThis.__reviewApi ??= {};export class ApiClientError extends Error {}`}));
   await page.route(/\/frontend\/main\.tsx(?:\?.*)?$/,route=>route.fulfill({contentType:'text/javascript',body:`
 import React from '${reactUrl}';
 import ReactDOM from '${domUrl}';
@@ -28,7 +29,7 @@ api.search=async query=>({local:[{id:query,title:movie(query).title,year:2000,tm
 api.detail=async id=>movie(id);
 api.classic=async id=>({...movie(id),classic:true});
 function Screen(){const [movies,setMovies]=React.useState([movie('A')]);const [adding,setAdding]=React.useState(false);const onMovie=m=>setMovies(current=>[...current.filter(f=>f.id!==m.id),m]);const catalog={movies,members,sessions:[],cycles:[]}; return React.createElement(React.Fragment,null,React.createElement('div',{className:'page-heading'},React.createElement('h1',null,'Classics'),React.createElement('div',{className:'page-heading-actions'},React.createElement('button',{className:'button','data-intent':'constructive',onClick:()=>setAdding(true)},'Add Classic'))),adding?React.createElement(AddClassicModal,{catalog,onMovie,onClose:()=>setAdding(false)}):null,React.createElement(ClassicsScreen,{catalog:{movies,members,sessions:[],cycles:[]},movies:movies.filter(m=>m.classic),viewer:{id:'m',display_name:'Member',role:'member',sort_order:1,avatar:1},writesEnabled:true,onMovie:m=>setMovies(current=>[...current.filter(f=>f.id!==m.id),m])}));}
-function Builder(){const [selected,setSelected]=React.useState([]);return React.createElement(FilmPicker,{selected,onSelected:setSelected,onMovie:()=>{}});}
+function Builder(){const [selected,setSelected]=React.useState([]);return React.createElement(FilmPicker,{selected,onSelected:setSelected,onMovie:()=>{},allowDirectSelection:true});}
 const root=ReactDOM.createRoot(document.getElementById('root'));
 window.renderSelection=screen=>root.render(React.createElement('main',{className:'bookclub-shell'},screen==='builder'?React.createElement(Builder,{key:screen}):React.createElement(Screen,{key:screen})));
 window.renderSelection('classics');

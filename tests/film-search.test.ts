@@ -39,6 +39,7 @@ describe('search, preview and Event API',() => {
   let local: ReturnType<typeof disposableD1>, repo: Repository, env: Env;
   const call = (path: string,method='GET',input?: unknown,member?: string) => worker.fetch(new Request(`http://api/api/v1${path}`,{method,...(member ? {headers:{'X-BookClub-Dev-Member':member}} : {}),...(input ? {body:JSON.stringify(input)} : {})}),env);
   const payload = async <T>(response: Response) => { expect(response.status,await response.clone().text()).toBeLessThan(300); return (await response.json() as {data:T}).data; };
+  async function sessionPayload(response:Response):Promise<Session> {return (await payload<import('../shared/types').JournalMutationResult>(response)).session!;}
   beforeEach(() => {
     local = disposableD1(); local.sqlite.exec(readFileSync('worker/seed.sql','utf8')); repo = new Repository(local.db);
     env = {DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',TMDB_READ_TOKEN:'fictional',ALLOWED_ORIGINS:'http://localhost:4173'};
@@ -89,17 +90,17 @@ describe('search, preview and Event API',() => {
   });
   it('derives a new human host independently of viewer, supplied host and completion',async () => {
     local.sqlite.exec("UPDATE club_rotation SET nominal_slot=3,version=version+1");
-    const session = await payload<Session>(await call('/sessions','POST',{event_date:'2030-01-01',kind:'classics',host_member_id:'member-1',complete_turn:false,movie_ids:['moon']}));
+    const session = await sessionPayload(await call('/sessions','POST',{event_date:'2030-01-01',kind:'classics',host_member_id:'member-1',complete_turn:false,movie_ids:['moon']}));
     expect(session).toMatchObject({kind:'hosted',host_member_id:'member-3'});
     local.sqlite.exec("UPDATE members SET active=0 WHERE id='member-3'");
     const failure = await call('/sessions','POST',{event_date:'2030-01-02',movie_ids:['moon']});
     expect(failure.status).toBe(422); expect(await failure.text()).toContain('current turn has no active member');
   });
   it('derives Classics and preserves historical host/kind even after deactivation',async () => {
-    const created = await payload<Session>(await call('/sessions','POST',{event_date:'2030-01-01',host_member_id:'member-1',movie_ids:['moon']}));
+    const created = await sessionPayload(await call('/sessions','POST',{event_date:'2030-01-01',host_member_id:'member-1',movie_ids:['moon']}));
     expect(created).toMatchObject({kind:'classics',host_member_id:null});
     local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-1'; UPDATE members SET active=0 WHERE id='member-2'");
-    const corrected = await payload<Session>(await call('/sessions/demo-2','PUT',{event_date:'2026-09-19',kind:'classics',host_member_id:null,cycle_id:'demo-cycle-a',cycle_slot:2,date_precision:'cycle_rough',movie_ids:['moon']},'member-1'));
+    const corrected = await sessionPayload(await call('/sessions/demo-2','PUT',{event_date:'2026-09-19',kind:'classics',host_member_id:null,cycle_id:'demo-cycle-a',cycle_slot:2,date_precision:'cycle_rough',movie_ids:['moon']},'member-1'));
     expect(corrected).toMatchObject({kind:'hosted',host_member_id:'member-2'});
   });
   it('shares the client host derivation and rejects missing rotation',() => {

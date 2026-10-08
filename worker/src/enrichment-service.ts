@@ -1,3 +1,4 @@
+import { executeProvider, quotaCooldown } from './providers/execution';
 import { enrichmentIdentity, type EnrichmentBatch, type EnrichmentCapture, type EnrichmentProvider } from '../../shared/enrichment';
 import { ApiError, type Env } from './http';
 import { Repository } from './repository';
@@ -18,22 +19,9 @@ export class EnrichmentService {
       response.quota=rateLimitHeaders(headers);
       const value=headers.get('X-RateLimit-Remaining');
       if (provider!=='mdblist' || value===null || !/^\d+$/.test(value) || Number(value)>MDBLIST_QUOTA_RESERVE) return;
-      const reset=Number(headers.get('X-RateLimit-Reset'));
-      const seconds=reset>Date.now()/1000 ? Math.ceil(reset-Date.now()/1000) : 60;
-      await this.repo.setProviderCooldown(provider,Math.min(seconds,86400)); response.stopped=true;
+      await this.repo.setProviderCooldown(provider,quotaCooldown(headers)); response.stopped=true;
     };
-    const call=async <T,>(operation: () => Promise<T>) => {
-      const wait=await this.repo.providerCooldown(provider);
-      if (wait!==null) throw new ProviderError(provider,'rate_limited','Provider is cooling down. Try later.',wait);
-      try { return await operation(); }
-      catch (error) {
-        if (error instanceof ProviderError) {
-          if (error.rateLimit) response.quota=error.rateLimit;
-          if (error.kind==='rate_limited') await this.repo.setProviderCooldown(provider,error.retryAfter ?? 60);
-        }
-        throw error;
-      }
-    };
+    const call=<T,>(operation: () => Promise<T>) => executeProvider(this.repo,provider,operation,{cooldownMessage:'Provider is cooling down. Try later.',onFailure:error=>{if (error.rateLimit) response.quota=error.rateLimit;}});
     const failed=(movieId: string,error: unknown) => {
       const blocking=!(error instanceof ProviderError && error.kind==='not_found');
       response.results.push({movieId,status:'failed',blocking,message:error instanceof ApiError ? error.message : 'Enrichment could not be saved. Completed updates are retained.',...(error instanceof ProviderError && error.retryAfter!==undefined ? {retryAfter:error.retryAfter} : {})});

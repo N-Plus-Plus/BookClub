@@ -65,7 +65,7 @@ CORS reflects exact configured origins only, never `*`, with no cookie credentia
 
 Search trims/collapses whitespace, compares case-insensitively, and removes at most one leading English A or The. Any whole-title matches across the collected local/TMDB pool suppress all weaker candidates; otherwise contiguous-substring matches retain source relevance order. Year is excluded. Saved TMDB identity owners suppress external duplicates. Pagination is frontend-only, six candidates from the same result set.
 
-Event create/update, Builder publication and one-Session GET return the existing ordered-Movie Session shape through a session-scoped transactional read; they do not reconstruct unrelated catalogue data. Partial collection endpoints read their own scope; `/movies` includes the ranking roster, `/sessions` includes active History films, and `/classics` loads membership films and roster.
+One-Session GET returns the ordered-Movie Session shape through a session-scoped transactional read. Event create/update, Builder publication and restore return the journal mutation contract below, using the same narrow session read; they do not reconstruct unrelated catalogue data. Session includes optional created_at (current Worker supplies it), preserving event_date DESC, created_at DESC, id ASC ordering during local reconciliation. Partial collection endpoints read their own scope; `/movies` includes the ranking roster, `/sessions` includes active History films, and `/classics` loads membership films and roster.
 
 Ordinary film detail reads and Seen responses share the selected-film query used by maintenance: movie relationships, ranking roster and that film's active History appearances only, with no unrelated catalog/session/cycle read. The normal 15-second timeout is unchanged.
 
@@ -114,7 +114,7 @@ POST `/sessions` and PUT `/sessions/:id` accept:
 }
 ```
 
-Nonempty ordered lineup, no three-film ceiling. Cycle title/legacy label max 300. Event title, notes and swap explanations are not accepted or stored. New Event host/kind are derived server-side from the current rotation (effective active member assigned to current position 1–4; slot 5 hostless Classics), independently of viewer, submitted host/kind or completion. Corrections retain stored host/kind, including inactive historical hosts; new-event completion defaults checked. Existing/new cycle are exclusive; slot 5 is Classics, 1–4 hosted. Classics has no host; hosted requires one. `cycle_rough` requires cycle context. Slot-1 new cycle requires exact matching anchor; later exact dates are independent. Changing an exact slot-1 date requires explicit `correct_anchor:true`; only unknown legacy reference dates follow. Edits never complete a turn. Creation returns event/201, replacement event/200.
+Nonempty ordered lineup, no three-film ceiling. Cycle title/legacy label max 300. Event title, notes and swap explanations are not accepted or stored. New Event host/kind are derived server-side from the current rotation (effective active member assigned to current position 1–4; slot 5 hostless Classics), independently of viewer, submitted host/kind or completion. Corrections retain stored host/kind, including inactive historical hosts; new-event completion defaults checked. Existing/new cycle are exclusive; slot 5 is Classics, 1–4 hosted. Classics has no host; hosted requires one. `cycle_rough` requires cycle context. Slot-1 new cycle requires exact matching anchor; later exact dates are independent. Changing an exact slot-1 date requires explicit `correct_anchor:true`; only unknown legacy reference dates follow. Edits never complete a turn. Creation returns JournalMutationResult/201, replacement JournalMutationResult/200.
 
 Historical actual hosts may differ from nominal positions and remain stored; Event entry has no host selector. Builder publication retains its separate publisher-host contract. Unchecking new Event completion does not change current-turn host identity. Occupied active cycle/slot returns 409 with related work rolled back. Current completion requires correct turn/version and advances only explicitly. Slots follow fixed human positions then hostless Classics; completing Classics returns to slot 1 awaiting new cycle. Every event create/update and restoration atomically marks every lineup film Seen for all active members, overriding No. Active History is definitive Seen evidence regardless of event kind or completion. Later deletion or lineup correction never reverses it.
 
@@ -122,7 +122,23 @@ GET `/rotation` -> singleton (including parsed `human_order` position/member map
 
 PUT `/sessions/:id` requires an admin or the stored actual host of a hosted event; submitted host/kind cannot grant ownership or change historical identity. DELETE and audit reads require admin, including in local bypass.
 
-GET `/sessions/:id/audit` -> `HistoryAudit[]`, including deleted events, with actor/time/action/structured changes JSON. DELETE `/sessions/:id` -> `{deleted:true}` soft-deletes; POST `/sessions/:id/restore` -> `{restored:true}` admin only. Delete/restore never rewind rotation; restore reapplies all-active-member Seen, while deletion preserves existing Seen evidence; completed-turn edit/delete flags review. Replacement remains last-write-wins; do not imply a History revision guard exists.
+GET `/sessions/:id/audit` -> `HistoryAudit[]`, including deleted events, with actor/time/action/structured changes JSON. DELETE `/sessions/:id` -> `{removedSessionId:string}` soft-deletes; POST `/sessions/:id/restore` -> `{session:Session}` admin only. Delete/restore never rewind rotation; restore reapplies all-active-member Seen, while deletion preserves existing Seen evidence; completed-turn edit/delete flags review. Replacement remains last-write-wins; do not imply a History revision guard exists.
+
+### Journal mutation result
+
+Successful Event create/edit, Builder publication, History delete and restore return `{data:JournalMutationResult}`:
+
+```ts
+{
+  session?: Session,
+  removedSessionId?: string,
+  affectedSessionDates?: {id:string,event_date:string,has_audit:true}[],
+  cycle?: Cycle,
+  rotation?: Rotation | null
+}
+```
+
+Create/edit/publish/restore supply an active session with ordered authoritative post-write Movie snapshots, including Seen and ranking. Save/publish supply the referenced/new cycle when present; anchor correction supplies exact other active cycle_rough session date/audit patches. Completion supplies current rotation; omission leaves rotation unchanged. Delete supplies only removedSessionId and leaves films/Seen/rotation untouched. Restore has no management screen but uses the same reconciliation contract. Clients retain a request-scoped Seen intention lease, including answers confirmed while the mutation response is in flight, and patch canonical movies through those intentions, retain shared History movie references and invalidate Metrics after History changes. Catalogue reads started before reconciliation cannot replace newer journal state; returned rotation uses the existing revision guard. Current product callbacks make no follow-up compact-catalogue or rotation request. This frontend requires the journal-result Worker; deploy Worker before frontend, with no schema change.
 
 ## Canonical title operator endpoints
 
@@ -132,9 +148,9 @@ POST `/movies/reconcile-titles` accepts `{after?:string|null}` and returns `{pro
 
 ## Private Builder
 
-GET `/builders` and `/builders/:id` return only viewer-owned sets. POST/PUT accept `{title?,notes?,movie_ids,revision?}`; empty drafts supported, PUT requires current revision. DELETE accepts `{revision}` -> `{deleted:true}` and permanently removes only private draft. Other-owner IDs return 404 even for admins. Revision is a nonnegative integer. Builder background autosaves serialize revisioned updates and coalesce newer draft snapshots; explicit Save set flushes, and Use set awaits the final persisted revision before publish. The Builder UI disables Use set outside the viewer’s effective active current human turn; the publisher API contract is unchanged. The API/storage/revision contracts remain unchanged.
+GET `/builders` and `/builders/:id` return only viewer-owned sets. Collections use stable created_at ASC, id ASC order; edits do not move sets. Identical ordered movie_ids skip lineup relation writes, while accepted saves still advance revision; changed order/content replaces atomically, retaining duplicates. POST/PUT accept `{title?,notes?,movie_ids,revision?}`; empty drafts supported, PUT requires current revision. DELETE accepts `{revision}` -> `{deleted:true}` and permanently removes only private draft. Other-owner IDs return 404 even for admins. Revision is a nonnegative integer. Builder background autosaves serialize revisioned updates and coalesce newer draft snapshots; explicit Save set flushes, and Use set awaits the final persisted revision before publish. The Builder UI disables Use set outside the viewer’s effective active current human turn; publisher host/permission semantics are unchanged. CRUD privacy and revision semantics remain unchanged.
 
-POST `/builders/:id/publish` accepts `{revision,event_date,cycle_id:string|null,cycle_slot:1–5,complete_turn:boolean,turn_version?,new_cycle?}` -> event/201. Owner is actual hosted publisher; Classics remains hostless. Nonempty lineup required. Publication atomically copies immutable Builder creation time to planned_at, preserves film order, creates event/audit, removes draft and optionally completes guarded rotation/Seen changes. Private Builder titles/notes are not copied to History. Saved sets never enter catalog before publication.
+POST `/builders/:id/publish` accepts `{revision,event_date,cycle_id:string|null,cycle_slot:1–5,complete_turn:boolean,turn_version?,new_cycle?}` -> JournalMutationResult/201. Owner is actual hosted publisher; Classics remains hostless. Nonempty lineup required. Publication atomically copies immutable Builder creation time to planned_at, preserves film order, creates event/audit, removes draft and optionally completes guarded rotation/Seen changes. Private Builder titles/notes are not copied to History. Saved sets never enter catalog before publication.
 
 ## Import, export and artefact contracts
 

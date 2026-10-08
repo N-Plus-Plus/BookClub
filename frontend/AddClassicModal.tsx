@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { NativeDialog } from './NativeDialog';
+import { useRef, useState } from 'react';
+import { Plus } from 'lucide-react';
 import type { Catalog, FilmCandidate, MovieDetail, TmdbPreview } from '../shared/types';
 import { api } from './api';
 import { Action, Poster } from './components';
@@ -15,12 +16,10 @@ function eligibility(movie: MovieDetail, catalog: Catalog) {
 }
 
 export function AddClassicModal({catalog,onMovie,onClose}: {catalog: Catalog; onMovie: (movie: MovieDetail) => void; onClose: () => void}) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const inFlight = useRef(false);
   const [selection,setSelection] = useState<{candidate: FilmCandidate; film: MovieDetail | TmdbPreview} | null>(null);
   const [selecting,setSelecting] = useState(false);
   const [busy,setBusy] = useState(false), [error,setError] = useState('');
-  useEffect(() => { const element = dialog.current!; element.showModal(); return () => element.close(); },[]);
   const status = selection && 'id' in selection.film ? eligibility(selection.film,catalog) : null;
   const add = async () => {
     if (!selection || status || selecting || inFlight.current) return;
@@ -34,14 +33,12 @@ export function AddClassicModal({catalog,onMovie,onClose}: {catalog: Catalog; on
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not add Classic. Try again.'); }
     finally { inFlight.current = false; setBusy(false); }
   };
-  return <dialog ref={dialog} className="builder-set-picker add-classic-modal" aria-labelledby="add-classic-heading" onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
-    <div className="stack"><div className="section-title"><h2 id="add-classic-heading">Add Classic</h2><Action icon={X} aria-label="Close Add Classic" disabled={busy} onClick={onClose} /></div>
+  return <NativeDialog heading="Add Classic" id="add-classic-heading" closeLabel="Close Add Classic" onClose={onClose} busy={busy} className="add-classic-modal">
       <FilmPicker movieById={catalogIndex(catalog).movieById} selected={[]} onSelected={() => {}} onMovie={() => {}} disabled={busy} onSelectionPending={setSelecting} onCandidateSelected={(candidate,film) => { setSelection({candidate,film}); setError(''); }} />
       {selection && <section className="stack" aria-label="Selected film" aria-live="polite"><div className="movie-row"><Poster movie={selection.film} /><div className="movie-copy"><h3 className="movie-title">{selection.film.title}</h3><p className="meta">{selection.film.year ?? 'Year unknown'} · {selection.film.runtime ? `${selection.film.runtime} min` : 'Runtime unknown'}</p><p className="meta">Director: {selection.film.director ?? 'Unknown'}</p></div></div>
         {selection.film.overview && <p className="detail-overview">{selection.film.overview}</p>}
         {status ? <p className="classic-eligibility" role="status">{status}</p> : <Action icon={Plus} variant="primary" disabled={busy || selecting} onClick={() => void add()}>{busy ? 'Adding…' : 'Add Classic'}</Action>}
       </section>}
       {error && <p className="error-message" role="alert">{error}</p>}
-    </div>
-  </dialog>;
+  </NativeDialog>;
 }

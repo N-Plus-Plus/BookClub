@@ -24,6 +24,7 @@ export interface Movie {
   classics_membership?: { rank_seed: number; added_at: string; source: string | null } | null;
 }
 export interface Session {
+  created_at?: string;
   has_audit?: boolean;
   deleted_at?: string | null;
   id: string; event_date: string; host_member_id: string | null;
@@ -62,4 +63,13 @@ export interface SelectedMetadataEnrichment {
 export interface MetadataEnrichment {
   results: {movieId: string; title: string; provider: 'tmdb'; status: 'success' | 'failed' | 'conflict'; message: string; retryAfter?: number}[];
   remaining: number; unidentified: number;
+}
+
+/** Authoritative, narrow effects of a committed History mutation. */
+export interface JournalMutationResult {
+  session?: Session;
+  removedSessionId?: string;
+  affectedSessionDates?: {id: string; event_date: string; has_audit: true}[];
+  cycle?: Cycle;
+  rotation?: Rotation | null;
 }

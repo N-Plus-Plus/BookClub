@@ -45,7 +45,7 @@ export class CatalogRepository {
       this.db.prepare('SELECT movie_id,member_id,seen,updated_at FROM seen_states'),
       this.db.prepare('SELECT movie_id,rank_seed,added_at,source FROM classics'),
       this.db.prepare('SELECT movie_id,genre FROM movie_genres ORDER BY genre'),
-      this.db.prepare('SELECT id,event_date,host_member_id,legacy_cycle_label,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,completed_turn_version,EXISTS(SELECT 1 FROM history_audit WHERE session_id=sessions.id) AS has_audit FROM sessions WHERE deleted_at IS NULL ORDER BY event_date DESC,created_at DESC,id'),
+      this.db.prepare('SELECT id,created_at,event_date,host_member_id,legacy_cycle_label,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,completed_turn_version,EXISTS(SELECT 1 FROM history_audit WHERE session_id=sessions.id) AS has_audit FROM sessions WHERE deleted_at IS NULL ORDER BY event_date DESC,created_at DESC,id'),
       this.db.prepare('SELECT sm.session_id,sm.movie_id,sm.position FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE s.deleted_at IS NULL ORDER BY sm.position'),
       this.db.prepare('SELECT * FROM cycles ORDER BY ordinal DESC,id'),
       this.db.prepare(enrichment ? "SELECT movie_id,certification,release_type FROM movie_provider_content_ratings WHERE provider='tmdb' AND country='AU'" : 'SELECT NULL AS movie_id,NULL AS certification,NULL AS release_type WHERE 0'),
@@ -106,7 +106,7 @@ export class CatalogRepository {
 
   async sessions(id?:string): Promise<Session[]> {
     const where = id ? ' AND id=?' : '';
-    const query = this.db.prepare(`SELECT id,event_date,host_member_id,legacy_cycle_label,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,completed_turn_version,EXISTS(SELECT 1 FROM history_audit WHERE session_id=sessions.id) AS has_audit FROM sessions WHERE deleted_at IS NULL${where} ORDER BY event_date DESC,created_at DESC,id`);
+    const query = this.db.prepare(`SELECT id,created_at,event_date,host_member_id,legacy_cycle_label,cycle_id,kind,date_precision,cycle_slot,planned_at,published_by,completed_turn_version,EXISTS(SELECT 1 FROM history_audit WHERE session_id=sessions.id) AS has_audit FROM sessions WHERE deleted_at IS NULL${where} ORDER BY event_date DESC,created_at DESC,id`);
     const joins = this.db.prepare(`SELECT sm.session_id,sm.movie_id FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE s.deleted_at IS NULL${id ? ' AND s.id=?' : ''} ORDER BY sm.position`);
     const scope = `id IN (SELECT sm.movie_id FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE s.deleted_at IS NULL${id ? ' AND s.id=?' : ''})`;
     const result = await this.db.batch([...this.movieStatements(scope,id ? [id] : [],await this.capabilities.hasDirector()),...(id ? [query.bind(id),joins.bind(id)] : [query,joins])]);
