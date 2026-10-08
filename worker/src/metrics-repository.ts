@@ -1,4 +1,4 @@
-import { emptyEnrichmentMovie, type MetricsEnrichment } from '../../shared/metrics-enrichment';
+import { emptyEnrichmentMovie, type MetricsEnrichment } from '../../shared/metrics-enrichment/facts';
 import { ApiError } from './http';
 
 /** Seven set-based SELECTs; no provider service or write dependency. */

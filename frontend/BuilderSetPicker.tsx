@@ -1,3 +1,4 @@
+import { catalogIndex } from '../shared/catalog-index';
 import { useEffect, useRef, useState } from 'react';
 import { ListChecks, RefreshCw, X } from 'lucide-react';
 import type { BuilderSet, Catalog, Viewer } from '../shared/types';
@@ -22,7 +23,7 @@ export function BuilderSetPicker({catalog,viewer,onClose,onChoose}: {catalog: Ca
     return () => { active = false; };
   },[viewer.id,attempt]);
   const close = () => { dialog.current?.close(); onClose(); };
-  const choices = sets.map(set => ({set,films: set.movie_ids.map(id => catalog.movies.find(movie => movie.id === id))}));
+  const choices = sets.map(set => ({set,films: set.movie_ids.map(id => catalogIndex(catalog).movieById.get(id))}));
   const usable = choices.length > 0;
   return <dialog ref={dialog} className="builder-set-picker" aria-labelledby="builder-picker-heading" onCancel={e => { e.preventDefault(); close(); }}>
     <div className="stack"><div className="section-title"><h2 id="builder-picker-heading">Use from Builder</h2><Action icon={X} autoFocus aria-label="Close Builder set picker" onClick={close} /></div>

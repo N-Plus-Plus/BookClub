@@ -1,3 +1,4 @@
+import { ratingDimensions, metricsRatingKeys } from './rating-dimensions';
 import type { Catalog, Movie } from './types';
 import { scoreValue } from './ranking';
 import { normalizedGenres } from './genres';
@@ -6,17 +7,10 @@ export { metricsCatalog, metricsSummary, matchesMetricsFilter, selectedAppearanc
 
 const once = <T>(calculate: () => T) => { let ready = false, value: T; return () => {if (!ready) {value=calculate();ready=true;} return value;}; };
 
-export const metricsScoreDimensions = [
-  {id: 'imdb', label: 'IMDb', name: 'IMDb', provider: 'imdb', metric: 'rating', scale: 10},
-  {id: 'letterboxd', label: 'LB', name: 'Letterboxd', provider: 'letterboxd', metric: 'rating', scale: 5},
-  {id: 'metacritic', label: 'MC', name: 'Metacritic', provider: 'metacritic', metric: 'critic', scale: 100},
-  {id: 'metacritic-user', label: 'MC-U', name: 'Metacritic User', provider: 'metacritic', metric: 'user', scale: 10},
-  {id: 'rt-audience', label: 'RT-A', name: 'Rotten Tomatoes - Audience', provider: 'rottentomatoes', metric: 'audience', scale: 100},
-  {id: 'rt-critic', label: 'RT-C', name: 'Rotten Tomatoes - Critic', provider: 'rottentomatoes', metric: 'critic', scale: 100},
-  {id: 'tmdb', label: 'TMDB', name: 'TMDB', provider: 'tmdb', metric: 'rating', scale: 10},
-  {id: 'trakt', label: 'Trakt', name: 'Trakt', provider: 'trakt', metric: 'rating', scale: 100},
-  {id: 'ebert', label: 'Ebert', name: 'Roger Ebert', provider: 'rogerebert', metric: 'rating', scale: 4},
-] as const;
+export const metricsScoreDimensions = metricsRatingKeys.map(key => {
+  const {id,compactLabel:label,name,provider,metric,scale} = ratingDimensions[key];
+  return {id,label,name,provider,metric,scale};
+});
 export type MetricsScoreDimension = typeof metricsScoreDimensions[number]['id'];
 export interface RankedAppearance extends Appearance { selectedScore: number }
 

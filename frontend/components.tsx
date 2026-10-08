@@ -1,6 +1,7 @@
+import { ratingDimensions, ratingDimension, sourceRatingKeys } from '../shared/rating-dimensions';
 import { useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Eye, Film, RefreshCw, type LucideIcon } from 'lucide-react';
-import { latestScores, requiredScores, scoreValue } from '../shared/ranking';
+import { latestScores, scoreValue } from '../shared/ranking';
 import { posterReference } from '../shared/artwork';
 import { formatScore100, possessiveName } from './presentation';
 import { ClubIdentity } from './ClubIdentity';
@@ -61,22 +62,20 @@ export function SessionCard({session,members,actions,dateHeading,variant}: {sess
     {session.planned_at && <p className="meta">Planned {new Date(session.planned_at).toLocaleString('en-AU')}</p>}
   </article>;
 }
-// Genuine source scores share compact labels and canonical presentation order.
-export const sourceRatings = [
-  ['imdb','rating','IMDb','IMDb Rating'], ['letterboxd','rating','LB','Letterboxd Rating'],
-  ['metacritic','user','MC-U','Metacritic User Score'], ['rottentomatoes','audience','RT-A','Rotten Tomatoes Audience Score'],
-  ['tmdb','rating','TMDB','TMDB Rating'], ['trakt','rating','Trakt','Trakt Rating'],
-  ['rogerebert','rating','Ebert','Roger Ebert Rating'], ['metacritic','critic','MC','Metacritic Critic Score'], ['rottentomatoes','critic','RT-C','Rotten Tomatoes Critic Score'],
-] as const;
+// Compatibility tuples derived from canonical presentation metadata.
+export const sourceRatings = sourceRatingKeys.map(key => {
+  const d = ratingDimensions[key];
+  return [d.provider,d.metric,d.compactLabel,d.fullLabel] as const;
+});
 export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; scores?: Score[]}) {
   const stored = latestScores(scores);
   const items = sourceRatings.flatMap(([provider,metric,label,description]) => {
     const source = stored.find(s => s.provider === provider && s.metric === metric);
-    const rankingInput = requiredScores.some(key => key === `${provider}:${metric}`);
+    const rankingInput = ratingDimension(provider,metric)?.rankingRequired;
     const value = rankingInput && ranking ? ranking.sources.find(s => s.provider === provider && s.metric === metric)?.value : source ? scoreValue(source) : undefined;
     return value != null ? [{provider,metric,label,description,value}] : [];
   });
-  const firstCritic = items.findIndex(item => item.provider === 'rogerebert' || item.metric === 'critic');
+  const firstCritic = items.findIndex(item => ratingDimension(item.provider,item.metric)?.group === 'critic');
   const rowRef = useRef<HTMLParagraphElement>(null);
   useLayoutEffect(() => {
     const row = rowRef.current;

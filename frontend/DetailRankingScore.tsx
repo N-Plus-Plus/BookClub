@@ -1,19 +1,12 @@
 import type { Ranking } from '../shared/types';
 
-// Presentation order only: values come from ranking's genuine and imputed inputs.
-const detailRatings = [
-  ['imdb','rating','IMDb Rating','IMDb'],
-  ['letterboxd','rating','Letterboxd Rating','Letterboxd'],
-  ['metacritic','critic','Metacritic Critic Score','Metacritic'],
-  ['rottentomatoes','audience','Rotten Tomatoes Audience Score','Rotten Tomatoes'],
-  ['rottentomatoes','critic','Rotten Tomatoes Critic Score','Rotten Tomatoes'],
-  ['tmdb','rating','TMDB Rating','TMDB'],
-] as const;
+import { detailRatingKeys, ratingDimensions } from '../shared/rating-dimensions';
 const score100 = (value: number | undefined) => value !== undefined && Number.isFinite(value) ? `${Math.round(value)}/100` : '-';
 const integer = (value: number | null) => value !== null && Number.isFinite(value) ? Math.round(value).toLocaleString('en-AU') : '—';
 
 export function DetailRankingScore({ranking}: {ranking: Ranking}) {
-  const inputs = detailRatings.map(([provider,metric,label,name]) => {
+  const inputs = detailRatingKeys.map(key => {
+    const {provider,metric,fullLabel:label,providerName:name} = ratingDimensions[key];
     const source = ranking.sources.find(score => score.provider === provider && score.metric === metric);
     const imputed = ranking.imputedScores.find(score => score.provider === provider && score.metric === metric);
     return {provider,metric,label,name,source,value:source?.value ?? imputed?.value,imputed:!source && imputed !== undefined && Number.isFinite(imputed.value)};

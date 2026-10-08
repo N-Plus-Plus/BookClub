@@ -41,7 +41,7 @@ Double-flag local bypass never loads GIS and needs no internet/account. Auth tes
 
 ## TMDB
 
-Owners: `worker/src/providers/tmdb.ts`, `services.ts`, `repository.ts`; eligibility/sizing in `shared/metadata.ts`, `artwork.ts`; explicit resolver in `scripts/import/tmdb-resolution.ts`. Credential is Worker bearer `TMDB_READ_TOKEN`; resolver reads process env first then an explicitly supplied ignored env file, never OWNER_INFO.md.
+Owners: `worker/src/providers/tmdb.ts`, `services.ts`, `movie-repository.ts` (writes), `catalog-repository.ts` (reads), `maintenance-repository.ts` (selection/cooldowns); services retain the delegating `repository.ts` surface. Eligibility/sizing live in `shared/metadata.ts`, `artwork.ts`; explicit resolver in `scripts/import/tmdb-resolution.ts`. Credential is Worker bearer `TMDB_READ_TOKEN`; resolver reads process env first then an explicitly supplied ignored env file, never OWNER_INFO.md.
 
 | Operation | Input / output used |
 | --- | --- |
@@ -73,7 +73,7 @@ Its version-2 runner (`pair-tmdb-round2.ts`, `tmdb-merge.ts`) also reconciles ex
 
 ## Rating providers
 
-Owners: `worker/src/score-service.ts`, `providers/mdblist.ts`, `omdb.ts`, `ratings.ts`, `http.ts`, `repository.ts`; selection in `shared/ranking.ts`. Admin-only compatibility score refresh/Classics enrichment and bulk maintenance of all distinct Classics/active-History films. Credentials are Worker-only, supplied in local ignored secret file or production Wrangler secret bindings.
+Owners: `worker/src/score-service.ts`, `providers/mdblist.ts`, `omdb.ts`, `ratings.ts`, `http.ts`; persistence in `movie-repository.ts`, selection/checks/cooldowns in `maintenance-repository.ts`, reached through the delegating `repository.ts` surface. Score policy remains in `shared/ranking.ts`; presentation metadata in `shared/rating-dimensions.ts` never controls retrieval or parsing. Admin-only compatibility score refresh/Classics enrichment and bulk maintenance cover distinct Classics/active-History films. Credentials are Worker-only, supplied in local ignored secret file or production Wrangler secret bindings.
 
 | Provider / actual operation | Data used |
 | --- | --- |

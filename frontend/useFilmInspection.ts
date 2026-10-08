@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { catalogIndex } from '../shared/catalog-index';
 import type { Catalog, FilmCandidate, Movie, TmdbPreview } from '../shared/types';
 import { api } from './api';
 import { resolveRoute } from './routes';
@@ -26,7 +27,7 @@ export function useFilmInspection(page:string,catalog:Catalog|null,applyMovie:(m
     try {
       const candidate = context.candidate;
       const movie = candidate.kind === 'local'
-        ? catalog?.movies.find(movie => movie.id === candidate.movie.id) ?? await api.detail(candidate.movie.id)
+        ? (catalog ? catalogIndex(catalog).movieById.get(candidate.movie.id) : undefined) ?? await api.detail(candidate.movie.id)
         : await api.importMovie(candidate.movie.externalId);
       if (inspectionRef.current !== context) return;
       accepted = true; applyMovie(movie); confirmedReturn.current = context.source; setConfirmedMovie(movie); window.location.hash = `/${context.source}`;

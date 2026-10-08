@@ -4,11 +4,12 @@ import type { Catalog, FilmCandidate, MovieDetail, TmdbPreview } from '../shared
 import { api } from './api';
 import { Action, Poster } from './components';
 import { FilmPicker } from './FilmPicker';
+import { catalogIndex } from '../shared/catalog-index';
 
 function eligibility(movie: MovieDetail, catalog: Catalog) {
-  if (movie.classic || catalog.movies.some(m => m.id === movie.id && m.classic)) return 'Already listed!';
+  if (movie.classic || catalogIndex(catalog).movieById.get(movie.id)?.classic) return 'Already listed!';
   const members = catalog.members.filter(m => m.active);
-  if (movie.appearances.length || catalog.sessions.some(s => s.movies.some(m => m.id === movie.id)) ||
+  if (movie.appearances.length || catalogIndex(catalog).historyMovieIds.has(movie.id) ||
       (members.length > 0 && members.every(member => movie.seen.some(answer => answer.member_id === member.id && answer.seen === 1)))) return "We've seen it!";
   return null;
 }
@@ -35,7 +36,7 @@ export function AddClassicModal({catalog,onMovie,onClose}: {catalog: Catalog; on
   };
   return <dialog ref={dialog} className="builder-set-picker add-classic-modal" aria-labelledby="add-classic-heading" onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
     <div className="stack"><div className="section-title"><h2 id="add-classic-heading">Add Classic</h2><Action icon={X} aria-label="Close Add Classic" disabled={busy} onClick={onClose} /></div>
-      <FilmPicker movies={catalog.movies} selected={[]} onSelected={() => {}} onMovie={() => {}} disabled={busy} onSelectionPending={setSelecting} onCandidateSelected={(candidate,film) => { setSelection({candidate,film}); setError(''); }} />
+      <FilmPicker movieById={catalogIndex(catalog).movieById} selected={[]} onSelected={() => {}} onMovie={() => {}} disabled={busy} onSelectionPending={setSelecting} onCandidateSelected={(candidate,film) => { setSelection({candidate,film}); setError(''); }} />
       {selection && <section className="stack" aria-label="Selected film" aria-live="polite"><div className="movie-row"><Poster movie={selection.film} /><div className="movie-copy"><h3 className="movie-title">{selection.film.title}</h3><p className="meta">{selection.film.year ?? 'Year unknown'} · {selection.film.runtime ? `${selection.film.runtime} min` : 'Runtime unknown'}</p><p className="meta">Director: {selection.film.director ?? 'Unknown'}</p></div></div>
         {selection.film.overview && <p className="detail-overview">{selection.film.overview}</p>}
         {status ? <p className="classic-eligibility" role="status">{status}</p> : <Action icon={Plus} variant="primary" disabled={busy || selecting} onClick={() => void add()}>{busy ? 'Adding…' : 'Add Classic'}</Action>}

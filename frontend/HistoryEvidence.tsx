@@ -1,3 +1,4 @@
+import { catalogIndex } from '../shared/catalog-index';
 import type { Catalog, Rotation, Session } from '../shared/types';
 import { currentTurnLabel, historicalTurnLabel, possessiveName } from './presentation';
 import { dateLabel, eventDateLabel } from './components';
@@ -11,8 +12,8 @@ export function HistoryEvidence({json,catalog}: {json: string; catalog: Catalog}
   let changes: Evidence;
   try { changes = record(JSON.parse(json)); }
   catch { return <p className="meta">Change details unavailable.</p>; }
-  const memberName = (id: unknown) => catalog.members.find(m => m.id === id)?.display_name ?? 'Former member';
-  const cycleName = (id: unknown) => { const cycle = catalog.cycles.find(c => c.id === id); return cycle ? cycle.title || `Cycle ${cycle.ordinal}` : id ? 'Former cycle' : 'Ungrouped'; };
+  const memberName = (id: unknown) => (typeof id === 'string' ? catalogIndex(catalog).memberById.get(id)?.display_name : undefined) ?? 'Former member';
+  const cycleName = (id: unknown) => { const cycle = typeof id === 'string' ? catalogIndex(catalog).cycleById.get(id) : undefined; return cycle ? cycle.title || `Cycle ${cycle.ordinal}` : id ? 'Former cycle' : 'Ungrouped'; };
   const snapshot = (value: unknown,heading: string) => {
     const data = record(value);
     if (!Object.keys(data).length) return null;
@@ -23,7 +24,7 @@ export function HistoryEvidence({json,catalog}: {json: string; catalog: Catalog}
       {Object.hasOwn(data,'host_member_id') && <p className="meta">Host: {data.host_member_id ? memberName(data.host_member_id) : 'Hostless'}</p>}
       {Object.hasOwn(data,'cycle_id') && <p className="meta">Cycle: {cycleName(data.cycle_id)}</p>}
       {Object.hasOwn(data,'cycle_slot') && <p className="meta">Historical turn: {historicalTurnLabel(typeof data.cycle_slot === 'number' ? data.cycle_slot : null)}</p>}
-      {films && <><p className="meta">Film lineup{!films.length ? ': No films' : ''}</p>{films.length > 0 && <ol>{films.map((id,i) => <li key={i}>{catalog.movies.find(m => m.id === id)?.title ?? 'Unavailable film'}</li>)}</ol>}</>}
+      {films && <><p className="meta">Film lineup{!films.length ? ': No films' : ''}</p>{films.length > 0 && <ol>{films.map((id,i) => <li key={i}>{catalogIndex(catalog).movieById.get(id)?.title ?? 'Unavailable film'}</li>)}</ol>}</>}
       {data.complete_turn === true && <p className="meta">Current turn completed.</p>}
       {data.complete_turn === false && <p className="meta">Current turn not completed.</p>}
       {record(data.new_cycle).rough_date && validDate(record(data.new_cycle).rough_date) ? <p className="meta">New cycle anchor: {dateLabel(record(data.new_cycle).rough_date as string)}</p> : null}

@@ -1,3 +1,4 @@
+import { catalogIndex } from '../shared/catalog-index';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { ArrowLeft, Check, ChevronRight, Eye, History, Home, Plus, RefreshCw, X } from 'lucide-react';
 import { metricsSummary } from '../shared/metrics-summary';
@@ -92,7 +93,7 @@ export function App() {
   const classics = useMemo(()=>catalog ? sortClassics(catalog.movies.filter(m=>m.classic)) : [],[catalog]);
   const eligible = useMemo(()=>classics.filter(m=>m.ranking?.eligible && m.ranking.rankable),[classics]);
   const excluded = useMemo(()=>classics.filter(m=>!m.ranking?.eligible),[classics]);
-  const missing = useMemo(()=>catalog ? missingAnswers(catalog.movies,catalog.members,viewer?.id ?? '',new Set(catalog.sessions.flatMap(s=>s.movies.map(m=>m.id)))).length : 0,[catalog,viewer?.id]);
+  const missing = useMemo(()=>catalog ? missingAnswers(catalog.movies,catalog.members,viewer?.id ?? '',catalogIndex(catalog).historyMovieIds).length : 0,[catalog,viewer?.id]);
   const detailContext = inspection && page === inspection.target;
   const inspecting = detailContext && inspection.source !== 'seen';
   const builderInspection = detailContext && inspection.source === 'builder';
@@ -122,10 +123,10 @@ export function App() {
       {isAdminPage && <Suspense fallback={<LoadingView />}><AdminScreen onEnrichmentChanged={()=>metricsResource.invalidate()} catalog={catalog} rotation={rotation} onRotationUpdated={updateRotation} writesEnabled={writesEnabled} onMovie={applyMovie} onUpdated={refreshData} /></Suspense>}
       {resolvedRoute.kind === 'metrics' && <Suspense fallback={<LoadingView />}><MetricsScreen resource={metricsResource} catalog={catalog} viewer={viewer} onUpdated={refreshData} /></Suspense>}
       {(resolvedRoute.kind === 'builder' || builderInspection) && <div hidden={Boolean(builderInspection)}><BuilderScreen onEditorChanged={builderEditorChanged} newSetRequest={newSetRequest} onInspect={inspect} confirmedMovie={resolvedRoute.kind === 'builder' ? confirmedMovie : null} onConfirmedConsumed={consumeConfirmedMovie} key={viewer?.id} catalog={catalog} viewer={viewer} rotation={rotation} onMovie={applyMovie} onPublished={() => { void refreshData(); setNotice('Set added to History.'); window.location.hash = '/history'; }} /></div>}
-      {eventRoute?.kind === 'event' && (!eventRoute.id || catalog.sessions.some(s => s.id === eventRoute.id)) && <div hidden={Boolean(inspecting)} key={eventRoute.path}><EventScreen onInspect={inspect} confirmedMovie={page === eventRoute.path ? confirmedMovie : null} onConfirmedConsumed={consumeConfirmedMovie} prefillMovieIds={!eventRoute.id ? eventPrefill : null} onPrefillConsumed={consumeEventPrefill} initial={!eventRoute.id ? undefined : catalog.sessions.find(s => s.id === eventRoute.id)} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={() => {
+      {eventRoute?.kind === 'event' && (!eventRoute.id || catalogIndex(catalog).sessionById.has(eventRoute.id)) && <div hidden={Boolean(inspecting)} key={eventRoute.path}><EventScreen onInspect={inspect} confirmedMovie={page === eventRoute.path ? confirmedMovie : null} onConfirmedConsumed={consumeConfirmedMovie} prefillMovieIds={!eventRoute.id ? eventPrefill : null} onPrefillConsumed={consumeEventPrefill} initial={!eventRoute.id ? undefined : catalogIndex(catalog).sessionById.get(eventRoute.id)} viewer={viewer} rotation={rotation} catalog={catalog} writesEnabled={writesEnabled} onMovie={applyMovie} onSaved={() => {
         void refreshData(); setNotice('Event saved to the film journal.'); window.location.hash = '/history';
       }} /></div>}
-      {resolvedRoute.kind === 'event' && resolvedRoute.id && !catalog.sessions.some(s => s.id === resolvedRoute.id) && <Empty title="Event not found">The event may have been deleted. Return to History to review available events.</Empty>}
+      {resolvedRoute.kind === 'event' && resolvedRoute.id && !catalogIndex(catalog).sessionById.has(resolvedRoute.id) && <Empty title="Event not found">The event may have been deleted. Return to History to review available events.</Empty>}
       {resolvedRoute.kind === 'classics' && <ClassicsScreen viewer={viewer} catalog={catalog} onUpdated={refreshData} movies={classics} writesEnabled={writesEnabled} onMovie={applyMovie} />}
       {(resolvedRoute.kind === 'seen' || (detailContext && inspection.source === 'seen')) && <div hidden={resolvedRoute.kind !== 'seen'}><SeenScreen key={viewer?.id} viewerId={viewer?.id ?? ''} catalog={catalog} answer={seenAnswers.answer} pending={seenAnswers.pending} failures={seenAnswers.failures} retry={seenAnswers.retry} writesEnabled={writesEnabled} /></div>}
       {resolvedRoute.kind === 'movie' && <DetailScreen key={page} id={resolvedRoute.id} members={catalog.members} />}

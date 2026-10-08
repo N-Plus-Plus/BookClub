@@ -1,3 +1,4 @@
+import { ratingDimension } from '../shared/rating-dimensions';
 import type { Member, Rotation } from '../shared/types';
 import { effectiveMember } from '../shared/rotation';
 
@@ -26,6 +27,5 @@ export function validationFieldLabel(path: string) {
 }
 
 export function ratingLabel(provider: string,metric: string) {
-  return provider === 'imdb' ? 'IMDb' : provider === 'rottentomatoes' ? (metric === 'audience' ? 'RT audience' : 'RT critic')
-    : provider === 'letterboxd' ? 'Letterboxd' : provider === 'metacritic' ? 'Metacritic' : provider === 'tmdb' ? 'TMDB' : provider;
+  return (ratingDimension(provider,metric) ?? ratingDimension(provider,'rating') ?? ratingDimension(provider,'critic'))?.ratingLabel ?? provider;
 }

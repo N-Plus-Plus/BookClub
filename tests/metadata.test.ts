@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { disposableD1 } from './d1';
 import { Repository } from '../worker/src/repository';
+import { MovieRepository } from '../worker/src/movie-repository';
 import { MovieService, TMDB_METADATA_REFRESH_DAYS, tmdbMetadataIsStale } from '../worker/src/services';
 import { metadataCandidate, metadataGaps, metadataQueue, tmdbIdentity } from '../shared/metadata';
 import { hashToken } from '../worker/src/auth';
@@ -20,7 +21,7 @@ beforeEach(async()=>{
   local.sqlite.exec("DELETE FROM movie_genres WHERE movie_id='arrival'; INSERT INTO classics(movie_id,source) VALUES('arrival','synthetic'); INSERT INTO movie_import_refs(movie_id,import_source,source_ref) VALUES('arrival','synthetic','Tracker:2:B'); INSERT INTO seen_states(movie_id,member_id,seen) VALUES('arrival','member-1',0)");
   local.sqlite.exec("INSERT INTO seen_import_observations VALUES('arrival','synthetic','Tracker:2:B','member-1',1,'2000-01-01'); INSERT INTO import_applied_entities VALUES('synthetic','movies','arrival','immutable-fictional-fingerprint')");
 });
-afterEach(()=>{local.sqlite.close();vi.unstubAllGlobals();});
+afterEach(()=>{local.sqlite.close();vi.unstubAllGlobals();vi.restoreAllMocks();});
 const call=(input:unknown={limit:10})=>worker.fetch(new Request('http://api/api/v1/movies/enrich-metadata',{method:'POST',headers:{Authorization:`Bearer ${token}`},body:JSON.stringify(input)}),env);
 describe('bounded existing-film metadata enrichment',()=>{
   it('uses narrow selection/counts without any full catalogue reconstruction',async()=>{
@@ -170,9 +171,9 @@ describe('bounded existing-film metadata enrichment',()=>{
   });
   it('rolls back metadata when an external ID collision races preflight',async()=>{
     local.sqlite.exec("DELETE FROM movie_external_ids WHERE movie_id='arrival' AND provider='imdb'");
-    const build=repo.metadataStatements.bind(repo);
-    vi.spyOn(repo,'metadataStatements').mockImplementation((...args)=>{
-      const statements=build(...args);
+    const build=MovieRepository.prototype.metadataStatements;
+    vi.spyOn(MovieRepository.prototype,'metadataStatements').mockImplementation(function (this:MovieRepository,...args) {
+      const statements=build.call(this,...args);
       local.sqlite.exec("INSERT INTO movie_external_ids VALUES('moon','imdb','tt2543164')");
       return statements;
     });

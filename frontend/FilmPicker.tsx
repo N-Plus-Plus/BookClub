@@ -4,7 +4,7 @@ import type { FilmCandidate, Movie, MovieDetail, SearchResponse, TmdbPreview } f
 import { api } from './api';
 import { candidatePage, searchCandidates } from '../shared/search';
 import { Action, Empty, MovieRow, Poster } from './components';
-export function FilmPicker({selected,onSelected,onMovie,disabled = false,onInspect,onCandidateSelected,onSelectionPending,allowDirectSelection = false,showManualAdd = true,builder = false,movies = []}: {showManualAdd?: boolean; builder?: boolean; movies?: Movie[]; allowDirectSelection?: boolean; selected: Movie[]; onSelected: (films: Movie[]) => void; onMovie: (movie: Movie) => void; disabled?: boolean; onSelectionPending?: (pending: boolean) => void; onCandidateSelected?: (candidate: FilmCandidate, film: MovieDetail | TmdbPreview) => void; onInspect?: (candidate: FilmCandidate, preview?: TmdbPreview, pending?: Promise<TmdbPreview>) => void}) {
+export function FilmPicker({selected,onSelected,onMovie,disabled = false,onInspect,onCandidateSelected,onSelectionPending,allowDirectSelection = false,showManualAdd = true,builder = false,movies = [],movieById}: {showManualAdd?: boolean; builder?: boolean; movies?: Movie[]; movieById?: ReadonlyMap<string,Movie>; allowDirectSelection?: boolean; selected: Movie[]; onSelected: (films: Movie[]) => void; onMovie: (movie: Movie) => void; disabled?: boolean; onSelectionPending?: (pending: boolean) => void; onCandidateSelected?: (candidate: FilmCandidate, film: MovieDetail | TmdbPreview) => void; onInspect?: (candidate: FilmCandidate, preview?: TmdbPreview, pending?: Promise<TmdbPreview>) => void}) {
   const [query,setQuery] = useState(''), [results,setResults] = useState<SearchResponse | null>(null);
   const [title,setTitle] = useState(''), [year,setYear] = useState(''), [runtime,setRuntime] = useState('');
   const [error,setError] = useState(''), [busy,setBusy] = useState(false), [searching,setSearching] = useState(false);
@@ -58,7 +58,7 @@ export function FilmPicker({selected,onSelected,onMovie,disabled = false,onInspe
       const m = candidate.movie;
       const id = candidate.kind === 'local' ? candidate.movie.tmdbId : candidate.movie.externalId;
       const preview = id ? previews[id] : undefined;
-      const director = candidate.kind === 'local' ? movies.find(movie => movie.id === candidate.movie.id)?.director ?? preview?.director : preview?.director;
+      const director = candidate.kind === 'local' ? (movieById ? movieById.get(candidate.movie.id) : movies.find(movie => movie.id === candidate.movie.id))?.director ?? preview?.director : preview?.director;
       const poster = {title:m.title,assets:m.poster ? [{provider:'tmdb',asset_type:'poster' as const,reference:m.poster,width:null,height:null,preferred:1}] : []};
       const inspect = (e: MouseEvent<HTMLAnchorElement>) => {
         if (!onInspect || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;

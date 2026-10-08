@@ -1,18 +1,14 @@
-import { z, ZodError } from 'zod';
+import { ZodError } from 'zod';
 import { ApiError, allowedOrigins, authorizeMutation, localBypass, json, type Env } from './http';
-import { titleReconcileSchema, classicSchema, selectedMetadataSchema, maintenanceSchema, enrichmentSchema, idSchema, importSchema, movieSchema, seenSchema, sessionSchema } from './validation';
-import { ScoreService } from './score-service';
-import { EnrichmentService } from './enrichment-service';
-import { TitleRepository } from './title-repository';
-import { providerEnrichmentSchema } from './validation';
 import { Repository } from './repository';
-import { MetricsRepository } from './metrics-repository';
 import { MovieService } from './services';
+import { ProductRepository } from './product-repository';
 import { authenticate, login, verifyGoogle, type GoogleVerifier } from './auth';
 import { AuthRepository } from './auth-repository';
-import { sortClassics } from '../../shared/ranking';
-import { ProductRepository, requireAdmin, requireViewer } from './product-repository';
-import { avatarSchema, builderSchema, publishSchema, revisionSchema, rotationSchema } from './validation';
+import { maintenanceRoutes } from './routes/maintenance';
+import { productRoutes } from './routes/product';
+import { moviesRoutes } from './routes/movies';
+import { catalogRoutes } from './routes/catalog';
 
 async function body(request: Request): Promise<unknown> {
   // Bound JSON input before parsing, including requests without Content-Length.
@@ -49,113 +45,13 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
     return json({ loggedOut: true });
   }
   if (method !== 'GET' && method !== 'OPTIONS') authorizeMutation(env,auth.viewer);
-  if (path === '/api/v1/movies/title-authority' && method === 'GET') { requireAdmin(auth.viewer); return json(await new TitleRepository(env.DB).status()); }
-  if (path === '/api/v1/movies/reconcile-titles' && method === 'POST') {
-    requireAdmin(auth.viewer);
-    const input=titleReconcileSchema.parse(await body(request));
-    return json(await new TitleRepository(env.DB).reconcileBatch(input.after ?? null));
+  const context = {request,env,url,path,method,repo,movies,product,auth,body};
+  // Maintenance names precede the selected-movie matcher, as in the public API.
+  for (const handle of [maintenanceRoutes,productRoutes,moviesRoutes,catalogRoutes]) {
+    const response = await handle(context);
+    if (response) return response;
   }
-  if (path === '/api/v1/movies/maintenance-status' && method === 'GET') { requireAdmin(auth.viewer); return json(await repo.scoreMaintenanceStatus()); }
-  if (path === '/api/v1/avatars' && method === 'GET') { requireViewer(auth.viewer); return json(await product.availableAvatars()); }
-  if (path === '/api/v1/auth/avatar' && method === 'POST') return json(await product.claimAvatar(requireViewer(auth.viewer),avatarSchema.parse(await body(request)).avatar));
-  if (path === '/api/v1/rotation' && method === 'GET') return json(await product.rotation());
-  if (path === '/api/v1/rotation/swap' && method === 'POST') {
-    const actor = requireAdmin(auth.viewer); return json(await product.swapRotation(actor,rotationSchema.parse(await body(request))));
-  }
-  const builderMatch = path.match(/^\/api\/v1\/builders\/([^/]+)(?:\/(publish))?$/);
-  if (path === '/api/v1/builders' || builderMatch) {
-    const actor = requireViewer(auth.viewer), id = builderMatch ? idSchema.parse(builderMatch[1]) : undefined;
-    if (!id && method === 'GET') return json(await product.builders(actor.id));
-    if (!id && method === 'POST') return json(await product.saveBuilder(actor.id,builderSchema.parse(await body(request))),201);
-    if (id && builderMatch?.[2] === 'publish' && method === 'POST') {
-      const {revision,...input} = publishSchema.parse(await body(request));
-      const sessionId = await product.publishBuilder(actor,id,revision,{...input,movie_ids: [],kind: input.cycle_slot === 5 ? 'classics' : 'hosted',date_precision: 'exact'});
-      return json(await repo.session(sessionId),201);
-    }
-    if (id && !builderMatch?.[2]) {
-      if (method === 'GET') return json(await product.builder(actor.id,id));
-      if (method === 'PUT') return json(await product.saveBuilder(actor.id,builderSchema.parse(await body(request)),id,true));
-      if (method === 'DELETE') { await product.deleteBuilder(actor.id,id,revisionSchema.parse(await body(request)).revision); return json({deleted: true}); }
-    }
-    throw new ApiError(404,'NOT_FOUND','API route not found.');
-  }
-  const historyAction = path.match(/^\/api\/v1\/sessions\/([^/]+)\/(audit|restore)$/);
-  if (historyAction) {
-    const id = idSchema.parse(historyAction[1]);
-    if (historyAction[2] === 'audit' && method === 'GET') { requireAdmin(auth.viewer); return json(await product.auditTrail(id)); }
-    if (historyAction[2] === 'restore' && method === 'POST') { await product.restoreSession(requireAdmin(auth.viewer),id); return json({restored: true}); }
-  }
-  if (path === '/api/v1/movies/maintain' && method === 'POST') {
-    requireAdmin(auth.viewer);
-    const input = maintenanceSchema.parse(await body(request));
-    return json(await new ScoreService(repo,env).maintain(input.mode,input.movie_ids));
-  }
-  if (path === '/api/v1/movies/enrich-provider-selected' && method === 'POST') {
-    requireAdmin(auth.viewer);
-    const input=providerEnrichmentSchema.parse(await body(request));
-    return json(await new EnrichmentService(repo,env).maintain(input.provider,input.movie_ids));
-  }
-  if (path === '/api/v1/classics/enrich' && method === 'POST') {
-    requireAdmin(auth.viewer);
-    const input = enrichmentSchema.parse(await body(request)); return json(await new ScoreService(repo,env).enrich(input.limit));
-  }
-  if (path === '/api/v1/movies/enrich-metadata-selected' && method === 'POST') {
-    requireAdmin(auth.viewer);
-    return json(await movies.enrichMetadataSelected(selectedMetadataSchema.parse(await body(request)).movie_ids));
-  }
-  if (path === '/api/v1/movies/enrich-metadata' && method === 'POST') {
-    requireAdmin(auth.viewer);
-    return json(await movies.enrichMetadata(enrichmentSchema.parse(await body(request)).limit));
-  }
-  const refreshMatch = path.match(/^\/api\/v1\/movies\/([^/]+)\/refresh-scores$/);
-  if (refreshMatch && method === 'POST') { requireAdmin(auth.viewer); return json(await new ScoreService(repo,env).refresh(idSchema.parse(refreshMatch[1]))); }
-  const classicMatch = path.match(/^\/api\/v1\/movies\/([^/]+)\/classics$/);
-  if (classicMatch && method === 'PUT') {
-    const id = idSchema.parse(classicMatch[1]); const input = classicSchema.parse(await body(request)); if (!input.classic) { requireAdmin(auth.viewer); await repo.removeClassic(id); } else await repo.setClassic(id,true); return json(await movies.detail(id));
-  }
-  if (classicMatch && method === 'DELETE') { requireAdmin(auth.viewer); const id = idSchema.parse(classicMatch[1]); await repo.removeClassic(id); return json(await movies.detail(id)); }
-  if (path === '/api/v1/movies/search' && method === 'GET') {
-    const query = z.string().trim().min(1).max(150).parse(url.searchParams.get('q') ?? '');
-    return json(await movies.search(query));
-  }
-  if (path === '/api/v1/movies/import' && method === 'POST') {
-    const input = importSchema.parse(await body(request)); return json(await movies.import(input.provider,input.externalId),201);
-  }
-  const previewMatch = path.match(/^\/api\/v1\/movies\/preview\/tmdb\/([^/]+)$/);
-  if (previewMatch && method === 'GET') return json(await movies.preview(importSchema.shape.externalId.parse(previewMatch[1])));
-  if (path === '/api/v1/movies' && method === 'POST') {
-    const id = await repo.manualMovie(movieSchema.parse(await body(request))); return json(await movies.detail(id),201);
-  }
-  const seenMatch = path.match(/^\/api\/v1\/movies\/([^/]+)\/seen\/([^/]+)$/);
-  if (seenMatch && method === 'PUT') {
-    const movieId = idSchema.parse(seenMatch[1]), memberId = idSchema.parse(seenMatch[2]);
-    const actor = requireViewer(auth.viewer);
-    if (actor.id !== memberId) throw new ApiError(403,'FORBIDDEN','You may only answer Seen It? for yourself.');
-    const input = seenSchema.parse(await body(request)); await repo.setSeen(movieId,memberId,input.seen);
-    return json(await movies.detail(movieId));
-  }
-  const movieMatch = path.match(/^\/api\/v1\/movies\/([^/]+)$/);
-  if (movieMatch && method === 'GET') return json(await movies.detail(idSchema.parse(movieMatch[1])));
-  const sessionMatch = path.match(/^\/api\/v1\/sessions\/([^/]+)$/);
-  if (sessionMatch && method === 'DELETE') { await product.deleteSession(auth.viewer,idSchema.parse(sessionMatch[1])); return json({deleted: true}); }
-  if ((path === '/api/v1/sessions' && method === 'POST') || (sessionMatch && method === 'PUT')) {
-    const input = sessionSchema.parse(await body(request));
-    const id = await product.saveSession(input,auth.viewer,sessionMatch ? idSchema.parse(sessionMatch[1]) : undefined);
-    return json(await repo.session(id),sessionMatch ? 200 : 201);
-  }
-  if (path === '/api/v1/metrics/enrichment' && method === 'GET') return json(await new MetricsRepository(env.DB).enrichment());
-  if (path === '/api/v1/catalog/compact' && method === 'GET') return json(await repo.compactCatalog());
-  if (method === 'GET' && ['/api/v1/catalog','/api/v1/members','/api/v1/movies','/api/v1/sessions','/api/v1/classics','/api/v1/cycles'].includes(path)) {
-    if (path.endsWith('/catalog')) return json(await repo.catalog());
-    if (path.endsWith('/classics')) return json(sortClassics(await repo.movies(true)));
-    if (path.endsWith('/members')) return json(await repo.members());
-    if (path.endsWith('/cycles')) return json(await repo.cycles());
-    if (path.endsWith('/movies')) return json(await repo.movies());
-    return json(await repo.sessions());
-  }
-  if (sessionMatch && method === 'GET') {
-    return json(await repo.session(idSchema.parse(sessionMatch[1])));
-  }
+
   throw new ApiError(404,'NOT_FOUND','API route not found.');
 }
 

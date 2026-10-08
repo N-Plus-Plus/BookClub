@@ -16,3 +16,10 @@ export function ratingCircleFills(mean: number) {
 export function RatingCircles({mean,colour}: {mean:number;colour:string}) {
   return <div className="metrics-rating-circles" aria-hidden="true" style={{'--chart-colour':`var(--${colour})`} as CSSProperties}>{ratingCircleFills(mean).map((fill,index) => <span className="metrics-rating-circle" key={index}><i style={{width:`${fill*100}%`}} /></span>)}</div>;
 }
+
+export function Bar({label,value,detail,width,colour = 'jeans'}: {label:string;value:string;detail:string;width:number;colour?:string}) {
+  return <div className="metrics-distribution-row metrics-enriched-row" style={{'--chart-colour':`var(--${colour})`} as CSSProperties}><div className="metrics-distribution-label"><span>{label}</span><strong>{value}</strong></div><div className="metrics-distribution-track" aria-hidden="true"><span style={{width:`${Math.max(0,Math.min(100,width))}%`}} /></div><p className="meta">{detail}</p></div>;
+}
+export function Coverage({label,covered,total}: {label:string;covered:number;total:number}) {
+  return <p className="meta">{total ? `${label} known for ${covered} / ${total} appearances.` : 'No film appearances for this selection.'}</p>;
+}

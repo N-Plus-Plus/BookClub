@@ -1,5 +1,6 @@
 import type { Catalog, Movie, Session, Score } from './types';
 import { latestScores, scoreValue } from './ranking';
+import { catalogIndex } from './catalog-index';
 
 // Only immutable analytical snapshots opt into score caching; ordinary mutable fixtures remain uncached.
 const resolvedScores = new WeakMap<Movie,Score[]>();
@@ -30,7 +31,7 @@ export const average = (rows: Appearance[]) => {
 };
 export function selectedAppearances(catalog: Catalog, filter: MetricsFilter = {kind: 'all'}): Appearance[] {
   const sessions = catalog.sessions.filter(s => matchesMetricsFilter(s,filter));
-  const canonical = new Map(catalog.movies.map(m => [m.id,m]));
+  const canonical = catalogIndex(catalog).movieById;
   const imdbByMovie = new Map<string,number | null>();
   return sessions.flatMap(session => session.movies.map((film,i): Appearance => {
     const movie = canonical.get(film.id) ?? film;

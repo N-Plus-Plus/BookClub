@@ -1,3 +1,4 @@
+import { catalogIndex } from '../shared/catalog-index';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Save } from 'lucide-react';
 import type { Catalog, FilmCandidate, Movie, Rotation, Session, TmdbPreview, Viewer } from '../shared/types';
@@ -12,7 +13,7 @@ export function EventScreen({catalog,writesEnabled,onMovie,onSaved,rotation,init
   const [date,setDate] = useState(initial?.event_date ?? localToday());
   const [cycle,setCycle] = useState(initial ? initial.cycle_id ?? '' : rotation?.cycle_id ?? ''), [slot,setSlot] = useState<number | null>(initial ? initial.cycle_slot : rotation?.nominal_slot ?? null), [complete,setComplete] = useState(!initial);
   const [precision,setPrecision] = useState<Session['date_precision']>(initial?.date_precision ?? 'exact');
-  const [selected,setSelected] = useState<Movie[]>(() => initial?.movies ?? (prefillMovieIds ?? []).flatMap(id => { const movie = catalog.movies.find(m => m.id === id); return movie ? [movie] : []; })), [error,setError] = useState(''), [busy,setBusy] = useState(false);
+  const [selected,setSelected] = useState<Movie[]>(() => initial?.movies ?? (prefillMovieIds ?? []).flatMap(id => { const movie = catalogIndex(catalog).movieById.get(id); return movie ? [movie] : []; })), [error,setError] = useState(''), [busy,setBusy] = useState(false);
   const prefillSeeded = useRef(!initial && Boolean(prefillMovieIds));
   useEffect(() => { if (prefillSeeded.current) { prefillSeeded.current = false; onPrefillConsumed?.(); } },[onPrefillConsumed]);
   const consumedMovie = useRef<Movie | null>(null);
@@ -42,7 +43,7 @@ export function EventScreen({catalog,writesEnabled,onMovie,onSaved,rotation,init
     });
   };
   const fieldError = (name: string) => fields[name] ? <p id={`error-${name}`} className="error-message" role="alert">{fields[name]}</p> : null;
-  const anchorChanged = initial?.cycle_slot === 1 && Boolean(initial.cycle_id) && precision === 'exact' && date !== catalog.cycles.find(c => c.id === initial.cycle_id)?.rough_date;
+  const anchorChanged = initial?.cycle_slot === 1 && Boolean(initial.cycle_id) && precision === 'exact' && date !== catalogIndex(catalog).cycleById.get(initial.cycle_id ?? '')?.rough_date;
   const save = async (event: FormEvent) => {
     event.preventDefault();
     const failures: Record<string,string> = {};
@@ -62,6 +63,6 @@ export function EventScreen({catalog,writesEnabled,onMovie,onSaved,rotation,init
     {!initial ? <TurnFields showCompletion={false} errors={fields} catalog={catalog} rotation={rotation} complete={complete} onComplete={value => { setComplete(value); if (value && rotation) { setPrecision('exact'); } }} cycle={cycle} onCycle={setCycle} slot={slot} onSlot={setSlot} /> : <p className="meta">Editing History never advances or rewinds rotation. Published planning metadata is permanent.</p>}
     {initial && <details className="utility-disclosure"><summary>Historical date precision</summary><label className="input-label">Date precision<select name="date_precision" aria-invalid={Boolean(fields.date_precision)} aria-describedby={fields.date_precision ? 'error-date_precision' : undefined} className="field__input" value={precision} onChange={e => setPrecision(e.target.value as typeof precision)}><option value="exact">Exact event date</option><option value="cycle_rough">Cycle started</option><option value="unknown">Unknown - sorting date only</option></select></label>{fieldError('date_precision')}</details>}
     </section></form>
-    <div tabIndex={-1} aria-invalid={Boolean(fields.movie_ids)} aria-describedby={fields.movie_ids ? 'error-movie_ids' : undefined} className="stack" ref={element => { if (element) element.setAttribute('name','movie_ids'); }}>{fieldError('movie_ids')}<FilmPicker movies={catalog.movies} selected={selected} onSelected={setSelected} onMovie={onMovie} onInspect={onInspect} disabled={busy || !writesEnabled} /></div>
+    <div tabIndex={-1} aria-invalid={Boolean(fields.movie_ids)} aria-describedby={fields.movie_ids ? 'error-movie_ids' : undefined} className="stack" ref={element => { if (element) element.setAttribute('name','movie_ids'); }}>{fieldError('movie_ids')}<FilmPicker movieById={catalogIndex(catalog).movieById} selected={selected} onSelected={setSelected} onMovie={onMovie} onInspect={onInspect} disabled={busy || !writesEnabled} /></div>
     <div className="stack">{error && <p ref={formError} tabIndex={-1} className="error-message" role="alert">{error}</p>}<Action form="event-form" type="submit" icon={Save} variant="primary" disabled={busy || !writesEnabled}>{busy ? 'Saving…' : initial ? 'Save corrections' : 'Save event'}</Action></div></div>;
 }
