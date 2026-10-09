@@ -142,7 +142,7 @@ describe('Metrics refinement regressions',()=>{
     Object.values(data.movies).forEach(movie=>movie.keywords=movie.keywords.slice(0,2));
     report=firstSharedTheme(c,selectedAppearances(c),data);expect(report.values.flat().every(v=>v===null)).toBe(true);
   });
-  it('reconsiders a previously unique theme when another pair reaches it',()=>{
+  it('globally disqualifies a previously unique theme when contested later and never revives an earlier conflict',()=>{
     const c=simple();c.movies=Array.from({length:7},(_,i)=>metricsFilm(String(i)));
     const names=['alpha','beta','gamma','delta','epsilon','zeta','omega'];
     const data:MetricsEnrichment={movies:Object.fromEntries(c.movies.map((m,i)=>[m.id,{...emptyEnrichmentMovie(),keywords:[{provider:'tmdb',name:names[i]}]}]))};
@@ -151,7 +151,43 @@ describe('Metrics refinement regressions',()=>{
     // both Alpha pairs must advance again rather than freezing the earlier winner.
     c.sessions=[metricsEvent('a',repeated([0,1,2,3])),metricsEvent('b',repeated([0,1,4,5]),'m2'),metricsEvent('c',repeated([1,2,0,4]),'m3')];
     const report=firstSharedTheme(c,selectedAppearances(c),data),terms=report.values.flatMap((row,a)=>row.flatMap((v,b)=>b>a&&v?[v.label]:[]));
-    expect(terms).toEqual(['Beta','Gamma','Epsilon']);expect(new Set(terms).size).toBe(terms.length);
+    // AB must skip both Alpha (contested later) and Beta (already disqualified by AC/BC).
+    expect(report.values[0][1]).toBeNull();expect(report.values[1][0]).toBeNull();
+    expect(terms).toEqual(['Gamma','Epsilon']);expect(new Set(terms).size).toBe(terms.length);
+    expect(report.values[0][2]).toMatchObject({id:'gamma',rankA:3,rankB:2,countA:6,countB:7});
+    expect(report.values[2][0]).toMatchObject({id:'gamma',rankA:2,rankB:3,countA:7,countB:6});
+    expect(report.values[1][2]).toMatchObject({id:'epsilon',rankA:3,rankB:4,countA:6,countB:5});
+    expect(firstSharedTheme(c,[...selectedAppearances(c)].reverse(),data).values).toEqual(report.values);
+    expect(firstSharedTheme(c,selectedAppearances(c),data).values).toEqual(report.values);
+  });
+  it('eliminates simultaneous conflicts across all ten unordered pairs without changing preference order or symmetry',()=>{
+    const c=simple(),labels=['alpha','beta'];
+    const pairNames=Array.from({length:5},(_,a)=>Array.from({length:5},(_,b)=>`z pair ${Math.min(a,b)} ${Math.max(a,b)}`));
+    c.movies=Array.from({length:5},(_,a)=>metricsFilm(`theme-${a}`));
+    c.sessions=c.movies.map((movie,a)=>metricsEvent(`theme-event-${a}`,[movie],a===4?null:`m${a+1}`));
+    const data:MetricsEnrichment={movies:Object.fromEntries(c.movies.map((movie,a)=>[movie.id,{...emptyEnrichmentMovie(),keywords:[...labels,...pairNames[a].filter((_,b)=>a!==b)].map(name=>({provider:'tmdb',name}))}]))};
+    const report=firstSharedTheme(c,selectedAppearances(c),data);
+    const winners=report.values.flatMap((row,a)=>row.flatMap((v,b)=>b>a&&v?[v.id]:[]));
+    expect(winners).toHaveLength(10);expect(new Set(winners).size).toBe(10);
+    report.values.forEach((row,a)=>row.forEach((value,b)=>{
+      if(a===b){expect(value).toBeNull();return;}
+      expect(value?.id).toBe(pairNames[a][b]);expect(value?.countA).toBe(1);expect(value?.countB).toBe(1);
+      expect(report.values[b][a]).toEqual({...value,rankA:value!.rankB,rankB:value!.rankA,countA:value!.countB,countB:value!.countA});
+    }));
+    expect(report.values[0][1]).toMatchObject({rankA:3,rankB:3});expect(report.values[3][4]).toMatchObject({rankA:6,rankB:6});
+    Object.values(data.movies).forEach(movie=>movie.keywords.reverse());
+    expect(firstSharedTheme(c,[...selectedAppearances(c)].reverse(),data).values).toEqual(report.values);
+    // Two independent conflicts in the same round: Alpha across AB/AC/BC,
+    // Beta across BD/BE/DE. Both identities must disappear globally.
+    c.movies.forEach((movie,a)=>data.movies[movie.id].keywords=[...([0,1,2].includes(a)?['alpha']:[]),...([1,3,4].includes(a)?['beta']:[]),...pairNames[a].filter((_,b)=>a!==b)].map(name=>({provider:'tmdb',name})));
+    const simultaneous=firstSharedTheme(c,selectedAppearances(c),data);
+    expect(simultaneous.values.flatMap((row,a)=>row.flatMap((v,b)=>b>a&&v?[v.id]:[]))).toEqual(winners);
+  });
+  it('globally eliminates canonical identities despite capitalisation, hyphen and whitespace display differences',()=>{
+    const c=simple();c.movies=c.movies.slice(0,3);c.sessions=c.movies.map((movie,i)=>metricsEvent(`normalised-${i}`,[movie],`m${i+1}`));
+    const variants=['escape-plan','ESCAPE-PLAN','Escape   Plan'];
+    const data:MetricsEnrichment={movies:Object.fromEntries(c.movies.map((movie,i)=>[movie.id,{...emptyEnrichmentMovie(),keywords:[{provider:'tmdb',name:variants[i]}]}]))};
+    expect(firstSharedTheme(c,selectedAppearances(c),data).values.flat().every(value=>value===null)).toBe(true);
   });
   it('excludes same-person partnerships by ID and safe name fallback, with five plus support ties',()=>{
     const c=simple(),data=metricsEnrichmentFixture();c.movies[0].director='Charles Chaplin';

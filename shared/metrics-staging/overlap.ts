@@ -53,17 +53,19 @@ export function firstSharedTheme(catalog:Catalog,all:Appearance[],data:MetricsEn
     return common.sort((x,y)=>Math.max(x.rankA,x.rankB)-Math.max(y.rankA,y.rankB) || x.rankA+x.rankB-y.rankA-y.rankB || order(x.label,y.label)||order(x.id,y.id));
   }));
   const pairs=candidates.flatMap((row,a)=>row.flatMap((list,b)=>b>a?[{a,b,list,index:0}]:[]));
-  // Advance every conflicting pair simultaneously, including previously uncontested pairs
-  // when another pair reaches their term. Each preference list is finite.
+  // Contested canonical keyword identities are permanently eliminated for every pair,
+  // including candidates not yet nominated. Each preference list is finite.
+  const disqualified=new Set<string>();
   while(true){
     const terms=new Map<string,typeof pairs>();
-    for(const pair of pairs){const candidate=pair.list[pair.index];if(!candidate)continue;
-      const key=candidate.label.toLocaleLowerCase('en-AU');
-      const matches=terms.get(key)??[];matches.push(pair);terms.set(key,matches);
+    for(const pair of pairs){
+      while(pair.list[pair.index]&&disqualified.has(pair.list[pair.index].id))pair.index++;
+      const candidate=pair.list[pair.index];if(!candidate)continue;
+      const matches=terms.get(candidate.id)??[];matches.push(pair);terms.set(candidate.id,matches);
     }
-    const conflicts=[...terms.values()].filter(matches=>matches.length>1).flat();
+    const conflicts=[...terms].filter(([,matches])=>matches.length>1);
     if(!conflicts.length)break;
-    for(const pair of conflicts)pair.index++;
+    for(const [id] of conflicts)disqualified.add(id);
   }
   type Candidate=typeof candidates[number][number][number];
   const values:(Candidate|null)[][]=scopes.map(()=>scopes.map(()=>null));
