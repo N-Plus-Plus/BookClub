@@ -9,7 +9,7 @@ export interface CollectionRosterEvidence {
 export interface CollectionRosterCandidate { id:number; name:string; films:number; checked_at:string | null }
 export interface CollectionRosterStatus { collections:CollectionRosterCandidate[]; unavailable:string | null }
 export interface CollectionRosterBatch {
-  results:{id:number;status:'checked'|'skipped'|'failed';message:string}[];
+  results:{id:number;status:'checked'|'skipped'|'failed';message:string;failure?:import('./maintenance-failure').MaintenanceFailure}[];
   requests:number; cacheChanged:boolean; stopped?:string;
 }
 const positiveId=(id:unknown):id is number=>typeof id==='number' && Number.isSafeInteger(id) && id>0 && id<=2147483647;

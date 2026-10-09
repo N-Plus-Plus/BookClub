@@ -195,13 +195,17 @@ it.each(['network','not found','invalid response','provider identity conflict','
     return Response.json({Response:'True',imdbID:failure==='provider identity conflict'?'tt0000002':'tt0000001',Title:'N/A',Year:'2000',Runtime:'100 min',Director:'Director',Genre:'Drama'});
   });
   vi.stubGlobal('fetch',fetch);
+  if(failure.endsWith('persistence')){
+    await expect(service.execute('populate',[unit],new Date().toISOString())).rejects.toThrow();
+    expect((await service.status(null)).checks).toEqual([]);expect((await service.status(null)).failures).toEqual([]);return;
+  }
   expect((await service.execute('populate',[unit],new Date().toISOString())).results[0].status).toBe('failed');
   const saved=await service.status(null),catalog=await repo.catalog();
   expect(saved.checks).toEqual([]);
   expect(saved.failures).toEqual([expect.objectContaining({provider:'omdb',operation:'omdb-metadata'})]);
-  expect(operationCoverage(catalog.movies[0],'omdb-metadata',saved)).toBe('inconclusive');
-  expect(planMaintenance(catalog,saved,'populate',['omdb-metadata']).units).toHaveLength(1);
-  expect(fetch).toHaveBeenCalledOnce();
+  expect(operationCoverage(catalog.movies[0],'omdb-metadata',saved)).toBe(failure==='network'?'unavailable_provider':'inconclusive');
+  expect(planMaintenance(catalog,saved,'populate',['omdb-metadata']).units).toHaveLength(failure==='network'?0:1);
+  expect(fetch).toHaveBeenCalledTimes(failure==='network'?2:1);
 });
 
 it('preserves an earlier OMDb metadata check when Refresh persistence fails and allows explicit Refresh retry',async()=>{
@@ -210,7 +214,7 @@ it('preserves an earlier OMDb metadata check when Refresh persistence fails and 
   await service.execute('populate',[unit],new Date().toISOString());
   local.sqlite.exec("UPDATE movie_maintenance_coverage SET checked_at='2000-01-01T00:00:00.000Z';CREATE TRIGGER reject_coverage BEFORE INSERT ON movie_maintenance_coverage BEGIN SELECT RAISE(ABORT,'fictional coverage failure'); END");
   const before=(await service.status(null)).checks;
-  expect((await service.execute('refresh',[unit],new Date().toISOString())).results[0].status).toBe('failed');
+  await expect(service.execute('refresh',[unit],new Date().toISOString())).rejects.toThrow();
   expect((await service.status(null)).checks).toEqual(before);
   expect(planMaintenance(await repo.catalog(),await service.status(null),'refresh',['omdb-metadata']).units).toHaveLength(1);
 });

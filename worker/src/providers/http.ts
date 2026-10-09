@@ -1,9 +1,9 @@
 import { ApiError } from '../http';
 
-export type ProviderFailureKind = 'not_found' | 'credentials' | 'rate_limited' | 'outage' | 'network';
+export type ProviderFailureKind = 'not_found' | 'credentials' | 'rate_limited' | 'outage' | 'network' | 'malformed';
 export class ProviderError extends ApiError {
   constructor(public provider: string, public kind: ProviderFailureKind, message: string, public retryAfter?: number, public rateLimit?: Record<string,string>) {
-    super(kind === 'not_found' ? 404 : 503, kind === 'credentials' ? 'PROVIDER_NOT_CONFIGURED' : kind === 'rate_limited' ? 'PROVIDER_RATE_LIMITED' : 'PROVIDER_UNAVAILABLE', message);
+    super(kind === 'not_found' ? 404 : 503, kind==='malformed'?'INVALID_PROVIDER_RESPONSE':kind === 'credentials' ? 'PROVIDER_NOT_CONFIGURED' : kind === 'rate_limited' ? 'PROVIDER_RATE_LIMITED' : 'PROVIDER_UNAVAILABLE', message);
   }
 }
 export function retryAfter(header: string | null, now = Date.now()): number | undefined {
@@ -36,5 +36,5 @@ export async function providerJson(url: string, provider: string, init?: Request
   if (response.status >= 500) throw new ProviderError(provider,'outage',`${provider} is temporarily unavailable. Try later.`,undefined,limits);
   if (!response.ok) throw new ProviderError(provider,'outage',`${provider} lookup is unavailable. Try later.`,undefined,limits);
   if (onLimits) await onLimits(response.headers);
-  try { return await response.json(); } catch { throw new ProviderError(provider,'outage',`${provider} returned an unusable response.`); }
+  try { return await response.json(); } catch { throw new ProviderError(provider,'malformed',`${provider} returned an unusable response for this record.`); }
 }

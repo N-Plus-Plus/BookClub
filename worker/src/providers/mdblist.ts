@@ -45,6 +45,7 @@ export function mdbId(ids: ExternalId[]): ExternalId | undefined {
     ?? ids.find(e => e.provider === 'tmdb' && /^[1-9]\d*$/.test(e.external_id));
 }
 export class MdbListProvider {
+  readonly batchFailures=new Map<string,string>();
   constructor(private key: string, private onLimits?: (headers: Headers) => Promise<void>, private onMedia?: (id: ExternalId,capture: EnrichmentCapture | undefined, title: string | null,checkedKeys?:string[]) => Promise<void>) {}
   async scores(id: ExternalId) {
     const data=await ratingRequest(`https://api.mdblist.com/${id.provider}/movie/${encodeURIComponent(id.external_id)}/?apikey=${encodeURIComponent(this.key)}&append_to_response=keyword`,'MDBList',undefined,this.onLimits);
@@ -52,6 +53,7 @@ export class MdbListProvider {
     await this.onMedia?.(id,capture,parseMdbTitle(data,id),mdbCheckedKeys(data)); return scores;
   }
   async batch(provider: string, ids: string[]): Promise<Map<string,Score[]>> {
+    this.batchFailures.clear();
     if (!ids.length || ids.length > 10) throw new RatingError('MDBList batches require 1–10 IDs.');
     let data: unknown;
     try {
@@ -64,14 +66,17 @@ export class MdbListProvider {
     }
     if (!Array.isArray(data)) throw new RatingError('MDBList returned an unrecognised batch response.');
     const result = new Map<string,Score[]>(), at = new Date().toISOString();
+    let uncorrelated=false;
     for (const entry of data) {
       // Live Media Info uses provider-scoped IDs; top-level id is MDBList's own ID.
       // imdb_id is also documented by the official single-item Media Info schema.
       const id = provider === 'imdb' ? entry?.ids?.imdb ?? entry?.imdb_id : entry?.ids?.tmdb;
       if ((typeof id === 'string' || typeof id === 'number' && Number.isSafeInteger(id)) && ids.includes(String(id))) {
-        if (result.has(String(id))) throw new RatingError('MDBList returned duplicate batch identities.');
-        result.set(String(id),parseMdbList(entry,at,'batch'));
-      }
+        const key=String(id);
+        if(result.has(key) || this.batchFailures.has(key)){result.delete(key);this.batchFailures.set(key,'MDBList returned ambiguous or malformed evidence for this identity.');continue;}
+        try{result.set(key,parseMdbList(entry,at,'batch'));}
+        catch(error){if(!(error instanceof RatingError))throw error;this.batchFailures.set(key,'MDBList returned malformed ratings for this film.');}
+      }else if(!(typeof id==='string'||typeof id==='number'&&Number.isSafeInteger(id)))uncorrelated=true;
     }
     if (result.size < new Set(ids).size) console.warn('MDBList batch correlation incomplete',{
       provider, requested: new Set(ids).size, returned: data.length, matched: result.size,
@@ -79,13 +84,11 @@ export class MdbListProvider {
       nestedTmdb: data.filter(entry => typeof entry?.ids?.tmdb === 'number' || typeof entry?.ids?.tmdb === 'string').length,
       legacyImdb: data.filter(entry => typeof entry?.imdb_id === 'string').length,
     });
-    if (result.size < new Set(ids).size) for (const entry of data) {
-      const id = provider === 'imdb' ? entry?.ids?.imdb ?? entry?.imdb_id : entry?.ids?.tmdb;
-      if (!(typeof id === 'string' || typeof id === 'number' && Number.isSafeInteger(id)))
-        throw new RatingError('MDBList returned an unrecognised batch identity response.');
-      parseMdbList(entry,at,'batch');
-    }
-    // Validate the complete ratings/correlation envelope before saving any enrichment.
+    // Independently correlated successes survive malformed peers. Ambiguous identities
+    // never reach callbacks or targeted recovery; omitted requested identities remain bounded.
+    if(uncorrelated)for(const id of ids)if(!result.has(id))this.batchFailures.set(id,'MDBList returned unrecognised batch identities; targeted recovery was deferred.');
+    if(!result.size && uncorrelated)throw new RatingError('MDBList returned an unrecognised batch identity response.');
+    if(!result.size && this.batchFailures.size)throw new RatingError('MDBList returned an unrecognised ratings response.');
     for (const entry of data) {
       const externalId=String(provider === 'imdb' ? entry?.ids?.imdb ?? entry?.imdb_id : entry?.ids?.tmdb);
       if (result.has(externalId)) { const identity={provider,external_id:externalId}; await this.onMedia?.(identity,parseMdbEnrichment(entry,identity,at),parseMdbTitle(entry,identity),mdbCheckedKeys(entry,'batch')); }

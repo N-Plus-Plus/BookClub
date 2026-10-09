@@ -1,50 +1,34 @@
 // @vitest-environment jsdom
-import { act, createElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { AdminScreen } from '../frontend/AdminScreen';
+import { act,createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { afterEach,beforeEach,expect,it,vi } from 'vitest';
+import { DurableMaintenanceControl,invalidateMaintenanceDiscovery } from '../frontend/DurableMaintenanceControl';
+import { BulkMaintenanceLock } from '../frontend/bulk-maintenance';
 import { api } from '../frontend/api';
-import type { Catalog } from '../shared/types';
-import type { MaintenanceBatchResult } from '../shared/maintenance-plan';
-vi.mock('../frontend/api',()=>({api:{collectionRosterStatus:vi.fn(async()=>({collections:[],unavailable:null})),maintainCollectionRosters:vi.fn(),catalog:vi.fn(), maintenanceCoverage:vi.fn(),maintenanceProvider:vi.fn()}}));
-const catalog:Catalog={members:[],sessions:[],cycles:[],movies:Array.from({length:12},(_,i)=>({id:`film-${i}`,title:`Film ${i}`,original_title:null,year:null,release_date:null,runtime:null,overview:null,genres:[],assets:[],scores:[],seen:[],classic:true,ranking:null,external_ids:i<11?[{provider:'tmdb',external_id:String(i+1)}]:[]}))};
-let root:Root,container:HTMLDivElement;const updated=vi.fn(async()=>{}),cacheChanged=vi.fn();
-const button=(name:string)=>[...container.querySelectorAll<HTMLButtonElement>('button')].find(b=>b.textContent===name)!;
-const render=async(writesEnabled=true)=>{await act(async()=>root.render(createElement(AdminScreen,{catalog,writesEnabled,onMovie:()=>{},onUpdated:updated,onEnrichmentChanged:cacheChanged})));};
-beforeEach(()=>{vi.resetAllMocks();vi.mocked(api.collectionRosterStatus).mockResolvedValue({collections:[],unavailable:null});localStorage.clear();Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});HTMLDialogElement.prototype.showModal=function(){this.open=true;};HTMLDialogElement.prototype.close=function(){this.open=false;};vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],evidence:[],evidenceSupported:true,fieldsSupported:true,fields:[],unavailable:{tmdb:null,omdb:null,mdblist:null},next:null});container=document.createElement('div');document.body.appendChild(container);root=createRoot(container);});
-afterEach(async()=>{await act(async()=>root.unmount());container.remove();vi.useRealTimers();});
-it.each(['TMDB','MDBList'])('%s actions hold the whole lock and Stop saves only accepted work',async label=>{
- let resolve!:(value:MaintenanceBatchResult)=>void;vi.mocked(api.maintenanceProvider).mockImplementation(()=>new Promise(done=>{resolve=done;}));await render();
- await act(async()=>button(`Refresh ${label} enrichment`).click());
- expect(button('Populate missing data').disabled).toBe(true);expect(button('Refresh all data').disabled).toBe(true);expect(button('Refresh scores').disabled).toBe(true);
- await act(async()=>button('Stop after this batch').click());const units=vi.mocked(api.maintenanceProvider).mock.calls[0][1];
- await act(async()=>resolve({results:units.map(u=>({movieId:u.movieId,provider:u.provider,status:'updated',message:'Saved'})),canonicalChanged:label==='TMDB',cacheChanged:true}));
- const key=`bookclub.maintenance.refresh.${label==='TMDB'?'tmdb':'mdblist'}-enrichment.v1`,checkpoint=JSON.parse(localStorage.getItem(key)!);
- expect(checkpoint.completed).toBe(units.length);expect(checkpoint.pending).toHaveLength(11-units.length);expect(updated).toHaveBeenCalledTimes(label==='TMDB'?1:0);expect(cacheChanged).toHaveBeenCalledOnce();expect(container.querySelector('progress')?.dataset.state).toBe('normal');
- expect(api.maintenanceProvider).toHaveBeenCalledOnce();expect(button('Refresh all data').disabled).toBe(false);
+import { jobFixture,installJobMocks } from './helpers/maintenance-jobs';
+import { maintenanceOperations } from '../shared/maintenance-plan';
+import type { MaintenanceJob } from '../shared/maintenance-job';
+vi.mock('../frontend/api',()=>({api:{maintenanceJobs:vi.fn(),maintenanceJob:vi.fn(),createMaintenanceJob:vi.fn(),claimMaintenanceJob:vi.fn(),stepMaintenanceJob:vi.fn(),releaseMaintenanceJob:vi.fn(),stopMaintenanceJob:vi.fn(),retryMaintenanceJob:vi.fn(),importMaintenanceJob:vi.fn()}}));
+Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
+let node:HTMLDivElement,root:ReturnType<typeof createRoot>;
+const button=(name:string)=>[...node.querySelectorAll<HTMLButtonElement>('button')].find(b=>b.textContent===name)!;
+beforeEach(()=>{vi.resetAllMocks();installJobMocks();localStorage.clear();HTMLDialogElement.prototype.showModal=function(){this.open=true;};HTMLDialogElement.prototype.close=function(){this.open=false;};node=document.createElement('div');document.body.appendChild(node);root=createRoot(node);});
+afterEach(async()=>{await act(async()=>root.unmount());node.remove();vi.useRealTimers();});
+const render=async(operation:MaintenanceJob['operation']='tmdb-enrichment',intent:MaintenanceJob['intent']='refresh',allowed=true)=>act(async()=>root.render(createElement(BulkMaintenanceLock,null,createElement(DurableMaintenanceControl,{intent,operation,writesEnabled:allowed}))));
+
+it.each(maintenanceOperations.flatMap(operation=>(['populate','refresh'] as const).map(intent=>({operation,intent}))))('starts the correct durable $intent/$operation run without provider work on mount',async({operation,intent})=>{
+ await render(operation,intent);expect(api.createMaintenanceJob).not.toHaveBeenCalled();expect(api.stepMaintenanceJob).not.toHaveBeenCalled();const start=[...node.querySelectorAll<HTMLButtonElement>('button')].find(b=>b.textContent!== 'Reload job status')!;await act(async()=>start.click());expect(api.createMaintenanceJob).toHaveBeenCalledWith(expect.any(String),intent,operation);expect(api.stepMaintenanceJob).toHaveBeenCalledOnce();expect(node.textContent).toContain('Completed');expect(node.textContent).toContain('1 successful');
 });
-it('shows local ruby failure/quota feedback and retains successful peers without replay',async()=>{
- vi.mocked(api.maintenanceProvider).mockResolvedValue({results:[{movieId:'film-0',provider:'tmdb',status:'updated',message:'Saved'},{movieId:'film-1',provider:'tmdb',status:'failed',message:'Provider unavailable',retryAfter:60}],canonicalChanged:true,cacheChanged:true,quota:{'X-RateLimit-Remaining':'25'},stopped:true});await render();await act(async()=>button('Refresh TMDB enrichment').click());
- expect(updated).toHaveBeenCalledOnce();expect(container.querySelector('#refresh-tmdb-enrichment-heading')?.closest('section')?.textContent).toContain('Provider unavailable');expect(container.textContent).toContain('25');expect(container.querySelector('progress')?.dataset.state).toBe('interrupted');expect(container.querySelector('progress')?.value).toBe(1);
- const saved=JSON.parse(localStorage.getItem('bookclub.maintenance.refresh.tmdb-enrichment.v1')!);expect(saved.pending.some((u:{movieId:string})=>u.movieId==='film-0')).toBe(false);expect(saved.pending.some((u:{movieId:string})=>u.movieId==='film-1')).toBe(true);
+it.each(['paused','failed','awaiting_cooldown'] as const)('recovers %s state after localStorage deletion from server evidence',async state=>{
+ const saved={...jobFixture(),state,counts:{...jobFixture().counts,successful:3,pending:2},requests:3};installJobMocks(saved);localStorage.clear();await render();expect(button('Resume remaining')).toBeTruthy();expect(node.textContent).toContain('3 successful');expect(api.createMaintenanceJob).not.toHaveBeenCalled();await act(async()=>button('Resume remaining').click());expect(api.claimMaintenanceJob).toHaveBeenCalledWith(saved.id);expect(api.createMaintenanceJob).not.toHaveBeenCalled();
 });
-it.each(['Populate missing data','Refresh all data'])('requires an explicit aggregate confirmation for %s and starts no work on mount',async label=>{
- await render();expect(api.maintenanceProvider).not.toHaveBeenCalled();await act(async()=>button(label).click());expect(container.querySelector('dialog')?.textContent).toContain('Estimated API requests:');expect(api.maintenanceProvider).not.toHaveBeenCalled();await act(async()=>button('Cancel').click());expect(container.querySelector('dialog')).toBeNull();
+it('completed issues are never described as successfully refreshed and retry does not start a new run',async()=>{
+ const saved={...jobFixture(),state:'completed_with_issues' as const,counts:{...jobFixture().counts,pending:0,successful:9,deferred:1},issues:[{key:'bad:tmdb',movieId:'bad',collectionId:null,provider:'tmdb',operations:['tmdb-enrichment'],category:'record' as const,message:'Malformed fictional film',attempts:2,retryAt:null}]};installJobMocks(saved);await render();expect(node.textContent).toContain('9 successful');expect(node.textContent).toContain('1 deferred');expect(node.textContent).toContain('were not successfully refreshed');expect(button('Resume remaining')).toBeUndefined();expect(button('Retry failed')).toBeTruthy();await act(async()=>button('Retry this issue').click());expect(api.retryMaintenanceJob).toHaveBeenCalledWith(saved.id,['bad:tmdb']);expect(api.createMaintenanceJob).not.toHaveBeenCalled();
 });
-it('unmount stops the pending batch, and remount preserves the provider checkpoint',async()=>{
- let resolve!:(value:MaintenanceBatchResult)=>void;vi.mocked(api.maintenanceProvider).mockImplementation(()=>new Promise(done=>{resolve=done;}));await render();await act(async()=>button('Refresh TMDB enrichment').click());const units=vi.mocked(api.maintenanceProvider).mock.calls[0][1];await act(async()=>root.render(createElement('div',null,'Elsewhere')));await act(async()=>resolve({results:units.map(u=>({movieId:u.movieId,provider:u.provider,status:'updated',message:'Saved'})),canonicalChanged:false,cacheChanged:false}));await render();expect(button('Resume Refresh TMDB enrichment')).toBeTruthy();expect(api.maintenanceProvider).toHaveBeenCalledOnce();
+it('another browser lease blocks execution but status remains read-only',async()=>{
+ installJobMocks({...jobFixture(),lease:{active:true,owner:'Other admin',expiresAt:Date.now()+180000}});await render();expect(button('Resume remaining').disabled).toBe(true);expect(node.textContent).toContain('Other admin');expect(api.stepMaintenanceJob).not.toHaveBeenCalled();await act(async()=>button('Reload job status').click());expect(api.stepMaintenanceJob).not.toHaveBeenCalled();
 });
-it('blocks new requests after session/write permission changes and keeps stopped progress pumpkin',async()=>{
- let resolve!:(value:MaintenanceBatchResult)=>void;vi.mocked(api.maintenanceProvider).mockImplementation(()=>new Promise(done=>{resolve=done;}));await render();await act(async()=>button('Refresh TMDB enrichment').click());await render(false);const units=vi.mocked(api.maintenanceProvider).mock.calls[0][1];await act(async()=>resolve({results:units.map(u=>({movieId:u.movieId,provider:u.provider,status:'no_change',message:'Unchanged'})),canonicalChanged:false,cacheChanged:false}));expect(api.maintenanceProvider).toHaveBeenCalledOnce();expect(container.querySelector('progress')?.dataset.state).toBe('normal');expect(cacheChanged).not.toHaveBeenCalled();
+it('an older API fails locally and does not fall back to unguarded provider calls',async()=>{
+ vi.mocked(api.maintenanceJobs).mockRejectedValue(Error('Migration 0024 required'));invalidateMaintenanceDiscovery();await render();expect(node.textContent).toContain('Migration 0024 required');expect(button('Refresh TMDB enrichment').disabled).toBe(true);expect(api.stepMaintenanceJob).not.toHaveBeenCalled();
 });
-it('disables zero-work actions and fails clearly against an older Worker',async()=>{
- vi.mocked(api.maintenanceCoverage).mockRejectedValue(new Error('Worker upgrade required'));await render();expect(container.textContent).toContain('Worker upgrade required');expect(button('Populate missing data').disabled).toBe(true);expect(api.maintenanceProvider).not.toHaveBeenCalled();
-});
-it('blocks aggregate execution when collections/awards schema support is unavailable',async()=>{
- vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],evidence:[],evidenceSupported:false,unavailable:{tmdb:null,omdb:null,mdblist:null},next:null});
- await render();expect(container.textContent).toContain('Install migration 0023');expect(button('Refresh all data').disabled).toBe(true);expect(api.maintenanceProvider).not.toHaveBeenCalled();
-});
-it('refreshes catalogue-derived TMDB availability/classification when only the cache changed',async()=>{
- vi.mocked(api.maintenanceProvider).mockImplementation(async(_intent,units)=>({results:units.map(u=>({movieId:u.movieId,provider:u.provider,status:'updated',message:'Saved'})),canonicalChanged:false,cacheChanged:true,stopped:true}));
- await render();await act(async()=>button('Refresh TMDB enrichment').click());expect(updated).toHaveBeenCalledOnce();expect(cacheChanged).toHaveBeenCalledOnce();
-});
+it('write permission disables all mutations',async()=>{await render('tmdb-enrichment','refresh',false);expect(button('Refresh TMDB enrichment').disabled).toBe(true);expect(api.createMaintenanceJob).not.toHaveBeenCalled();});

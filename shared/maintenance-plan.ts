@@ -129,6 +129,6 @@ export function operationCounts(catalog:Catalog,operation:MaintenanceOperation,c
   return counts;
 }
 export interface MaintenanceBatchResult {
-  results:{movieId:string;provider:MaintenanceProvider;status:'updated'|'no_change'|'failed'|'skipped';message:string;blocking?:boolean;retryAfter?:number;conflicts?:number}[];
+  results:{movieId:string;provider:MaintenanceProvider;operations?:MaintenanceOperation[];failure?:import('./maintenance-failure').MaintenanceFailure;status:'updated'|'no_change'|'failed'|'skipped';message:string;blocking?:boolean;retryAfter?:number;conflicts?:number}[];
   requests?:number;stopped?:boolean;canonicalChanged:boolean;cacheChanged:boolean;quota?:Record<string,string>;
 }

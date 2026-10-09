@@ -19,7 +19,7 @@ const columns = (db: DatabaseSync, table: string) => db.prepare(`PRAGMA table_in
 // Explicit pre-0010 compatibility only; every other source-only column fails closed.
 const retiredSessionColumns = ['title','notes','swap_note'];
 // Additive 0016 caches may be absent from an older authorised source export.
-const optionalEnrichmentTables: readonly string[]=[...providerEvidenceTables,...providerEnrichmentTables,'movie_maintenance_coverage','movie_maintenance_failures','tmdb_collection_rosters','movie_maintenance_fields'];
+const optionalEnrichmentTables: readonly string[]=[...providerEvidenceTables,...providerEnrichmentTables,'movie_maintenance_coverage','movie_maintenance_failures','tmdb_collection_rosters','movie_maintenance_fields','maintenance_jobs','maintenance_job_units','maintenance_lease','maintenance_write_guard'];
 // Production maintenance receipts are outside the application migration ledger.
 // Create only these reviewed local schemas; never execute source CREATE SQL.
 export const maintenanceSchemas: Record<string, string> = {
@@ -64,6 +64,8 @@ export function restoreExport(db: DatabaseSync, sql: string) {
   snapshotOperation('restoreExport / verify integrity and foreign keys', () => verifyForeignKeys(db));
 }
 export function sanitise(table: string, row: Record<string, any>): Record<string, any> | null {
+  if(table==='maintenance_write_guard')return null;
+  if(table==='maintenance_lease')return {...row,job_id:null,owner:null,token:null,expires_at:0,execution:null};
   if (table === 'auth_sessions' || table === 'provider_cooldowns') return null;
   if (table === 'member_auth') return {...row, authorized_email: `${encodeURIComponent(row.member_id).toLowerCase()}@bookclub.invalid`, google_sub: null, bound_at: null, last_login_at: null};
   return row;

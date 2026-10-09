@@ -5,12 +5,12 @@ import { ApiError } from './http';
 import { Repository } from './repository';
 import { TmdbProvider } from './providers/tmdb';
 import { executeProvider, quotaCooldown } from './providers/execution';
-import { ProviderError } from './providers/http';
+import { classifyMaintenanceFailure, maintenanceRequest } from './maintenance-failure';
 
 export class CollectionRosterService {
   private store:CollectionRosterRepository;
   private repo:Repository;
-  constructor(private env:Env){this.store=new CollectionRosterRepository(env.DB);this.repo=new Repository(env.DB);}
+  constructor(private env:Env,private beforeRequest?:()=>Promise<void>){this.store=new CollectionRosterRepository(env.DB);this.repo=new Repository(env.DB);}
   async status():Promise<CollectionRosterStatus>{
     await this.store.requireSchema();
     const wait=await this.repo.providerCooldown('tmdb',true);
@@ -31,15 +31,17 @@ export class CollectionRosterService {
         response.results.push({id,status:'skipped',message:'Already checked or no longer eligible.'});continue;
       }
       try{
-        const roster=await executeProvider(this.repo,'tmdb',()=>{response.requests++;return provider.collectionDetails(id);},{provider:'TMDB'});
+        const roster=await maintenanceRequest(()=>executeProvider(this.repo,'tmdb',async()=>{await this.beforeRequest?.();response.requests++;return provider.collectionDetails(id);},{provider:'TMDB'}),()=>this.repo.setProviderCooldown('tmdb',60));
         if(!roster || !candidate.memberIds.every(member=>roster.parts.some(part=>part.id===member)))throw new ApiError(503,'INVALID_PROVIDER_RESPONSE','TMDB collection membership was incomplete or malformed. Previous evidence is preserved.');
         await this.store.save(roster);response.cacheChanged=true;response.results.push({id,status:'checked',message:'Collection membership checked.'});
       }catch(error){
+        const failure=classifyMaintenanceFailure(error);
+        if(failure.category==='systemic')throw error;
         const malformed=error instanceof ApiError && error.code==='INVALID_PROVIDER_RESPONSE';
         await this.store.failure(id,malformed?'inconclusive':'failed');
         response.cacheChanged=true;
-        response.results.push({id,status:'failed',message:error instanceof ApiError?error.message:'Collection check failed. Previous evidence is preserved.'});
-        if(error instanceof ProviderError && error.kind!=='not_found' || !(error instanceof ApiError)){response.stopped='Collection maintenance interrupted. Resume the remaining checks.';break;}
+        response.results.push({id,status:'failed',message:failure.message,failure});
+        if(failure.category==='provider' || failure.category==='transient'){response.stopped='Collection maintenance interrupted. Resume the remaining checks.';break;}
       }
       if(exhausted){response.stopped='TMDB quota reached. Resume after the cooldown.';break;}
     }

@@ -32,7 +32,7 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
         ...(import.meta.env.DEV && localStorage.getItem('bookclub.dev-member') ? {'X-BookClub-Dev-Member': localStorage.getItem('bookclub.dev-member')!} : {}),
         ...(authenticated && sentToken ? { Authorization: `Bearer ${sentToken}` } : {}),
       }, ...(data === undefined ? {} : { body: JSON.stringify(data) }),
-      signal: signal ? AbortSignal.any([signal,AbortSignal.timeout(15000)]) : AbortSignal.timeout((path === '/movies/enrich-metadata' || path === '/movies/enrich-metadata-selected' || path === '/movies/enrich-provider-selected' || path === '/movies/maintain' || path === '/movies/maintenance-provider') ? 105000 : path === '/classics/enrich' ? 65000 : 15000),
+      signal: signal ? AbortSignal.any([signal,AbortSignal.timeout(15000)]) : AbortSignal.timeout((path.endsWith('/step') || path === '/maintenance/jobs' || path === '/movies/enrich-metadata' || path === '/movies/enrich-metadata-selected' || path === '/movies/enrich-provider-selected' || path === '/movies/maintain' || path === '/movies/maintenance-provider') ? 105000 : path === '/classics/enrich' ? 65000 : 15000),
     });
   } catch { throw new Error('Could not reach BookClub. Check your connection and that the API is running, then retry.'); }
   if (response.status === 401 && authenticated && sentToken === sessionToken) { clearSession(); unauthorized?.(); }
@@ -46,6 +46,15 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
   return payload.data as T;
 }
 export const api = {
+  maintenanceJobs:(after:string|null=null)=>request<{jobs:Pick<import('../shared/maintenance-job').MaintenanceJob,'id'|'intent'|'operation'|'state'|'updated_at'>[];next?:string|null}>(`/maintenance/jobs${after?'?after='+encodeURIComponent(after):''}`),
+  importMaintenanceJob:(value:import('../shared/maintenance-legacy').LegacyMaintenanceImport)=>request<import('../shared/maintenance-job').MaintenanceJob>('/maintenance/jobs/import','POST',value),
+  maintenanceJob:(id:string,after:string|null=null)=>request<import('../shared/maintenance-job').MaintenanceJob>(`/maintenance/jobs/${id}${after?'?after='+encodeURIComponent(after):''}`),
+  createMaintenanceJob:(id:string,intent:import('../shared/maintenance-plan').MaintenanceIntent,operation:import('../shared/maintenance-job').JobOperation)=>request<import('../shared/maintenance-job').MaintenanceJob>('/maintenance/jobs','POST',{id,intent,operation}),
+  claimMaintenanceJob:(id:string)=>request<{token:string;job:import('../shared/maintenance-job').MaintenanceJob}>(`/maintenance/jobs/${id}/claim`,'POST',{}),
+  stepMaintenanceJob:(id:string,token:string)=>request<import('../shared/maintenance-job').MaintenanceJob>(`/maintenance/jobs/${id}/step`,'POST',{token}),
+  releaseMaintenanceJob:(id:string,token:string)=>request<import('../shared/maintenance-job').MaintenanceJob>(`/maintenance/jobs/${id}/release`,'POST',{token}),
+  stopMaintenanceJob:(id:string)=>request<import('../shared/maintenance-job').MaintenanceJob>(`/maintenance/jobs/${id}/stop`,'POST',{}),
+  retryMaintenanceJob:(id:string,keys?:string[])=>request<import('../shared/maintenance-job').MaintenanceJob>(`/maintenance/jobs/${id}/retry`,'POST',keys?{keys}:{}),
   collectionRosterStatus:()=>request<import('../shared/collection-roster').CollectionRosterStatus>('/collections/maintenance'),
   maintainCollectionRosters:(intent:'populate'|'refresh',ids:number[],startedAt:string)=>request<import('../shared/collection-roster').CollectionRosterBatch>('/collections/maintenance','POST',{intent,ids,startedAt}),
   maintenanceCoverage: (after:string | null=null) => request<import('../shared/maintenance-plan').MaintenanceCoverage & {next:string | null}>(`/movies/maintenance-coverage${after ? '?after='+encodeURIComponent(after) : ''}`),

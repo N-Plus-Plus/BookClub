@@ -33,7 +33,9 @@ export async function discoverRelationships(db:D1Database) {
       const from=column.trim().match(/^["`[]?([A-Za-z_]\w*)/i)?.[1];
       if(!((relatedTables as readonly string[]).includes(name)&&from==='movie_id')&&!(name===receiptTable&&from==='survivor_movie_id'))throw Error(`Unsupported movie relationship: ${name}.${from??'unknown'}.`);
     }
-    if(columns.some(c=>/^\s*["`[]?movie_id\b/i.test(c))&&!(relatedTables as readonly string[]).includes(name))throw Error(`Unsupported movie relationship: ${name}.`);
+    // Job history deliberately keeps frozen, non-FK movie identities after deletion
+    // or merge. It is not reassigned to the survivor; resumption detects the old owner.
+    if(columns.some(c=>/^\s*["`[]?movie_id\b/i.test(c))&&!(relatedTables as readonly string[]).includes(name)&&name!=='maintenance_job_units')throw Error(`Unsupported movie relationship: ${name}.`);
   }
 }
 export async function rowsFor(db:D1Database,table:string,ids:string[]) {

@@ -246,7 +246,7 @@ Migration `0021_collections_awards.sql` adds two successful-evidence tables and 
 
 ## Aggregate Admin release
 
-The two-phase aggregate coordinator and shared field-summary UI require the existing 0022/0023 schema and matching film/collection APIs; this change adds no migration. Inspect the ledger and retain all pending migration gates, deploy and verify the API, then explicitly publish the frontend last. Old v1 checkpoints retain their frozen film-only scope; new aggregate runs include rosters. Publication never starts provider maintenance.
+Durable Admin maintenance requires additive migration 0024 as well as existing 0022/0023 evidence tables. After clean preflight and commit/push verification, inspect production identity and pending ledger, create a fresh verified D1 export, apply 0024 schema first, verify tables/indexes/fence triggers, deploy and smoke the API, then publish the frontend last. The old Worker safely ignores the new tables. The new job endpoints fail closed before provider calls without 0024; the frontend reports schema/API incompatibility. Installing job tables does not import browser checkpoints, provider data or start maintenance. Old checkpoints remain unchanged for explicit validated recovery. Verify job GET authorization and read-only schema compatibility; never initiate Populate, Refresh or roster work during deployment.
 
 ## Applying production migrations
 
@@ -271,7 +271,7 @@ If migration output is ambiguous or reports failure, stop. Do not automatically 
 
 Journal mutation reconciliation requires the JournalMutationResult API responses; deploy the matching Worker before this frontend. No migration is needed. The previous frontend callbacks ignore the mutation body and retain their broad refresh, so Worker-first rollout preserves those workflows.
 
-OMDb metadata idempotency requires the API Worker; browser-local resume requires the frontend. Release both for the complete behaviour, with Worker first under the normal schema/API compatibility gates. This feature requires no schema migration; independently pending migrations retain their own release gates.
+OMDb metadata idempotency requires the API Worker; durable Admin resume requires migration 0024 and the matching frontend. Release both for the complete behaviour, with Worker first under the normal schema/API compatibility gates. This feature requires no schema migration; independently pending migrations retain their own release gates.
 
 ## Deploying the production API Worker
 

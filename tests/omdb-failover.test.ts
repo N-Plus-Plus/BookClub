@@ -73,7 +73,9 @@ it.each(['network','outage','not-found','body-not-found','malformed','mismatch']
   });vi.stubGlobal('fetch',fetch);
   const result=await maintain('metadata');
   expect(fetch.mock.calls.every(([url])=>key(url)===primary)).toBe(true);
-  expect(fetch).toHaveBeenCalledTimes(['not-found','mismatch'].includes(kind)?2:1);
+  // A malformed successful response is local to a film: retain the credential
+  // and attempt the next film, rather than treating it as a provider outage.
+  expect(fetch).toHaveBeenCalledTimes(['not-found','mismatch','malformed'].includes(kind)?2:1);
   expect(result.results[0].providers[0].blocking).toBe(!['not-found','mismatch'].includes(kind));
   expect(JSON.stringify(result)).not.toContain(primary);expect(JSON.stringify(result)).not.toContain(secondary);
 });
