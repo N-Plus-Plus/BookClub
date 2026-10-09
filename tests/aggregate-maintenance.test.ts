@@ -60,4 +60,5 @@ it('strict checkpoints retain an empty film queue at the phase boundary and reje
   const data=new Map<string,string>();vi.stubGlobal('localStorage',{setItem:(k:string,v:string)=>data.set(k,v),getItem:(k:string)=>data.get(k) ?? null,removeItem:(k:string)=>data.delete(k)});
   const value=make('populate',false);saveAggregateCheckpoint(value,'populate');expect(loadAggregateCheckpoint('populate')).toEqual(value);
   data.set('bookclub.maintenance.populate.all.v2',JSON.stringify({...value,token:'forbidden'}));expect(loadAggregateCheckpoint('populate')).toBeNull();
+  data.set('bookclub.maintenance.populate.all.v2',JSON.stringify({...value,phase:'collections',rosters:{version:1,intent:'populate',startedAt:2026,pending:[7],completed:0,requests:0}}));expect(loadAggregateCheckpoint('populate')).toBeNull();
 });

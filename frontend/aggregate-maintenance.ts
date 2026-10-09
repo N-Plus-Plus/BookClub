@@ -25,7 +25,7 @@ export function loadAggregateCheckpoint(intent:MaintenanceIntent):AggregateCheck
     if(!films || films.intent!==intent || films.operation!=='all')throw new Error('Invalid film queue');
     const r=value.rosters as RosterCheckpoint | null;
     if(value.phase==='films' && r!==null || value.phase==='collections' && (!r || films.pending.length))throw new Error('Invalid phase');
-    if(r && (r.version!==1 || r.intent!==intent || !Number.isFinite(Date.parse(r.startedAt)) || !Array.isArray(r.pending) || r.pending.length>100000 || r.pending.some(id=>!Number.isSafeInteger(id)||id<=0||id>2147483647) || new Set(r.pending).size!==r.pending.length || ![r.completed,r.requests].every(n=>Number.isSafeInteger(n)&&n>=0) || Object.keys(r).some(k=>!['version','intent','startedAt','pending','completed','requests'].includes(k))))throw new Error('Invalid collection queue');
+    if(r && (r.version!==1 || r.intent!==intent || typeof r.startedAt!=='string' || !Number.isFinite(Date.parse(r.startedAt)) || !Array.isArray(r.pending) || r.pending.length>100000 || r.pending.some(id=>!Number.isSafeInteger(id)||id<=0||id>2147483647) || new Set(r.pending).size!==r.pending.length || ![r.completed,r.requests].every(n=>Number.isSafeInteger(n)&&n>=0) || Object.keys(r).some(k=>!['version','intent','startedAt','pending','completed','requests'].includes(k))))throw new Error('Invalid collection queue');
     return {...value,films};
   }catch{saveAggregateCheckpoint(null,intent);return null;}
 }
