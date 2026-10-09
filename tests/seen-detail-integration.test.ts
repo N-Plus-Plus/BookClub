@@ -8,7 +8,7 @@ import type { Movie } from '../shared/types';
 import { api } from '../frontend/api';
 import { App } from '../frontend/App';
 
-it('Seen queue, Home count, corrections and Detail context belong to the viewer',async()=>{
+it('Seen queue, corrections and Detail context stay personal alongside the Home group total',async()=>{
   const personal={...movies[0],classic:true,director:'Stored Director',seen:[{member_id:'other',seen:1,updated_at:''}]};
   const other={id:'other',display_name:'Other',sort_order:1,active:1,avatar:1};
   vi.mocked(api.catalog).mockResolvedValue({...catalog,movies:[personal],members:[catalog.members[0],other]});
@@ -35,7 +35,7 @@ it('Seen queue, Home count, corrections and Detail context belong to the viewer'
   expect(button('Undo last answer')).toBeUndefined();
   await click(button('Change to No')); expect(api.seen).toHaveBeenLastCalledWith(personal.id,'member-2',false);
   expect(harness.container.textContent).toContain('0 remaining');expect(badge()).toBeNull();
-  await navigate('home'); await navigate('movie/saved-0'); expect(button('Back')).toBeTruthy();
+  await navigate('home');expect(harness.container.querySelector('.stat-link strong')?.textContent).toBe('0'); await navigate('movie/saved-0'); expect(button('Back')).toBeTruthy();
 });
 
 it('Detail groups explicit answers in member order and omits unanswered members',async()=>{
@@ -76,8 +76,8 @@ it('desktop Missing answers follows session viewers and membership while excludi
   await act(async()=>harness.root.render(createElement(App)));await flush();
  };
  const label=()=>harness.container.querySelector('.desktop-navigation a[href="#/seen"]')?.getAttribute('aria-label');
- await remount(member);expect(label()).toBe('Seen: 1 missing answer');
- await remount(other);expect(label()).toBe('Seen: 2 missing answers');
+ await remount(member);expect(label()).toBe('Seen: 1 missing answer');await navigate('home');expect(harness.container.querySelector('.stat-link strong')?.textContent).toBe('3');expect(harness.container.querySelector('.stat-link span')?.textContent).toBe("Group's missing answers");
+ await remount(other);expect(label()).toBe('Seen: 2 missing answers');expect(harness.container.querySelector('.stat-link strong')?.textContent).toBe('3');
  await remount(other,pool.map(m=>({...m,classic:m.id!==pool[1].id})));expect(label()).toBe('Seen: 1 missing answer');
  await remount(member,pool.map(m=>({...m,classic:m.id!==pool[1].id})));expect(label()).toBe('Seen');
 });

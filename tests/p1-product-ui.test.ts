@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { AustralianAvailability } from '../frontend/AustralianAvailability';
 import { act, createElement as h } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -48,7 +49,7 @@ it.each(['member','historical'])('does not inject recommendations into %s event'
 it('availability groups cached primary options and equal-weight rent, suppressing buy without making provider calls, including saved search results',async()=>{
  const movie={...film(1),au_watch_offers:([{service_id:'1',name:'Netflix',access_type:'subscription',link:null},{service_id:'2',name:'ABC iview',access_type:'free',link:null},{service_id:'3',name:'SBS',access_type:'ads',link:null},{service_id:'4',name:'Apple TV',access_type:'rent',link:null},{service_id:'4',name:'Apple TV',access_type:'buy',link:null}] as const).map(offer=>({...offer}))};
  await act(async()=>root.render(h(FilmPicker,{builder:true,selected:[movie],movieById:new Map([[movie.id,movie]]),onSelected:()=>{},onMovie:()=>{}})));
- expect(container.textContent).toContain('Stream: Netflix');expect(container.textContent).toContain('Free: ABC');expect(container.textContent).toContain('With ads: SBS');expect([...container.querySelectorAll('.au-availability .meta')].map(p=>p.textContent)).toEqual(['Stream: Netflix','Rent: Apple']);expect(container.textContent).not.toContain('Buy:');
+ expect(container.textContent).toContain('Stream: Netflix');expect(container.textContent).toContain('Free: ABC');expect(container.textContent).not.toContain('With ads: SBS');expect([...container.querySelectorAll('.au-availability .meta')].map(p=>p.textContent)).toEqual(['Stream: Netflix','Rent: Apple']);expect(container.textContent).not.toContain('Buy:');
  expect(api.preview).not.toHaveBeenCalled();expect(api.enrichProvider).not.toHaveBeenCalled();expect(api.search).not.toHaveBeenCalled();
  const patched=patchCatalogMovie({...catalog,movies:[movie]},film(1));expect(patched.movies[0].au_watch_offers).toEqual(movie.au_watch_offers);
  expect(patchCatalogMovie(patched,{...film(1),au_watch_offers:[]}).movies[0].au_watch_offers).toEqual([]);
@@ -71,4 +72,10 @@ it('seeds hostless Classics at the first exceptional position and does not attes
  await renderEvent({rotation:{...rotation,nominal_slot:1,cycle_id:null,classics_first:1}});expect(container.querySelector('.classics-attestation')).toBeTruthy();
  await act(async()=>root.unmount());root=createRoot(container);
  await renderEvent({rotation:{...rotation,nominal_slot:5,cycle_id:'exceptional',classics_first:1}});expect(container.querySelector('.classics-attestation')).toBeNull();
+});
+
+it('shared availability retains ads outside the selected Builder lineup',async()=>{
+ const movie={...film(1),au_watch_offers:[{service_id:'ads',name:'SBS',access_type:'ads' as const,link:null}]};
+ await act(async()=>root.render(h(AustralianAvailability,{movie,empty:true})));expect(container.textContent).toContain('With ads: SBS');
+ await act(async()=>root.render(h(AustralianAvailability,{movie,empty:true,showAds:false})));expect(container.textContent).toContain('No cached Australian streaming or rental options to display');expect(movie.au_watch_offers).toHaveLength(1);
 });

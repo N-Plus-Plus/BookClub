@@ -4,6 +4,7 @@ import { ApiError, type Env } from './http';
 import { ProviderEvidenceRepository } from './provider-evidence-repository';
 import type { Repository } from './repository';
 import { FieldCoverageRepository } from './field-coverage-repository';
+import { scoreScopeSql } from './score-scope';
 import { omdbCredentials } from './providers/omdb-credentials';
 
 export class CoverageRepository {
@@ -19,6 +20,7 @@ export class CoverageRepository {
       this.db.prepare(`SELECT movie_id,score_key FROM movie_score_checks${where} AND available=0`).bind(...ids),
       this.db.prepare(`SELECT movie_id,provider,identity_provider,external_id,checked_at,CASE WHEN provider='mdblist' THEN NOT EXISTS(SELECT 1 FROM movie_provider_keywords k WHERE k.movie_id=state.movie_id AND k.provider=state.provider) ELSE ${['countries','languages','companies','credits','content_ratings','keywords','watch_offers'].map(table=>`(NOT EXISTS(SELECT 1 FROM movie_provider_${table} r WHERE r.movie_id=state.movie_id AND r.provider=state.provider))`).join('+')} END AS unavailable_families FROM movie_provider_enrichment_state state${where}`).bind(...ids),
       this.db.prepare(`SELECT movie_id,provider,operation,attempted_at FROM movie_maintenance_failures${where}`).bind(...ids),
+      this.db.prepare(`SELECT id FROM movies WHERE id IN (${ids.length?ids.map(()=>'?').join(','):'NULL'}) AND (${scoreScopeSql('movies.id')})`).bind(...ids),
     ]);
     const evidenceSupported=await new ProviderEvidenceRepository(this.db).supported();
     const evidence:ProviderCoverage[]=[];
@@ -37,7 +39,7 @@ export class CoverageRepository {
     const waits=await Promise.all(credentials.map(([identity])=>repo.providerCooldown(identity,true)));
     if (!planning && !credentials.length) unavailable.omdb='Not configured.';
     else if(!planning && waits.every(wait=>wait!==null&&wait>0)) unavailable.omdb=`Cooling down for ${Math.min(...waits as number[])} seconds.`;
-    const coverage:MaintenanceCoverage={evidence,evidenceSupported,failures,checks:(rows[0].results as (Omit<ProviderCoverage,'absent'> & {absent_json:string})[]).map(({absent_json,...r})=>({...r,absent:JSON.parse(absent_json)})),negativeScores:rows[1].results as MaintenanceCoverage['negativeScores'],enrichment:rows[2].results as MaintenanceCoverage['enrichment'],unavailable};
+    const coverage:MaintenanceCoverage={scoreEligibleIds:(rows[4].results as {id:string}[]).map(row=>row.id),evidence,evidenceSupported,failures,checks:(rows[0].results as (Omit<ProviderCoverage,'absent'> & {absent_json:string})[]).map(({absent_json,...r})=>({...r,absent:JSON.parse(absent_json)})),negativeScores:rows[1].results as MaintenanceCoverage['negativeScores'],enrichment:rows[2].results as MaintenanceCoverage['enrichment'],unavailable};
     const fields=new FieldCoverageRepository(this.db);coverage.fieldsSupported=await fields.supported();coverage.fields=await fields.read(ids,coverage,coverage.fieldsSupported);
     return coverage;
   }

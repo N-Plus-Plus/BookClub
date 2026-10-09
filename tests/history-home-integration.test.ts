@@ -24,26 +24,42 @@ describe('History cycle archive',() => {
   const select = async (index: number,value: string) => {
     await act(async () => { const element = harness.container.querySelectorAll('select')[index]; element.value = value; element.dispatchEvent(new Event('change',{bubbles:true})); });
   };
-  it('pages five cycles in existing order with matching controls, jumps after mounting and resets on host filtering',async () => {
+  it('pages ten cycles in existing order with matching controls, jumps after mounting and resets on host filtering',async () => {
     await mountHistory();
-    expect([...harness.container.querySelectorAll('section[id^="cycle-"]')].map(node => node.id)).toEqual(['cycle-cycle-11','cycle-cycle-10','cycle-cycle-9','cycle-cycle-8','cycle-cycle-7']);
-    expect(harness.container.querySelectorAll('.session-card')).toHaveLength(10);
+    expect([...harness.container.querySelectorAll('section[id^="cycle-"]')].map(node => node.id)).toEqual(Array.from({length:10},(_,i)=>`cycle-cycle-${11-i}`));
+    expect(harness.container.querySelectorAll('.session-card')).toHaveLength(20);
     expect(harness.container.querySelectorAll('.history-pagination')).toHaveLength(2);
-    expect([...harness.container.querySelectorAll('.history-pagination')].map(node => node.textContent)).toEqual(['PreviousPage 1 of 3Next','PreviousPage 1 of 3Next']);
+    expect([...harness.container.querySelectorAll('.history-pagination')].map(node => node.textContent)).toEqual(['PreviousPage 1 of 2Next','PreviousPage 1 of 2Next']);
     expect(button('Previous').disabled).toBe(true);
     expect(harness.container.textContent).not.toContain('Ungrouped events');
     expect(harness.container.querySelector('a[href="#/event"]')).toBeNull();
-    await click(button('Next')); expect(harness.container.textContent).toContain('Page 2 of 3');
+    await click(button('Next')); expect(harness.container.textContent).toContain('Page 2 of 2');
     let scrolledId = '';
     HTMLElement.prototype.scrollIntoView = vi.fn(function (this: HTMLElement) { scrolledId = this.id; });
     await select(0,'cycle-1');
-    expect(harness.container.textContent).toContain('Page 3 of 3'); expect(scrolledId).toBe('cycle-cycle-1');
+    expect(harness.container.textContent).toContain('Page 2 of 2'); expect(scrolledId).toBe('cycle-cycle-1');
     expect(button('Next').disabled).toBe(true); expect(harness.container.textContent).toContain('Ungrouped events');
     await select(1,'member-2');
-    expect(harness.container.textContent).toContain('Page 1 of 2'); expect(button('Previous').disabled).toBe(true);
+    expect(harness.container.textContent).toContain('Page 1 of 1'); expect(button('Previous').disabled).toBe(true);
     expect(harness.container.querySelector('option[value="cycle-1"]')).toBeNull();
     await select(1,'classics'); expect(harness.container.textContent).toContain('Page 1 of 1');
     expect(button('Previous').disabled).toBe(true); expect(button('Next').disabled).toBe(true);
+  });
+  it.each([0,1,10,11,20,21])('handles %i qualifying cycles in both directions and jumps',async count=>{
+    for(const oldestFirst of [false,true]){
+      const data=archive();data.cycles=Array.from({length:count},(_,i)=>({...data.cycles[0],id:`boundary-${count-i}`,ordinal:count-i}));
+      data.sessions=data.cycles.map(c=>({...data.sessions[0],id:`event-${c.id}`,cycle_id:c.id}));
+      data.sessions.push({...archive().sessions[0],id:'ungrouped',cycle_id:null});
+      await act(async()=>harness.root.render(createElement(HistoryScreen,{key:`${count}-${oldestFirst}`,catalog:data,oldestFirst,onChanged:vi.fn(),viewer:null})));
+      const ordered=oldestFirst?[...data.cycles].reverse():data.cycles;
+      const ids=()=>[...harness.container.querySelectorAll('section[id^="cycle-"]')].map(e=>e.id);
+      expect(ids()).toEqual(ordered.slice(0,10).map(c=>`cycle-${c.id}`));
+      if(count){expect([...harness.container.querySelectorAll('.history-pagination')].map(e=>e.textContent)).toEqual(Array(2).fill(`PreviousPage 1 of ${Math.ceil(count/10)}Next`));}
+      else expect(harness.container.querySelector('.history-pagination')).toBeNull();
+      if(count>10){await select(0,ordered[count-1].id);expect(ids()).toEqual(ordered.slice(Math.floor((count-1)/10)*10).map(c=>`cycle-${c.id}`));}
+      expect(harness.container.textContent).toContain('Ungrouped events');
+      await select(1,'member-2');expect(button('Previous')?.disabled ?? true).toBe(true);
+    }
   });
   it('keeps icon actions inside their card, audit evidence below that card, cached audit and delete behaviour',async () => {
     vi.mocked(api.audit).mockResolvedValue([]); vi.mocked(api.deleteSession).mockResolvedValue({removedSessionId:'event-0-2'});
@@ -105,7 +121,7 @@ it('Home shows only the top two eligible rankable Classics with summary scores',
   expect(snapshot.querySelector('.section-title a')).toBeNull();
   expect(home.querySelector('.dashboard-grid > section:last-child .section-title a')?.getAttribute('href')).toBe('#/classics');
   expect([...snapshot.querySelectorAll('.stat strong')].map(e=>e.textContent)).toEqual(['3','1','0']);
-  expect([...snapshot.querySelectorAll('.stat > span')].map(e=>e.textContent)).toEqual(['Eligible Classics','Already seen by all','Missing answers']);
+  expect([...snapshot.querySelectorAll('.stat > span')].map(e=>e.textContent)).toEqual(['Eligible Classics','Already seen by all',"Group's missing answers"]);
   expect(snapshot.querySelector('.stat-link')?.getAttribute('href')).toBe('#/seen');
   const cards=harness.container.querySelectorAll('.home-rank-card');expect(cards).toHaveLength(2);
   const top=sortClassics(pool).filter(m=>m.ranking?.eligible&&m.ranking.rankable).slice(0,2);
@@ -131,19 +147,19 @@ const historyFixture = (): Catalog => ({...catalog,movies:[{...movies[0],au_clas
 it('History preserves stored film order while reversing cycles, events, jump and pagination and keeps sort only within History detail context',async()=>{
  await act(async()=>harness.root.unmount());harness.root=createRoot(harness.container);vi.mocked(api.catalog).mockResolvedValue(historyFixture());window.location.hash='/history';await act(async()=>harness.root.render(createElement(App)));await flush();
  const cycles=()=>[...harness.container.querySelectorAll('section[id^="cycle-"]')].map(e=>e.id);
- expect(cycles()).toEqual(['cycle-c12','cycle-c11','cycle-c10','cycle-c9','cycle-c8']);
+ expect(cycles()).toEqual(Array.from({length:10},(_,i)=>`cycle-c${12-i}`));
  const filmOrder=(cycle:string)=>[...harness.container.querySelectorAll(`#${cycle} .history-event`)].map(event=>[...event.querySelectorAll('.film-list .movie-link')].map(link=>[link.querySelector('.position')?.textContent,link.querySelector('.movie-title')?.textContent]));
  const storedFilms=[[['#1','Film 0'],['#2','Film 1']],[['#1','Film 0'],['#2','Film 1']]];expect(filmOrder('cycle-c12')).toEqual(storedFilms);
  expect(harness.container.querySelector('#cycle-c12 .session-card [href^="#/event/"]')?.getAttribute('href')).toBe('#/event/e12-2');
  const metas=harness.container.querySelectorAll('.history-event .film-list .movie-copy > .meta:first-of-type');expect(metas[0].textContent).toBe('1998 · 100 min · MA15+');expect(metas[1].textContent).toBe('1998 · 100 min');
- await click(button('Re-sort'));expect(cycles()).toEqual(['cycle-c1','cycle-c2','cycle-c3','cycle-c4','cycle-c5']);
+ await click(button('Re-sort'));expect(cycles()).toEqual(Array.from({length:10},(_,i)=>`cycle-c${i+1}`));
  expect(filmOrder('cycle-c1')).toEqual(storedFilms);
  expect(harness.container.querySelectorAll('#cycle-c1 .film-list .movie-title')[0].textContent).toBe('Film 0');
  expect(harness.container.querySelectorAll('#cycle-c1 .session-card [href^="#/event/"]')[0].getAttribute('href')).toBe('#/event/e1-1');
  const jump=harness.container.querySelector('.archive-tools select') as unknown as HTMLSelectElement;
  expect([...jump.options].slice(1).map(o=>o.value)).toEqual(Array.from({length:12},(_,i)=>`c${i+1}`));
  await act(async()=>{jump.value='c11';jump.dispatchEvent(new Event('change',{bubbles:true}));});expect(cycles()).toEqual(['cycle-c11','cycle-c12']);expect(filmOrder('cycle-c12')).toEqual(storedFilms);
- await click(button('Previous'));expect(cycles()).toEqual(['cycle-c6','cycle-c7','cycle-c8','cycle-c9','cycle-c10']);
+ await click(button('Previous'));expect(cycles()).toEqual(Array.from({length:10},(_,i)=>`cycle-c${i+1}`));
  const host=harness.container.querySelectorAll('.archive-tools select')[1] as unknown as HTMLSelectElement;await act(async()=>{host.value='member-2';host.dispatchEvent(new Event('change',{bubbles:true}));});expect(cycles()[0]).toBe('cycle-c1');
  await click(harness.container.querySelector<HTMLAnchorElement>('.film-list .movie-link')!);await navigate('history');expect(cycles()[0]).toBe('cycle-c1');
  await navigate('home');await navigate('history');expect(cycles()[0]).toBe('cycle-c12');
@@ -155,6 +171,6 @@ it('Home renders Quick facts, Club timeline and Classics snapshot in order',asyn
   await navigate('home');
   const sections = [...harness.container.querySelectorAll('.home-dashboard section')].filter(section => section.querySelector('.stats-grid'));
   expect(sections.map(section => section.querySelector('h2')?.textContent)).toEqual(['Quick facts','Club timeline','Classics snapshot']);
-  expect([...sections[1].querySelectorAll('.stat span')].map(node => node.textContent)).toEqual(['Days active','Cycles completed','Watch time']);
+  expect([...sections[1].querySelectorAll('.stat span')].map(node => node.textContent)).toEqual(['Days active','Cycles completed','Watch time hh:mm']);
   expect(sections.every(section => section.querySelectorAll('.stat').length === 3)).toBe(true);
 });

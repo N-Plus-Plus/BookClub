@@ -17,7 +17,7 @@ const key = (url: string) => new URL(url).searchParams.get('apikey');
 const cooldowns = () => local.sqlite.prepare('SELECT provider FROM provider_cooldowns ORDER BY provider').all().map(row=>row.provider);
 const service = () => new ScoreService(repo,env);
 beforeEach(async()=>{
-  local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));repo=new Repository(local.db);local.sqlite.exec('DELETE FROM classics');
+  local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));repo=new Repository(local.db);local.sqlite.exec("DELETE FROM classics;UPDATE sessions SET deleted_at='2026-01-01'");
   env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:4173',OMDB_API_KEY:primary,OMDB_API_KEY_SECONDARY:secondary};
   ids=[];
   for (const imdb of ['tt0000101','tt0000102']) {

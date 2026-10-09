@@ -26,3 +26,14 @@ it('direct detail and refreshed preview entries use Home without leaving the app
     await click(button('Back'));await flush();expect(window.location.hash).toBe('#/home');expect(harness.container.querySelector('h1')?.textContent).toBe('Home');
   }
 });
+
+
+it('returns from saved overview links through browser and app Back without reloading sets',async()=>{
+ vi.mocked(api.builders).mockResolvedValue([{id:'private-overview',owner_member_id:'member-2',title:'Private overview',notes:'Private note',movie_ids:[movies[0].id,movies[1].id],revision:1,created_at:'2026-01-01',updated_at:''}]);
+ await navigate('builder');const overview=harness.container.querySelector('.builder-workflow');
+ const openFilm=async()=>{await click(harness.container.querySelector<HTMLAnchorElement>('.builder-poster-film')!);await vi.waitFor(async()=>{await flush();expect(button('Back')).toBeTruthy();});expect(window.location.hash).toBe(`#/movie/${movies[0].id}`);};
+ const returned=async()=>vi.waitFor(async()=>{await flush();expect(harness.container.querySelector('h1')?.textContent).toBe('Builder');});
+ await openFilm();window.history.back();await returned();expect(harness.container.querySelector('.builder-workflow')).toBe(overview);
+ window.history.forward();await vi.waitFor(async()=>{await flush();expect(button('Back')).toBeTruthy();});await click(button('Back'));await returned();
+ expect(api.builders).toHaveBeenCalledTimes(1);await click(button('Open set'));expect(lineup()).toEqual(['Film 0','Film 1']);
+});

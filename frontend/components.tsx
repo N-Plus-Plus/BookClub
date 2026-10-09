@@ -75,7 +75,7 @@ export function SessionCard({session,members,actions,dateHeading,variant}: {sess
       {!home && variant !== 'history' && session.kind === 'classics' && <ClubIdentity identity={{kind: 'classics'}} />}
       {!home && variant !== 'history' && session.host_member_id && (members.find(m => m.id === session.host_member_id) ? <ClubIdentity identity={{kind: 'member',member: members.find(m => m.id === session.host_member_id)!}} /> : <span>Hosted by a former member</span>)}
       {session.legacy_cycle_label && <span className="badge">{session.legacy_cycle_label}</span>}</div>}
-    <ol className="film-list">{session.movies.map((movie,i) => <li key={`${movie.id}-${i}`}>{variant === 'history' ? <MovieLink movie={movie} className="movie-row"><span className="position">#{i+1}</span>{position !== undefined && <span className="position">#{position}</span>}<Poster movie={movie} /><FilmInformation movie={movie} directorClassName="history-film-director" /></MovieLink> : <><span className="position">{home ? `#${i+1}` : i+1}</span><MovieRow movie={movie} /></>}</li>)}</ol>
+    <ol className="film-list">{session.movies.map((movie,i) => <li key={`${movie.id}-${i}`}>{variant === 'history' ? <MovieLink movie={movie} className="movie-row"><span className="position">#{i+1}</span><Poster movie={movie} /><FilmInformation movie={movie} directorClassName="history-film-director" /></MovieLink> : <><span className="position">{home ? `#${i+1}` : i+1}</span><MovieRow movie={movie} /></>}</li>)}</ol>
     {session.planned_at && <p className="meta">Planned {new Date(session.planned_at).toLocaleString('en-AU')}</p>}
   </article>;
 }

@@ -4,6 +4,7 @@ import { disposableD1 } from './d1';
 import { Repository } from '../worker/src/repository';
 import { ProductRepository } from '../worker/src/product-repository';
 import { latestScores, rankMovie, sortClassics } from '../shared/ranking';
+import { maintenanceMovies } from '../shared/score-maintenance';
 import { hydrateCatalog } from '../shared/catalog';
 import { metadataCandidate, metadataGaps, tmdbIdentity } from '../shared/metadata';
 import { metadataSql, metadataPrioritySql } from '../worker/src/metadata-sql';
@@ -106,7 +107,7 @@ it('compatibility enrichment candidates match rankability/identity selection wit
   const long=await repo.manualMovie({title:'Long supported MDBList ID'});await repo.setClassic(long,true);
   local.sqlite.prepare("INSERT INTO movie_external_ids VALUES(?,'tmdb','123456789012')").run(long);
   const {mdbId}=await import('../worker/src/providers/mdblist');
-  const movies=(await repo.catalog()).movies, candidates=movies.filter(m=>m.classic && !m.ranking?.rankable);
+  const catalog=await repo.catalog(), candidates=maintenanceMovies(catalog).filter(m=>!rankMovie(m.scores,m.seen,catalog.members).rankable);
   const identified=candidates.filter(m=>mdbId(m.external_ids));
   expect(await repo.enrichmentCandidates(2)).toEqual({ids:identified.slice(0,2).map(m=>m.id),remaining:Math.max(0,identified.length-2),unidentified:candidates.length-identified.length});
   vi.spyOn(repo,'catalog').mockRejectedValue(new Error('forbidden'));

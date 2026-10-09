@@ -124,7 +124,7 @@ export class UnifiedMaintenanceService {
             if(scores===undefined && !response.stopped) scores=await call(()=>mdb.scores(unit.identity));
             if(scores===undefined) throw new ApiError(503,'INCOMPLETE_BATCH','Film omitted from provider batch; retained for resume.');
             const movie=movies.find(m=>m.id===unit.movieId)!;
-            if(unit.operations.includes('scores') || movie.classic || movie.appearances.length) {await this.scoreEvidence(movie,unit.operations.includes('scores')?unit:{...unit,scoreKeys:[...providerKeys[provider]]},scores,coverage,intent,startedAt,checked.get(unit.identity.external_id));response.canonicalChanged ||= scores.length>0;}
+            if(unit.operations.includes('scores') || coverage.scoreEligibleIds?.includes(movie.id)) {await this.scoreEvidence(movie,unit.operations.includes('scores')?unit:{...unit,scoreKeys:[...providerKeys[provider]]},scores,coverage,intent,startedAt,checked.get(unit.identity.external_id));response.canonicalChanged ||= scores.length>0;}
             const conflicts=await saveCache(movie.id,captures.get(unit.identity.external_id),unit.operations.includes('mdblist-enrichment'));
             if(!captures.get(unit.identity.external_id) && titles.get(unit.identity.external_id)) {await this.repo.cacheProviderTitle(movie.id,provider,titles.get(unit.identity.external_id),unit.identity,new Date().toISOString());response.canonicalChanged=true;}
             await this.coverage.failure(movie.id,provider,unit.operations,false);
@@ -139,7 +139,7 @@ export class UnifiedMaintenanceService {
         let metadataComplete=true,enrichmentComplete=true;
         if(provider==='omdb') {
           const detail=await maintenanceRequest(()=>omdb.details(unit.identity.external_id),()=>this.repo.setProviderCooldown('omdb',60));scores=detail.scores;
-          if(unit.operations.includes('scores') || movie.classic || movie.appearances.length){await this.scoreEvidence(movie,unit.operations.includes('scores')?unit:{...unit,scoreKeys:[...providerKeys[provider]]},scores,coverage,intent,startedAt,detail.scoreCheckedKeys);response.canonicalChanged ||= scores.length>0;}
+          if(unit.operations.includes('scores') || coverage.scoreEligibleIds?.includes(movie.id)){await this.scoreEvidence(movie,unit.operations.includes('scores')?unit:{...unit,scoreKeys:[...providerKeys[provider]]},scores,coverage,intent,startedAt,detail.scoreCheckedKeys);response.canonicalChanged ||= scores.length>0;}
           metadataComplete=detail.metadata.checkedFields?.length===maintenanceContract['omdb-metadata'].fields.length;
           evidenceValid=Boolean(detail.awards);changed=await this.repo.cacheAwards(movie.id,detail.awards);response.cacheChanged ||= changed;
           // Score fallback retains canonical fill behaviour without overwriting populated fields in Populate.
@@ -149,7 +149,7 @@ export class UnifiedMaintenanceService {
         } else {
           const detail=await call(()=>new TmdbProvider(this.env.TMDB_READ_TOKEN!,limits).details(unit.identity.external_id));scores=detail.scores;
           evidenceValid=Boolean(detail.collection);changed=await this.repo.cacheCollection(movie.id,detail.collection);response.cacheChanged ||= changed;
-          if(unit.operations.includes('scores') || movie.classic || movie.appearances.length) {await this.scoreEvidence(movie,unit.operations.includes('scores')?unit:{...unit,scoreKeys:[...providerKeys[provider]]},scores,coverage,intent,startedAt,detail.scoreCheckedKeys);response.canonicalChanged ||= scores.length>0;}
+          if(unit.operations.includes('scores') || coverage.scoreEligibleIds?.includes(movie.id)) {await this.scoreEvidence(movie,unit.operations.includes('scores')?unit:{...unit,scoreKeys:[...providerKeys[provider]]},scores,coverage,intent,startedAt,detail.scoreCheckedKeys);response.canonicalChanged ||= scores.length>0;}
           metadataComplete=detail.checkedFields?.length===maintenanceContract['tmdb-metadata'].fields.length;
           enrichmentComplete=Boolean(detail.enrichment)&&Object.keys(collectedFieldStates('tmdb-enrichment',{...detail.enrichment,...detail.enrichment?.metadata})).length===maintenanceContract['tmdb-enrichment'].fields.length;
           if(unit.operations.includes('tmdb-metadata')) {

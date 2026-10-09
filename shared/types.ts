@@ -56,7 +56,7 @@ export interface BuilderPublishInput { revision: number; event_date: string; cyc
 export interface HistoryAudit { id: string; actor_member_id: string | null; session_id: string | null; action: string; occurred_at: string; changes_json: string }
 export interface SessionInput { correct_anchor?: boolean; complete_turn?: boolean; turn_version?: number; event_date: string; host_member_id?: string | null; legacy_cycle_label?: string; movie_ids: string[]; cycle_id?: string | null; new_cycle?: CycleInput; kind?: Session['kind']; date_precision?: Session['date_precision']; cycle_slot?: number | null }
 export interface ProviderResult { provider: string; status: 'success' | 'failed' | 'skipped'; count: number; message: string; retryAfter?: number; blocking?: boolean }
-export interface ScoreMaintenanceStatus { candidateIds: string[]; eligibleDimensions: number; unavailableDimensions: number; unavailableFilms: number }
+export interface ScoreMaintenanceStatus { eligibleIds?: string[]; candidateIds: string[]; eligibleDimensions: number; unavailableDimensions: number; unavailableFilms: number }
 export interface ScoreMaintenance { results: RefreshResult[] }
 export interface RefreshResult { movie: MovieDetail; providers: ProviderResult[] }
 export interface ManualMovieInput { title: string; year?: number; runtime?: number }

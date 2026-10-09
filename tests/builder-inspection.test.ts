@@ -156,7 +156,7 @@ it('Builder queues optimistic changes, preserves newest text and draft on failur
  vi.mocked(api.search).mockResolvedValue(results);await input(harness.container.querySelector('input[maxlength="150"]')!,'film');await act(async()=>harness.container.querySelector('.builder-workflow form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));await flush();
  expect(harness.container.querySelector('button[aria-label="Add Film 0"]')?.classList.contains('builder-result-add')).toBe(true);
  vi.mocked(api.saveBuilder).mockRejectedValueOnce(new Error('Autosave unavailable'));await click(harness.container.querySelector('button[aria-label="Add Film 0"]')!);
- expect(lineup()).toEqual(['Film 0']);expect(harness.container.textContent).toContain('Set changes are unsaved');expect(harness.container.querySelector('.builder-lineup-identity')?.firstElementChild?.textContent).toBe('#1');expect(harness.container.querySelector('.builder-lineup')?.textContent).not.toContain('Viewing position');
+ expect(lineup()).toEqual(['Film 0']);expect(harness.container.textContent).toContain('Set changes are unsaved');expect(harness.container.querySelector('.builder-lineup-identity .movie-link > .position')?.textContent).toBe('#1');expect(harness.container.querySelector('.builder-lineup')?.textContent).not.toContain('Viewing position');
  await click(button('Save set'));expect(button('Save set')).toBeUndefined();expect(api.builders).toHaveBeenCalledTimes(1);expect(harness.container.querySelectorAll('.builder-poster-strip .poster')).toHaveLength(1);
 });
 
@@ -167,7 +167,7 @@ it('All sets stays in the list when a newly queued draft finishes, and can reope
 });
 
 it.each([1,2,3,9])('Builder displays only the first four shared poster previews (%i films)',async count=>{
- vi.mocked(api.builders).mockResolvedValue([{id:'posters',owner_member_id:'member-2',title:'Posters',notes:null,movie_ids:Array.from({length:count},(_,i)=>movies[i%movies.length].id),revision:1,created_at:'2026-01-01',updated_at:''}]);await navigate('builder');expect(harness.container.querySelectorAll('.builder-poster-strip .poster')).toHaveLength(Math.min(4,count));expect(harness.container.querySelector('.builder-poster-strip a')).toBeNull();expect(harness.container.querySelector('.poster-empty')).toBeTruthy();
+ vi.mocked(api.builders).mockResolvedValue([{id:'posters',owner_member_id:'member-2',title:'Posters',notes:null,movie_ids:Array.from({length:count},(_,i)=>movies[i%movies.length].id),revision:1,created_at:'2026-01-01',updated_at:''}]);await navigate('builder');expect(harness.container.querySelectorAll('.builder-poster-strip .poster')).toHaveLength(Math.min(4,count));expect(harness.container.querySelectorAll('.builder-poster-strip a')).toHaveLength(Math.min(4,count));expect(harness.container.querySelector('.builder-poster-strip a')?.getAttribute('href')).toBe(`#/movie/${movies[0].id}`);expect(harness.container.querySelector('.poster-empty')).toBeTruthy();
 });
 
 it('Builder title blur creates a new draft while typing stays local',async()=>{

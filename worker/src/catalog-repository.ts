@@ -5,6 +5,7 @@ import { assembleMovies, groupMovies } from './catalog-assembly';
 import { effectiveScoreSql, scoreColumns, liveScoreSql, usableScoreSql } from './score-sql';
 import { movieColumns } from './movie-projections';
 import { ApiError } from './http';
+import { scoreScopeSql } from './score-scope';
 import { SchemaCapabilities } from './schema-capabilities';
 
 type SessionRow = Omit<Session,'movies'>;
@@ -78,14 +79,14 @@ export class CatalogRepository {
     const marks=ids.map(()=>'?').join(','),selected=(sql:string)=>this.db.prepare(sql).bind(...ids);
     const results=await this.db.batch([
       selected(`SELECT m.*,EXISTS(SELECT 1 FROM classics c WHERE c.movie_id=m.id) AS classic,
-        EXISTS(SELECT 1 FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE sm.movie_id=m.id AND s.deleted_at IS NULL) AS history FROM movies m WHERE id IN (${marks})`),
+        EXISTS(SELECT 1 FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE sm.movie_id=m.id AND s.deleted_at IS NULL) AS history,(${scoreScopeSql('m.id')}) AS scoreEligible FROM movies m WHERE id IN (${marks})`),
       selected(`SELECT movie_id,provider,external_id FROM movie_external_ids WHERE movie_id IN (${marks})`),
       selected(`SELECT ${scoreColumns} FROM source_scores ss WHERE movie_id IN (${marks}) AND (${usableScoreSql()}) AND (${liveScoreSql()})`),
       selected(`SELECT movie_id,provider,asset_type,reference,width,height,preferred FROM movie_assets WHERE movie_id IN (${marks})`),
       selected(`SELECT movie_id,genre FROM movie_genres WHERE movie_id IN (${marks})`),
     ]);
     const identities=groupMovies(results[1].results as WithMovie<import('../../shared/types').ExternalId>[]),scores=groupMovies(results[2].results as WithMovie<import('../../shared/types').Score>[]),assets=groupMovies(results[3].results as WithMovie<import('../../shared/types').Asset>[]),genres=groupMovies(results[4].results as WithMovie<{genre:string}>[]);
-    return (results[0].results as (Movie & {history:number})[]).map(row=>({...row,classic:Boolean(row.classic),external_ids:identities.get(row.id)??[],scores:scores.get(row.id)??[],assets:assets.get(row.id)??[],genres:(genres.get(row.id)??[]).map(g=>g.genre),seen:[],ranking:null}));
+    return (results[0].results as (Movie & {history:number;scoreEligible:number})[]).map(row=>({...row,classic:Boolean(row.classic),external_ids:identities.get(row.id)??[],scores:scores.get(row.id)??[],assets:assets.get(row.id)??[],genres:(genres.get(row.id)??[]).map(g=>g.genre),seen:[],ranking:null}));
   }
 
   async catalog(): Promise<Catalog> { return this.catalogSnapshot(); }
@@ -165,11 +166,12 @@ export class CatalogRepository {
     const rows = <T>(i: number) => result[i].results as T[];
     const appearances = groupMovies(rows<WithMovie<import('../../shared/types').MovieDetail['appearances'][number]>>(8));
     const movies = assembleMovies(result).map(movie => ({...movie,appearances:appearances.get(movie.id) ?? []}));
+    const eligible = validateScope ? new Set((await this.db.prepare(`SELECT id FROM movies WHERE id IN (${placeholders}) AND (${scoreScopeSql('movies.id')})`).bind(...ids).all<{id:string}>()).results.map(row=>row.id)) : null;
     const byId = new Map(movies.map(m => [m.id,m]));
     return ids.map(id => {
       const movie = byId.get(id);
-      if (validateScope && (!movie || (!movie.classic && !movie.appearances.length)))
-        throw new ApiError(422,'INVALID_SCOPE','A queued film was deleted or is no longer in Classics or History. Refresh BookClub before resuming.');
+      if (validateScope && (!movie || !eligible!.has(id)))
+        throw new ApiError(422,'INVALID_SCOPE','A queued film was deleted or is no longer eligible for score maintenance. Refresh BookClub before resuming.');
       if (!movie) throw new ApiError(404,'NOT_FOUND','Film not found.');
       return movie;
     });

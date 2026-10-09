@@ -1,3 +1,4 @@
+import { scoreScopeSql } from './score-scope';
 import type { JobOperation, MaintenanceJob } from '../../shared/maintenance-job';
 import { maintenanceOperations, planMaintenance, providerIdentity, type MaintenanceIntent, type MaintenanceUnit } from '../../shared/maintenance-plan';
 import { maintenanceContract } from '../../shared/maintenance-contract';
@@ -74,7 +75,7 @@ export class MaintenanceJobs {
     // A compact JSON parameter avoids thousands of binds/queries for import validation.
     const invalid=await this.db.prepare(`SELECT 1 FROM json_each(?) u WHERE NOT EXISTS(
       SELECT 1 FROM movie_external_ids i WHERE i.movie_id=json_extract(u.value,'$[0]') AND i.provider=json_extract(u.value,'$[2]') AND i.external_id=json_extract(u.value,'$[3]')
-    ) OR (EXISTS(SELECT 1 FROM json_each(json_extract(u.value,'$[4]')) o WHERE o.value='scores') AND NOT EXISTS(SELECT 1 FROM classics WHERE movie_id=json_extract(u.value,'$[0]')) AND NOT EXISTS(SELECT 1 FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE sm.movie_id=json_extract(u.value,'$[0]') AND s.deleted_at IS NULL))
+    ) OR (EXISTS(SELECT 1 FROM json_each(json_extract(u.value,'$[4]')) o WHERE o.value='scores') AND NOT (${scoreScopeSql("json_extract(u.value,'$[0]')")}))
     OR (json_extract(u.value,'$[1]')='mdblist' AND json_extract(u.value,'$[2]')='tmdb' AND EXISTS(SELECT 1 FROM movie_external_ids i WHERE i.movie_id=json_extract(u.value,'$[0]') AND i.provider='imdb' AND i.external_id GLOB 'tt[0-9]*')) LIMIT 1`).bind(JSON.stringify(legacy.units)).first();
     if(invalid||new Set(legacy.collections).size!==legacy.collections.length)throw new ApiError(422,'INVALID_LEGACY_SCOPE','Legacy identity or eligibility changed; owner review is required.');
     if(legacy.collections.length){
@@ -122,7 +123,7 @@ export class MaintenanceJobs {
         if(job.intent==='populate'&&!planning.legacy&&(!coverage.fieldsSupported||!coverage.evidenceSupported))throw new ApiError(503,'SCHEMA_UPGRADE_REQUIRED','Maintenance field and provider evidence schemas are required.');
         // History eligibility is per selected movie; no catalogue-wide query or roster needed.
         const catalog={members:[],cycles:[],movies,sessions:movies.filter(m=>m.history).map(m=>({movies:[m]}))} as unknown as import('../../shared/types').Catalog;
-        units=planMaintenance(catalog,coverage,planning.legacy?'refresh':job.intent,job.operation==='all'?maintenanceOperations:job.operation==='collection-rosters'?[]:[job.operation]).units;
+        units=planMaintenance(catalog,{...coverage,scoreEligibleIds:movies.filter(m=>m.scoreEligible).map(m=>m.id)},planning.legacy?'refresh':job.intent,job.operation==='all'?maintenanceOperations:job.operation==='collection-rosters'?[]:[job.operation]).units;
         if(planning.legacy){
           units=page.map(row=>{const [movieId,provider,identityProvider,external_id,operations,scoreKeys]=JSON.parse(row.legacy_unit!) as LegacyMaintenanceImport['units'][number];return {movieId,provider,identity:{provider:identityProvider,external_id},operations,...(scoreKeys.length?{scoreKeys}:{})};});
           // The frozen original manifest is retained if a film changes after import.
@@ -199,9 +200,11 @@ export class MaintenanceJobs {
           if(!identity || identity.provider!==row.identity_provider || identity.external_id!==row.external_id){
             await db.prepare("UPDATE maintenance_job_units SET status='deferred',failure_category='record',diagnostic='Provider identity changed; owner review required.',retry_at=?,checked_at=NULL WHERE job_id=? AND key=?").bind(new Date(Date.now()+60000).toISOString(),job.id,row.key).run();continue;
           }
-          const scopes=unit.operations.filter(o=>o!=='scores'||movie.classic||movie.appearances.length);
+          const scopes=unit.operations.filter(o=>o!=='scores'||coverage!.scoreEligibleIds?.includes(movie.id));
           if(!scopes.length){outcome='skipped';reason='Film is no longer eligible for this operation.';}
           else{
+            row.operations_json=JSON.stringify(scopes);
+            if(!scopes.includes('scores'))row.score_keys_json='[]';
             const checks=coverage!.fields?.filter(c=>c.movie_id===row.movie_id&&c.provider===row.provider&&c.identity_provider===row.identity_provider&&c.external_id===row.external_id);
             const complete=scopes.every(operation=>{const fields=checks?.find(c=>c.operation===operation)?.fields;const keys=operation==='scores'?unit.scoreKeys!:maintenanceContract[operation].fields.map(f=>f.id);return keys.every(key=>fields?.[key]&&(job.intent==='populate'||fields[key].checked_at>=job.started_at));});
             if(complete){outcome='successful';reason='Reconciled committed provider evidence.';}

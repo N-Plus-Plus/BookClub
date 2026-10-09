@@ -11,6 +11,7 @@ export type MaintenanceProvider = 'mdblist' | 'omdb' | 'tmdb';
 export type CoverageCategory = 'present' | 'unchecked' | 'checked_unavailable' | 'stale' | 'unidentifiable' | 'unavailable_provider' | 'inconclusive';
 export interface ProviderCoverage { movie_id:string; provider:string; domain:string; identity_provider:string; external_id:string; checked_at:string; absent:string[] }
 export interface MaintenanceCoverage {
+  scoreEligibleIds?:string[];
   fields?:OperationFieldCoverage[];
   fieldsSupported?:boolean;
   evidence?:ProviderCoverage[];
@@ -78,7 +79,7 @@ export function operationCoverage(movie:Movie,operation:MaintenanceOperation,cov
 }
 /** Provider requirements, never title-based deduplication. Fallback ranges remain conditional. */
 export function planMaintenance(catalog:Catalog,coverage:MaintenanceCoverage,intent:MaintenanceIntent,operations:readonly MaintenanceOperation[]=maintenanceOperations):MaintenancePlan {
-  const scoreScope=new Set(maintenanceMovies(catalog).map(m=>m.id)), units:MaintenanceUnit[]=[], blocked=new Set<string>(), skipped=new Set<string>();
+  const scoreScope=new Set(maintenanceMovies(catalog,coverage.scoreEligibleIds).map(m=>m.id)), units:MaintenanceUnit[]=[], blocked=new Set<string>(), skipped=new Set<string>();
   for (const movie of [...catalog.movies].sort((a,b)=>a.id.localeCompare(b.id))) {
     const requested=new Map<MaintenanceProvider,MaintenanceOperation[]>();
     const scoreKeys=new Map<MaintenanceProvider,string[]>();
@@ -123,7 +124,7 @@ export function planMaintenance(catalog:Catalog,coverage:MaintenanceCoverage,int
   return {units,batches,films:new Set(units.map(u=>u.movieId)).size,blocked:blocked.size,checkedUnavailable:skipped.size,calls};
 }
 export function operationCounts(catalog:Catalog,operation:MaintenanceOperation,coverage:MaintenanceCoverage){
-  const films=operation==='scores'?maintenanceMovies(catalog):catalog.movies;
+  const films=operation==='scores'?maintenanceMovies(catalog,coverage.scoreEligibleIds):catalog.movies;
   const counts={actionable:0,present:0,unavailable:0,blocked:0};
   for(const movie of films){const state=operationCoverage(movie,operation,coverage);if(state==='unchecked'||state==='inconclusive')counts.actionable++;else if(state==='checked_unavailable')counts.unavailable++;else if(state==='unidentifiable'||state==='unavailable_provider')counts.blocked++;else counts.present++;}
   return counts;

@@ -9,7 +9,7 @@ export async function readMaintenanceCoverage():Promise<MaintenanceCoverage> {
   do {
     const page=await api.maintenanceCoverage(after);
     if(!page || !Array.isArray(page.checks) || !Array.isArray(page.enrichment) || !Array.isArray(page.negativeScores) || !page.unavailable || !Array.isArray(page.evidence) || page.evidenceSupported!==true || page.fieldsSupported!==true || !Array.isArray(page.fields)) throw new Error('Maintenance coverage is unavailable. Install migration 0023 and update the API Worker before using these controls.');
-    coverage.evidenceSupported=page.evidenceSupported;coverage.evidence!.push(...(page.evidence ?? []));
+    coverage.scoreEligibleIds=[...(coverage.scoreEligibleIds ?? []),...(page.scoreEligibleIds ?? [])];coverage.evidenceSupported=page.evidenceSupported;coverage.evidence!.push(...(page.evidence ?? []));
     if(page.fields){coverage.fields ??= [];coverage.fields.push(...page.fields);}coverage.fieldsSupported=page.fieldsSupported;
     coverage.failures=[...(coverage.failures ?? []),...(page.failures ?? [])];coverage.checks.push(...page.checks);coverage.enrichment.push(...page.enrichment);coverage.negativeScores.push(...page.negativeScores);coverage.unavailable=page.unavailable;
     after=page.next;

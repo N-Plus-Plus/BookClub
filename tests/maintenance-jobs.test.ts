@@ -78,3 +78,64 @@ it('Retry failed extends newly eligible rosters without replaying previous film 
  const calls=upstream(),base=globalThis.fetch;let poisoned=true;vi.stubGlobal('fetch',async(input:RequestInfo|URL,init?:RequestInit)=>{const url=new URL(String(input)),n=Number(url.pathname.split('/').at(-1));if(url.pathname.includes('/collection/')){calls.push('roster:'+n);return Response.json({id:n,name:'Series',parts:n===1?[{id:1},{id:2}]:[{id:3},{id:4}]});}if(url.hostname==='api.themoviedb.org'){if(n===4&&poisoned){calls.push('poison:4');return Response.json({malformed:true});}const data=await(await base(input,init)).json() as Record<string,unknown>;return Response.json({...data,belongs_to_collection:{id:n<=2?1:2,name:'Series'}});}return base(input,init);});
  const id=crypto.randomUUID();await ready(jobs,id,'refresh','all');const lease=await jobs.claim(id,'one');expect((await drain(jobs,id,lease.token)).counts.deferred).toBe(1);expect(calls.filter(c=>c.startsWith('roster:'))).toEqual(['roster:1']);await jobs.release(id,lease.token);local.sqlite.exec("UPDATE maintenance_job_units SET retry_at='2000-01-01T00:00:00.000Z' WHERE status='deferred'");poisoned=false;const before=calls.length;await jobs.retry(id);const second=await jobs.claim(id,'two');expect((await drain(jobs,id,second.token)).state).toBe('completed');expect(calls.slice(before)).toEqual(['api.themoviedb.org:4','roster:2']);
 });
+
+
+it.each(['populate','refresh'] as const)('maintains saved Builder score scope privately through %s, removal and Resume',async intent=>{
+ const {local,env,jobs,repo}=fixture(7);const calls=upstream();
+ local.sqlite.exec(`DELETE FROM classics WHERE movie_id NOT IN ('film-3');
+ INSERT INTO members(id,display_name,sort_order,active) VALUES('owner','Owner',1,1);
+ INSERT INTO builder_sets(id,owner_member_id,title,notes) VALUES('one','owner','PRIVATE TITLE','PRIVATE NOTE'),('two','owner','SECOND PRIVATE','SECRET'),('deleted','owner','DELETED PRIVATE','SECRET');
+ INSERT INTO builder_movies VALUES('one','film-1',1),('two','film-1',1),('one','film-2',2),('deleted','film-5',1),('one','film-6',3),('one','film-7',4);
+ DELETE FROM builder_sets WHERE id='deleted';
+ INSERT INTO sessions(id,event_date,date_precision,host_member_id,kind) VALUES('history','2020-01-01','exact','owner','hosted');
+ INSERT INTO session_movies VALUES('history','film-4',1);`);
+ const service=new UnifiedMaintenanceService(repo,env),coverage=await service.status(null),catalog=await repo.catalog();
+ expect(coverage.scoreEligibleIds).toEqual(['film-1','film-2','film-3','film-4','film-6','film-7']);
+ expect(new Set(planMaintenance(catalog,coverage,intent,['scores']).units.map(u=>u.movieId))).toEqual(new Set(coverage.scoreEligibleIds));
+ expect((await repo.scoreMaintenanceStatus()).candidateIds).toEqual(coverage.scoreEligibleIds);
+ await expect(repo.maintenanceDetails(['film-2'],true)).resolves.toHaveLength(1);
+ await expect(repo.maintenanceDetails(['film-5'],true)).rejects.toMatchObject({code:'INVALID_SCOPE'});
+ expect(catalog.movies.find(m=>m.id==='film-2')?.classic).toBe(false);
+ expect((await repo.movieDetails(['film-2']))[0].appearances).toHaveLength(0);
+ const id=crypto.randomUUID();await ready(jobs,id,intent,'scores');
+ expect(local.sqlite.prepare('SELECT count(*) AS n FROM maintenance_job_units WHERE job_id=? AND movie_id=?').get(id,'film-1')?.n).toBe(3);
+ // Losing one of two sets does not remove eligibility. Last relationship removal does.
+ local.sqlite.exec("DELETE FROM builder_movies WHERE builder_id='one' AND movie_id='film-1';DELETE FROM builder_movies WHERE movie_id='film-6';INSERT INTO session_movies VALUES('history','film-7',2);DELETE FROM builder_movies WHERE movie_id='film-7'");
+ local.sqlite.exec("UPDATE maintenance_job_units SET status='running',attempts=1 WHERE movie_id='film-6'");
+ const first=await jobs.claim(id,'First browser');await jobs.stop(id);expect((await jobs.step(id,first.token)).state).toBe('paused');await jobs.release(id,first.token);
+ const resumed=new MaintenanceJobs(env),next=await resumed.claim(id,'Second browser');const done=await drain(resumed,id,next.token);await resumed.release(id,next.token);
+ expect(done.state).toBe('completed');expect(done.counts.skipped).toBe(13);expect(done.counts.successful).toBe(5);
+ expect(local.sqlite.prepare("SELECT count(*) AS n FROM source_scores WHERE movie_id='film-6'").get()?.n).toBe(0);
+ expect(local.sqlite.prepare("SELECT count(*) AS n FROM maintenance_job_units WHERE movie_id='film-6' AND status='skipped' AND diagnostic='Film is no longer eligible for this operation.'").get()?.n).toBe(3);
+ expect(local.sqlite.prepare("SELECT count(*) AS n FROM source_scores WHERE movie_id='film-2'").get()?.n).toBeGreaterThan(0);
+ const payloads=JSON.stringify([coverage,done,await service.status(null),await resumed.list(),await repo.scoreMaintenanceStatus()]);
+ expect(payloads).not.toMatch(/PRIVATE|SECRET|owner_member_id|builder_id|notes/);
+ expect(calls.length).toBeGreaterThan(0);
+ expect(coverage.scoreEligibleIds).not.toContain('film-5');
+ const evidence=await service.status(null);expect(evidence.fields?.find(c=>c.movie_id==='film-2'&&c.provider==='mdblist'&&c.operation==='scores')?.fields['rogerebert:rating'].state).toBe('checked_unavailable');
+ // Conclusive missing provider dimensions do not cause replay on Populate.
+ local.sqlite.exec("UPDATE maintenance_jobs SET state='cancelled';DELETE FROM builder_movies WHERE movie_id='film-2'");
+ expect((await service.status(null)).scoreEligibleIds).not.toContain('film-2');
+ expect(local.sqlite.prepare("SELECT count(*) AS n FROM source_scores WHERE movie_id='film-2'").get()?.n).toBeGreaterThan(0);
+ const newId=crypto.randomUUID();await ready(resumed,newId,'populate','scores');expect(local.sqlite.prepare('SELECT count(*) AS n FROM maintenance_job_units WHERE job_id=?').get(newId)?.n).toBe(0);
+});
+
+
+it('retains catalogue-wide operations when a saved Builder film loses score scope after planning',async()=>{
+ const {local,jobs}=fixture(1);upstream();local.sqlite.exec("DELETE FROM classics;INSERT INTO members(id,display_name,sort_order,active) VALUES('owner','Owner',1,1);INSERT INTO builder_sets(id,owner_member_id) VALUES('set','owner');INSERT INTO builder_movies VALUES('set','film-1',1)");
+ const id=crypto.randomUUID();await ready(jobs,id,'refresh','all');local.sqlite.exec("DELETE FROM builder_sets WHERE id='set'");
+ const lease=await jobs.claim(id,'Resume');const done=await drain(jobs,id,lease.token);await jobs.release(id,lease.token);
+ expect(done.state).toBe('completed');expect(done.counts.successful).toBe(3);
+ expect(local.sqlite.prepare("SELECT count(*) AS n FROM movie_maintenance_fields WHERE movie_id='film-1' AND operation<>'scores'").get()?.n).toBeGreaterThan(0);
+ expect(local.sqlite.prepare("SELECT count(*) AS n FROM source_scores WHERE movie_id='film-1'").get()?.n).toBe(0);
+});
+
+
+it('imports a saved Builder-only legacy score checkpoint and rejects it after last-set deletion',async()=>{
+ const {local,jobs}=fixture(1);local.sqlite.exec("DELETE FROM classics;INSERT INTO members(id,display_name,sort_order,active) VALUES('owner','Owner',1,1);INSERT INTO builder_sets(id,owner_member_id) VALUES('set','owner');INSERT INTO builder_movies VALUES('set','film-1',1)");
+ const legacy:import('../shared/maintenance-legacy').LegacyMaintenanceImport={id:crypto.randomUUID(),intent:'refresh',operation:'scores',startedAt:'2020-01-01T00:00:00.000Z',phase:'films',filmOnly:true,rosterStartedAt:null,units:[['film-1','mdblist','imdb','tt0000001',['scores'],['imdb:rating']]],collections:[]};
+ const calls=vi.fn(()=>{throw Error('No provider requests during import');});vi.stubGlobal('fetch',calls);
+ const job=await ready(jobs,legacy.id,legacy.intent,legacy.operation,legacy);expect(job.counts.pending).toBe(1);expect(calls).not.toHaveBeenCalled();
+ local.sqlite.exec("UPDATE maintenance_jobs SET state='cancelled';DELETE FROM builder_sets WHERE id='set'");
+ const removed={...legacy,id:crypto.randomUUID()};await expect(jobs.create(removed.id,removed.intent,removed.operation,removed)).rejects.toMatchObject({code:'INVALID_LEGACY_SCOPE'});
+});

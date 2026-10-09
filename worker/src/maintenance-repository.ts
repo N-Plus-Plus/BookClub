@@ -1,3 +1,4 @@
+import { scoreScopeSql } from './score-scope';
 import type { Asset, ExternalId } from '../../shared/types';
 import type { MetadataMovie } from '../../shared/metadata';
 import { requiredScores } from '../../shared/ranking';
@@ -35,16 +36,18 @@ export class MaintenanceRepository {
 
   async scoreMaintenanceStatus(): Promise<import('../../shared/types').ScoreMaintenanceStatus> {
     const rows = (await this.db.prepare(`WITH scope AS (
-      SELECT id FROM movies WHERE EXISTS(SELECT 1 FROM classics WHERE movie_id=movies.id)
-      OR EXISTS(SELECT 1 FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE sm.movie_id=movies.id AND s.deleted_at IS NULL)
-    ), keys(score_key) AS (VALUES ${requiredScores.map(key => "('"+key+"')").join(',')})
-    SELECT scope.id,keys.score_key,coalesce(c.available,1) AS available FROM scope CROSS JOIN keys
-    LEFT JOIN movie_score_checks c ON c.movie_id=scope.id AND c.score_key=keys.score_key
-    WHERE NOT EXISTS(SELECT 1 FROM source_scores ss WHERE ss.movie_id=scope.id AND ss.provider||':'||ss.metric=keys.score_key
-      AND (${usableScoreSql()}) AND (${liveScoreSql()}))
-    ORDER BY scope.id,keys.score_key`).all<{id:string;score_key:string;available:number}>()).results;
-    return {candidateIds:[...new Set(rows.filter(r => r.available !== 0).map(r => r.id))],eligibleDimensions:rows.filter(r => r.available !== 0).length,
-      unavailableDimensions:rows.filter(r => r.available === 0).length,unavailableFilms:new Set(rows.filter(r => r.available === 0).map(r => r.id)).size};
+      SELECT id FROM movies WHERE (${scoreScopeSql('movies.id')})
+    ), keys(score_key) AS (VALUES ${requiredScores.map(key => "('"+key+"')").join(',')}), missing AS (
+      SELECT scope.id,keys.score_key,coalesce(c.available,1) AS available FROM scope CROSS JOIN keys
+      LEFT JOIN movie_score_checks c ON c.movie_id=scope.id AND c.score_key=keys.score_key
+      WHERE NOT EXISTS(SELECT 1 FROM source_scores ss WHERE ss.movie_id=scope.id AND ss.provider||':'||ss.metric=keys.score_key
+        AND (${usableScoreSql()}) AND (${liveScoreSql()}))
+    ) SELECT scope.id,missing.score_key,missing.available FROM scope LEFT JOIN missing ON missing.id=scope.id
+    ORDER BY scope.id,missing.score_key`).all<{id:string;score_key:string|null;available:number|null}>()).results;
+    // Extend the existing compatibility status query; no second catalogue read.
+    const eligibleIds=[...new Set(rows.map(row=>row.id))],missing=rows.filter(row=>row.score_key!==null);
+    return {eligibleIds,candidateIds:[...new Set(missing.filter(r => r.available !== 0).map(r => r.id))],eligibleDimensions:missing.filter(r => r.available !== 0).length,
+      unavailableDimensions:missing.filter(r => r.available === 0).length,unavailableFilms:new Set(missing.filter(r => r.available === 0).map(r => r.id)).size};
   }
 
   /** Metadata-only indexed reads; no scores, roster, History or global eligibility query. */
@@ -99,9 +102,9 @@ export class MaintenanceRepository {
       scored AS (SELECT DISTINCT movie_id FROM source_scores ss JOIN recognised r ON r.score_key=ss.provider||':'||ss.metric WHERE ${usableScoreSql()}),
       answered AS (SELECT movie_id,count(*) AS count FROM seen_states JOIN active ON active.id=member_id WHERE seen IN (0,1) GROUP BY movie_id),
       identified AS (SELECT DISTINCT movie_id FROM movie_external_ids WHERE (provider='tmdb' AND ${validTmdbSql('external_id',false)}) OR (provider='imdb' AND ${validImdbSql('external_id')})),
-      candidates AS (SELECT m.id,m.title,i.movie_id IS NOT NULL AS identified FROM movies m JOIN classics c ON c.movie_id=m.id
+      candidates AS (SELECT m.id,m.title,i.movie_id IS NOT NULL AS identified FROM movies m
         LEFT JOIN scored s ON s.movie_id=m.id LEFT JOIN answered a ON a.movie_id=m.id LEFT JOIN identified i ON i.movie_id=m.id
-        WHERE s.movie_id IS NULL OR coalesce(a.count,0)<>(SELECT count(*) FROM active) OR (SELECT count(*) FROM active)=0)`;
+        WHERE (${scoreScopeSql('m.id')}) AND (s.movie_id IS NULL OR coalesce(a.count,0)<>(SELECT count(*) FROM active) OR (SELECT count(*) FROM active)=0))`;
     const results = await this.db.batch([
       this.db.prepare(`${sql} SELECT id FROM candidates WHERE identified ORDER BY title,id LIMIT ?`).bind(limit),
       this.db.prepare(`${sql} SELECT coalesce(sum(identified),0) AS eligible,coalesce(sum(NOT identified),0) AS unidentified FROM candidates`),

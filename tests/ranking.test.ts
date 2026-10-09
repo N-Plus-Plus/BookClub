@@ -67,3 +67,16 @@ describe('historical ranking',() => {
 
 it('requires all four explicit answers before ranking',()=>{ expect(rankMovie(scores(),answers(1,2),members).rankable).toBe(false); expect(rankMovie(scores(),answers(1,3),members).rankable).toBe(true); expect(rankMovie(scores(),answers(4),members).eligible).toBe(false); });
 it('each viewer has an independent Classics queue',()=>{const films=[movie('film',0,answers(1,1)),{...movie('outside'),classic:false}]; expect(members.map(m=>missingAnswers(films,members,m.id).length)).toEqual([0,0,1,1]);});
+
+
+it('counts unique missing active member-film pairs with the same personal predicate',()=>{
+ const members=[{id:'a',display_name:'A',active:1,sort_order:1},{id:'b',display_name:'B',active:1,sort_order:2},{id:'c',display_name:'C',active:0,sort_order:3}];
+ const make=(id:string,seen:Movie['seen']=[])=>({id,title:id,year:null,classic:true,ranking:null,seen} as Movie);
+ const pool=[make('none'),make('partial',[{member_id:'a',seen:0,updated_at:''}]),make('done',members.map(m=>({member_id:m.id,seen:1,updated_at:''}))),make('history'),{...make('catalogue'),classic:false}];
+ expect(missingAnswers([...pool,pool[0]],[...members,members[0]],null,new Set(['history']))).toHaveLength(3);
+ expect(missingAnswers(pool,members,'a',new Set(['history']))).toHaveLength(1);
+ expect(missingAnswers(pool,members,'b',new Set(['history']))).toHaveLength(2);
+ expect(missingAnswers(pool,members,'c')).toHaveLength(0);
+ expect(missingAnswers(pool,[],null)).toHaveLength(0);
+ expect(missingAnswers([pool[2]],members,null)).toHaveLength(0);
+});

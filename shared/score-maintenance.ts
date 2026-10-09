@@ -4,9 +4,10 @@ export type MaintenanceMode = 'missing' | 'refresh' | 'metadata';
 export const MAINTENANCE_BATCH_SIZE = 10;
 export const METADATA_MAINTENANCE_BATCH_SIZE = 2;
 export const MAINTENANCE_IDLE_MS = 2000;
-export function maintenanceMovies(catalog: Catalog): Movie[] {
+export function maintenanceMovies(catalog: Catalog, scoreEligibleIds: readonly string[] = []): Movie[] {
   const history = new Set(catalog.sessions.filter(s => !s.deleted_at).flatMap(s => s.movies.map(m => m.id)));
-  return catalog.movies.filter(m => m.classic || history.has(m.id));
+  const eligible = new Set(scoreEligibleIds);
+  return [...new Map(catalog.movies.filter(m => m.classic || history.has(m.id) || eligible.has(m.id)).map(m => [m.id,m])).values()];
 }
 export function missingScores(movie: Movie) {
   return missingLiveScoreDimensions(movie.scores).length > 0;
