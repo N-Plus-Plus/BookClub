@@ -71,7 +71,7 @@ it('empty identities preserve report axes and restrained missing states without 
  } finally {await act(async()=>root.unmount());}
 });
 
-it('switches both unique popularity lists, keeps both medians visible and renders the same accessible film/context/identity structure in all four lists',async()=>{
+it('switches independent unique popularity lists, keeps both medians visible and renders the same accessible film/context/identity structure in all four lists',async()=>{
  Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
  const a=metricsFilm('a',{title:'Hosted film',assets:[{asset_type:'poster',provider:'tmdb',reference:'/fixture.jpg',width:64,height:96,preferred:1}],scores:[observation('imdb','rating',8,10,100),observation('trakt','rating',80,100,10),observation('rogerebert','rating',3,4)]});
  const b=metricsFilm('b',{title:'Classic film',scores:[observation('imdb','rating',7,10,10),observation('letterboxd','rating',4,5,200),observation('metacritic','critic',80,100)]});
@@ -86,6 +86,9 @@ it('switches both unique popularity lists, keeps both medians visible and render
   const lists=()=>[...report.querySelectorAll('ol')];
   expect(lists().map(l=>l.querySelector('a')?.getAttribute('href'))).toEqual(['#/movie/a','#/movie/b']);
   await act(async()=>[...report.querySelectorAll('button')].find(b=>b.textContent==='All audiences')!.click());
+  expect(lists().map(l=>l.querySelector('a')?.getAttribute('href'))).toEqual(['#/movie/b','#/movie/b']);
+  expect(lists()[1].textContent).toContain('10 IMDb votes');
+  await act(async()=>[...report.querySelectorAll<HTMLButtonElement>('[aria-label="Most obscure vote filter"] button')].find(b=>b.textContent==='All audiences')!.click());
   expect(lists().map(l=>l.querySelector('a')?.getAttribute('href'))).toEqual(['#/movie/b','#/movie/a']);
   expect(lists()[0].textContent).toContain('210 audience votes');
   expect(lists()[1].textContent).toContain('110 audience votes');
@@ -116,5 +119,11 @@ it('switches both unique popularity lists, keeps both medians visible and render
   expect(container.querySelectorAll('[data-metric="W"].metrics-section, [data-metric="W"] .metrics-section')).toHaveLength(0);
   await act(async()=>[...report.querySelectorAll('button')].find(b=>b.textContent==='IMDb')!.click());
   expect(lists()[0].textContent).toContain('100 IMDb votes');
+  expect(lists()[1].textContent).toContain('110 audience votes');
+  const tab=(label:string)=>act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===label)!.click());
+  await tab('Tastes');await tab('Top 5');
+  expect([...container.querySelectorAll('[data-metric="W"] h2')].map(e=>e.textContent)).toEqual(['Top 5 most popular · IMDb','Top 5 most obscure · All audiences']);
+  await act(async()=>container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[5].click());
+  expect(container.querySelector('[aria-label="Most obscure vote filter"] [aria-pressed=true]')?.textContent).toBe('All audiences');
  } finally {await act(async()=>root.unmount());container.remove();}
 });

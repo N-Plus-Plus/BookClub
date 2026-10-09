@@ -54,7 +54,7 @@ it('renders both composite categories/directions, all Metrics tabs and Cabinet r
   expect(headingTexts()).not.toContain('Top directors');
   expect(headingTexts()).toContain('Top 5 highest critic scores');
   expect(headingTexts()).toContain('Top 5 most popular · IMDb');
-  expect([...harness.container.querySelectorAll('[role=tab]')].map(node => node.textContent)).toEqual(['Top 5','Tastes','Breakdowns','Records','Staging']);
+  expect([...harness.container.querySelectorAll('[role=tab]')].map(node => node.textContent)).toEqual(['Top 5','Tastes','Breakdowns','Records']);
   const expectedSources = [['Critics','Critics'],['Audience','Audience']];
   for (const [index,direction] of ['Top','Bottom'].entries()) {
     for (const [label,name] of expectedSources) {
@@ -71,9 +71,9 @@ it('renders both composite categories/directions, all Metrics tabs and Cabinet r
   expect(headingTexts()).toContain('Australian classification');
   await click(button('Breakdowns')); expect(headingTexts()).toContain('Ratings profile');
   await click(button('Records'));
-  expect(headingTexts('.metrics-film-extreme h3')).toEqual(['Top critic','Top audience','Bottom critic','Bottom audience','Oldest','Newest','Longest','Shortest','Most popular','Most obscure']);
-  expect(headingTexts('.metrics-creator-extreme h3')).toEqual(['Most recurring director','Most recurring writer','Most recurring cinematographer','Most recurring composer','Most recurring editor','Most recurring producer']);
-  expect([...harness.container.querySelectorAll('.metrics-creator-extreme h3 strong')].map(node => node.textContent)).toEqual(['director','writer','cinematographer','composer','editor','producer']);
+  expect(headingTexts('.metrics-film-extreme h3')).toEqual(['Top critic','Top audience','Bottom critic','Bottom audience','Most popular','Most obscure','Oldest','Newest','Longest','Shortest']);
+  expect(headingTexts('.metrics-creator-extreme h3')).toEqual(['Most recurring director','Most recurring writer','Most recurring composer','Most recurring cinematographer','Most recurring editor','Most recurring producer']);
+  expect([...harness.container.querySelectorAll('.metrics-creator-extreme h3 strong')].map(node => node.textContent)).toEqual(['director','writer','composer','cinematographer','editor','producer']);
   expect(talentRoles).toEqual(['Cast','Director','Writer','Cinematographer','Composer','Editor','Producer']);
 });
 

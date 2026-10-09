@@ -1,3 +1,6 @@
+import * as relocated from '../shared/metrics-staging/films';
+import * as numerical from '../shared/metrics-staging/numerical';
+import * as overlaps from '../shared/metrics-staging/overlap';
 // @vitest-environment jsdom
 import { act,createElement } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -108,4 +111,22 @@ it('invalidating saved enrichment refreshes an already mounted Metrics screen',a
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(2);expect(container.querySelector('.metrics-theme-cloud')).toBeNull();
     expect(container.querySelector('[role=tab][aria-selected=true]')?.textContent).toBe('Tastes');
   }finally{await act(async()=>root.unmount());container.remove();}
+});
+
+it('evaluates relocated reports only in their owning category and reuses reports on revisits',async()=>{
+ vi.mocked(api.metricsEnrichment).mockResolvedValue(metricsEnrichmentFixture());
+ const spies={pairs:vi.spyOn(relocated,'partnerships'),stars:vi.spyOn(relocated,'sharedStars'),awards:vi.spyOn(relocated,'awardsReport'),collections:vi.spyOn(relocated,'collectionCompletion'),offers:vi.spyOn(relocated,'platforms'),cycles:vi.spyOn(numerical,'cycleScorecards'),spreads:vi.spyOn(numerical,'contributorSpreads'),overlap:vi.spyOn(overlaps,'genreOverlap'),shared:vi.spyOn(overlaps,'firstSharedTheme'),creators:vi.spyOn(reports,'recurringTalent')};
+ const catalog=metricsFixture(),node=document.createElement('div'),root=createRoot(node);
+ const select=(label:string)=>act(async()=>[...node.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(t=>t.textContent===label)!.click());
+ try {
+  await act(async()=>root.render(createElement(MetricsScreen,{catalog,viewer:null,onUpdated:async()=>{}})));
+  expect(spies.pairs).toHaveBeenCalled();for(const key of ['stars','awards','collections','offers','cycles','spreads','overlap','shared','creators'] as const)expect(spies[key]).not.toHaveBeenCalled();
+  await select('Tastes');expect(spies.stars).toHaveBeenCalledOnce();expect(spies.overlap).toHaveBeenCalledOnce();expect(spies.shared).toHaveBeenCalledOnce();expect(spies.awards).not.toHaveBeenCalled();expect(spies.creators).not.toHaveBeenCalled();
+  await select('Breakdowns');for(const key of ['awards','collections','offers','cycles'] as const)expect(spies[key]).toHaveBeenCalledOnce();expect(spies.spreads).toHaveBeenCalledTimes(2);expect(spies.creators).not.toHaveBeenCalled();
+  const calls=Object.fromEntries(Object.entries(spies).map(([key,spy])=>[key,spy.mock.calls.length]));
+  await select('Top 5');await select('Tastes');await select('Breakdowns');
+  for(const [key,spy] of Object.entries(spies))expect(spy.mock.calls.length).toBe(calls[key]);
+  await act(async()=>root.render(createElement(MetricsScreen,{catalog:{...catalog,movies:[...catalog.movies]},viewer:null,onUpdated:async()=>{}})));
+  expect(spies.awards).toHaveBeenCalledTimes(2);expect(api.metricsEnrichment).toHaveBeenCalledOnce();
+ }finally{await act(async()=>root.unmount());}
 });

@@ -1,3 +1,4 @@
+import { metricsInventory } from './helpers/metrics-inventory.ts';
 // Synthetic catalogue only. Run with Vite dev:ui and locally installed Playwright:
 // corepack pnpm exec tsx tests/metrics.browser.mjs
 import assert from 'node:assert/strict';
@@ -38,11 +39,13 @@ await fs.mkdir('.verification/metrics',{recursive:true});
 const columns = locator => locator.evaluate(e => getComputedStyle(e).gridTemplateColumns.split(' ').length);
 const overflow = () => page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
 const results = [];
+const presentationOnly=process.env.BOOKCLUB_METRICS_PRESENTATION_ONLY==='1';
 const tabs = ['Top 5','Tastes','Breakdowns','Records'];
-const assignments = [['U','V','W','G','J','L','H','I'],['C','F','O','P','R','S'],['B','D','Y','K','M','N','T'],['X']];
+const assignments = [['U','V','W','genre-combinations','G','L','H','I'],['C','F','S','R','P','O'],['B','T','K','Y','D','M','N'],['X']];
 const tab = name => page.getByRole('tab',{name,exact:true}).click();
 const active = () => page.locator('[role=tab][aria-selected=true]').textContent();
 const check = async(width,label) => {
+  if(await overflow())console.log(await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).slice(0,20).map(e=>({class:e.className,rect:e.getBoundingClientRect().toJSON()}))));
   assert(!(await overflow()),`${width}: ${label} page overflow`);
   assert(!/NaN|Infinity|undefined|0 \/ 0/.test(await page.locator('.metrics-content').textContent()));
   assert.equal(await page.getByRole('tabpanel').count(),1);
@@ -50,7 +53,8 @@ const check = async(width,label) => {
   for(const pair of await page.locator('.metrics-paired').all()) assert.equal(await columns(pair),available >= 720 ? 2 : 1);
 };
 try {
-  for (const width of [320,390,720,951,1440]) {
+  if(presentationOnly)await page.goto('http://localhost:4173/#/metrics');
+  for (const width of presentationOnly?[]:[320,390,720,951,1440]) {
     requests.length = 0;
     await page.setViewportSize({width,height:900});
     const enrichmentRead = page.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/metrics/enrichment'));
@@ -58,7 +62,7 @@ try {
     else await page.reload();
     await page.getByRole('heading',{name:'Top 5 highest critic scores',exact:true}).waitFor();
     assert.equal(await active(),'Top 5');
-    assert.equal(await page.getByRole('tab').count(),5);
+    assert.equal(await page.getByRole('tab').count(),4);
     await enrichmentRead;
     const baseline = requests.length;
     const geometry = await page.evaluate(()=>{
@@ -71,10 +75,11 @@ try {
     for(let index=0;index<tabs.length;index++) {
       await tab(tabs[index]);
       await page.getByText('Loading enriched Metrics…',{exact:true}).waitFor({state:'hidden'});
+      assert.deepEqual(await page.locator('.metrics-panel h2,.metrics-panel h3').evaluateAll(es=>es.filter(e=>e.textContent!=='Records'&&(e.tagName==='H2'||!e.closest('.staging-report'))).map(e=>e.textContent)),metricsInventory[tabs[index]]);
       const codes=await page.getByRole('tabpanel').locator('[data-metric]').evaluateAll(elements=>elements.map(e=>e.dataset.metric));
       assert.deepEqual(codes.slice().sort(),assignments[index].slice().sort());found.push(...codes);
       if(tabs[index]==='Breakdowns') {
-        assert.deepEqual(await page.locator('.metrics-panel h2,.metrics-panel h3').allTextContents(),['Contribution by host','Release decades','Genre detail','Australian classification','Median reported budget / revenue','Ratings profile']);
+
         assert.equal(await page.locator('.metrics-classification-row').count(),5);
         assert.equal(await page.locator('.metrics-classifications .metrics-stack-legend').count(),1);
         assert.equal(await page.locator('.metrics-economics-axis').count(),1);
@@ -84,7 +89,7 @@ try {
       }
       if(tabs[index]==='Tastes') {
         assert.deepEqual(codes,assignments[index]);
-        assert.deepEqual(await page.locator('[data-metric] h3').allTextContents(),['Genre fingerprint','Theme fingerprint','Production countries','Original languages','Directors','Recurring cast']);
+        assert.deepEqual(await page.locator('[data-metric] h3').allTextContents(),['Genre fingerprint','Theme fingerprint','Recurring cast','Directors','Original languages','Production countries']);
         assert(!/appearances|%/.test(await page.locator('.metrics-fingerprint').textContent()));
         assert.deepEqual(await page.locator('.metrics-comparison-bars small').allTextContents(),Array.from({length:5},()=>['Brought','vs. Club']).flat());
         assert.deepEqual(await page.locator('.metrics-signature .metrics-enriched-row').evaluateAll(rows=>rows.map(e=>e.style.getPropertyValue('--chart-colour'))),['var(--jeans)','var(--lavender)','var(--jeans)','var(--lavender)','var(--jeans)']);
@@ -135,7 +140,10 @@ try {
     assert.match(medians,/Median .* IMDb votes · Median .* total audience votes/);
     await page.getByRole('group',{name:'Most popular vote filter'}).getByRole('button',{name:'All audiences',exact:true}).click();
     assert.match(await page.locator('.metrics-popularity-list').first().textContent(),/audience votes/);
+    assert.match(await page.locator('.metrics-popularity-list').nth(1).textContent(),/IMDb votes/);
+    await page.getByRole('group',{name:'Most obscure vote filter'}).getByRole('button',{name:'All audiences',exact:true}).click();
     assert.match(await page.locator('.metrics-popularity-list').nth(1).textContent(),/audience votes/);
+    await page.getByRole('group',{name:'Most obscure vote filter'}).getByRole('button',{name:'IMDb',exact:true}).click();
     assert.equal(await page.locator('[data-metric="W"] > p').textContent(),medians);
     await page.getByRole('group',{name:'Most popular vote filter'}).getByRole('button',{name:'IMDb',exact:true}).click();
     await tab('Breakdowns');
@@ -175,7 +183,8 @@ try {
     for(const role of ['Cast','Director','Writer','Cinematographer','Composer','Editor','Producer']) {await page.locator('.metrics-talent select').selectOption(role);assert.doesNotMatch(await page.locator('.metrics-talent').textContent(),/known for/);}
     assert(await page.locator('.metrics-talent select').evaluate(e=>e.getBoundingClientRect().height)>=44);
     await tab('Top 5');await page.locator('.metrics-filters button').first().click();
-    const studios=page.locator('.metrics-companies');
+    await page.locator('.metrics-talent select').selectOption('Studios');
+    const studios=page.locator('.metrics-talent');
     assert.equal(await studios.locator('.metrics-frequency-row').count(),20);
     assert.match(await studios.textContent(),/26 results/,'every fifth-place studio tie remains available');
     await studios.getByRole('button',{name:'Next',exact:true}).click();
@@ -183,11 +192,12 @@ try {
     assert(await studios.locator('.metrics-frequency-row').evaluateAll(rows=>rows.every(e=>e.textContent.includes('12 appearances · 85.7%'))));
     await studios.getByRole('button',{name:'Previous',exact:true}).click();
     const countries=page.locator('.metrics-countries');
-    assert.equal(await countries.locator('.metrics-frequency-row').count(),16);
-    assert(await countries.locator('.metrics-frequency-row').evaluateAll(rows=>rows.every(e=>e.textContent.includes('9 films · 90.0%'))),'unique-film country denominator includes the missing-country film');
-    assert.equal(await page.locator('.metrics-companies .metrics-distribution-track,.metrics-countries .metrics-distribution-track,.metrics-companies .metrics-five-scroll,.metrics-countries .metrics-five-scroll').count(),0);
-    const headingTexts=await page.locator('.metrics-panel h2,.metrics-panel h3').allTextContents();
-    assert.deepEqual(headingTexts,['Top 5 highest critic scores','Top 5 lowest critic scores','Top 5 most popular · IMDb','Top 5 most obscure · IMDb','Top 5 talent','Top 5 studios','Top 5 highest revenue / budget ratio','Top 5 lowest revenue / budget ratio','Top 5 production countries','Top 5 non-English original languages']);
+    assert.equal(await countries.locator('.metrics-enriched-row').count(),16);
+    assert(await countries.locator('.metrics-enriched-row').evaluateAll(rows=>rows.every(e=>e.textContent.includes('9 films') && !e.textContent.includes('%'))),'unique-film country denominator includes the missing-country film');
+    assert.equal(await page.locator('.metrics-companies').count(),0);
+    assert.equal(await countries.locator('.metrics-distribution-track').count(),16);
+    const headingTexts=await page.locator('.metrics-panel h2,.metrics-panel h3').evaluateAll(es=>es.filter(e=>e.tagName==='H2'||!e.closest('.staging-report')).map(e=>e.textContent));
+    assert.deepEqual(headingTexts,metricsInventory['Top 5']);
     assert.match(await page.locator('.metrics-revenue-ratios a').first().getAttribute('href'),/^#\/movie\//);
     const modes=page.locator('.metrics-score-filters').first();
     assert.equal(await modes.locator('button').count(),2);
@@ -197,7 +207,7 @@ try {
     const before=await page.evaluate(()=>scrollY);await tab('Tastes');assert.equal(await page.evaluate(()=>scrollY),before,'tab click does not move page');
     const selected=page.getByRole('tab',{name:'Tastes',exact:true});await selected.focus();await page.keyboard.press('ArrowRight');assert.equal(await active(),'Breakdowns');
     assert(await page.locator('[role=tab][aria-selected=true]').evaluate(e=>e===document.activeElement && getComputedStyle(e).outlineStyle!=='none'),'visible keyboard focus');
-    await page.keyboard.press('End');assert.equal(await active(),'Staging');await page.keyboard.press('Home');assert.equal(await active(),'Top 5');
+    await page.keyboard.press('End');assert.equal(await active(),'Records');await page.keyboard.press('Home');assert.equal(await active(),'Top 5');
     assert.equal(requests.length,baseline,'tab/identity/role/score changes generate no API reads');assert.equal(requests.filter(p=>p.endsWith('/metrics/enrichment')).length,1);
     results.push({width,available,overflow:false,filterCalls:requests.length-baseline,tabs:tabs.length});
   }
@@ -210,7 +220,7 @@ try {
   catalog.movies[1].scores.push(observation('letterboxd','rating',8,10,3000000));
   await context.route('**/fixture-poster.svg',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="96"><rect width="64" height="96" fill="#7b1c3a"/><circle cx="32" cy="40" r="20" fill="#d6cba8"/></svg>'}));
   await context.route('**/failed-poster.jpg',route=>route.fulfill({status:404,body:''}));
-  for(const width of [320,390,720,951,1440]) {
+  for(const width of presentationOnly?[]:[320,390,720,951,1440]) {
     await page.setViewportSize({width,height:900});await page.reload();
     await page.getByRole('heading',{name:'Top 5 highest critic scores',exact:true}).waitFor();
     await page.getByText('Loading enriched Metrics…',{exact:true}).waitFor({state:'hidden'});
@@ -261,7 +271,7 @@ try {
   const stressFilms=Array.from({length:100},(_,index)=>metricsFilm(`general-${index}`));
   Object.assign(catalog,{movies:stressFilms,sessions:[metricsEvent('general-sean',stressFilms),metricsEvent('general-troy',[stressFilms[0],stressFilms[1]],'m2'),metricsEvent('general-matt',[stressFilms[2]],'m3'),metricsEvent('general-jess',[],'m4'),metricsEvent('general-classics',[stressFilms[3]],null)]});
   enriched.movies=Object.fromEntries(stressFilms.map((film,index)=>[film.id,{...emptyEnrichmentMovie(),metadata:{original_language:index<70?'zz':'fr',budget:index===0?1000000:2000000,revenue:index===0?80000000:4000000},languages:[{code:'zz',name:'A deliberately long original-language display name that wraps within the report',english_name:'A deliberately long original-language display name that wraps within the report'}],contentRatings:index<80?[{certification:'G',release_type:3}]:index<85?[{certification:'PG',release_type:3}]:index<89?[{certification:'M',release_type:3}]:[]} ]));
-  for(const width of [320,390,720,951,1440]) {
+  for(const width of presentationOnly?[]:[320,390,720,951,1440]) {
     await page.setViewportSize({width,height:900});await page.reload();await page.getByRole('heading',{name:'Top 5 highest critic scores',exact:true}).waitFor();await page.getByText('Loading enriched Metrics…',{exact:true}).waitFor({state:'hidden'});
     await tab('Breakdowns');await check(width,'General stress');
     const classifications=page.locator('.metrics-classification-row');assert.equal(await classifications.count(),5);
@@ -289,6 +299,39 @@ try {
     assert(await languageRows.first().textContent().then(text=>text.includes('A deliberately long')));
     await check(width,'long language ranking');await page.locator('.metrics-non-english').scrollIntoViewIfNeeded();await page.screenshot({path:`.verification/metrics/language-stress-${width}.png`,fullPage:true});
   }
+  // Presentation stress across both drawer modes, real dialog focus, and paginated Records ties.
+  const tiedFilms=Array.from({length:26},(_,i)=>metricsFilm(`reception-${i}`,{title:`A very long tied film title ${i} that wraps in the Records card`,scores:[observation('imdb','rating',8,10),observation('metacritic','critic',80,100)],classic:i===0,seen:i===0?catalog.members.map((m,index)=>({member_id:m.id,seen:index%2,updated_at:''})):[]}));
+  catalog.movies=tiedFilms;catalog.sessions=[metricsEvent('reception-ties',tiedFilms)];
+  for(const width of [320,390,720,951,1440]) {
+    await page.setViewportSize({width,height:900});await page.reload();
+    await page.getByRole('heading',{name:'Top 5 highest critic scores',exact:true}).waitFor();
+    for(const collapsed of width>=720?[false,true]:[false]) {
+      if(collapsed)await page.getByRole('button',{name:'Collapse navigation',exact:true}).click();
+      await tab('Breakdowns');await check(width,'economics/glossary '+collapsed);
+      assert(await page.locator('.metrics-budget-heading').evaluateAll(headers=>headers.every(e=>e.scrollWidth<=e.clientWidth && [...e.children].every(c=>c.getBoundingClientRect().right<=e.getBoundingClientRect().right+1))));
+      const opener=page.locator('.metrics-ratings-heading button');await opener.click();
+      const dialog=page.getByRole('dialog',{name:'Score abbreviations',exact:true});await dialog.waitFor();
+      assert(await dialog.getByRole('row').filter({hasText:'Letterboxd'}).count()===1);
+      assert.equal(await dialog.locator('tbody tr').count(),9);
+      assert(await dialog.evaluate(e=>e.scrollWidth<=e.clientWidth));
+      await page.screenshot({path:`.verification/metrics/glossary-${width}-${collapsed}.png`,fullPage:true});
+      await page.keyboard.press('Escape');assert(await opener.evaluate(e=>e===document.activeElement));
+      await tab('Records');await check(width,'poster Records '+collapsed);
+      for(const section of await page.locator('.metrics-reception-record').all()) {
+        assert.equal(await section.locator('.metrics-reception-film').count(),5);
+        assert.equal(await section.locator('.poster-empty').count(),5);
+        assert(await section.locator('.metrics-reception-film').evaluateAll(rows=>rows.every(e=>e.scrollWidth<=e.clientWidth && e.textContent.includes('Critics 80.0 · Audiences 80.0 / 100 · 0.0 points · Equal'))));
+        for(let i=0;i<5;i++)await section.getByRole('button',{name:'Next',exact:true}).click();
+        assert.equal(await section.locator('.metrics-reception-film').count(),1);
+      }
+      for(const section of await page.locator('.metrics-viewed-record').all()) {
+        assert.equal(await section.locator('.metrics-viewed-row').count(),2);
+        assert.doesNotMatch(await section.textContent(),/tied members|canonical Classic candidates/);
+        assert(await section.locator('.metrics-viewed-row').evaluateAll(rows=>rows.every(e=>{const identity=e.firstElementChild.getBoundingClientRect(),count=e.lastElementChild.getBoundingClientRect();return identity.right<=count.x && e.scrollWidth<=e.clientWidth;})));
+      }
+      await page.screenshot({path:`.verification/metrics/records-stress-${width}-${collapsed}.png`,fullPage:true});
+    }
+  }
   Object.assign(catalog,originalCatalog);Object.assign(enriched,originalEnriched);
   failEnrichment=true;await page.setViewportSize({width:390,height:900});await page.reload();
   await page.getByRole('heading',{name:'Top 5 highest critic scores',exact:true}).waitFor();
@@ -297,9 +340,10 @@ try {
   await page.screenshot({path:'.verification/metrics/top-five-enrichment-error-390.png',fullPage:true});
   failEnrichment=false;await page.getByRole('button',{name:'Retry enriched Metrics',exact:true}).click();
   await page.getByRole('button',{name:'Retry enriched Metrics',exact:true}).waitFor({state:'hidden'});
-  assert(await page.locator('.metrics-companies .metrics-frequency-row').count()>0,'retry restores moved Top 5 reports');
+  await page.locator('.metrics-talent .metrics-frequency-row').first().waitFor();
+  assert(await page.locator('.metrics-talent .metrics-frequency-row').count()>0,'retry restores moved Top 5 reports');
   sparse=true;await page.setViewportSize({width:390,height:900});await page.reload();await page.getByRole('heading',{name:'Top 5 highest critic scores',exact:true}).waitFor();assert.equal(await active(),'Top 5');await page.locator('.metrics-filters button').nth(1).click();
   for(const name of tabs) {await tab(name);await page.getByText('Loading enriched Metrics…',{exact:true}).waitFor({state:'hidden'});await check(390,name+' sparse');await page.screenshot({path:`.verification/metrics/sparse-${tabs.indexOf(name)}-390.png`,fullPage:true});}
   await tab('Breakdowns');assert.match(await page.locator('.metrics-classifications').textContent(),/100.0%/s);
-  assert.deepEqual(errors,[]);await fs.writeFile('.verification/metrics/results.json',JSON.stringify({results,topBottomAdversarialWidths:[320,390,720,951,1440],collapsedDrawerWidths:[720,951,1440],partialData:true,errors},null,2));console.log(JSON.stringify({results,topBottomAdversarialWidths:[320,390,720,951,1440],collapsedDrawerWidths:[720,951,1440],partialData:true,errors}));
+  assert.deepEqual(errors,[]);await fs.writeFile('.verification/metrics/results.json',JSON.stringify({results,presentationWidths:[320,390,720,951,1440],topBottomAdversarialWidths:presentationOnly?[]:[320,390,720,951,1440],collapsedDrawerWidths:[720,951,1440],partialData:true,errors},null,2));console.log(JSON.stringify({results,presentationWidths:[320,390,720,951,1440],topBottomAdversarialWidths:presentationOnly?[]:[320,390,720,951,1440],collapsedDrawerWidths:[720,951,1440],partialData:true,errors}));
 } finally {await browser.close();}

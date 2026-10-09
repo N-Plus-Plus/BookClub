@@ -84,9 +84,17 @@ export const sourceRatings = sourceRatingKeys.map(key => {
   const d = ratingDimensions[key];
   return [d.provider,d.metric,d.compactLabel,d.fullLabel] as const;
 });
-export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; scores?: Score[]}) {
+export function ScoreAbbreviationsHelp({className}: {className?:string}) {
   const [explaining,setExplaining] = useState(false);
   const headingId = useId();
+  return <>
+    <Action icon={Info} variant="tertiary" className={className} aria-label="Explain score abbreviations" title="Explain score abbreviations" onClick={() => setExplaining(true)} />
+    {explaining && <NativeDialog heading="Score abbreviations" id={headingId} closeLabel="Close score abbreviations" onClose={() => setExplaining(false)} autoFocus>
+      <div className="score-glossary-scroll"><table className="score-abbreviations"><colgroup><col /><col /><col className="score-example-column" /><col className="score-example-column" /></colgroup><thead><tr>{['Abbreviation','Source','Native','Normalised'].map(label=><th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>{sourceRatingKeys.map(key => {const example=glossaryExample(key);return <tr key={key}><th scope="row">{ratingDimensions[key].compactLabel}</th><td>{example.source}</td><td>{example.native}</td><td>{example.normalised}</td></tr>;})}</tbody></table></div>
+    </NativeDialog>}
+  </>;
+}
+export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; scores?: Score[]}) {
   const stored = latestScores(scores);
   const items = sourceRatings.flatMap(([provider,metric,label,description]) => {
     const source = stored.find(s => s.provider === provider && s.metric === metric);
@@ -120,10 +128,7 @@ export function SourceScores({ranking,scores = []}: {ranking?: Ranking | null; s
   },[structure]);
   const stacked = items.length > 6;
   return items.length ? <div className="source-scores-summary">
-    <Action icon={Info} variant="tertiary" className="source-scores-help" aria-label="Explain score abbreviations" title="Explain score abbreviations" onClick={() => setExplaining(true)} />
-    {explaining && <NativeDialog heading="Score abbreviations" id={headingId} closeLabel="Close score abbreviations" onClose={() => setExplaining(false)} autoFocus>
-      <div className="score-glossary-scroll"><table className="score-abbreviations"><colgroup><col /><col /><col className="score-example-column" /><col className="score-example-column" /></colgroup><thead><tr>{['Abbreviation','Source','Native','Normalised'].map(label=><th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>{sourceRatingKeys.map(key => {const example=glossaryExample(key);return <tr key={key}><th scope="row">{ratingDimensions[key].compactLabel}</th><td>{example.source}</td><td>{example.native}</td><td>{example.normalised}</td></tr>;})}</tbody></table></div>
-    </NativeDialog>}
+    <ScoreAbbreviationsHelp className="source-scores-help" />
     <p ref={rowRef} className={`meta ranking-source-scores${stacked ? ' ranking-source-scores-stacked' : ''}`}>{items.map(({provider,metric,label,description,value},index) =>
     <span key={`${provider}:${metric}`} className={firstCritic > 0 && index === firstCritic ? 'source-scores-critic-boundary' : undefined} title={description} aria-label={`${description}: ${formatScore100(value)}`}><span>{label}</span>{' '}<span>{formatScore100(value)}</span></span>
   )}</p></div> : null;

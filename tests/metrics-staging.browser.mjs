@@ -1,6 +1,7 @@
 // Optional local-Vite visual check. Fictional data only; all APIs and external traffic are blocked.
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+const inventory=JSON.parse(fs.readFileSync('tests/helpers/metrics-inventory.ts','utf8').split('export const metricsInventory = ')[1].split(' as const;')[0]);
 const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
 const output='.verification/metrics-staging';fs.mkdirSync(output,{recursive:true});
 const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
@@ -25,9 +26,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(
 `}));
 try {
  for(const width of [320,390,720,951,1440]){
-  await page.setViewportSize({width,height:1000});await page.goto('http://localhost:4173/#/metrics');await page.getByRole('tab',{name:'Staging',exact:true}).click();await page.locator('.staging-report').last().waitFor();await page.locator('.metrics-filters button').first().click();
-  assert.equal(await page.locator('.staging-report').count(),15);assert.equal(await page.locator('.staging-cycle').count(),8);assert.equal(await page.locator('.staging-matrix td[aria-label]').count(),50);
-  const stars=page.locator('[aria-label="Shared stars"]');assert.equal(await stars.locator('tbody tr:not(.metrics-table-pages)').count(),20);await stars.getByRole('button',{name:'Next',exact:true}).click();assert.equal(await stars.locator('tbody tr:not(.metrics-table-pages)').count(),3);await stars.getByRole('button',{name:'Previous',exact:true}).click();
+  await page.setViewportSize({width,height:1000});await page.goto('http://localhost:4173/#/metrics');await page.getByRole('tab',{name:'Breakdowns',exact:true}).click();await page.locator('.staging-report').last().waitFor();await page.locator('.metrics-filters button').first().click();
+  assert.equal(await page.locator('.staging-report').count(),11);assert.equal(await page.locator('.staging-cycle').count(),8);assert.equal(await page.locator('.staging-matrix').count(),0);
+
   const cycle=await page.locator('.staging-cycles').evaluate(e=>({height:e.clientHeight,total:e.scrollHeight,firstFive:[...e.children].slice(0,5).reduce((n,c)=>n+c.getBoundingClientRect().height,0)}));assert(cycle.total>cycle.height);assert(Math.abs(cycle.height-cycle.firstFive)<2);
   await page.locator('.staging-cycles').evaluate(e=>e.scrollTop=e.scrollHeight);assert(await page.locator('.staging-cycle').last().isVisible());
   const axes=await page.locator('[aria-label^="Shared"]').evaluateAll(es=>es.map(e=>e.getAttribute('aria-label')));
@@ -38,27 +39,62 @@ try {
   for(const g of geometry){assert(Math.abs(g.axisLeft-g.left)<1);assert(Math.abs(g.axisRight-g.right)<1);}
   const bars=await page.locator('.staging-paired').evaluateAll(es=>es.map(e=>{const [critic,audience]=e.querySelectorAll('.staging-score-track');return {criticBottom:critic.getBoundingClientRect().bottom,audienceTop:audience.getBoundingClientRect().top,colour:getComputedStyle(audience.firstElementChild).backgroundColor,labels:[...e.children].map(n=>n.textContent)};}));
   bars.forEach(b=>{assert(Math.abs(b.criticBottom-b.audienceTop)<1);assert.equal(b.colour,'rgb(147, 152, 236)');assert(b.labels[3].startsWith('Audience:'));});
+  assert.equal(await page.locator('.staging-awards-row').count(),20);
+  assert.equal(await page.locator('[aria-label="Awards and nominations"] button').count(),0);
+  const awardsWindow=await page.locator('.staging-awards-table').evaluate(e=>({height:e.clientHeight,total:e.scrollHeight,expected:e.querySelector('.staging-awards-header').getBoundingClientRect().height+[...e.querySelectorAll('.staging-awards-row')].slice(0,5).reduce((n,row)=>n+row.getBoundingClientRect().height,0)}));assert(awardsWindow.total>awardsWindow.height);assert(Math.abs(awardsWindow.height-awardsWindow.expected)<2);
+  await page.locator('.staging-awards-table').focus();await page.keyboard.press('End');await page.waitForTimeout(150);assert(await page.locator('.staging-awards-table').evaluate(e=>e.scrollTop>0));
+  const tracks=await page.locator('.staging-score-track').evaluateAll(es=>es.map(e=>getComputedStyle(e).backgroundColor));assert(tracks.every(c=>c==='rgba(0, 0, 0, 0)'));
+  const grossGroups=await page.locator('.staging-gross-film').evaluateAll(es=>es.map(e=>({minimum:getComputedStyle(e.querySelector('a')).minHeight,gap:e.querySelector('p').getBoundingClientRect().top-e.querySelector('a').getBoundingClientRect().bottom,text:e.querySelector('p').textContent})));grossGroups.forEach(g=>{assert.equal(g.minimum,'0px');assert(Math.abs(g.gap-4)<1);assert(/^\$[\d,]+M USD$/.test(g.text));});
+  if(width>=720){
+    await page.getByRole('button',{name:'Collapse navigation',exact:true}).click();
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    const collapsed=await page.locator('.staging-awards-table').evaluate(e=>({height:e.clientHeight,expected:e.querySelector('.staging-awards-header').getBoundingClientRect().height+[...e.querySelectorAll('.staging-awards-row')].slice(0,5).reduce((n,row)=>n+row.getBoundingClientRect().height,0)}));assert(Math.abs(collapsed.height-collapsed.expected)<2);
+    await page.screenshot({path:output+'/staging-collapsed-'+width+'.png',fullPage:true});
+    await page.getByRole('button',{name:'Expand navigation',exact:true}).click();
+  }
+  await page.getByRole('tab',{name:'Tastes',exact:true}).click();
+  const stars=page.locator('[aria-label="Shared stars"]');assert.equal(await stars.locator('tbody tr:not(.metrics-table-pages)').count(),20);await stars.getByRole('button',{name:'Next',exact:true}).click();assert.equal(await stars.locator('tbody tr:not(.metrics-table-pages)').count(),3);await stars.getByRole('button',{name:'Previous',exact:true}).click();
+  assert.equal(await page.locator('.staging-report').count(),3);assert.equal(await page.locator('.staging-matrix td[aria-label]').count(),50);
   const genreCells=await page.locator('[aria-label="Genre taste overlap"] td[data-diagonal=false]').evaluateAll(es=>es.map(e=>getComputedStyle(e).backgroundColor));assert.equal(new Set(genreCells).size,10);
   const subtitles=await page.locator('.staging-report > p.meta:first-of-type').allTextContents();subtitles.forEach(text=>assert(text.length<150));
   assert.equal(await page.locator('.metrics-genre-combinations').count(),0);
   const matrices=await page.locator('.staging-matrix-scroll').evaluateAll(es=>es.map(e=>({width:e.clientWidth,total:e.scrollWidth})));if(width<720)assert(matrices.every(m=>m.total>m.width));
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.equal(await page.evaluate(()=>window.enrichmentReads),1);
-  await page.screenshot({path:output+'/staging-'+width+'.png',fullPage:true});if(width===390||width===1440){for(const report of await page.locator('.staging-report').all()){const title=await report.getAttribute('aria-label');await report.evaluate(e=>e.scrollIntoView({block:'start'}));await page.screenshot({path:output+'/'+title.replace(/[^a-z0-9]/gi,'-')+'-'+width+'.png'});}}await page.locator('.staging-cycles').evaluate(e=>e.scrollTop=0);await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:output+'/top-'+width+'.png'});await page.locator('.staging-matrix-scroll').first().screenshot({path:output+'/matrix-'+width+'.png'});
-  await page.locator('.metrics-filters button').nth(1).click();assert.deepEqual(await page.locator('[aria-label^="Shared"]').evaluateAll(es=>es.map(e=>e.getAttribute('aria-label'))),axes);assert.equal(await page.locator('.staging-chart-row').count(),3);assert.equal(await page.locator('.staging-matrix td[aria-label]').count(),50);
+  await page.screenshot({path:output+'/tastes-'+width+'.png',fullPage:true});await page.locator('.staging-matrix-scroll').first().screenshot({path:output+'/matrix-'+width+'.png'});
+
+  assert.equal(await stars.locator('.metrics-table-pages td').getAttribute('colspan'),'6');assert.deepEqual(await stars.locator('thead th').allTextContents(),['Actor','Sean','Troy','Matt','Jess','Total']);
+  await page.locator('.metrics-filters button').nth(1).click();assert.equal(await page.locator('.staging-matrix td[aria-label]').count(),50);assert(await page.locator('[data-emphasis=true]').count()>0);
+  await page.getByRole('tab',{name:'Breakdowns',exact:true}).click();
+  await page.screenshot({path:output+'/breakdowns-'+width+'.png',fullPage:true});
+  await page.locator('.metrics-filters button').nth(1).click();assert.deepEqual(await page.locator('[aria-label^="Shared"]').evaluateAll(es=>es.map(e=>e.getAttribute('aria-label'))),axes);assert.equal(await page.locator('.staging-chart-row').count(),3);assert.equal(await page.locator('.staging-matrix').count(),0);
   const denseLists=await page.locator('.metrics-metadata-films').evaluateAll(es=>es.map(e=>({font:getComputedStyle(e).fontSize,gap:getComputedStyle(e).rowGap,margin:getComputedStyle(e).marginTop,padding:parseFloat(getComputedStyle(e).paddingLeft),rows:[...e.children].map(n=>({top:n.getBoundingClientRect().top,bottom:n.getBoundingClientRect().bottom,margin:getComputedStyle(n).marginTop,padding:getComputedStyle(n).paddingTop,linkMinimum:getComputedStyle(n.querySelector('a')).minHeight})),left:e.getBoundingClientRect().left,first:e.firstElementChild.getBoundingClientRect().left})));
   denseLists.forEach(list=>{assert.equal(list.font,'13px');assert.equal(list.gap,'0px');assert.equal(list.margin,'0px');assert(list.first>list.left);list.rows.forEach((row,i)=>{assert.equal(row.margin,'0px');assert.equal(row.padding,'0px');assert.equal(row.linkMinimum,'0px');if(i)assert(Math.abs(row.top-list.rows[i-1].bottom)<1);});});
   const gross=await page.locator('.staging-revenue-table tbody tr').evaluateAll(es=>es.map(e=>({genre:getComputedStyle(e.firstElementChild).fontSize,title:getComputedStyle(e.querySelector('.movie-title')).fontSize})));gross.forEach(g=>assert.equal(g.genre,g.title));
   const classifications=await page.locator('.staging-classification h3').evaluateAll(es=>es.map(e=>({label:e.textContent,height:e.getBoundingClientRect().height,line:parseFloat(getComputedStyle(e).lineHeight),width:e.getBoundingClientRect().width,total:e.scrollWidth})));classifications.forEach(c=>{assert(Math.abs(c.height-c.line)<1);assert(c.total<=c.width+1);});
   assert.equal(await page.locator('[aria-label="Franchise / collection completed"] .metrics-metadata-films a').count(),2);assert.equal(await page.locator('[aria-label="Unrequited collections"] .metrics-metadata-films a').count(),2);assert((await page.locator('[aria-label="Unrequited collections"]').textContent()).includes('2 of 3 films'));
-  assert.equal(await stars.locator('.metrics-table-pages td').getAttribute('colspan'),'6');assert.deepEqual(await stars.locator('thead th').allTextContents(),['Actor','Sean','Troy','Matt','Jess','Total']);
+
   await page.getByRole('tab',{name:'Records',exact:true}).click();assert.equal(await page.locator('.metrics-film-extreme').count(),10);assert.equal(await page.locator('.metrics-reception-record').count(),2);assert.equal(await page.locator('.metrics-viewed-record').count(),2);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:output+'/records-'+width+'.png',fullPage:true});
-  await page.getByRole('tab',{name:'Top 5',exact:true}).click();assert.equal(await page.locator('.metrics-genre-combinations').count(),1);assert.equal(await page.locator('.staging-report').count(),2);assert.equal(await page.locator('.metrics-genre-combinations > .meta').textContent(),'Unique genre subsets of two or more genres.');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await page.getByRole('tab',{name:'Top 5',exact:true}).click();assert.equal(await page.locator('.metrics-genre-combinations').count(),1);assert.equal(await page.locator('.staging-report').count(),3);assert.equal(await page.locator('.metrics-genre-combinations > .meta').textContent(),'Unique genre subsets of two or more genres.');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   const rowStructure=await page.locator('.staging-discoveries li:not(.metrics-result-pages)').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect(),rank=e.querySelector('.staging-discovery-rank').getBoundingClientRect(),poster=e.querySelector('.poster').getBoundingClientRect(),text=e.querySelector('.staging-discovery-text').getBoundingClientRect(),index=e.querySelector('.staging-discovery-index').getBoundingClientRect();return {rank:rank.left,poster:poster.left,posterHeight:poster.height,posterLinkHeight:e.querySelector('li > a').getBoundingClientRect().height,text:text.left,right:r.right,indexRight:index.right,indexTop:index.top,top:r.top};}));
   rowStructure.forEach(r=>{assert(r.rank<r.poster&&r.poster<r.text);assert.equal(r.posterHeight,96);assert.equal(r.posterLinkHeight,96);assert(Math.abs(r.indexRight-r.right)<1);assert(Math.abs(r.indexTop-r.top-16)<1);});
   const metadata=await page.locator('.staging-discovery-text .movie-copy').evaluateAll(es=>es.map(e=>[...e.children].map(n=>n.textContent)));
   metadata.forEach(lines=>{assert(lines[1].startsWith('Audience'));assert(lines[2].includes(' min '));assert(lines[2].endsWith('M'));assert(lines[3].includes('Director'));});
   await page.screenshot({path:output+'/top-five-'+width+'.png',fullPage:true});
+  assert.deepEqual(await page.getByRole('tab').allTextContents(),['Top 5','Tastes','Breakdowns','Records']);
+  for(const label of Object.keys(inventory)) {
+    await page.getByRole('tab',{name:label,exact:true}).click();
+    // Identity filtering retains report count/order; reset the score/vote selectors remain at their defaults.
+    assert.deepEqual(await page.locator('.metrics-panel h2,.metrics-panel h3').evaluateAll(es=>es.filter(e=>e.textContent!=='Records'&&(e.tagName==='H2'||!e.closest('.staging-report'))).map(e=>e.textContent)),inventory[label]);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    if(width>=720) {
+      await page.getByRole('button',{name:'Collapse navigation',exact:true}).click();
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      await page.screenshot({path:output+'/'+label.toLowerCase().replaceAll(' ','-')+'-collapsed-'+width+'.png',fullPage:true});
+      await page.getByRole('button',{name:'Expand navigation',exact:true}).click();
+    }
+  }
+  assert.equal(await page.evaluate(()=>window.enrichmentReads),1);
   samples.push({width,cycle,matrices,axes,geometry,bars,rowStructure,denseLists,gross,classifications});
  }
- assert.deepEqual(errors,[]);fs.writeFileSync(output+'/measurements.json',JSON.stringify({samples,errors},null,2));console.log('Metrics Staging and Records: 15 Staging reports and genre combinations in Top 5, five-cycle window with older cycles, stable axes, accessible contained matrices, cached reads and no overflow passed at 320/390/720/951/1440px.');
+ assert.deepEqual(errors,[]);fs.writeFileSync(output+'/measurements.json',JSON.stringify({samples,errors},null,2));console.log('Four Metrics categories: all 15 relocated reports, approved inventories, five-cycle window with older cycles, stable axes, accessible contained matrices, cached reads and no overflow passed at 320/390/720/951/1440px.');
 } finally {await browser.close();}

@@ -145,3 +145,27 @@ Populate Missing uses live/API completeness independently of ranking: a legacy-o
 Record-specific not-found, malformed JSON/fields, invalid identity and recognized record-level persistence constraints are deferred without blocking peers. Unknown runtime/database errors are systemic and pause before further provider work. Transport/5xx failures receive at most one immediate retry; repeated transient failure persists a 60-second provider circuit cooldown. Credentials, quota/reserve and explicit cooldown block that provider; other available providers may continue. OMDb uses premium, original key, then secondary, with independent cooldowns.
 
 MDBList correlates each entry against requested identities without guessing. Independently validated entries survive a malformed peer. Duplicate/conflicting identities are deferred; malformed top-level responses defer the affected batch conservatively. Only genuinely omitted entries use the existing bounded single-film fallback (at most one per omitted identity); malformed entries are not re-requested automatically. Recovery/failover attempts count before dispatch and retain the 25-request reserve. Coalesced responses still serve all requested operation families; valid scores/metadata can remain committed despite malformed independent enrichment. Roster Refresh failures preserve valid cached membership.
+
+### Read-only AU availability diagnosis
+
+TMDB appended AU watch-provider extraction retains flatrate/free/ads/rent/buy; persisted cache relationships, rather than complete raw watch-provider responses, supply catalogue offers. Catalogue projection includes all five modes and deduplicates service ID/access. Metrics groups existing display aliases, counts distinct selected History films per mode, and displays only stream-eligible services; Prime and Amazon rental identities remain separate. A zero Rent/Buy summary alone does not prove missing collection or justify refresh. No provider lookup occurs on opening Metrics.
+
+For an authorised read-only inspection of an existing database, use the following SELECT to compare stored AU access modes and current enrichment identities for active History. Normal local Wrangler inspection must use `--local --env local`; do not substitute remote access. Retain outputs privately.
+
+```sql
+WITH history AS (
+ SELECT DISTINCT sm.movie_id FROM session_movies sm
+ JOIN sessions s ON s.id=sm.session_id WHERE s.deleted_at IS NULL
+)
+SELECT o.provider,o.service_id,o.name,o.access_type,
+ COUNT(DISTINCT o.movie_id) AS films,
+ SUM(CASE WHEN e.external_id IS NULL OR e.external_id<>i.external_id THEN 1 ELSE 0 END) AS unmatched_cache_rows
+FROM movie_provider_watch_offers o JOIN history h ON h.movie_id=o.movie_id
+LEFT JOIN movie_provider_enrichment_state e ON e.movie_id=o.movie_id AND e.provider=o.provider
+LEFT JOIN movie_external_ids i ON i.movie_id=e.movie_id AND i.provider=e.identity_provider
+WHERE o.country='AU'
+GROUP BY o.provider,o.service_id,o.name,o.access_type
+ORDER BY o.provider,o.service_id,o.access_type;
+```
+
+Compare with the authenticated existing compact catalogue response's `au_watch_offers` for the same selected History IDs and the alias map. Do not initiate maintenance or transmit private response contents. If stored Rent/Buy is absent, current cached evidence cannot establish those offers; if present under distinct rental-only services, their exclusion from streaming-service ranking is intentional. If present for a displayed service but absent from catalogue/summary, isolate that film and identity through projection and aggregation before proposing a repair.

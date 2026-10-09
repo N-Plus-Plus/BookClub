@@ -93,3 +93,16 @@ it('freezes the collection queue, retains failures, stops safely and reconciles 
   const lost=vi.fn(async()=>{throw new Error('Lost response');});
   await expect(runRosterMaintenance({checkpoint,batch:lost,stopped:()=>false,changed:()=>{},progress:()=>{},checkpointChanged:value=>{saved=value;}})).rejects.toThrow('Lost response');expect(saved.pending).toEqual([7,8,9]);
 });
+
+it('partitions collections by date-only eligibility, preserving unknown dates and future History evidence',()=>{
+ const a=metricsFilm('a',{external_ids:[{provider:'tmdb',external_id:'42'}]}),b=metricsFilm('b',{external_ids:[{provider:'tmdb',external_id:'43'}]}),c=metricsFilm('c',{external_ids:[{provider:'tmdb',external_id:'44'}]});
+ const catalog={...metricsFixture(),movies:[a,b,c],sessions:[metricsEvent('first',[a,a,b]),metricsEvent('repeat',[b])]};
+ const evidence:MetricsEnrichment={movies:Object.fromEntries([a,b,c].map((m,i)=>[m.id,{...emptyEnrichmentMovie(),collection:{status:'checked_present' as const,external_id:String(42+i),checked_at:at,collection_id:7,collection_name:'Series'}}])),collections:{7:{status:'checked',attempted_at:at,roster:parseCollectionRoster({...payload(),parts:[...payload().parts,{id:44,title:'Sequel',release_date:'2026-10-11'}]},7,at)}}};
+ const derive=(date:string)=>collectionCompletion(selectedAppearances(catalog),evidence,date);
+ expect(derive('2026-10-10')).toMatchObject({completed:[{total:2,missing:[]}],unrequited:[],pending:0});expect(derive('2026-10-10').completed[0].films).toHaveLength(2);
+ for(const date of ['2026-10-11','2026-10-12'])expect(derive(date)).toMatchObject({completed:[],unrequited:[{total:3,missing:[{id:44}]}]});
+ catalog.sessions.push(metricsEvent('future evidence',[c]));expect(derive('2026-10-10').completed[0].total).toBe(3);catalog.sessions.pop();
+ evidence.collections![7].roster!.parts.push({id:45,title:'Past',release_date:'2000-01-01'},{id:46,title:'Undated',release_date:null},{id:47,title:'Invalid',release_date:'2026-02-30'});
+ expect(derive('2026-10-10').unrequited[0]).toMatchObject({total:5,missing:expect.arrayContaining([{id:45,title:'Past',release_date:'2000-01-01'},{id:46,title:'Undated',release_date:null},{id:47,title:'Invalid',release_date:null}])});
+ evidence.collections![7].roster=null;expect(derive('2026-10-10')).toEqual({completed:[],unrequited:[],pending:1});
+});

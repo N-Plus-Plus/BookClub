@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { expect,it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { applicationCss } from './helpers/application-css';
-import Staging from '../frontend/metrics/Staging';
+import { RelocatedReports } from './helpers/metrics-relocated-reports';
 import { DiscoveryRankings } from '../frontend/metrics/Discoveries';
 import { selectedAppearances } from '../shared/metrics';
 import { discoveries } from '../shared/metrics-staging/films';
@@ -17,7 +17,7 @@ it('renders exact subtitles, only spread axes, six right-aligned star columns/To
   const catalog=metricsFixture(),film=metricsFilm('shared');catalog.movies=[film];catalog.sessions=catalog.members.map(m=>metricsEvent(m.id,[film,film],m.id));catalog.sessions.push(metricsEvent('classic',[film,film],null));
   const data={movies:{shared:{...emptyEnrichmentMovie(),credits:Array.from({length:21},(_,i)=>({kind:'cast',role:'cast',person_id:String(i),name:`Actor ${i}`}))}}};
   const node=document.createElement('div'),root=createRoot(node),all=selectedAppearances(catalog);
-  try{await act(async()=>root.render(createElement(Staging,{catalog,all,rows:all,filter:{kind:'all'},data})));
+  try{await act(async()=>root.render(createElement(RelocatedReports,{catalog,all,rows:all,filter:{kind:'all'},data})));
     expect(node.querySelector('[aria-label="Release-year spread"] > p')?.textContent).toBe('Mean release year and standard deviation spread, on a shared timeline.');
     expect(node.querySelector('[aria-label="Shared stars"] > p')?.textContent).toBe('Actors shared across the boobs.');
     expect(node.querySelector('[aria-label="Critics or audiences?"] .staging-axis')).toBeNull();expect(node.querySelectorAll('.staging-axis')).toHaveLength(2);
@@ -28,7 +28,7 @@ it('renders exact subtitles, only spread axes, six right-aligned star columns/To
 it('preserves streamable unions and renders only deduplicated Rent and Buy counts including zero',async()=>{
   const catalog=metricsFixture(),film=metricsFilm('stream',{au_watch_offers:['subscription','free','ads','rent','rent'].map(access_type=>({service_id:'1',name:'Service',access_type:access_type as 'subscription'|'free'|'ads'|'rent',link:null}))});catalog.movies=[film];catalog.sessions=[metricsEvent('s',[film,film])];
   const node=document.createElement('div'),root=createRoot(node),all=selectedAppearances(catalog);
-  try{await act(async()=>root.render(createElement(Staging,{catalog,all,rows:all,filter:{kind:'all'},data:{movies:{}}})));const row=node.querySelector('[aria-label="Streaming platform representation"] .staging-data-row')!;expect(row.children[1].textContent).toBe('Stream 1 distinct films · 100.0%');expect(row.children[2].textContent).toBe('Rent 1 · Buy 0');}finally{await act(async()=>root.unmount());}
+  try{await act(async()=>root.render(createElement(RelocatedReports,{catalog,all,rows:all,filter:{kind:'all'},data:{movies:{}}})));const row=node.querySelector('[aria-label="Streaming platform representation"] .staging-data-row')!;expect(row.children[1].textContent).toBe('Stream 1 distinct films · 100.0%');expect(row.children[2].textContent).toBe('Rent 1 · Buy 0');}finally{await act(async()=>root.unmount());}
 });
 it('uses compact metadata lists, equal gross labels and responsive nonwrapping classifications at the owning style level',()=>{
   expect(css).toContain('.metrics-metadata-films > li { margin: 0; padding: 0; }');expect(css).toMatch(/\.metrics-metadata-films \{[^}]*margin: 0;[^}]*gap: 0;[^}]*font-size: var\(--text-metadata\)/);expect(css).toContain('.metrics-metadata-films .movie-link { min-height: 0; color: inherit; }');
@@ -51,6 +51,6 @@ it('keeps collection reports club-wide under filtering and links only historical
   const catalog={...metricsFixture(),movies:[a,b],sessions:[metricsEvent('a',[a,a]),metricsEvent('b',[b],'m2')]},all=selectedAppearances(catalog);
   const data:MetricsEnrichment={movies:Object.fromEntries([a,b].map((m,i)=>[m.id,{...emptyEnrichmentMovie(),collection:{status:'checked_present' as const,external_id:String(42+i),checked_at:'2026',collection_id:7,collection_name:'Series'}}])),collections:{7:{status:'checked',attempted_at:'2026',roster:parseCollectionRoster({id:7,name:'Series',parts:[{id:42,title:'A',release_date:'2000-01-01'},{id:43,title:'B',release_date:'2001-01-01'},{id:44,title:'Upcoming film'}]},7,'2026-01-01T00:00:00.000Z')}}};
   const node=document.createElement('div'),root=createRoot(node);
-  try{for(const filter of [{kind:'all' as const},{kind:'member' as const,memberId:'m1'},{kind:'classics' as const}]){await act(async()=>root.render(createElement(Staging,{catalog,all,rows:selectedAppearances(catalog,filter),filter,data})));const report=node.querySelector('[aria-label="Unrequited collections"]')!;expect(report.textContent).toContain('2 of 3 films');expect(report.querySelectorAll('.metrics-metadata-films a')).toHaveLength(2);expect(report.querySelector('.staging-missing-films')?.textContent).toBe('Not brought:Upcoming film');expect(report.querySelector('.staging-missing-films a')).toBeNull();expect(report.querySelector('.club-identity')).toBeNull();expect(node.querySelector('[aria-label="Top 5 hidden gems"]')).toBeNull();}}
+  try{for(const filter of [{kind:'all' as const},{kind:'member' as const,memberId:'m1'},{kind:'classics' as const}]){await act(async()=>root.render(createElement(RelocatedReports,{catalog,all,rows:selectedAppearances(catalog,filter),filter,data})));const report=node.querySelector('[aria-label="Unrequited collections"]')!;expect(report.textContent).toContain('2 of 3 films');expect(report.querySelectorAll('.metrics-metadata-films a')).toHaveLength(2);expect(report.querySelector('.staging-missing-films')?.textContent).toBe('Not brought:Upcoming film');expect(report.querySelector('.staging-missing-films a')).toBeNull();expect(report.querySelector('.club-identity')).toBeNull();expect(node.querySelector('[aria-label="Top 5 hidden gems"]')).toBeNull();}}
   finally{await act(async()=>root.unmount());}
 });

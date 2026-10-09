@@ -15,6 +15,6 @@ export interface EnrichedReportProps {
   scopes:ReturnType<typeof comparisonScopes>; cached:ReturnType<typeof useMetricsReports>;
   themeReport:ReturnType<typeof fingerprint>; talentReport:ReturnType<typeof fingerprint>;
   signatures:(ReturnType<typeof comparisonScopes>[number] & {report:ReturnType<typeof fingerprint>})[];
-  role:TalentRole; setRole:(role:TalentRole)=>void;
+  role:TalentRole|'Studios'; setRole:(role:TalentRole|'Studios')=>void;
   diversity:{dimension:'countries'|'languages'|'directors'|'cast';values:({label:string}&ReturnType<typeof tasteDiversity>)[]}[];
 }

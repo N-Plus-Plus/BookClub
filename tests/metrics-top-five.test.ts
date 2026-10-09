@@ -1,3 +1,4 @@
+import { metricsInventory, reportHeadings } from './helpers/metrics-inventory';
 // @vitest-environment jsdom
 import { act,createElement } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -74,27 +75,29 @@ it('owns the exact thirteen reports, keeps selectors and roles local, and remove
  const container=document.createElement('div'),root=createRoot(container);
  try {
   await act(async()=>root.render(createElement(MetricsScreen,{catalog:metricsFixture(),viewer:null,onUpdated:async()=>{}})));
-  const titles=()=>[...container.querySelectorAll('.metrics-panel h2,.metrics-panel h3')].map(e=>e.textContent);
-  const expected=['Top 5 highest critic scores','Top 5 lowest critic scores','Top 5 most popular · IMDb','Top 5 most obscure · IMDb','Top 5 genre combinations','Top 5 hidden gems','Top 5 most cult','Top 5 talent','Top 5 studios','Top 5 highest revenue / budget ratio','Top 5 lowest revenue / budget ratio','Top 5 production countries','Top 5 non-English original languages'];
+  const titles=()=>reportHeadings(container);
+  const expected=metricsInventory['Top 5'];
   expect(container.querySelector('[role=tab][aria-selected=true]')?.textContent).toBe('Top 5');expect(titles()).toEqual(expected);
   expect(container.querySelector('.metrics-directors')).toBeNull();
-  for(const selector of ['.metrics-talent','.metrics-companies','.metrics-revenue-ratios','.metrics-countries'])expect(container.querySelectorAll(selector)).toHaveLength(1);
-  expect(container.querySelectorAll('.metrics-companies .metrics-distribution-track,.metrics-countries .metrics-distribution-track,.metrics-five-scroll')).toHaveLength(0);
+  for(const selector of ['.metrics-talent','.metrics-revenue-ratios','.metrics-countries'])expect(container.querySelectorAll(selector)).toHaveLength(1);
+  expect(container.querySelector('.metrics-companies')).toBeNull();
+  expect(container.querySelectorAll('.metrics-countries .metrics-distribution-track').length).toBeGreaterThan(0);
   const groups=()=>[...container.querySelectorAll('[role=group]')];
   const choose=(name:string,label:string)=>act(async()=>[...groups().find(e=>e.getAttribute('aria-label')===name)!.querySelectorAll<HTMLButtonElement>('button')].find(b=>b.textContent===label)!.click());
   await choose('Top 5 score filter','Audience');await choose('Bottom 5 score filter','Audience');await choose('Most popular vote filter','All audiences');
-  expect(titles().slice(0,4)).toEqual(['Top 5 highest audience scores','Top 5 lowest audience scores','Top 5 most popular · All audiences','Top 5 most obscure · All audiences']);
+  expect(titles().slice(0,4)).toEqual(['Top 5 highest audience scores','Top 5 lowest audience scores','Top 5 most popular · All audiences','Top 5 most obscure · IMDb']);
   const select=container.querySelector('.metrics-talent select')! as unknown as HTMLSelectElement;
-  expect([...select.options].map(o=>o.value)).toEqual(talentRoles);
+  expect([...select.options].map(o=>o.value)).toEqual([...talentRoles,'Studios']);
   for(const role of talentRoles){await act(async()=>{select.value=role;select.dispatchEvent(new Event('change',{bubbles:true}));});expect(container.querySelector('.metrics-talent > p')?.textContent).toBe(`Share of appearances with ${role.toLowerCase()} credit.`);}
+  await act(async()=>{select.value='Studios';select.dispatchEvent(new Event('change',{bubbles:true}));});
   const tab=(name:string)=>act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===name)!.click());
-  await tab('Tastes');expect(titles()).toEqual(['Genre fingerprint','Theme fingerprint','Production countries','Original languages','Directors','Recurring cast']);expect(container.querySelector('.metrics-talent,.metrics-companies')).toBeNull();
+  await tab('Tastes');expect(titles()).toEqual(metricsInventory.Tastes);expect(container.querySelector('.metrics-talent,.metrics-companies')).toBeNull();
   await tab('Breakdowns');expect(container.querySelector('.metrics-revenue-ratios')).toBeNull();
-  await tab('Top 5');expect((container.querySelector('.metrics-talent select') as unknown as HTMLSelectElement)?.value).toBe('Producer');
+  await tab('Top 5');expect((container.querySelector('.metrics-talent select') as unknown as HTMLSelectElement)?.value).toBe('Studios');
   for(const index of [1,5]){await act(async()=>container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[index].click());expect(container.querySelector('[role=tab][aria-selected=true]')?.textContent).toBe('Top 5');expect(titles()).toHaveLength(13);
-   const studioRows=[...container.querySelectorAll('.metrics-companies .metrics-frequency-row')];expect(studioRows).toHaveLength(2);
+   const studioRows=[...container.querySelectorAll('.metrics-talent .metrics-frequency-row')];expect(studioRows).toHaveLength(2);
    for(const row of studioRows)expect(row.textContent).toContain(index===1?'2 appearances · 66.7%':'1 appearances · 50.0%');
-   for(const row of container.querySelectorAll('.metrics-countries .metrics-frequency-row'))expect(row.textContent).toContain('1 films · 50.0%');
+   for(const row of container.querySelectorAll('.metrics-countries .metrics-enriched-row')){expect(row.textContent).toContain('1 film');expect(row.textContent).not.toContain('%');}
   }
   expect(api.metricsEnrichment).toHaveBeenCalledTimes(1);
  }finally{await act(async()=>root.unmount());}
@@ -112,7 +115,7 @@ it('Top 5 exposes delayed enrichment, failure and explicit retry while keeping e
    await act(async()=>next.render(createElement(MetricsScreen,{catalog:metricsFixture(),viewer:null,onUpdated:async()=>{}})));
    expect(container.textContent).toContain('Existing Metrics remains available.');expect(container.querySelector('.metrics-rankings a')).not.toBeNull();
    await act(async()=>[...container.querySelectorAll<HTMLButtonElement>('button')].find(b=>b.textContent==='Retry enriched Metrics')!.click());
-   expect(container.textContent).not.toContain('could not load');expect(container.querySelector('.metrics-companies')?.textContent).toContain('No qualifying evidence');expect(api.metricsEnrichment).toHaveBeenCalledTimes(3);
+   expect(container.textContent).not.toContain('could not load');expect(container.querySelector('.metrics-talent')?.textContent).toContain('No qualifying evidence');expect(api.metricsEnrichment).toHaveBeenCalledTimes(3);
   }finally{await act(async()=>next.unmount());}
  }finally{if(container.querySelector('.metrics-content'))await act(async()=>root.unmount());}
 });

@@ -230,7 +230,7 @@ it('current relationships govern every Metrics category despite retained scores,
    const all=selectedAppearances(metricsCatalog(catalog)),dashboard=metricsDashboard(all,all);
    return {top:calculateMetrics(catalog).top.map(r=>r.movie.id),tastes:dashboard.fingerprint,
      breakdowns:calculateMetrics(catalog).genres,records:dashboard.extremes,
-     staging:genreRevenue(all,facts),economics:filmEconomics(all,facts),themes:themeFingerprint(all,all,facts),
+     genreGross:genreRevenue(all,facts),economics:filmEconomics(all,facts),themes:themeFingerprint(all,all,facts),
      cast:recurringTalent(all,facts,'Cast'),contributors:contributorMetrics(catalog),ratings:dashboard.ratings};
  };
  const result=report(data.catalog!);
@@ -255,10 +255,11 @@ it('current relationships govern every Metrics category despite retained scores,
  expect(selectedAppearances(data.catalog!).map(r=>r.movie.id)).toEqual(['B']);expect(Object.keys((await enrichment.enrichment()).movies)).toEqual(['B']);
  await apply(await mutation(`/sessions/${second.session!.id}/restore`,'POST'));
  expect(selectedAppearances(data.catalog!).map(r=>r.movie.id).sort()).toEqual(['B','C']);
- // Retained roster parts are legitimate supplementary information, not appearances.
+ // Retained released/unknown-date roster parts are supplementary information, not appearances.
+ // Known upcoming parts are excluded from the required/missing population.
  for(const id of ['B','C'])retained.movies[id].collection={status:'checked_present',external_id:id==='B'?'101':'102',checked_at:'2030',collection_id:1,collection_name:'Fixture collection'};
  retained.collections={'1':{status:'checked',attempted_at:'2030',roster:{id:1,name:'Fixture collection',checked_at:'2030',parts:[{id:101,title:'B',release_date:null},{id:102,title:'C',release_date:null},{id:100,title:'Lost in London',release_date:null},{id:999,title:'Upcoming',release_date:'2099-01-01'}]}}};
- const completion=collectionCompletion(selectedAppearances(data.catalog!),retained).unrequited[0];
- expect(completion.films.map(r=>r.movie.id).sort()).toEqual(['B','C']);expect(completion.missing.map(p=>p.id).sort()).toEqual([100,999]);
+ const completion=collectionCompletion(selectedAppearances(data.catalog!),retained,'2030-01-01').unrequited[0];
+ expect(completion.films.map(r=>r.movie.id).sort()).toEqual(['B','C']);expect(completion.missing.map(p=>p.id).sort()).toEqual([100]);
  expect(report(await repo.catalog())).toEqual(report(data.catalog!));
 });

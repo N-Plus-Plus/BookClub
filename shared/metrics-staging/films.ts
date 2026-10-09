@@ -71,8 +71,11 @@ export function classificationAcclaim(rows:Appearance[],data:MetricsEnrichment) 
 export function platforms(rows:Appearance[]) {
   const films=uniqueAppearances(rows),services=new Map<string,{id:string;name:string;films:Set<string>;stream:Set<string>;access:Map<string,Set<string>>}>();
   for(const row of films)for(const offer of row.movie.au_watch_offers??[]){
-    if(!offer.service_id||!offer.name.trim())continue;
+    // Report-only exclusion: inspect original evidence before aliases can aggregate it.
+    if(!offer.service_id||!offer.name.trim()||offer.name.toLowerCase().includes(' ads'))continue;
     const name=availabilityProviderName(offer.name.trim()),id=name.toLowerCase();
+    // Also reject an advertising-specific display alias if one is introduced later.
+    if(id.includes(' ads'))continue;
     const old=services.get(id)??{id,name,films:new Set<string>(),stream:new Set<string>(),access:new Map<string,Set<string>>()};
     if(order(name,old.name)<0)old.name=name;
     old.films.add(row.movie.id);if(['subscription','free','ads'].includes(offer.access_type))old.stream.add(row.movie.id);const set=old.access.get(offer.access_type)??new Set<string>();set.add(row.movie.id);old.access.set(offer.access_type,set);services.set(old.id,old);
@@ -109,7 +112,10 @@ export function collectionSpotlight(rows:Appearance[],data:MetricsEnrichment) {
   return {total:films.length,checked,standalone,members,percentage:checked?members/checked*100:null,values};
 }
 /** Completion always compares cached TMDB parts with the entire active club History. */
-export function collectionCompletion(all:Appearance[],data:MetricsEnrichment) {
+export function localCalendarDate(now=new Date()):string {
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+}
+export function collectionCompletion(all:Appearance[],data:MetricsEnrichment,asOf=localCalendarDate()) {
   const history=uniqueAppearances(all),tmdbId=(row:Appearance)=>{
     const id=row.movie.external_ids.find(id=>id.provider==='tmdb')?.external_id;
     return id && /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id))?Number(id):null;
@@ -129,8 +135,9 @@ export function collectionCompletion(all:Appearance[],data:MetricsEnrichment) {
     // Dated films first, then undated titles: a transitive, stable ordering.
     const stable=(a:typeof roster.parts[number],b:typeof roster.parts[number])=>Number(!a.release_date)-Number(!b.release_date)||partOrder(a,b);
     films.sort((a,b)=>stable(members.get(tmdbId(a)!)!,members.get(tmdbId(b)!)!));
-    const missing=roster.parts.filter(part=>!selected.has(part.id)).sort(stable);
-    return [{id:group.id,name:roster.name,films,total:roster.parts.length,missing,checked_at:roster.checked_at}];
+    const eligible=roster.parts.filter(part=>selected.has(part.id)||!part.release_date||part.release_date<=asOf);
+    const missing=eligible.filter(part=>!selected.has(part.id)).sort(stable);
+    return [{id:group.id,name:roster.name,films,total:eligible.length,missing,checked_at:roster.checked_at}];
   }).sort((a,b)=>b.films.length-a.films.length||order(a.name,b.name)||a.id-b.id);
   return {completed:values.filter(group=>!group.missing.length),unrequited:values.filter(group=>group.missing.length),pending};
 }

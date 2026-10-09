@@ -39,3 +39,16 @@ export function parseAwards(value: unknown, id: string, at: string): AwardsEvide
   if(value.trim()==='N/A') return {identity:{provider:'imdb',external_id:id},checked_at:at,awards_text:null,wins:null,nominations:null};
   return {identity:{provider:'imdb',external_id:id},checked_at:at,awards_text:value,...parseAwardCounts(value)};
 }
+
+/** Only explicit whole Oscar clauses establish named-prize counts; aggregate totals stay independent. */
+export function oscarSummary(text:string|null):string|null {
+  if(!text)return null;
+  const clauses=text.split(/[.!]/).map(value=>value.trim());
+  const matches=clauses.flatMap(clause=>{
+    const match=/^(Won|Nominated for) ([1-9]\d*) Oscars?$/i.exec(clause);
+    if(!match||!Number.isSafeInteger(Number(match[2])))return [];
+    const count=Number(match[2]);
+    return [`${match[1].toLowerCase()==='won'?'Won':'Nominated for'} ${count.toLocaleString('en-AU')} ${count===1?'Oscar':'Oscars'}`];
+  });
+  return matches.length===1?matches[0]:null;
+}

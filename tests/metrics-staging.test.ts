@@ -1,4 +1,5 @@
-import { describe,it,expect } from 'vitest';
+import * as providerNames from '../shared/availability-provider-name';
+import { describe,it,expect,vi } from 'vitest';
 import { selectedAppearances } from '../shared/metrics';
 import { metricsFilm,metricsEvent,metricsFixture,observation } from './metrics-fixture';
 import { metricsEnrichmentFixture } from './metrics-enrichment-fixture';
@@ -208,4 +209,40 @@ describe('Metrics refinement regressions',()=>{
     const report=platforms(selectedAppearances(c));expect(report.values).toHaveLength(7);expect(report.values[0]).toMatchObject({count:1,percentage:12.5});expect(report.values.every(v=>v.count===1)).toBe(true);
     expect(report.values[0].access).toEqual([{type:'subscription',count:1},{type:'free',count:1},{type:'rent',count:1}]);
   });
+});
+
+it('counts distinct mixed-access films, aliases and separate services without fabricating offers',()=>{
+ const c=metricsFixture(),offer=(service_id:string,name:string,access_type:'subscription'|'free'|'ads'|'rent'|'buy')=>({service_id,name,access_type,link:null});
+ c.movies[0].au_watch_offers=[offer('8','Apple TV','subscription'),offer('8','Apple TV','ads'),offer('8','Apple TV Store','rent'),offer('8','Apple TV Store','rent'),offer('8','Apple TV Store','buy'),offer('9','Amazon Prime Video','subscription')];
+ c.movies[1].au_watch_offers=[offer('8','Apple TV+','free'),offer('8','Apple TV Store','rent'),offer('10','Amazon Video','rent'),offer('11','Separate service','subscription')];
+ c.sessions.push(metricsEvent('repeat-offers',[c.movies[0],c.movies[0]]));
+ const report=platforms(selectedAppearances(c));expect(report.values.find(v=>v.name==='Apple')).toMatchObject({count:2,access:expect.arrayContaining([{type:'rent',count:2},{type:'buy',count:1}])});
+ expect(report.values.find(v=>v.name==='Prime')).toMatchObject({count:1});expect(report.values.find(v=>v.name==='Prime')!.access.some(v=>v.type==='rent')).toBe(false);expect(report.values.some(v=>v.name==='Amazon')).toBe(false);expect(report.values.find(v=>v.name==='Separate service')!.access).toEqual([{type:'subscription',count:1}]);
+});
+
+it('excludes original ad-provider names before aliases without changing films, access types, retained counts or cutoff ties',()=>{
+ const offer=(service_id:string,name:string,access_type:'subscription'|'free'|'ads'|'rent'|'buy')=>({service_id,name,access_type,link:null});
+ const movies=Array.from({length:4},(_,i)=>metricsFilm(`provider-${i}`));
+ movies[0].au_watch_offers=[offer('prime','Amazon Prime','subscription'),offer('prime','Amazon Prime','rent'),offer('prime','Amazon Prime','buy'),offer('prime-ad','Amazon Prime with Ads','subscription'),offer('prime-ad','Amazon Prime with Ads','rent'),offer('prime-ad','Amazon Prime with Ads','buy'),offer('netflix','Netflix','ads'),offer('netflix','Netflix','rent')];
+ movies[1].au_watch_offers=[offer('prime-ad','Amazon Prime with Ads','subscription'),offer('prime-ad','Amazon Prime with Ads','rent'),offer('prime-ad','Amazon Prime with Ads','buy'),offer('mixed','Amazon Prime ADS','free'),offer('example','Example aDs Tier','ads'),offer('apple','Apple TV','subscription'),offer('apple','Apple TV Store','rent'),offer('apple','Apple TV Store','buy'),offer('apple-ad','Apple TV with ADS','subscription')];
+ // Whitespace collapse would turn this original name into the existing ordinary "Prime" alias.
+ movies[2].au_watch_offers=[offer('prime','Amazon Prime','free'),offer('netflix','Netflix','subscription'),offer('alias-ad','Amazon Prime Video ads','subscription'),offer('alias','Amazon   Prime   Video','ads'),offer('alias','Prime Video','rent'),offer('alias','Prime Video','buy')];
+ movies[3].au_watch_offers=[offer('alias-ad','Amazon Prime Video Ads','subscription'),offer('alias-ad','Amazon Prime Video Ads','rent'),offer('alias-ad','Amazon Prime Video Ads','buy')];
+ for(const name of ['Binge','Stan','Disney+','Tubi TV'])movies[0].au_watch_offers!.push(offer(name,name,'subscription'));
+ const catalog={...metricsFixture(),movies,sessions:[metricsEvent('providers',[...movies,movies[0],movies[2]]),metricsEvent('again',[movies[0]],'m2')]};
+ const normalize=providerNames.availabilityProviderName;
+ const nameSpy=vi.spyOn(providerNames,'availabilityProviderName').mockImplementation(name=>name.toLowerCase().includes(' ads')?'Prime':normalize(name));
+ try {
+ const before=structuredClone(movies),result=platforms(selectedAppearances(catalog));
+ expect(nameSpy.mock.calls.every(([name])=>!name.toLowerCase().includes(' ads'))).toBe(true);
+ expect(result.population).toBe(4);expect(movies).toEqual(before);
+ expect(result.values.map(v=>v.name)).toEqual(['Amazon Prime','Netflix','Apple','Binge','Disney','Prime','Stan','Tubi']);
+ expect(result.values.map(v=>v.count)).toEqual([2,2,1,1,1,1,1,1]);
+ expect(result.values.map(v=>v.percentage)).toEqual([50,50,25,25,25,25,25,25]);
+ expect(result.values.some(v=>v.name.toLowerCase().includes(' ads'))).toBe(false);
+ expect(result.values.find(v=>v.name==='Amazon Prime')?.access).toEqual([{type:'subscription',count:1},{type:'free',count:1},{type:'rent',count:1},{type:'buy',count:1}]);
+ expect(result.values.find(v=>v.name==='Prime')?.access).toEqual([{type:'ads',count:1},{type:'rent',count:1},{type:'buy',count:1}]);
+ expect(result.values.find(v=>v.name==='Netflix')?.access).toEqual([{type:'subscription',count:1},{type:'ads',count:1},{type:'rent',count:1}]);
+ expect(result.values.find(v=>v.name==='Apple')?.access).toEqual([{type:'subscription',count:1},{type:'rent',count:1},{type:'buy',count:1}]);
+ }finally{nameSpy.mockRestore();}
 });

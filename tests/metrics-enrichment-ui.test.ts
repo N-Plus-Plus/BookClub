@@ -2,6 +2,7 @@
 import { act,createElement,StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach,expect,it,vi } from 'vitest';
+import { EnrichedFingerprints } from '../frontend/metrics/Fingerprints';
 import { MetricsScreen } from '../frontend/MetricsScreen';
 import { api } from '../frontend/api';
 import { metricsFixture } from './metrics-fixture';
@@ -36,11 +37,11 @@ it('loads once in StrictMode, updates every identity/role locally and exposes tr
       const filter:MetricsFilter=i===5?{kind:'classics'}:{kind:'member',memberId:catalog.members[i-1].id};
       const all=selectedAppearances(catalog),rows=all.filter(row=>matchesMetricsFilter(row.session,filter));
       const expected=themeFingerprint(rows,all,metricsEnrichmentFixture());
-      expect([...container.querySelectorAll('.metrics-theme-cloud li')].map(e=>e.textContent)).toEqual(expected.values.map(v=>`${v.label}${v.ratio!.toFixed(1)}x club`));
+      expect([...container.querySelectorAll('.metrics-theme-cloud li')].map(e=>e.textContent)).toEqual(expected.values.map(v=>`${v.label}${v.count.toLocaleString('en-AU')}, ${v.ratio!.toFixed(1)}x club`));
       const scopes=comparisonScopes(catalog,all,filter);
-      for(const [index,dimension] of (['countries','languages','directors','cast'] as const).entries()) {
+      for(const [index,dimension] of (['cast','directors','languages','countries'] as const).entries()) {
         const section=container.querySelectorAll('.metrics-diversity section')[index];
-        expect([...section.querySelectorAll('.metrics-distribution-label strong')].map(e=>e.textContent)).toEqual(scopes.map(scope=>{const value=tasteDiversity(scope.rows,metricsEnrichmentFixture(),dimension).perTen;return value===null?'No evidence':`${value.toFixed(1)} per 10`;}));
+        expect([...section.querySelectorAll('.metrics-distribution-label strong')].map(e=>e.textContent)).toEqual(scopes.map(scope=>{const value=tasteDiversity(scope.rows,metricsEnrichmentFixture(),dimension).perTen;return value===null?'No evidence':`${new Intl.NumberFormat('en-AU',{maximumFractionDigits:1}).format(value*10)}%`;}));
       }
       await tab('Breakdowns');
       expect(container.querySelectorAll('.metrics-classification-row')).toHaveLength(1);
@@ -59,8 +60,8 @@ it('loads once in StrictMode, updates every identity/role locally and exposes tr
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(1);
     await act(async() => container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[3].click());
     await tab('Records');
-    expect(container.querySelectorAll('.metrics-film-extreme')[6].textContent).toContain('6-way tie');
-    expect(container.querySelectorAll('.metrics-film-extreme')[6].querySelectorAll('a')).toHaveLength(6);
+    expect(container.querySelectorAll('.metrics-film-extreme')[8].textContent).toContain('6-way tie');
+    expect(container.querySelectorAll('.metrics-film-extreme')[8].querySelectorAll('a')).toHaveLength(6);
     await tab('Top 5');
     expect(container.querySelector('.metrics-revenue-ratios a')?.getAttribute('href')).toMatch(/^#\/movie\//);
     expect(container.querySelector('.metrics-revenue-ratios')?.textContent).toMatch(/Reported budget.*Reported revenue/);
@@ -82,4 +83,19 @@ it('failed/partial loading preserves existing reports, supports explicit retry a
     await tab('Top 5');expect(container.querySelector('.metrics-non-english')?.textContent).toContain('No qualifying original-language evidence');
     expect(container.textContent).not.toMatch(/NaN|Infinity|undefined|0 \/ 0/);
   } finally {await act(async() => root.unmount());}
+});
+
+it.each([true,false])('theme counts use grouped thousands metadata with unchanged ratios in ALL=%s',async isAll=>{
+ const all=selectedAppearances(metricsFixture()),data=metricsEnrichmentFixture();
+ const rows=Array.from({length:1234},()=>all[0]);
+ const report=themeFingerprint(rows,rows,data),container=document.createElement('div'),root=createRoot(container);
+ try {
+  await act(async()=>root.render(createElement(EnrichedFingerprints,{isAll,themeReport:report,signatures:[{label:'SEAN',rows,report}]})));
+  const terms=[...container.querySelectorAll('.metrics-theme-cloud li')];
+  expect(terms).toHaveLength(report.values.length);expect(terms.length).toBeGreaterThan(0);
+  for(const [index,term] of terms.entries()) {
+   expect(term.firstElementChild?.textContent).toBe(report.values[index].label);
+   expect(term.lastElementChild?.textContent).toBe('1,234, 1.0x club');
+  }
+ }finally{await act(async()=>root.unmount());}
 });

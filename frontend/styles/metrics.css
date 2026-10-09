@@ -1,5 +1,4 @@
 /* metrics: base rules and responsive refinements in their original relative order. */
-.metrics-staging { min-width: 0; }
 .staging-report { min-width: 0; }
 .staging-report h3 { overflow-wrap: anywhere; }
 .staging-chart-row { display: grid; grid-template-columns: minmax(0,7rem) minmax(0,1fr); gap: var(--space-12); align-items: center; }
@@ -7,7 +6,7 @@
 .staging-paired { display: grid; gap: 0; min-width: 0; }
 .staging-paired > .meta:first-child { margin-bottom: var(--space-4); }
 .staging-paired > .meta:last-child { margin-top: var(--space-4); }
-.staging-score-track { height: var(--space-12); background: var(--asphalt); }
+.staging-score-track { height: var(--space-12); background: transparent; }
 .staging-score-track > span { display: block; height: 100%; }
 .staging-cycles { max-height: 60rem; overflow-y: auto; scrollbar-gutter: stable; scroll-snap-type: y proximity; }
 .staging-cycle { display: grid; grid-template-columns: 3.5rem minmax(0,1fr); gap: var(--space-12); align-items: center; box-sizing: border-box; padding: var(--space-16); border-bottom: 1px solid var(--asphalt); scroll-snap-align: start; }
@@ -67,7 +66,7 @@
 .metrics-metadata-films { list-style: none; padding-left: var(--space-16); margin: 0; display: grid; gap: 0; font-size: var(--text-metadata); font-weight: 400; line-height: var(--leading-prose); color: var(--text-muted); }
 .metrics-metadata-films > li { margin: 0; padding: 0; }
 .metrics-metadata-films .movie-link { min-height: 0; color: inherit; }
-.staging-missing-films { padding-left: var(--space-16); display: grid; gap: 0; }
+.staging-missing-films { padding-left: 0; display: grid; gap: 0; }
 .staging-classification h3 { white-space: nowrap; font-size: var(--text-body); }
 @container member-content (max-width: 500px) {
   .staging-classification { grid-template-columns: 7rem minmax(0,1fr); gap: var(--space-8); }
@@ -166,10 +165,11 @@
 .metrics-extremes .poster { width: 96px; height: 144px; }
 .metrics-extremes h3 { color: var(--text-secondary); }
 @container member-content (min-width: 540px) {
-  .metrics-rating-profile { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .metrics-rating-profile { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .metrics-extremes { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 @container member-content (min-width: 720px) {
+  .metrics-rating-profile { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .metrics-taste-grid,.metrics-paired { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 @container member-content (min-width: 1100px) {
@@ -245,20 +245,40 @@
 
 .metrics-contributor-chart { display: grid; gap: var(--space-16); }
 .metrics-classification-row,.metrics-economics-row { display: grid; grid-template-columns: 5rem minmax(0,1fr); align-items: center; gap: var(--space-12); }
-.metrics-classification-row > strong,.metrics-economics-row > strong { font-size: var(--text-metadata); overflow-wrap: anywhere; }
+.metrics-classification-row > strong { font-size: var(--text-metadata); overflow-wrap: anywhere; }
 .metrics-classification-row .metrics-stack-bar { height: var(--space-32); }
 .metrics-classification-row .metrics-stack-bar > span { display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
 .metrics-segment-percentage { font-size: var(--text-identity); font-weight: 600; line-height: 1; white-space: nowrap; }
-.metrics-economics-row { align-items: start; }
-.metrics-economics-row > strong { padding-top: var(--space-4); }
+.metrics-economics-chart { --economics-identity-width: 8rem; }
+.metrics-economics-row { grid-template-columns: var(--economics-identity-width) minmax(0,1fr); align-items: start; }
+.metrics-economics-identity,.metrics-economics-identity .club-identity { min-width: 0; overflow-wrap: anywhere; }
+.metrics-budget-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-4) var(--space-12); }
+.metrics-budget-heading span:last-child { margin-left: auto; text-align: right; }
+.metrics-ratings-heading { display: flex; align-items: center; gap: var(--space-8); }
+.metrics-ratings-heading h3 { margin: 0; }
+.metrics-viewed-row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: var(--space-12); }
+.metrics-viewed-row .club-identity { justify-self: start; max-width: 100%; min-width: 0; overflow-wrap: anywhere; }
+.metrics-viewed-row > strong { text-align: right; }
+.metrics-reception-film { min-width: 0; }
 .metrics-economics-pair { min-width: 0; gap: var(--space-4); }
-.metrics-economics-pair > p { margin: 0; }
-.metrics-economics-axis { margin-left: calc(5rem + var(--space-12)); display: flex; justify-content: space-between; gap: var(--space-8); border-top: 1px solid var(--asphalt); padding-top: var(--space-8); font-variant-numeric: tabular-nums; }
+.metrics-economics-axis { margin-left: calc(var(--economics-identity-width) + var(--space-12)); display: flex; justify-content: space-between; gap: var(--space-8); border-top: 1px solid var(--asphalt); padding-top: var(--space-8); font-variant-numeric: tabular-nums; }
 .metrics-economics-axis span { min-width: 0; overflow-wrap: anywhere; }
 .metrics-economics-axis span:last-child { text-align: right; }
 
 @container member-content (max-width: 540px) {
-  .metrics-classification-row,.metrics-economics-row { grid-template-columns: 3.5rem minmax(0,1fr); }
-  .metrics-economics-axis { margin-left: calc(3.5rem + var(--space-12)); }
+  .metrics-classification-row { grid-template-columns: 3.5rem minmax(0,1fr); }
+  .metrics-economics-chart { --economics-identity-width: 5rem; }
+
   .metrics-segment-small { transform: rotate(-90deg); }
 }
+
+.staging-supporting { font-size: var(--text-supporting); color: var(--text-secondary); font-weight: 400; }
+.staging-gross-film .movie-link { min-height: 0; line-height: var(--leading-heading); }
+.staging-awards-table { overflow-y: auto; scrollbar-gutter: stable; }
+.staging-awards-header { position: sticky; top: 0; z-index: 1; background: var(--surface-base); }
+.staging-awards-row > :not(:first-child),.staging-awards-header > :not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.staging-awards-film { display: flex; gap: var(--space-12); align-items: start; min-width: 0; }
+.staging-awards-film > div { min-width: 0; }
+.staging-awards-film .poster { width: 64px; height: 96px; flex-shrink: 0; }
+.staging-awards-film .movie-link { min-height: 0; }
+.staging-awards-film .meta { margin: 0; }

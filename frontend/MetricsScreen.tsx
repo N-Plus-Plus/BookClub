@@ -1,6 +1,4 @@
 import { TopBottomMetrics } from './metrics/TopBottom';
-import { GenreFingerprint } from './metrics/Fingerprints';
-import { GeneralMetrics } from './metrics/General';
 import { ExtremesMetrics } from './metrics/Extremes';
 import { useMemo, useState, useId } from 'react';
 
@@ -30,7 +28,8 @@ export function MetricsScreen({catalog:sourceCatalog,resource}: {catalog: Catalo
   const setFilter=(next:MetricsFilter)=>updateFilter(previous=>previous.kind === next.kind && (previous.kind !== 'member' || next.kind === 'member' && previous.memberId === next.memberId) ? previous : next);
   const [topDimension,setTopDimension] = useState<MetricsScoreCategory>('critic');
   const [bottomDimension,setBottomDimension] = useState<MetricsScoreCategory>('critic');
-  const [popularityMeasure,setPopularityMeasure] = useState<PopularityMeasure>('imdb');
+  const [popularMeasure,setPopularMeasure] = useState<PopularityMeasure>('imdb');
+  const [obscureMeasure,setObscureMeasure] = useState<PopularityMeasure>('imdb');
   const all = useMemo(() => selectedAppearances(catalog),[catalog]);
   const identities=useMetricsReports([catalog,all]);
   const rows=identities(`rows:${filter.kind === 'member' ? filter.memberId : filter.kind}`,()=>filter.kind === 'all' ? all : all.filter(row=>matchesMetricsFilter(row.session,filter)));
@@ -50,11 +49,9 @@ export function MetricsScreen({catalog:sourceCatalog,resource}: {catalog: Catalo
       button?.focus({preventScroll:true});
       if (button) revealTab(button);
     }}>{tab.label}</button>)}</div><div className="stack metrics-panel" role="tabpanel" id={`${tabId}-panel`} aria-labelledby={`${tabId}-tab-${category}`} tabIndex={0}>
-    {category === 'top-bottom' && <TopBottomMetrics catalog={catalog} rows={rows} dashboard={dashboard} topDimension={topDimension} bottomDimension={bottomDimension} setTopDimension={setTopDimension} setBottomDimension={setBottomDimension} topRows={topRows} bottomRows={bottomRows} popularityMeasure={popularityMeasure} setPopularityMeasure={setPopularityMeasure} />}
-    {category === 'fingerprints' && <GenreFingerprint filter={filter} dashboard={dashboard} contributions={contributions} />}
-    {category === 'general' && <GeneralMetrics dashboard={dashboard} metrics={metrics} contributions={contributions} />}
+    {category === 'top-bottom' && <TopBottomMetrics catalog={catalog} rows={rows} dashboard={dashboard} topDimension={topDimension} bottomDimension={bottomDimension} setTopDimension={setTopDimension} setBottomDimension={setBottomDimension} topRows={topRows} bottomRows={bottomRows} popularMeasure={popularMeasure} setPopularMeasure={setPopularMeasure} obscureMeasure={obscureMeasure} setObscureMeasure={setObscureMeasure} />}
     {category === 'extremes' && <ExtremesMetrics catalog={catalog} rows={rows} dashboard={dashboard} enrichment={enrichment} />}
-    <EnrichedMetrics category={category} catalog={catalog} all={all} rows={rows} filter={filter} dashboard={dashboard} {...enrichment} />
+    <EnrichedMetrics metrics={metrics} contributions={contributions} category={category} catalog={catalog} all={all} rows={rows} filter={filter} dashboard={dashboard} {...enrichment} />
     </div>
   </div>;
 }

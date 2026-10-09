@@ -97,19 +97,19 @@ it('renders revised visuals, stable colours, clean presentation and linked ratio
       expect(Math.max(...[...bars].map(b => parseFloat(b.style.width)))).toBeLessThanOrEqual(100);
       expect(pair.textContent).not.toContain('with data');expect(pair.querySelector('.meta')?.textContent).toMatch(/Median revenue (\d+\.\d+x budget|\/ budget unavailable)/);
     }
-    await tab('Tastes');for(const section of container.querySelectorAll('.metrics-diversity section')) {expect(section.querySelector('h3 + .meta')?.textContent).toMatch(/per 10/);expect([...section.querySelectorAll<HTMLElement>('.metrics-enriched-row')].map(e=>e.style.getPropertyValue('--chart-colour'))).toEqual(['var(--jeans)','var(--lavender)','var(--jeans)','var(--lavender)','var(--jeans)']);}
+    await tab('Tastes');for(const section of container.querySelectorAll('.metrics-diversity section')) {expect(section.querySelector('h3 + .meta')?.textContent).toMatch(/relative to appearances/);expect([...section.querySelectorAll<HTMLElement>('.metrics-enriched-row')].map(e=>e.style.getPropertyValue('--chart-colour'))).toEqual(['var(--jeans)','var(--lavender)','var(--jeans)','var(--lavender)','var(--jeans)']);}
     expect(container.querySelector('.metrics-diversity')?.textContent).not.toContain('with evidence');
-    await tab('Top 5');expect(container.querySelector('.metrics-panel')?.lastElementChild?.getAttribute('data-metric')).toBe('I');expect(container.querySelector('.metrics-revenue-ratios')?.textContent).not.toContain('unique films have reported');expect(container.querySelector('.metrics-countries')?.textContent).not.toContain('Production country known for');
+    await tab('Top 5');expect(container.querySelector('.metrics-panel')?.lastElementChild?.getAttribute('data-metric')).toBe('L');expect(container.querySelector('.metrics-revenue-ratios')?.textContent).not.toContain('unique films have reported');expect(container.querySelector('.metrics-countries')?.textContent).not.toContain('Production country known for');
     expect(container.querySelector('.metrics-non-english')?.textContent).not.toMatch(/among known|known for|\bEN\b|\bDE\b|\bIT\b/);
     await tab('Top 5');expect(container.querySelector('.metrics-ratio-list a')?.getAttribute('href')).toMatch(/^#\/movie\//);
     await tab('Records');expect(container.textContent).not.toMatch(/Highest IMDb|Lowest IMDb|Cinematographer known for/);
     for(const name of ['Top critic','Top audience','Bottom critic','Bottom audience']) expect(container.textContent).toContain(name);
     const filmCards = [...container.querySelectorAll('.metrics-film-extreme')];
-    expect(filmCards.map(card=>card.querySelector('h3')?.textContent)).toEqual(['Top critic','Top audience','Bottom critic','Bottom audience','Oldest','Newest','Longest','Shortest','Most popular','Most obscure']);
-    expect(filmCards[8].textContent).toContain('2,000,000 IMDb votes');
-    expect(filmCards[8].querySelector('a')?.getAttribute('href')).toBe('#/movie/a');
-    expect(filmCards[9].textContent).toContain('12 IMDb votes');
-    expect(filmCards[9].querySelector('a')?.getAttribute('href')).toBe('#/movie/b');
+    expect(filmCards.map(card=>card.querySelector('h3')?.textContent)).toEqual(['Top critic','Top audience','Bottom critic','Bottom audience','Most popular','Most obscure','Oldest','Newest','Longest','Shortest']);
+    expect(filmCards[4].textContent).toContain('2,000,000 IMDb votes');
+    expect(filmCards[4].querySelector('a')?.getAttribute('href')).toBe('#/movie/a');
+    expect(filmCards[5].textContent).toContain('12 IMDb votes');
+    expect(filmCards[5].querySelector('a')?.getAttribute('href')).toBe('#/movie/b');
     expect([...container.querySelectorAll<HTMLElement>('.metrics-extremes h3')].every(h=>!h.style.getPropertyValue('--extreme-colour'))).toBe(true);expect(container.querySelector('.metrics-creator-extreme h3 strong')?.textContent).toBe('director');
     expect(container.querySelector('.metrics-creator-extreme > .meta')).not.toBeNull();
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(1);

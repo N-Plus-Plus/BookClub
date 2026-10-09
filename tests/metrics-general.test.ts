@@ -1,3 +1,4 @@
+import { metricsInventory, reportHeadings } from './helpers/metrics-inventory';
 // @vitest-environment jsdom
 import { act,createElement } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -46,16 +47,19 @@ it('financial medians retain repeat weighting and independent positive coverage,
   expect(medianEconomicsComparison(scopes,{movies:{}}).maximum).toBe(0);
   for(const filter of [{kind:'classics'},{kind:'member',memberId:'m1'}] as MetricsFilter[])expect(filterContributorScopes(comparison.groups,filter)).toHaveLength(1);
 });
-it('General has six ordered reports, one contributor under every filter, stable shared financial widths and the complete Ratings profile',async()=>{
+it('Breakdowns has seventeen ordered reports, one contributor under every filter, stable shared financial widths and the complete Ratings profile',async()=>{
   const {catalog,data}=financialFixture();vi.mocked(api.metricsEnrichment).mockResolvedValue(data);
   const node=document.createElement('div'),root=createRoot(node);
   try {
     await act(async()=>root.render(createElement(MetricsScreen,{catalog,viewer:null,onUpdated:async()=>{}})));
-    expect([...node.querySelectorAll('[role=tab]')].map(tab=>tab.textContent)).toEqual(['Top 5','Tastes','Breakdowns','Records','Staging']);
+    expect([...node.querySelectorAll('[role=tab]')].map(tab=>tab.textContent)).toEqual(['Top 5','Tastes','Breakdowns','Records']);
     await act(async()=>[...node.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(tab=>tab.textContent==='Breakdowns')!.click());
-    expect([...node.querySelectorAll('.metrics-panel h2,.metrics-panel h3')].map(value=>value.textContent)).toEqual(['Contribution by host','Release decades','Genre detail','Australian classification','Median reported budget / revenue','Ratings profile']);
+    expect(reportHeadings(node)).toEqual(metricsInventory.Breakdowns);
     expect(node.querySelectorAll('.metrics-classification-row')).toHaveLength(5);expect(node.querySelectorAll('.metrics-economics-row')).toHaveLength(5);
     expect(node.querySelectorAll('.metrics-economics-axis')).toHaveLength(1);
+    expect([...node.querySelectorAll('.metrics-economics-identity .club-identity')].map(e=>e.textContent)).toEqual(['SEAN','TROY','MATT','JESS','CLSC']);
+    expect(node.querySelectorAll('.metrics-budget-heading > span')).toHaveLength(10);
+    expect(node.querySelector('.metrics-ratings-heading button')?.getAttribute('aria-label')).toBe('Explain score abbreviations');
     const widths=[...node.querySelectorAll<HTMLElement>('.metrics-economics-row')].map(row=>[...row.querySelectorAll<HTMLElement>('.metrics-distribution-track span')].map(bar=>bar.style.width));
     expect(widths).toEqual([['10%','100%'],['10%','20%'],['0%','10%'],['0%','0%'],['10%','20%']]);
     for(let i=1;i<=5;i++) {
@@ -91,7 +95,7 @@ it('language bars use the winning film count, alternating colours and readable f
   vi.mocked(api.metricsEnrichment).mockResolvedValue(data);const node=document.createElement('div'),root=createRoot(node);
   try {
     await act(async()=>root.render(createElement(MetricsScreen,{catalog:{...metricsFixture(),movies,sessions:[metricsEvent('s',[...movies,movies[0]])]},viewer:null,onUpdated:async()=>{}})));
-    expect(node.querySelector('.metrics-panel')?.lastElementChild?.getAttribute('data-metric')).toBe('I');
+    expect(node.querySelector('.metrics-panel')?.lastElementChild?.getAttribute('data-metric')).toBe('L');
     expect([...node.querySelectorAll<HTMLElement>('.metrics-non-english .metrics-distribution-track span')].map(bar=>bar.style.width)).toEqual(['100%','50%']);
     expect([...node.querySelectorAll<HTMLElement>('.metrics-non-english .metrics-enriched-row')].map(row=>row.style.getPropertyValue('--chart-colour'))).toEqual(['var(--jeans)','var(--lavender)']);
     expect(node.querySelector('.metrics-non-english')?.textContent).toContain('Japanese2 films');expect(node.querySelector('.metrics-non-english')?.textContent).toContain('French1 film');

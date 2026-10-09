@@ -6,6 +6,7 @@ import { ClubIdentity } from '../../ClubIdentity';
 import { MovieLink } from '../../components';
 export const number=(n:number|null|undefined,digits=1)=>n==null?'Unavailable':n.toLocaleString('en-AU',{maximumFractionDigits:digits,minimumFractionDigits:digits});
 export const money=(n:number)=>`$${n.toLocaleString('en-AU',{maximumFractionDigits:0})} USD`;
+export const grossMillions=(n:number)=>n>0&&Math.round(n/1_000_000)===0?'<$1M USD':`$${Math.round(n/1_000_000).toLocaleString('en-AU')}M USD`;
 export function Report({title,note,children}:{title:string;note:string;children:ReactNode}) {
   return <section className="stack metrics-section staging-report" aria-label={title}><h2>{title}</h2><p className="meta">{note}</p>{children}</section>;
 }
