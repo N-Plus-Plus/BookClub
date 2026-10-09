@@ -25,10 +25,10 @@
 
 
 .builder-turn-warning { color: var(--pumpkin-dark); }
-.builder-poster-strip { display: flex; flex-wrap: wrap; justify-content: space-evenly; gap: var(--space-8); min-width: 0; }
-.builder-poster-film { width: 126px; max-width: 100%; min-width: 0; display: grid; gap: var(--space-4); }
+.builder-poster-strip { display: grid; justify-content: space-evenly; gap: var(--space-8); min-width: 0; }
+.builder-poster-film { width: 100%; max-width: 100%; min-width: 0; display: grid; gap: var(--space-4); }
 .builder-poster-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: var(--text-metadata); color: var(--text-primary); font-weight: 500; }
-.builder-poster-strip .poster { width: 126px; max-width: 100%; flex-shrink: 0; height: auto; aspect-ratio: 2/3; }
+.builder-poster-strip .poster { width: 100%; max-width: 100%; flex-shrink: 0; height: auto; aspect-ratio: 2/3; }
 .builder-lineup li { grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: var(--space-8); }
 .builder-lineup-identity { display: flex; align-items: center; gap: var(--space-8); min-width: 0; }
 .builder-lineup-identity .position { flex: 0 0 2ch; }
