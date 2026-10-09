@@ -1,5 +1,6 @@
 import { parseAwards, parseCollection, providerEvidenceRelationships, type AwardsEvidence, type CollectionEvidence } from '../../shared/provider-evidence';
 import { ApiError } from './http';
+import { FieldCoverageRepository } from './field-coverage-repository';
 
 /** Independent successful checks from details responses; no provider calls or canonical writes. */
 export class ProviderEvidenceRepository {
@@ -17,7 +18,8 @@ export class ProviderEvidenceRepository {
     const values=fields.map(f=>(parsed as unknown as Record<string,string | number | null>)[f]);
     const table=`movie_provider_${kind}`;
     const current=await this.db.prepare(`SELECT ${fields.join(',')} FROM ${table} WHERE movie_id=? AND identity_provider=? AND external_id=?`).bind(movieId,parsed.identity.provider,parsed.identity.external_id).first<Record<string,unknown>>();
-    await this.db.prepare(`INSERT INTO ${table}(movie_id,identity_provider,external_id,checked_at,${fields.join(',')}) VALUES(CASE WHEN EXISTS(SELECT 1 FROM movie_external_ids WHERE movie_id=? AND provider=? AND external_id=?) THEN ? ELSE NULL END,?,?,?,${fields.map(()=>'?').join(',')}) ON CONFLICT(movie_id) DO UPDATE SET identity_provider=excluded.identity_provider,external_id=excluded.external_id,checked_at=excluded.checked_at,${fields.map(f=>`${f}=excluded.${f}`).join(',')}`).bind(movieId,parsed.identity.provider,parsed.identity.external_id,movieId,parsed.identity.provider,parsed.identity.external_id,parsed.checked_at,...values).run();
+    const statement=this.db.prepare(`INSERT INTO ${table}(movie_id,identity_provider,external_id,checked_at,${fields.join(',')}) VALUES(CASE WHEN EXISTS(SELECT 1 FROM movie_external_ids WHERE movie_id=? AND provider=? AND external_id=?) THEN ? ELSE NULL END,?,?,?,${fields.map(()=>'?').join(',')}) ON CONFLICT(movie_id) DO UPDATE SET identity_provider=excluded.identity_provider,external_id=excluded.external_id,checked_at=excluded.checked_at,${fields.map(f=>`${f}=excluded.${f}`).join(',')}`).bind(movieId,parsed.identity.provider,parsed.identity.external_id,movieId,parsed.identity.provider,parsed.identity.external_id,parsed.checked_at,...values);
+    await this.db.batch([statement,...await new FieldCoverageRepository(this.db).statements(movieId,kind==='collections'?'tmdb':'omdb',kind==='collections'?'tmdb-collections':'omdb-awards',parsed.identity,Object.fromEntries(fields.map((f,i)=>[f,values[i]])),parsed.checked_at)]);
     return !current || fields.some((f,i)=>current[f]!==values[i]);
   }
 }

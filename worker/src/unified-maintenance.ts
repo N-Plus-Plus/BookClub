@@ -1,5 +1,6 @@
-import { matchingCheck, planMaintenance, providerIdentity, providerKeys, type MaintenanceBatchResult, type MaintenanceIntent, type MaintenanceUnit, type MaintenanceCoverage } from '../../shared/maintenance-plan';
-import { missingLiveScoreDimensions, requiredScores } from '../../shared/ranking';
+import { negativeScore, matchingCheck, planMaintenance, providerIdentity, providerKeys, type MaintenanceBatchResult, type MaintenanceIntent, type MaintenanceUnit, type MaintenanceCoverage } from '../../shared/maintenance-plan';
+import { requiredScores } from '../../shared/ranking';
+import { missingMaintainedScores,maintenanceContract,collectedFieldStates } from '../../shared/maintenance-contract';
 import type { Movie, Score } from '../../shared/types';
 import { ApiError, type Env } from './http';
 import type { Repository } from './repository';
@@ -19,26 +20,28 @@ export class UnifiedMaintenanceService {
     const page=await this.coverage.page(after);
     return {...await this.coverage.read(this.repo,this.env,page.ids),next:page.next};
   }
-  private async scoreEvidence(movie:Movie,unit:MaintenanceUnit,scores:Score[],coverage:MaintenanceCoverage,intent:MaintenanceIntent,startedAt:string) {
-    await this.repo.appendScores(movie.id,scores,unit.identity);
-    const absent=providerKeys[unit.provider].filter(key=>missingLiveScoreDimensions(scores).includes(key));
+  private async scoreEvidence(movie:Movie,unit:MaintenanceUnit,scores:Score[],coverage:MaintenanceCoverage,intent:MaintenanceIntent,startedAt:string,checkedKeys?:readonly string[]) {
+    checkedKeys=(checkedKeys ?? providerKeys[unit.provider]).filter(key=>(unit.scoreKeys ?? requiredScores as readonly string[]).includes(key));
+    await this.repo.appendScores(movie.id,scores,unit.identity,unit.provider,checkedKeys);
+    const absent=providerKeys[unit.provider].filter(key=>(!checkedKeys||checkedKeys.includes(key))&&(missingMaintainedScores(scores) as string[]).includes(key));
     await this.coverage.save(movie.id,unit.provider,'scores',unit.identity,[...absent]);
     // Clear negatives for incidental supported scores only after snapshots are committed.
-    const present=requiredScores.filter(key=>!missingLiveScoreDimensions(scores).includes(key));
+    const present=requiredScores.filter(key=>!(missingMaintainedScores(scores) as string[]).includes(key));
     await this.repo.saveScoreChecks(movie.id,present.map(key=>({key,available:true})));
     const current=await this.coverage.read(this.repo,this.env,[movie.id]);
-    const missing=missingLiveScoreDimensions([...movie.scores.filter(s=>intent==='populate' || Date.parse(s.fetched_at)>=Date.parse(startedAt)),...scores]);
+    const missing=missingMaintainedScores([...movie.scores.filter(s=>intent==='populate' || Date.parse(s.fetched_at)>=Date.parse(startedAt)),...scores]);
     const checks=missing.filter(key=>{
       const paths=(['mdblist','omdb','tmdb'] as const).filter(provider=>providerKeys[provider].includes(key) && providerIdentity(movie,provider));
       return paths.length && paths.every(provider=>{const check=matchingCheck(current,movie.id,provider,'scores',providerIdentity(movie,provider)!);return check?.absent.includes(key) && (intent==='populate' || Date.parse(check.checked_at)>=Date.parse(startedAt));});
     });
-    await this.repo.saveScoreChecks(movie.id,checks.map(key=>({key,available:false})));
+    await this.repo.saveScoreChecks(movie.id,checks.filter(key=>requiredScores.includes(key as typeof requiredScores[number])).map(key=>({key,available:false})));
     Object.assign(coverage,current);
   }
   async execute(intent:MaintenanceIntent,units:MaintenanceUnit[],startedAt:string):Promise<MaintenanceBatchResult> {
     if(!units.length || new Set(units.map(u=>u.provider)).size!==1 || units.length>(units[0].provider==='tmdb'?2:10)
       || new Set(units.map(u=>u.movieId)).size!==units.length) throw new ApiError(422,'INVALID_LIMIT','Choose one bounded provider batch.');
     const movies=await this.repo.maintenanceDetails(units.map(u=>u.movieId));
+    if(units.some(u=>u.scoreKeys&&(!u.operations.includes('scores')||new Set(u.scoreKeys).size!==u.scoreKeys.length||u.scoreKeys.some(key=>!providerKeys[u.provider].includes(key)))))throw new ApiError(422,'INVALID_SCORE_SCOPE','Choose only rating dimensions this provider supports.');
     const coverage=await this.coverage.read(this.repo,this.env,units.map(u=>u.movieId));
     if(units.some(u=>u.operations.includes('tmdb-collections') || u.operations.includes('omdb-awards')) && !coverage.evidenceSupported) throw new ApiError(503,'SCHEMA_UPGRADE_REQUIRED','Collections and awards maintenance requires migration 0021.');
     // Scope validation is still owned by the selected-film loader.
@@ -71,11 +74,11 @@ export class UnifiedMaintenanceService {
         const planned=planMaintenance({movies:[movie],members:[],sessions:[],cycles:[]},coverage,intent,operations.filter(o=>o!=='scores')).units;
         operations=operations.filter(o=>o==='scores' || planned.some(p=>p.provider===provider && p.operations.includes(o)));
       }
-      if(operations.includes('scores') && provider!=='mdblist') {
+      if(operations.includes('scores')) {
         const baseline=intent==='refresh' ? movie.scores.filter(s=>Date.parse(s.fetched_at)>=Date.parse(startedAt)) : movie.scores;
-        const missing=missingLiveScoreDimensions(baseline).filter(key=>intent==='refresh' || !coverage.negativeScores.some(c=>c.movie_id===movie.id && c.score_key===key));
+        const missing:string[]=missingMaintainedScores(baseline).filter(key=>intent==='refresh' || !negativeScore(movie,key,coverage));
         const prior=matchingCheck(coverage,movie.id,provider,'scores',unit.identity);
-        if(!providerKeys[provider].some(key=>missing.includes(key) && (intent==='refresh' || !prior?.absent.includes(key)))) operations=operations.filter(o=>o!=='scores');
+        if(!providerKeys[provider].some(key=>(unit.scoreKeys ?? requiredScores as readonly string[]).includes(key)&&missing.includes(key) && (intent==='refresh' || !prior?.absent.includes(key)))) operations=operations.filter(o=>o!=='scores');
       }
       if(!operations.length) response.results.push({movieId:unit.movieId,provider,status:'skipped',message:'No outstanding provider work.'});
       else pending.push({...unit,operations});
@@ -91,6 +94,8 @@ export class UnifiedMaintenanceService {
       if(!capture) {if(required) throw new ApiError(503,'INVALID_PROVIDER_RESPONSE','Provider returned incomplete enrichment. Existing cache is preserved.');return 0;}
       const saved=await this.repo.cacheEnrichment(movieId,capture);
       response.canonicalChanged ||= saved.canonicalChanged;response.cacheChanged ||= saved.changed;cacheChanges.set(movieId,saved.changed);
+      const operation=capture.provider==='tmdb'?'tmdb-enrichment':'mdblist-enrichment';
+      if(required && Object.keys(collectedFieldStates(operation,{...capture,...capture.metadata})).length!==maintenanceContract[operation].fields.length)throw new ApiError(503,'INVALID_PROVIDER_RESPONSE','Provider supplied incomplete field evidence. Valid saved fields are retained.');
       return saved.conflicts;
     };
     if(provider==='mdblist') {
@@ -120,9 +125,9 @@ export class UnifiedMaintenanceService {
     } else for(const unit of pending) {
       const movie=movies.find(m=>m.id===unit.movieId)!;
       try {
-        let scores:Score[]=[],conflicts=0,changed=false,evidenceValid=false;
+        let scores:Score[]=[],conflicts=0,changed=false,evidenceValid=false,scoreCheckedKeys:string[] | undefined;
         if(provider==='omdb') {
-          const detail=await omdb.details(unit.identity.external_id);scores=detail.scores;
+          const detail=await omdb.details(unit.identity.external_id);scores=detail.scores;scoreCheckedKeys=detail.scoreCheckedKeys;
           evidenceValid=Boolean(detail.awards);changed=await this.repo.cacheAwards(movie.id,detail.awards);response.cacheChanged ||= changed;
           // Score fallback retains canonical fill behaviour without overwriting populated fields in Populate.
           const metadataChanged=await this.repo.enrichOmdbMetadata(movie.id,unit.identity.external_id,detail.metadata,intent==='populate');
@@ -131,7 +136,7 @@ export class UnifiedMaintenanceService {
         } else {
           const detail=await call(()=>new TmdbProvider(this.env.TMDB_READ_TOKEN!,limits).details(unit.identity.external_id));scores=detail.scores;
           evidenceValid=Boolean(detail.collection);changed=await this.repo.cacheCollection(movie.id,detail.collection);response.cacheChanged ||= changed;
-          if(unit.operations.includes('scores')) {await this.scoreEvidence(movie,unit,scores,coverage,intent,startedAt);response.canonicalChanged ||= scores.length>0;}
+          if(unit.operations.includes('scores')) {await this.scoreEvidence(movie,unit,scores,coverage,intent,startedAt,detail.scoreCheckedKeys);response.canonicalChanged ||= scores.length>0;}
           if(unit.operations.includes('tmdb-metadata')) {
             const cached=await this.repo.enrichMetadata(movie.id,unit.identity.external_id,{...detail,collection:undefined},undefined,false,intent);
             const metadataChanged=fingerprint(movie)!==fingerprint((await this.repo.selectedMetadataMovies([movie.id]))[0]);
@@ -141,7 +146,7 @@ export class UnifiedMaintenanceService {
 
           } else {conflicts=await saveCache(movie.id,detail.enrichment,unit.operations.includes('tmdb-enrichment'));changed ||= Boolean(cacheChanges.get(movie.id));}
         }
-        if(provider==='omdb' && unit.operations.includes('scores')) {await this.scoreEvidence(movie,unit,scores,coverage,intent,startedAt);response.canonicalChanged ||= scores.length>0;}
+        if(provider==='omdb' && unit.operations.includes('scores')) {await this.scoreEvidence(movie,unit,scores,coverage,intent,startedAt,scoreCheckedKeys);response.canonicalChanged ||= scores.length>0;}
         if(unit.operations.includes('tmdb-collections') && !evidenceValid) throw new ApiError(503,'INVALID_PROVIDER_RESPONSE','TMDB collection evidence is incomplete. Valid results are retained.');
         if(unit.operations.includes('omdb-awards') && !evidenceValid) throw new ApiError(503,'INVALID_PROVIDER_RESPONSE','OMDb awards evidence is incomplete. Valid results are retained.');
         await this.coverage.failure(movie.id,provider,unit.operations,false);

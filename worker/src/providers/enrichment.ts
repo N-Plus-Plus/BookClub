@@ -1,6 +1,7 @@
 import type { EnrichmentCapture } from '../../../shared/enrichment';
 import { usableTitle } from '../../../shared/titles';
 import type { ExternalId } from '../../../shared/types';
+import { maintenanceContract } from '../../../shared/maintenance-contract';
 
 type ObjectValue = Record<string,unknown>;
 const object = (v: unknown): ObjectValue | undefined => v !== null && typeof v === 'object' && !Array.isArray(v) ? v as ObjectValue : undefined;
@@ -65,7 +66,7 @@ export function parseTmdbEnrichment(data: unknown, at: string): EnrichmentCaptur
     }
   }
   return {provider:'tmdb',watch_offers:offers,identity:{provider:'tmdb',external_id:id(m.id)!},fetchedAt:at,
-    metadata:scalars(m,['title','original_language','tagline'],['budget','revenue','popularity']),countries,languages,companies,
+    metadata:scalars(m,maintenanceContract['tmdb-enrichment'].fields.filter(f=>f.kind==='text').map(f=>f.source),maintenanceContract['tmdb-enrichment'].fields.filter(f=>f.kind==='number').map(f=>f.source)),countries,languages,companies,
     credits:[...cast.sort((a,b)=>a.billing_order!-b.billing_order! || a.ordinal-b.ordinal).slice(0,15).map((c,ordinal)=>({...c,ordinal})),...crew],keywords,content_ratings:ratings};
 }
 export function parseMdbTitle(data: unknown, identity: ExternalId): string | null {
@@ -74,7 +75,7 @@ export function parseMdbTitle(data: unknown, identity: ExternalId): string | nul
   return usableTitle(m.title);
 }
 export function parseMdbEnrichment(data: unknown, identity: ExternalId, at: string): EnrichmentCapture | undefined {
-  const m=object(data), ids=object(m?.ids); if (!m || !ids || !text(m.title) || (m.type!==undefined && m.type!=='movie') || String(ids[identity.provider] ?? m.imdb_id) !== identity.external_id) return undefined;
+  const m=object(data), ids=object(m?.ids); if (!m || !ids || (m.type!==undefined && m.type!=='movie') || String(ids[identity.provider] ?? m.imdb_id) !== identity.external_id) return undefined;
   const identities: ExternalId[]=[];
   for (const [provider,value] of Object.entries(ids)) {
     const valid=provider==='imdb' ? typeof value==='string' && /^tt\d{7,10}$/.test(value) : provider==='mdblist' ? Boolean(id(value)) || typeof value==='string' && /^[a-zA-Z0-9_-]+$/.test(value) : Boolean(id(value));
@@ -82,5 +83,5 @@ export function parseMdbEnrichment(data: unknown, identity: ExternalId, at: stri
   }
   const keywords=rows(m.keywords,k=>text(k.name) ? {external_id:id(k.id),name:text(k.name)!} : undefined);
   if (!keywords) return undefined;
-  return {provider:'mdblist',identity,fetchedAt:at,metadata:scalars(m,['title'],['runtime']),identities,keywords,watch_offers:[]};
+  return {provider:'mdblist',identity,fetchedAt:at,metadata:{...scalars(m,maintenanceContract['mdblist-enrichment'].fields.filter(f=>f.kind==='text').map(f=>f.source),maintenanceContract['mdblist-enrichment'].fields.filter(f=>f.kind==='number').map(f=>f.source)),...(m.title==='N/A'?{title:null}:{})},identities,keywords,watch_offers:[]};
 }

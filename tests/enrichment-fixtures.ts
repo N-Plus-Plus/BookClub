@@ -1,6 +1,6 @@
 // Synthetic shapes checked against the official contracts and two bounded MDBList probes.
 export const tmdbEnrichmentFixture=(id=42) => ({
-  id,title:'Provider title',original_title:'Original',runtime:101,original_language:'fr',budget:1000000,revenue:2000000,popularity:12.25,tagline:'A tagline',
+  id,release_date:null,overview:null,poster_path:null,backdrop_path:null,title:'Provider title',original_title:'Original',runtime:101,original_language:'fr',budget:1000000,revenue:2000000,popularity:12.25,tagline:'A tagline',
   production_countries:[{iso_3166_1:'US',name:'United States of America'},{iso_3166_1:'AU',name:'Australia'}],
   spoken_languages:[{iso_639_1:'en',name:'English',english_name:'English'},{iso_639_1:'fr',name:'Français',english_name:'French'}],
   production_companies:[{id:7,name:'Studio',origin_country:'AU'}],

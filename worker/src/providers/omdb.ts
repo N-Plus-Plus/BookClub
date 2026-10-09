@@ -3,6 +3,7 @@ import { ProviderError } from './http';
 import { usableTitle } from '../../../shared/titles';
 import type { Score } from '../../../shared/types';
 import { RatingError, ratingRequest, record } from './ratings';
+import { maintenanceContract } from '../../../shared/maintenance-contract';
 function omdbFailure(data: unknown): ProviderError | undefined {
   if (!data || typeof data !== 'object') return;
   const d = data as {Response?: unknown; Error?: unknown};
@@ -24,7 +25,7 @@ export function parseOmdb(data: unknown, at = new Date().toISOString()): Score[]
   }
   return scores.filter((s): s is Score => s !== null);
 }
-export interface OmdbMetadata { title: string | null; year: number | null; runtime: number | null; director: string | null; genres: string[] }
+export interface OmdbMetadata { title: string | null; year: number | null; runtime: number | null; director: string | null; genres: string[]; checkedFields?:string[] }
 export function parseOmdbMetadata(data: unknown): OmdbMetadata {
   parseOmdb(data); // Validate provider success without inventing missing values.
   const d = data as Record<string,unknown>;
@@ -40,8 +41,18 @@ export class OmdbProvider {
     const data = await ratingRequest(`https://www.omdbapi.com/?apikey=${encodeURIComponent(this.key)}&i=${encodeURIComponent(id)}&type=movie`,'OMDb',undefined,this.onLimits,omdbFailure);
     if (data && typeof data === 'object' && 'imdbID' in data && data.imdbID !== id) throw new ProviderError('OMDb','not_found','OMDb returned a different IMDb identity. Owner review is required.');
     const metadata=parseOmdbMetadata(data);
+    metadata.checkedFields=data && typeof data==='object' && 'imdbID' in data && data.imdbID===id ? maintenanceContract['omdb-metadata'].fields.filter(f=>{
+      const value=(data as Record<string,unknown>)[f.source];
+      if(typeof value!=='string')return false;
+      if(value==='N/A'||!value.trim())return true;
+      if(f.id==='year')return /^\d{4}$/.test(value)&&metadata.year!==null;
+      if(f.id==='runtime')return /^\d+ min$/.test(value)&&metadata.runtime!==null;
+      return true;
+    }).map(f=>f.id):[];
     if (!(data && typeof data === 'object' && 'imdbID' in data && data.imdbID === id)) metadata.title=null;
-    return {scores:parseOmdb(data),metadata,awards:data && typeof data==='object' && 'imdbID' in data && data.imdbID===id ? parseAwards('Awards' in data ? data.Awards : undefined,id,new Date().toISOString()) : undefined};
+    const raw=data as Record<string,unknown>;
+    const scoreCheckedKeys=[...(Object.hasOwn(raw,'imdbRating')?['imdb:rating']:[]),...(Object.hasOwn(raw,'Metascore')?['metacritic:critic']:[]),...(Array.isArray(raw.Ratings)?['rottentomatoes:critic']:[])];
+    return {scores:parseOmdb(data),scoreCheckedKeys,metadata,awards:data && typeof data==='object' && 'imdbID' in data && data.imdbID===id ? parseAwards('Awards' in data ? data.Awards : undefined,id,new Date().toISOString()) : undefined};
   }
   async scores(id: string) { return (await this.details(id)).scores; }
 }

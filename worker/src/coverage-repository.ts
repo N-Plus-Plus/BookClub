@@ -3,6 +3,7 @@ import type { ExternalId } from '../../shared/types';
 import { ApiError, type Env } from './http';
 import { ProviderEvidenceRepository } from './provider-evidence-repository';
 import type { Repository } from './repository';
+import { FieldCoverageRepository } from './field-coverage-repository';
 
 export class CoverageRepository {
   constructor(private db:D1Database) {}
@@ -35,13 +36,18 @@ export class CoverageRepository {
     const secondary=env.OMDB_API_KEY_SECONDARY ? await repo.providerCooldown('omdb-secondary',true) : Infinity;
     if (!env.OMDB_API_KEY && !env.OMDB_API_KEY_SECONDARY) unavailable.omdb='Not configured.';
     else if(omdb && secondary) unavailable.omdb=`Cooling down for ${Math.min(omdb,secondary)} seconds.`;
-    return {evidence,evidenceSupported,failures,checks:(rows[0].results as (Omit<ProviderCoverage,'absent'> & {absent_json:string})[]).map(({absent_json,...r})=>({...r,absent:JSON.parse(absent_json)})),negativeScores:rows[1].results as MaintenanceCoverage['negativeScores'],enrichment:rows[2].results as MaintenanceCoverage['enrichment'],unavailable};
+    const coverage:MaintenanceCoverage={evidence,evidenceSupported,failures,checks:(rows[0].results as (Omit<ProviderCoverage,'absent'> & {absent_json:string})[]).map(({absent_json,...r})=>({...r,absent:JSON.parse(absent_json)})),negativeScores:rows[1].results as MaintenanceCoverage['negativeScores'],enrichment:rows[2].results as MaintenanceCoverage['enrichment'],unavailable};
+    const fields=new FieldCoverageRepository(this.db);coverage.fieldsSupported=await fields.supported();coverage.fields=await fields.read(ids,coverage);
+    return coverage;
   }
-  async save(movieId:string,provider:MaintenanceProvider,domain:'metadata'|'scores',identity:ExternalId,absent:string[]) {
-    await this.db.prepare(`INSERT INTO movie_maintenance_coverage(movie_id,provider,domain,identity_provider,external_id,checked_at,absent_json)
+  statement(movieId:string,provider:MaintenanceProvider,domain:'metadata'|'scores',identity:ExternalId,absent:string[]) {
+    return this.db.prepare(`INSERT INTO movie_maintenance_coverage(movie_id,provider,domain,identity_provider,external_id,checked_at,absent_json)
       VALUES(?,?,?, ?,CASE WHEN EXISTS(SELECT 1 FROM movie_external_ids WHERE movie_id=? AND provider=? AND external_id=?) THEN ? ELSE NULL END,?,?)
       ON CONFLICT(movie_id,provider,domain) DO UPDATE SET identity_provider=excluded.identity_provider,external_id=excluded.external_id,checked_at=excluded.checked_at,absent_json=excluded.absent_json`)
-      .bind(movieId,provider,domain,identity.provider,movieId,identity.provider,identity.external_id,identity.external_id,new Date().toISOString(),JSON.stringify(absent)).run();
+      .bind(movieId,provider,domain,identity.provider,movieId,identity.provider,identity.external_id,identity.external_id,new Date().toISOString(),JSON.stringify(absent));
+  }
+  async save(movieId:string,provider:MaintenanceProvider,domain:'metadata'|'scores',identity:ExternalId,absent:string[]) {
+    await this.statement(movieId,provider,domain,identity,absent).run();
   }
   async failure(movieId:string,provider:string,operations:string[],failed:boolean) {
     await this.db.batch(operations.map(operation=>{

@@ -7,6 +7,10 @@ import { EnrichmentRepository } from './enrichment-repository';
 import { TitleRepository, providerTitleStatement, canonicalTitleStatement } from './title-repository';
 import { ApiError } from './http';
 import { SchemaCapabilities } from './schema-capabilities';
+import { FieldCoverageRepository } from './field-coverage-repository';
+import { CoverageRepository } from './coverage-repository';
+import { collectedFieldStates,scoreProviderKeys } from '../../shared/maintenance-contract';
+import { scoreValue } from '../../shared/ranking';
 
 export class MovieRepository {
   constructor(private db: D1Database, private capabilities = new SchemaCapabilities(db)) {}
@@ -69,11 +73,15 @@ export class MovieRepository {
     ]);
   }
 
-  async appendScores(id: string, scores: Score[], identity?:ExternalId) {
+  async appendScores(id: string, scores: Score[], identity?:ExternalId,checkedProvider?:keyof typeof scoreProviderKeys,checkedKeys?:readonly string[]) {
     await this.assertMovie(id);
     const unique = new Map(scores.map(s => [`${s.provider}:${s.metric}:${s.retrieved_via ?? 'unspecified'}`,s]));
     const statements = [...unique.values()].map(s => this.db.prepare(`INSERT OR IGNORE INTO source_scores(id,movie_id,provider,metric,raw_value,raw_scale,normalized_value,vote_count,fetched_at,retrieved_via,upstream_updated_at) VALUES(?,${identity ? 'CASE WHEN EXISTS(SELECT 1 FROM movie_external_ids WHERE movie_id=? AND provider=? AND external_id=?) THEN ? ELSE NULL END' : '?'},?,?,?,?,?,?,?,?,?)`)
       .bind(crypto.randomUUID(),...(identity ? [id,identity.provider,identity.external_id,id] : [id]),s.provider,s.metric,s.raw_value,s.raw_scale,s.normalized_value,s.vote_count,s.fetched_at,s.retrieved_via ?? 'unspecified',s.upstream_updated_at ?? null));
+    if(identity && checkedProvider){
+      const values=Object.fromEntries(scoreProviderKeys[checkedProvider].filter(key=>!checkedKeys||checkedKeys.includes(key)).map(key=>[key,scores.find(s=>`${s.provider}:${s.metric}`===key)?scoreValue(scores.find(s=>`${s.provider}:${s.metric}`===key)!):null]));
+      statements.push(...await new FieldCoverageRepository(this.db).statements(id,checkedProvider,'scores',identity,values,new Date().toISOString()));
+    }
     if (statements.length) await this.db.batch(statements);
   }
 
@@ -118,6 +126,12 @@ export class MovieRepository {
       .filter(field => metadata[field] !== null && metadata[field] !== current[field] && (!populate || current[field] === null || typeof current[field]==='string' && !current[field].trim()));
     const guard = "EXISTS(SELECT 1 FROM movie_external_ids WHERE movie_id=? AND provider='imdb' AND external_id=?)";
     const statements: D1PreparedStatement[] = [];
+    const at=new Date().toISOString(),identity={provider:'imdb',external_id:imdbId};
+    const values=Object.fromEntries(Object.entries(metadata).filter(([key])=>!metadata.checkedFields || metadata.checkedFields.includes(key)));
+    const fieldStates=collectedFieldStates('omdb-metadata',values);
+    statements.push(...await new FieldCoverageRepository(this.db).statements(id,'omdb','omdb-metadata',identity,values,at));
+    const coverage=new CoverageRepository(this.db);
+    if(await coverage.supported())statements.push(coverage.statement(id,'omdb','metadata',identity,Object.entries(fieldStates).filter(([,state])=>state==='checked_unavailable').map(([key])=>key)));
     if (fields.length) statements.push(this.db.prepare(`UPDATE movies SET ${fields.map(field => `${field}=?`).join(',')},updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND ${guard} AND (${fields.map(field => `${field} IS NOT ?`).join(' OR ')}) RETURNING id`)
       .bind(...fields.map(field => metadata[field]),id,id,imdbId,...fields.map(field => metadata[field])));
     if (desired.size && (!populate || !existing.size)) {
@@ -139,7 +153,8 @@ export class MovieRepository {
         throw new ApiError(409,'IDENTITY_CONFLICT','Stored IMDb identity changed. Refresh before retrying.');
       return false;
     }
-    const result = await this.db.batch([...statements,ownership]);
+    let result:D1Result[];
+    try{result=await this.db.batch([...statements,ownership]);}catch(error){if(String(error).includes('external_id'))throw new ApiError(409,'IDENTITY_CONFLICT','Stored IMDb identity changed. Refresh before retrying.');throw error;}
     if ((result[result.length-1].results[0] as {movie_id:string} | undefined)?.movie_id !== id)
       throw new ApiError(409,'IDENTITY_CONFLICT','Stored IMDb identity changed. Refresh before retrying.');
     return result.slice(0,-1).some(r => r.results.length > 0);
@@ -147,6 +162,7 @@ export class MovieRepository {
 
   async enrichMetadata(id: string, tmdbId: string, m: ProviderMovie, attachment?: {import_source: string; source_refs: string[]}, captureScores = false, intent?: 'populate' | 'refresh') {
     await this.assertMovie(id);
+    const collected=m;
     if (intent) {
       const current=(await new (await import('./catalog-repository')).CatalogRepository(this.db,this.capabilities).movieDetails([id]))[0];
       m={...m};
@@ -168,6 +184,8 @@ export class MovieRepository {
         throw new ApiError(409,'IDENTITY_CONFLICT','IMDb identity conflicts with a canonical film. Owner reconciliation is required.');
     }
     const statements = this.metadataStatements(id,m,captureScores,await this.capabilities.hasDirector(),await new TitleRepository(this.db).supported());
+    const values={title:collected.title,original_title:collected.original_title,release:collected.release_date,runtime:collected.runtime,overview:collected.overview,director:collected.director,genres:collected.genres,poster:collected.assets.find(a=>a.asset_type==='poster')?.reference ?? null,backdrop:collected.assets.find(a=>a.asset_type==='backdrop')?.reference ?? null};
+    statements.push(...await new FieldCoverageRepository(this.db).statements(id,'tmdb','tmdb-metadata',{provider:'tmdb',external_id:tmdbId},collected.checkedFields?Object.fromEntries(Object.entries(values).filter(([key])=>collected.checkedFields!.includes(key))):values,collected.fetched_at));
     if (attachment) {
       // Fail the whole batch if provenance or identity changed since preflight.
       statements.unshift(this.db.prepare(`INSERT INTO movie_external_ids(movie_id,provider,external_id)

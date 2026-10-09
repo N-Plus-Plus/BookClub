@@ -1,5 +1,7 @@
 import type { Asset, ExternalId, Score, SearchResult } from '../../../shared/types';
 export interface ProviderMovie {
+  checkedFields?:string[];
+  scoreCheckedKeys?:string[];
   title: string; original_title: string | null; year: number | null; release_date: string | null;
   runtime: number | null; overview: string | null; director?: string | null; genres: string[];
   external_ids: ExternalId[]; assets: Asset[]; scores: Score[]; fetched_at: string;

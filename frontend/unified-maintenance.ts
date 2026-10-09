@@ -2,6 +2,8 @@ import { maintenanceOperations, matchingCheck, planMaintenance, type Maintenance
 import { formatRetryDuration } from './retry-duration';
 import type { Catalog } from '../shared/types';
 import { MAINTENANCE_IDLE_MS } from '../shared/score-maintenance';
+import { maintainedScoreKeys,scoreProviderKeys,maintenanceContract } from '../shared/maintenance-contract';
+import { requiredScores } from '../shared/ranking';
 
 export interface UnifiedCheckpoint {version:1;intent:MaintenanceIntent;operation:MaintenanceOperation | 'all';startedAt:string;pending:MaintenanceUnit[];completed:number}
 const validId=(v:unknown):v is string=>typeof v==='string' && /^[A-Za-z0-9_-]{1,100}$/.test(v);
@@ -17,9 +19,10 @@ export function loadUnifiedCheckpoint(key:string,storage?:Pick<Storage,'getItem'
       || typeof value.startedAt!=='string' || !Number.isFinite(Date.parse(value.startedAt)) || !Number.isSafeInteger(value.completed) || value.completed<0 || value.completed>300000
       || !Array.isArray(value.pending) || value.pending.length>300000 || !value.pending.every((u:MaintenanceUnit)=>validId(u.movieId) && ['mdblist','omdb','tmdb'].includes(u.provider) && u.identity && ['imdb','tmdb'].includes(u.identity.provider) && typeof u.identity.external_id==='string' && /^(tt\d{7,10}|[1-9]\d{0,9})$/.test(u.identity.external_id)
         && Array.isArray(u.operations) && u.operations.length && u.operations.every(o=>o==='scores' || maintenanceOperations.includes(o) && o.startsWith(u.provider)))
+      || value.pending?.some((u:MaintenanceUnit)=>u.scoreKeys&&(!Array.isArray(u.scoreKeys)||u.scoreKeys.some(key=>!maintainedScoreKeys.includes(key as typeof maintainedScoreKeys[number]))))
       || new Set(value.pending.map(unitKey)).size!==value.pending.length || Object.keys(value).some(k=>!['version','intent','operation','startedAt','pending','completed'].includes(k))) throw new Error('Invalid checkpoint');
     // Copy only authorised fields; no arbitrary stored payload is forwarded.
-    return {version:1,intent:value.intent,operation:value.operation,startedAt:value.startedAt,completed:value.completed,pending:value.pending.map((u:MaintenanceUnit)=>({movieId:u.movieId,provider:u.provider,identity:{provider:u.identity.provider,external_id:u.identity.external_id},operations:[...u.operations]}))};
+    return {version:1,intent:value.intent,operation:value.operation,startedAt:value.startedAt,completed:value.completed,pending:value.pending.map((u:MaintenanceUnit)=>({movieId:u.movieId,provider:u.provider,identity:{provider:u.identity.provider,external_id:u.identity.external_id},operations:[...u.operations],...(u.operations.includes('scores')?{scoreKeys:u.scoreKeys ?? requiredScores.filter(key=>(scoreProviderKeys[u.provider] as readonly string[]).includes(key))}:{})}))};
   } catch {try{storage?.removeItem(key);}catch{/* Storage denial. */}return null;}
 }
 export function reconcileUnifiedCheckpoint(saved:UnifiedCheckpoint,catalog:Catalog,coverage:MaintenanceCoverage) {
@@ -32,6 +35,11 @@ export function reconcileUnifiedCheckpoint(saved:UnifiedCheckpoint,catalog:Catal
     const movie=catalog.movies.find(m=>m.id===unit.movieId)!;
     const operations=unit.operations.filter(o=>old.operations.includes(o)).filter(o=>{
       if(saved.intent!=='refresh') return true;
+      if(coverage.fields){
+        const fields=coverage.fields.find(c=>c.movie_id===unit.movieId&&c.provider===unit.provider&&c.operation===o&&c.identity_provider===unit.identity.provider&&c.external_id===unit.identity.external_id)?.fields;
+        const keys=o==='scores'?(old.scoreKeys ?? requiredScores as readonly string[]):maintenanceContract[o].fields.map(f=>f.id);
+        return !keys.every(key=>fields?.[key]&&Date.parse(fields[key].checked_at)>=Date.parse(saved.startedAt));
+      }
       const at=o==='scores' ? matchingCheck(coverage,unit.movieId,unit.provider,'scores',unit.identity)?.checked_at
         : o==='omdb-metadata' ? matchingCheck(coverage,unit.movieId,'omdb','metadata',unit.identity)?.checked_at
         : o==='tmdb-metadata' ? movie.tmdb_metadata_checked_at && movie.tmdb_artwork_checked_at ? (movie.tmdb_metadata_checked_at<movie.tmdb_artwork_checked_at?movie.tmdb_metadata_checked_at:movie.tmdb_artwork_checked_at) : undefined
@@ -39,7 +47,8 @@ export function reconcileUnifiedCheckpoint(saved:UnifiedCheckpoint,catalog:Catal
         : coverage.enrichment.find(c=>c.movie_id===unit.movieId && c.provider===unit.provider && c.identity_provider===unit.identity.provider && c.external_id===unit.identity.external_id)?.checked_at;
       return !at || Date.parse(at)<Date.parse(saved.startedAt);
     });
-    return [{...unit,operations}].filter(u=>u.operations.length);
+    const scoreKeys=unit.scoreKeys?.filter(key=>(old.scoreKeys ?? requiredScores as readonly string[]).includes(key));
+    return [{...unit,operations:scoreKeys?.length===0?operations.filter(o=>o!=='scores'):operations,...(scoreKeys?{scoreKeys}:{})}].filter(u=>u.operations.length);
   });
   return {...saved,pending,completed:saved.completed+saved.pending.length-pending.length};
 }

@@ -31,7 +31,7 @@ function upstream(empty=false) {
       const body=JSON.parse(String(init?.body));
       return Response.json(body.ids.map((imdb:string)=>({...mdbEnrichmentFixture(imdb,Number(imdb.slice(2))),ids:{imdb,tmdb:Number(imdb.slice(2))},keywords:empty?[]:[{id:1,name:'keyword'}],ratings:empty?[]:mdbEnrichmentFixture().ratings})));
     }
-    if(url.hostname==='www.omdbapi.com') {counters.omdb++;return Response.json({Response:'True',imdbID:url.searchParams.get('i'),Awards:empty?'N/A':'2 wins & 3 nominations.',Title:empty?'N/A':'OMDb title',Year:empty?'N/A':'2000',Runtime:empty?'N/A':'100 min',Director:empty?'N/A':'A director',Genre:empty?'N/A':'Drama',imdbRating:empty?'N/A':'8',Metascore:empty?'N/A':'80'});}
+    if(url.hostname==='www.omdbapi.com') {counters.omdb++;return Response.json({Response:'True',imdbID:url.searchParams.get('i'),Awards:empty?'N/A':'2 wins & 3 nominations.',Title:empty?'N/A':'OMDb title',Year:empty?'N/A':'2000',Runtime:empty?'N/A':'100 min',Director:empty?'N/A':'A director',Genre:empty?'N/A':'Drama',Ratings:[],imdbRating:empty?'N/A':'8',Metascore:empty?'N/A':'80'});}
     counters.tmdb++;const id=Number(url.pathname.split('/').at(-1));
     const tmdb={...tmdbEnrichmentFixture(id),belongs_to_collection:null};tmdb.external_ids.imdb_id=`tt${String(id).padStart(7,'0')}`;
     if(empty)Object.assign(tmdb,{production_countries:[],spoken_languages:[],production_companies:[],credits:{cast:[],crew:[]},keywords:{keywords:[]},release_dates:{results:[]},budget:0,revenue:0,popularity:0,tagline:null,vote_average:null,vote_count:0,original_title:null,runtime:null,genres:[]});
@@ -145,7 +145,7 @@ it.each([
   const saved=await service.status(null),updated=await repo.catalog();
   expect(saved.checks).toEqual([expect.objectContaining({movie_id:unit.movieId,provider:'omdb',domain:'metadata',identity_provider:'imdb',external_id:'tt0000001',absent})]);
   expect(saved.checks[0].checked_at).toEqual(expect.any(String));
-  expect(operationCoverage(updated.movies[0],'omdb-metadata',saved)).toBe(absent.includes('runtime')?'checked_unavailable':'present');
+  expect(operationCoverage(updated.movies[0],'omdb-metadata',saved)).toBe('checked_unavailable');
   expect(planMaintenance(updated,saved,'populate',['omdb-metadata']).units).toEqual([]);
   // A stale browser batch also rechecks durable eligibility before making a request.
   expect((await service.execute('populate',[unit],new Date().toISOString())).results[0].status).toBe('skipped');

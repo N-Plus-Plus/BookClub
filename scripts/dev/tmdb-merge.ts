@@ -11,7 +11,7 @@ export type Member = {movie_id:string;title:string;source_refs:string[]};
 export type Merge = {tmdb_id:string;members:Member[];kind:'existing'|'group';owner_confirmed?:true};
 type Value = string|number|null;
 export type Row = Record<string,Value>;
-export const relatedTables=[...providerEvidenceRelationships,'movie_maintenance_coverage','movie_maintenance_failures','movie_score_checks','movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies',...providerEnrichmentTables] as const;
+export const relatedTables=[...providerEvidenceRelationships,'movie_maintenance_fields','movie_maintenance_coverage','movie_maintenance_failures','movie_score_checks','movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies',...providerEnrichmentTables] as const;
 export const receiptTable='local_movie_merge_receipts';
 const quote=(s:string)=>'"'+s.replaceAll('"','""')+'"';
 const hash=(op:Merge)=>createHash('sha256').update(JSON.stringify({kind:op.kind,tmdb_id:op.tmdb_id,members:[...op.members].sort((a,b)=>a.movie_id.localeCompare(b.movie_id)).map(m=>({...m,source_refs:[...m.source_refs].sort()}))})).digest('hex');
@@ -171,6 +171,18 @@ export async function applyMerge(db:D1Database,plan:MergePlan,metadata?:Provider
         statements.push(db.prepare(`INSERT INTO ${table}(${fields.map(quote).join(',')}) VALUES(${fields.map(()=>'?').join(',')})`).bind(...fields.map(f=>f==='movie_id'?survivor:row[f])));
       }
     }
+  }
+  // Field coverage remains bound to compatible merged identities; newest check wins per field.
+  const fieldGroups=new Map<string,Row>();
+  for(const row of snapshot.movie_maintenance_fields ?? []) {
+    if(!snapshot.movie_external_ids.some(i=>i.provider===row.identity_provider&&i.external_id===row.external_id))continue;
+    const key=String(row.provider)+':'+String(row.operation),old=fieldGroups.get(key),checks=JSON.parse(String(old?.checks_json ?? '{}'));
+    for(const [field,value] of Object.entries(JSON.parse(String(row.checks_json))) as [string,{checked_at:string}][])if(!checks[field]||checks[field].checked_at<value.checked_at)checks[field]=value;
+    fieldGroups.set(key,{...row,checks_json:JSON.stringify(checks)});
+  }
+  for(const row of fieldGroups.values()) {
+    statements.push(db.prepare('DELETE FROM movie_maintenance_fields WHERE movie_id=? AND provider=? AND operation=?').bind(survivor,row.provider,row.operation));
+    const fields=Object.keys(row);statements.push(db.prepare(`INSERT INTO movie_maintenance_fields(${fields.map(quote).join(',')}) VALUES(${fields.map(()=>'?').join(',')})`).bind(...fields.map(f=>f==='movie_id'?survivor:row[f])));
   }
   // Identity-bound successful coverage follows compatible merged identities; latest domain wins.
   for(const table of providerEvidenceTables) {

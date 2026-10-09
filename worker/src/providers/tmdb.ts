@@ -7,6 +7,7 @@ import { parseTmdbEnrichment } from './enrichment';
 import { parseCollection } from '../../../shared/provider-evidence';
 import { usableTitle } from '../../../shared/titles';
 import { parseCollectionRoster } from '../../../shared/collection-roster';
+import { maintenanceContract } from '../../../shared/maintenance-contract';
 
 interface TmdbFilm {
   belongs_to_collection?: unknown;
@@ -50,7 +51,7 @@ export class TmdbProvider implements CollectionMembershipProvider, MovieSearchPr
       external_ids: [{ provider: 'tmdb', external_id: String(m.id) }, ...(m.external_ids?.imdb_id ? [{ provider: 'imdb', external_id: m.external_ids.imdb_id }] : [])],
       assets: [ ...(m.poster_path ? [{ provider: 'tmdb', asset_type: 'poster' as const, reference: `https://image.tmdb.org/t/p/w500${m.poster_path}`, width: null, height: null, preferred: 1 }] : []),
         ...(m.backdrop_path ? [{ provider: 'tmdb', asset_type: 'backdrop' as const, reference: `https://image.tmdb.org/t/p/w1280${m.backdrop_path}`, width: null, height: null, preferred: 1 }] : []) ],
-      scores: score ? [score] : [], fetched_at, collection:parseCollection(m.belongs_to_collection,id,fetched_at), enrichment:parseTmdbEnrichment(m,fetched_at) };
+      scores: score ? [score] : [], scoreCheckedKeys:Object.hasOwn(m,'vote_average')?['tmdb:rating']:[], fetched_at, checkedFields:maintenanceContract['tmdb-metadata'].fields.filter(f=>f.id==='director'?Array.isArray(m.credits?.crew):f.id==='genres'?Array.isArray(m.genres):Object.hasOwn(m,f.source)).map(f=>f.id), collection:parseCollection(m.belongs_to_collection,id,fetched_at), enrichment:parseTmdbEnrichment(m,fetched_at) };
   }
   private movie(id: string) {
     return this.request<TmdbFilm>(`movie/${encodeURIComponent(id)}?append_to_response=external_ids,credits,keywords,release_dates,watch/providers`);

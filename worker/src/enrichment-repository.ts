@@ -3,6 +3,7 @@ import { ApiError } from './http';
 import { canonicalTitleStatement, TitleRepository } from './title-repository';
 
 import { usableTitle } from '../../shared/titles';
+import { FieldCoverageRepository } from './field-coverage-repository';
 
 const metadataColumns=['title','runtime','original_language','budget','revenue','popularity','tagline'] as const;
 const relations = {
@@ -59,6 +60,7 @@ export class EnrichmentRepository {
     const knownBefore=await this.db.prepare('SELECT provider,external_id FROM movie_external_ids WHERE movie_id=?').bind(movieId).all<{provider:string;external_id:string}>();
     for (const claim of capture.identities ?? []) statements.push(this.db.prepare('INSERT OR IGNORE INTO movie_external_ids(movie_id,provider,external_id) VALUES(?,?,?)').bind(movieId,claim.provider,claim.external_id));
     const titleSupported=await new TitleRepository(this.db).supported();
+    statements.push(...await new FieldCoverageRepository(this.db).statements(movieId,provider,provider==='tmdb'?'tmdb-enrichment':'mdblist-enrichment',identity,{...capture.metadata,...Object.fromEntries(Object.entries(capture).filter(([key])=>key!=='metadata'))},fetchedAt));
     if (titleSupported) statements.push(canonicalTitleStatement(this.db,movieId));
     let titleChanged:boolean;
     try { const result=await this.db.batch(statements); titleChanged=titleSupported && result.at(-1)!.results.length>0; }
