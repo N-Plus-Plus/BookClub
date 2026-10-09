@@ -51,6 +51,7 @@ export const api = {
   maintenanceJob:(id:string,after:string|null=null)=>request<import('../shared/maintenance-job').MaintenanceJob>(`/maintenance/jobs/${id}${after?'?after='+encodeURIComponent(after):''}`),
   createMaintenanceJob:(id:string,intent:import('../shared/maintenance-plan').MaintenanceIntent,operation:import('../shared/maintenance-job').JobOperation)=>request<import('../shared/maintenance-job').MaintenanceJob>('/maintenance/jobs','POST',{id,intent,operation}),
   claimMaintenanceJob:(id:string)=>request<{token:string;job:import('../shared/maintenance-job').MaintenanceJob}>(`/maintenance/jobs/${id}/claim`,'POST',{}),
+  planMaintenanceJob:(id:string,token:string)=>request<import('../shared/maintenance-job').MaintenanceJob>(`/maintenance/jobs/${id}/plan`,'POST',{token}),
   stepMaintenanceJob:(id:string,token:string)=>request<import('../shared/maintenance-job').MaintenanceJob>(`/maintenance/jobs/${id}/step`,'POST',{token}),
   releaseMaintenanceJob:(id:string,token:string)=>request<import('../shared/maintenance-job').MaintenanceJob>(`/maintenance/jobs/${id}/release`,'POST',{token}),
   stopMaintenanceJob:(id:string)=>request<import('../shared/maintenance-job').MaintenanceJob>(`/maintenance/jobs/${id}/stop`,'POST',{}),

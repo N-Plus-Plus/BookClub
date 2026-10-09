@@ -7,7 +7,7 @@ import { BulkMaintenanceLock } from '../frontend/bulk-maintenance';
 import { api } from '../frontend/api';
 import { jobFixture,installJobMocks } from './helpers/maintenance-jobs';
 import type { MaintenanceJob } from '../shared/maintenance-job';
-vi.mock('../frontend/api',()=>({api:{maintenanceJobs:vi.fn(),maintenanceJob:vi.fn(),createMaintenanceJob:vi.fn(),claimMaintenanceJob:vi.fn(),stepMaintenanceJob:vi.fn(),releaseMaintenanceJob:vi.fn(),stopMaintenanceJob:vi.fn(),retryMaintenanceJob:vi.fn(),importMaintenanceJob:vi.fn()}}));
+vi.mock('../frontend/api',()=>({api:{maintenanceJobs:vi.fn(),maintenanceJob:vi.fn(),createMaintenanceJob:vi.fn(),claimMaintenanceJob:vi.fn(),planMaintenanceJob:vi.fn(),stepMaintenanceJob:vi.fn(),releaseMaintenanceJob:vi.fn(),stopMaintenanceJob:vi.fn(),retryMaintenanceJob:vi.fn(),importMaintenanceJob:vi.fn()}}));
 Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
 let node:HTMLDivElement,root:ReturnType<typeof createRoot>;
 const button=(name:string)=>[...node.querySelectorAll<HTMLButtonElement>('button')].find(b=>b.textContent===name)!;

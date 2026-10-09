@@ -11,7 +11,7 @@ export class CoverageRepository {
   async supported() {
     return Boolean(await this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='movie_maintenance_coverage'").first());
   }
-  async read(repo:Repository,env:Env,ids:string[]):Promise<MaintenanceCoverage> {
+  async read(repo:Repository,env:Env,ids:string[],planning=false):Promise<MaintenanceCoverage> {
     if (!await this.supported() || !await repo.enrichmentSupported()) throw new ApiError(503,'SCHEMA_UPGRADE_REQUIRED','Unified maintenance requires migration 0020 and the matching API Worker.');
     const where=ids.length ? ` WHERE movie_id IN (${ids.map(()=>'?').join(',')})` : ' WHERE 0';
     const rows=await this.db.batch([
@@ -29,16 +29,16 @@ export class CoverageRepository {
       evidence.push(...result.results.map(({unavailable,...row})=>({...row,provider,domain,absent:unavailable?[domain]:[]})));
     }
     const unavailable:MaintenanceCoverage['unavailable']={mdblist:null,omdb:null,tmdb:null};
-    for (const provider of ['mdblist','tmdb'] as const) {
+    for (const provider of planning?[]:['mdblist','tmdb'] as const) {
       if (!(provider==='tmdb'?env.TMDB_READ_TOKEN:env.MDBLIST_API_KEY)) unavailable[provider]='Not configured.';
       else {const cooldown=await repo.providerCooldown(provider,true);if(cooldown) unavailable[provider]=`Cooling down for ${cooldown} seconds.`;}
     }
-    const credentials=omdbCredentials(env).filter(([,key])=>Boolean(key));
+    const credentials=planning?[]:omdbCredentials(env).filter(([,key])=>Boolean(key));
     const waits=await Promise.all(credentials.map(([identity])=>repo.providerCooldown(identity,true)));
-    if (!credentials.length) unavailable.omdb='Not configured.';
-    else if(waits.every(wait=>wait!==null&&wait>0)) unavailable.omdb=`Cooling down for ${Math.min(...waits as number[])} seconds.`;
+    if (!planning && !credentials.length) unavailable.omdb='Not configured.';
+    else if(!planning && waits.every(wait=>wait!==null&&wait>0)) unavailable.omdb=`Cooling down for ${Math.min(...waits as number[])} seconds.`;
     const coverage:MaintenanceCoverage={evidence,evidenceSupported,failures,checks:(rows[0].results as (Omit<ProviderCoverage,'absent'> & {absent_json:string})[]).map(({absent_json,...r})=>({...r,absent:JSON.parse(absent_json)})),negativeScores:rows[1].results as MaintenanceCoverage['negativeScores'],enrichment:rows[2].results as MaintenanceCoverage['enrichment'],unavailable};
-    const fields=new FieldCoverageRepository(this.db);coverage.fieldsSupported=await fields.supported();coverage.fields=await fields.read(ids,coverage);
+    const fields=new FieldCoverageRepository(this.db);coverage.fieldsSupported=await fields.supported();coverage.fields=await fields.read(ids,coverage,coverage.fieldsSupported);
     return coverage;
   }
   statement(movieId:string,provider:MaintenanceProvider,domain:'metadata'|'scores',identity:ExternalId,absent:string[]) {

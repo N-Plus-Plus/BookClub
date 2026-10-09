@@ -123,7 +123,7 @@ Tests use recorded fictional payloads and mocked fetch, including malformed resp
 
 ## Cloudflare operator and runtime boundaries
 
-Worker runtime uses native `DB.prepare`/`DB.batch`; transactional product rules are in [DATA](DATA.md). Wrangler local emulates D1; no remote destination belongs in ordinary DB scripts.
+Worker runtime uses native `DB.prepare`/`DB.batch`. Production D1 enforces a five-term compound SELECT limit; field coverage uses indexed EXISTS rather than eight UNION branches. Durable creation and planning are separate provider-free requests; five-candidate pages are tested below a 40-statement budget (including fence/status queries), leaving room below the Free-tier 50-query ceiling for authentication. Tests also enforce 100 binds and five compound terms. No paid subscription is required for planning; ordinary daily storage/read/write quotas still apply. Transactional product rules are in [DATA](DATA.md). Wrangler local emulates D1; no remote destination belongs in ordinary DB scripts.
 
 Explicit production snapshot refresh uses `d1 info` identity read and `d1 export --remote` read/export, then offline restore/local replacement. Operator credentials are Wrangler login or process-only `CLOUDFLARE_ACCOUNT_ID`/`CLOUDFLARE_API_TOKEN` with needed read/export access. Fixed source/destination and suppressed private command output are in `scripts/dev/`.
 

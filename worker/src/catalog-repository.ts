@@ -2,7 +2,7 @@ import type { AuWatchOffer, Catalog, CompactCatalog, Cycle, Member, Movie, Sessi
 import { normalizeTitle } from '../../shared/search';
 import { australianClassification } from '../../shared/metrics-enrichment/classification';
 import { assembleMovies, groupMovies } from './catalog-assembly';
-import { effectiveScoreSql, scoreColumns } from './score-sql';
+import { effectiveScoreSql, scoreColumns, liveScoreSql, usableScoreSql } from './score-sql';
 import { movieColumns } from './movie-projections';
 import { ApiError } from './http';
 import { SchemaCapabilities } from './schema-capabilities';
@@ -70,6 +70,22 @@ export class CatalogRepository {
     const sessions = rows<SessionRow>(8).map(s => ({ ...s, has_audit: Boolean(s.has_audit),
       movies: (lineups.get(s.id) ?? []).map(id => movieMap.get(id)!).filter(Boolean) }));
     return { members, movies, sessions, cycles: rows<Cycle>(10) };
+  }
+
+  /** Small planner page: no roster, Seen, ranking, global History or score-history load. */
+  async planningMovies(ids:string[]) {
+    if(!ids.length)return [];
+    const marks=ids.map(()=>'?').join(','),selected=(sql:string)=>this.db.prepare(sql).bind(...ids);
+    const results=await this.db.batch([
+      selected(`SELECT m.*,EXISTS(SELECT 1 FROM classics c WHERE c.movie_id=m.id) AS classic,
+        EXISTS(SELECT 1 FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE sm.movie_id=m.id AND s.deleted_at IS NULL) AS history FROM movies m WHERE id IN (${marks})`),
+      selected(`SELECT movie_id,provider,external_id FROM movie_external_ids WHERE movie_id IN (${marks})`),
+      selected(`SELECT ${scoreColumns} FROM source_scores ss WHERE movie_id IN (${marks}) AND (${usableScoreSql()}) AND (${liveScoreSql()})`),
+      selected(`SELECT movie_id,provider,asset_type,reference,width,height,preferred FROM movie_assets WHERE movie_id IN (${marks})`),
+      selected(`SELECT movie_id,genre FROM movie_genres WHERE movie_id IN (${marks})`),
+    ]);
+    const identities=groupMovies(results[1].results as WithMovie<import('../../shared/types').ExternalId>[]),scores=groupMovies(results[2].results as WithMovie<import('../../shared/types').Score>[]),assets=groupMovies(results[3].results as WithMovie<import('../../shared/types').Asset>[]),genres=groupMovies(results[4].results as WithMovie<{genre:string}>[]);
+    return (results[0].results as (Movie & {history:number})[]).map(row=>({...row,classic:Boolean(row.classic),external_ids:identities.get(row.id)??[],scores:scores.get(row.id)??[],assets:assets.get(row.id)??[],genres:(genres.get(row.id)??[]).map(g=>g.genre),seen:[],ranking:null}));
   }
 
   async catalog(): Promise<Catalog> { return this.catalogSnapshot(); }

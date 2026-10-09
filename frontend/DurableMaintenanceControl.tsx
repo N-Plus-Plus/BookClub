@@ -16,11 +16,12 @@ let discovery:ReturnType<typeof api.maintenanceJobs>|null=null;
 const discover=()=>discovery??=Promise.resolve().then(async()=>{const result=await api.maintenanceJobs(),seen=new Set<string>();let next=result.next;while(next){if(seen.has(next))throw new Error('Job history returned a repeated page.');seen.add(next);const page=await api.maintenanceJobs(next);result.jobs.push(...page.jobs);next=page.next;}return result;}).catch(error=>{discovery=null;throw error;});
 export const invalidateMaintenanceDiscovery=()=>{discovery=null;};
 const finished=(value:MaintenanceJob)=>['completed','completed_with_issues','cancelled'].includes(value.state);
-const labels:Record<MaintenanceJob['state'],string>={ready:'Ready',running:'Running',paused:'Paused',awaiting_cooldown:'Awaiting provider recovery',completed:'Completed',completed_with_issues:'Completed with issues',failed:'Paused by an application failure',cancelled:'Cancelled'};
+const labels:Record<MaintenanceJob['state'],string>={planning:'Planning',planning_failed:'Planning interrupted',ready:'Ready',running:'Running',paused:'Paused',awaiting_cooldown:'Awaiting provider recovery',completed:'Completed',completed_with_issues:'Completed with issues',failed:'Paused by an application failure',cancelled:'Cancelled'};
 
 export function DurableMaintenanceControl({intent,operation,writesEnabled,onUpdated,onEnrichmentChanged}:{intent:MaintenanceIntent;operation:JobOperation;writesEnabled:boolean;onUpdated?:()=>Promise<void>;onEnrichmentChanged?:()=>void}){
   const controller=useBulkJobController(),[saved,setSaved]=useState<MaintenanceJob|null>(null),[loading,setLoading]=useState(true),[confirm,setConfirm]=useState(false),[legacy,setLegacy]=useState(false);
   const [history,setHistory]=useState<Awaited<ReturnType<typeof api.maintenanceJobs>>['jobs']>([]);
+  const creationId=useRef<string|null>(null);
   const allowed=useRef(writesEnabled);allowed.current=writesEnabled;
   const contract=operation==='all'?null:maintenanceContract[operation];
   const title=operation==='all'?(intent==='populate'?'Populate missing data':'Refresh all data'):`${intent==='populate'?'Populate missing':'Refresh'} ${contract!.name}`;
@@ -36,18 +37,19 @@ export function DurableMaintenanceControl({intent,operation,writesEnabled,onUpda
   const execute=(newRun=false,retry=false,key?:string)=>controller.execute(async()=>{
     if(!allowed.current)return;
     let current=saved;
-    if(newRun||!current){current=await api.createMaintenanceJob(crypto.randomUUID(),intent,operation);setSaved(current);invalidateMaintenanceDiscovery();}
+    if(newRun||!current){creationId.current??=crypto.randomUUID();current=await api.createMaintenanceJob(creationId.current,intent,operation);setSaved(current);creationId.current=null;invalidateMaintenanceDiscovery();}
     if(retry){current=await api.retryMaintenanceJob(current.id,key?[key]:undefined);setSaved(current);}
     if(finished(current))return;
-    const claimed=await api.claimMaintenanceJob(current.id);setSaved(claimed.job);
+    const claimed=await api.claimMaintenanceJob(current.id);current=claimed.job;setSaved(current);
     try{
       while(!controller.stop.current&&allowed.current){
-        current=await api.stepMaintenanceJob(current.id,claimed.token);setSaved(current);
+        current=await (current.planning&&current.planning.stage!=='complete'?api.planMaintenanceJob(current.id,claimed.token):api.stepMaintenanceJob(current.id,claimed.token));setSaved(current);
         onEnrichmentChanged?.();
-        if(finished(current)||['paused','failed','awaiting_cooldown'].includes(current.state))break;
-        await new Promise(resolve=>setTimeout(resolve,2000));
+        if(finished(current)||['paused','failed','awaiting_cooldown','planning_failed'].includes(current.state))break;
+        const delay=current.planning&&current.planning.stage!=='complete'?100:2000;
+        await new Promise(resolve=>setTimeout(resolve,delay));
       }
-      if(controller.stop.current || !allowed.current){await api.stopMaintenanceJob(current.id);current=await api.stepMaintenanceJob(current.id,claimed.token);setSaved(current);}
+      if(controller.stop.current || !allowed.current){await api.stopMaintenanceJob(current.id);current=await (current.planning&&current.planning.stage!=='complete'?api.planMaintenanceJob(current.id,claimed.token):api.stepMaintenanceJob(current.id,claimed.token));setSaved(current);}
     }finally{
       try{setSaved(await api.releaseMaintenanceJob(current.id,claimed.token));}finally{invalidateMaintenanceDiscovery();onEnrichmentChanged?.();await onUpdated?.();}
     }
@@ -64,20 +66,23 @@ export function DurableMaintenanceControl({intent,operation,writesEnabled,onUpda
     setSaved(await api.importMaintenanceJob(value));invalidateMaintenanceDiscovery();
   });
   const readIssues=async()=>{if(!saved)return;let current=saved;while(current.issuesNext){const page=await api.maintenanceJob(saved.id,current.issuesNext);current={...current,issues:[...current.issues,...page.issues],issuesNext:page.issuesNext};}setSaved(current);};
+  const planning=saved?.planning&&saved.planning.stage!=='complete'?saved.planning:null;
   const c=saved?.counts,total=c?c.pending+c.running+c.successful+c.skipped+c.deferred+c.blocked:0;
   return <section className="card stack classics-maintenance" aria-label={title}><h3 id={`${intent}-${operation}-heading`}>{title}</h3>
     <p className="meta maintenance-field-summary">{operation==='all'?aggregateFieldSummary():maintenanceFieldSummary(operation)}</p>
     <p className="meta">{contract?.scope??'Film maintenance runs first, then collection rosters are planned from successfully committed collection evidence. Deferred films do not prevent known eligible collections from being checked.'}</p>
     {loading&&<p className="meta" role="status">Loading saved server progress…</p>}
     {controller.error&&<p className="error-message" role="alert">{controller.error}</p>}
-    {saved&&c&&<MaintenanceProgress processed={c.successful+c.skipped+c.deferred} total={total} label={`${title} progress`} state={['failed','awaiting_cooldown','paused'].includes(saved.state)?'interrupted':'normal'} summary={`${labels[saved.state]} · ${saved.phase==='films'?'Film maintenance':'Collection rosters'}${saved.provider?' ('+saved.provider+')':''} · ${formatCount(c.successful)} successful · ${formatCount(c.no_change)} checked with no change · ${formatCount(c.skipped)} skipped · ${formatCount(c.deferred)} deferred · ${formatCount(c.pending+c.running)} unfinished · ${formatCount(c.blocked)} temporarily blocked · ${formatCount(saved.requests)} upstream attempts`}>
+    {saved&&c&&<MaintenanceProgress processed={planning?planning.processed:c.successful+c.skipped+c.deferred} total={planning?planning.total:total} label={`${title} progress`} state={['planning_failed','failed','awaiting_cooldown','paused'].includes(saved.state)?'interrupted':'normal'} summary={planning?`${labels[saved.state]} · ${planning.stage==='films'?'Films':'Collections'} reviewed: ${formatCount(planning.processed)} / ${formatCount(planning.total)} · Work scope is being prepared.`:`${labels[saved.state]} · ${saved.phase==='films'?'Film maintenance':'Collection rosters'}${saved.provider?' ('+saved.provider+')':''} · ${formatCount(c.successful)} successful · ${formatCount(c.no_change)} checked with no change · ${formatCount(c.skipped)} skipped · ${formatCount(c.deferred)} deferred · ${formatCount(c.pending+c.running)} unfinished · ${formatCount(c.blocked)} temporarily blocked · ${formatCount(saved.requests)} upstream attempts`}>
+      {planning&&<p className="meta">No provider requests are made during planning. Resume planning continues the saved run.</p>}
+      {planning?.diagnostic&&<p className="error-message">{planning.diagnostic}</p>}
       <p className="meta">Original run: {new Date(saved.started_at).toLocaleString()}.</p>{saved.diagnostic&&<p className="error-message">{saved.diagnostic}</p>}
       {saved.state==='completed_with_issues'&&<p className="meta">All executable work was processed. Deferred records were not successfully refreshed and remain available for Retry failed.</p>}
       {saved.lease.active&&!controller.busy&&<p className="meta">Maintenance is owned by {saved.lease.owner??'another browser'}. An interrupted lease is recoverable after {new Date(saved.lease.expiresAt).toLocaleTimeString()}.</p>}
     </MaintenanceProgress>}
     <div className="button-set action-group-wrap">
       {!saved&&<Action icon={RefreshCw} disabled={!writesEnabled||controller.locked||loading||legacy||!!controller.error} onClick={()=>operation==='all'?setConfirm(true):void execute(true)}>{title}</Action>}
-      {saved&&!finished(saved)&&<Action icon={RefreshCw} disabled={!writesEnabled||controller.locked||saved.lease.active} onClick={()=>void execute()}>Resume remaining</Action>}
+      {saved&&!finished(saved)&&<Action icon={RefreshCw} disabled={!writesEnabled||controller.locked||saved.lease.active} onClick={()=>void execute()}>{planning?'Resume planning':'Resume remaining'}</Action>}
       {saved&&c&&c.deferred>0&&<Action icon={RefreshCw} disabled={!writesEnabled||controller.locked||saved.lease.active||saved.issues.every(i=>i.retryAt&&i.retryAt>new Date().toISOString())} onClick={()=>void execute(false,true)}>Retry failed</Action>}
       {saved&&finished(saved)&&<Action icon={RefreshCw} disabled={!writesEnabled||controller.locked||saved.lease.active} onClick={()=>setConfirm(true)}>Start new run</Action>}
       {controller.busy&&<Action icon={Square} disabled={controller.stopRequested} onClick={stop}>Stop after current batch</Action>}

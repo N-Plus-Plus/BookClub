@@ -8,7 +8,7 @@ import { api } from '../frontend/api';
 import { jobFixture,installJobMocks } from './helpers/maintenance-jobs';
 import { maintenanceOperations } from '../shared/maintenance-plan';
 import type { MaintenanceJob } from '../shared/maintenance-job';
-vi.mock('../frontend/api',()=>({api:{maintenanceJobs:vi.fn(),maintenanceJob:vi.fn(),createMaintenanceJob:vi.fn(),claimMaintenanceJob:vi.fn(),stepMaintenanceJob:vi.fn(),releaseMaintenanceJob:vi.fn(),stopMaintenanceJob:vi.fn(),retryMaintenanceJob:vi.fn(),importMaintenanceJob:vi.fn()}}));
+vi.mock('../frontend/api',()=>({api:{maintenanceJobs:vi.fn(),maintenanceJob:vi.fn(),createMaintenanceJob:vi.fn(),claimMaintenanceJob:vi.fn(),planMaintenanceJob:vi.fn(),stepMaintenanceJob:vi.fn(),releaseMaintenanceJob:vi.fn(),stopMaintenanceJob:vi.fn(),retryMaintenanceJob:vi.fn(),importMaintenanceJob:vi.fn()}}));
 Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
 let node:HTMLDivElement,root:ReturnType<typeof createRoot>;
 const button=(name:string)=>[...node.querySelectorAll<HTMLButtonElement>('button')].find(b=>b.textContent===name)!;
@@ -32,3 +32,16 @@ it('an older API fails locally and does not fall back to unguarded provider call
  vi.mocked(api.maintenanceJobs).mockRejectedValue(Error('Migration 0024 required'));invalidateMaintenanceDiscovery();await render();expect(node.textContent).toContain('Migration 0024 required');expect(button('Refresh TMDB enrichment').disabled).toBe(true);expect(api.stepMaintenanceJob).not.toHaveBeenCalled();
 });
 it('write permission disables all mutations',async()=>{await render('tmdb-enrichment','refresh',false);expect(button('Refresh TMDB enrichment').disabled).toBe(true);expect(api.createMaintenanceJob).not.toHaveBeenCalled();});
+
+it.each(['planning','planning_failed'] as const)('offers Resume planning for a saved %s job without mistaking partial units for completion',async state=>{
+ const saved={...jobFixture(),state,planning:{stage:'films' as const,processed:500,total:1000,failed:state==='planning_failed',diagnostic:state==='planning_failed'?'Planning was interrupted.':null}};installJobMocks(saved);await render();
+ expect(node.textContent).toContain('Films reviewed: 500 / 1,000');expect(button('Resume planning')).toBeTruthy();expect(button('Resume remaining')).toBeUndefined();expect(node.textContent).toContain('No provider requests are made during planning');expect(api.stepMaintenanceJob).not.toHaveBeenCalled();
+ vi.mocked(api.planMaintenanceJob).mockImplementationOnce(async()=>({...saved,state:'planning_failed',planning:{...saved.planning,failed:true}}));
+ await act(async()=>button('Resume planning').click());expect(api.planMaintenanceJob).toHaveBeenCalledWith(saved.id,expect.any(String));expect(api.stepMaintenanceJob).not.toHaveBeenCalled();expect(api.createMaintenanceJob).not.toHaveBeenCalled();
+});
+
+it('retains the creation UUID after a lost response and recovers the durable job through status reload',async()=>{
+ const state=installJobMocks();vi.mocked(api.createMaintenanceJob).mockImplementationOnce(async(id,intent,operation)=>{state.set({...jobFixture(operation,intent),id,state:'planning',planning:{stage:'films',processed:0,total:1000,failed:false,diagnostic:null}});throw Error('Lost creation response');});await render();
+ await act(async()=>button('Refresh TMDB enrichment').click());const id=vi.mocked(api.createMaintenanceJob).mock.calls[0][0];
+ await act(async()=>button('Reload job status').click());expect(button('Resume planning')).toBeTruthy();expect(state.get()?.id).toBe(id);expect(api.createMaintenanceJob).toHaveBeenCalledOnce();expect(api.stepMaintenanceJob).not.toHaveBeenCalled();
+});

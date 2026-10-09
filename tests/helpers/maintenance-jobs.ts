@@ -11,6 +11,7 @@ export function installJobMocks(initial:MaintenanceJob|null=null){
  vi.mocked(api.maintenanceJob).mockImplementation(async()=>structuredClone(current!));
  vi.mocked(api.createMaintenanceJob).mockImplementation(async(id,intent,operation)=>{current={...jobFixture(operation,intent),id};return structuredClone(current);});
  vi.mocked(api.claimMaintenanceJob).mockImplementation(async()=>({token:'01234567-89ab-4cde-8f01-234567890abd',job:structuredClone(current!)}));
+ vi.mocked(api.planMaintenanceJob).mockImplementation(async()=>{current={...current!,state:'ready',planning:{stage:'complete',processed:current!.planning?.total??0,total:current!.planning?.total??0,failed:false,diagnostic:null}};return structuredClone(current);});
  vi.mocked(api.stepMaintenanceJob).mockImplementation(async()=>{current={...current!,state:stopped?'paused':'completed',counts:{...current!.counts,pending:0,successful:1,updated:1},requests:1};return structuredClone(current);});
  vi.mocked(api.releaseMaintenanceJob).mockImplementation(async()=>({...structuredClone(current!),lease:{active:false,owner:null,expiresAt:0}}));
  vi.mocked(api.stopMaintenanceJob).mockImplementation(async()=>{stopped=true;return structuredClone(current!);});

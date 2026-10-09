@@ -27,6 +27,7 @@ export class Repository {
   async cacheAwards(id:string,evidence:AwardsEvidence | undefined) { return new ProviderEvidenceRepository(this.db).save(id,'awards',evidence); }
   enrichmentSupported() { return this.capabilities.enrichmentSupported(); }
   async searchMovies(query: string, tmdbIds: string[] = []): Promise<SavedSearchResult[]> { return this.catalogRepository.searchMovies(query,tmdbIds); }
+  async planningMovies(ids:string[]) { return this.catalogRepository.planningMovies(ids); }
   async catalog(): Promise<Catalog> { return this.catalogRepository.catalog(); }
   async compactCatalog(): Promise<CompactCatalog> { return this.catalogRepository.compactCatalog(); }
   async members(): Promise<Member[]> { return this.catalogRepository.members(); }

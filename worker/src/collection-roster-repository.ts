@@ -11,13 +11,13 @@ export class CollectionRosterRepository {
     try{if(row.checked_at)roster=parseCollectionRoster({id:row.id,name:row.roster_name,parts:JSON.parse(row.parts_json ?? 'null')},row.id,row.checked_at);}catch{/* Corrupt evidence stays inconclusive. */}
     return {status:roster?'checked':row.attempt_status==='failed'?'failed':row.attempt_status?'inconclusive':'not_checked',roster,attempted_at:row.attempted_at};
   }
-  async eligible():Promise<(CollectionRosterCandidate & {memberIds:number[];evidence:CollectionRosterEvidence})[]> {
+  async eligible(ids?:number[]):Promise<(CollectionRosterCandidate & {memberIds:number[];evidence:CollectionRosterEvidence})[]> {
     const result=await this.db.prepare(`SELECT e.collection_id AS id,MIN(e.collection_name) AS name,COUNT(DISTINCT e.movie_id) AS films,
       GROUP_CONCAT(DISTINCT e.external_id) AS member_ids,r.name AS roster_name,r.checked_at,r.parts_json,r.attempted_at,r.attempt_status FROM movie_provider_collections e
       JOIN movie_external_ids i ON i.movie_id=e.movie_id AND i.provider='tmdb' AND i.external_id=e.external_id
       LEFT JOIN tmdb_collection_rosters r ON r.collection_id=e.collection_id
-      WHERE e.collection_id IS NOT NULL AND EXISTS (SELECT 1 FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE sm.movie_id=e.movie_id AND s.deleted_at IS NULL)
-      GROUP BY e.collection_id HAVING COUNT(DISTINCT e.movie_id)>=2 ORDER BY e.collection_id`).all<{id:number;name:string;films:number;member_ids:string;roster_name:string | null;checked_at:string | null;parts_json:string | null;attempted_at:string | null;attempt_status:string | null}>();
+      WHERE e.collection_id IS NOT NULL ${ids?`AND e.collection_id IN (${ids.map(()=>'?').join(',')})`:''} AND EXISTS (SELECT 1 FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE sm.movie_id=e.movie_id AND s.deleted_at IS NULL)
+      GROUP BY e.collection_id HAVING COUNT(DISTINCT e.movie_id)>=2 ORDER BY e.collection_id`).bind(...(ids??[])).all<{id:number;name:string;films:number;member_ids:string;roster_name:string | null;checked_at:string | null;parts_json:string | null;attempted_at:string | null;attempt_status:string | null}>();
     return result.results.map(row=>{const evidence=this.evidence(row);return {id:row.id,name:row.name,films:row.films,memberIds:row.member_ids.split(',').map(Number),checked_at:evidence.roster?.checked_at ?? null,evidence};});
   }
   async read():Promise<Record<string,CollectionRosterEvidence>> {

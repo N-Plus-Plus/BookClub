@@ -31,12 +31,12 @@ export async function maintenanceRoutes(context:RouteContext):Promise<Response|u
       if(method==='GET'){const after=new URL(request.url).searchParams.get('after');return json(await jobs.list(after===null?null:z.uuid().parse(after)));}
       if(method==='POST'){const input=z.object({id:z.uuid(),intent:z.enum(['populate','refresh']),operation:z.enum([...maintenanceOperations,'all','collection-rosters'])}).strict().parse(await body(request));return json(await jobs.create(input.id,input.intent,input.operation));}
     }
-    const match=path.match(/^\/api\/v1\/maintenance\/jobs\/([^/]+)(?:\/(claim|step|release|stop|retry))?$/);
+    const match=path.match(/^\/api\/v1\/maintenance\/jobs\/([^/]+)(?:\/(claim|plan|step|release|stop|retry))?$/);
     if(match){const id=z.uuid().parse(match[1]),action=match[2];
       if(!action && method==='GET'){const after=new URL(request.url).searchParams.get('after');return json(await jobs.status(id,after===null?null:z.string().max(200).parse(after)));}
       if(method==='POST'){
         if(action==='claim'){z.object({}).strict().parse(await body(request));return json(await jobs.claim(id,auth.viewer!.display_name));}
-        if(action==='step'||action==='release'){const input=z.object({token:z.uuid()}).strict().parse(await body(request));return json(action==='step'?await jobs.step(id,input.token):await jobs.release(id,input.token));}
+        if(action==='plan'||action==='step'||action==='release'){const input=z.object({token:z.uuid()}).strict().parse(await body(request));return json(action==='plan'?await jobs.plan(id,input.token):action==='step'?await jobs.step(id,input.token):await jobs.release(id,input.token));}
         if(action==='stop'){z.object({}).strict().parse(await body(request));return json(await jobs.stop(id));}
         if(action==='retry'){const input=z.object({keys:z.array(z.string().min(1).max(200)).min(1).max(10).optional()}).strict().parse(await body(request));return json(await jobs.retry(id,input.keys));}
       }

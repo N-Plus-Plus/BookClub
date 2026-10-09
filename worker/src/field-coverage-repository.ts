@@ -5,14 +5,19 @@ import type { MaintenanceCoverage } from '../../shared/maintenance-plan';
 export class FieldCoverageRepository {
   constructor(private db:D1Database){}
   async supported(){return Boolean(await this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='movie_maintenance_fields'").first());}
-  async read(ids:string[],coverage:MaintenanceCoverage):Promise<OperationFieldCoverage[]>{
+  async read(ids:string[],coverage:MaintenanceCoverage,supported?:boolean):Promise<OperationFieldCoverage[]>{
     const where=ids.length?`movie_id IN (${ids.map(()=>'?').join(',')})`:'0';
     const query=await this.db.prepare(`SELECT p.*,i.provider AS identity_provider,i.external_id FROM movie_provider_metadata p JOIN movie_external_ids i ON i.movie_id=p.movie_id AND ((p.provider='tmdb' AND i.provider='tmdb') OR (p.provider='omdb' AND i.provider='imdb') OR (p.provider='mdblist' AND i.provider IN ('imdb','tmdb'))) WHERE ${ids.length?'p.'+where:'0'}`).bind(...ids).all<Record<string,unknown>>();
     const result:OperationFieldCoverage[]=[];
-    const saved=await this.supported()?(await this.db.prepare(`SELECT * FROM movie_maintenance_fields WHERE ${where}`).bind(...ids).all<{movie_id:string;provider:string;operation:CoverageOperation;identity_provider:string;external_id:string;checks_json:string}>()).results:[];
+    const saved=(supported??await this.supported())?(await this.db.prepare(`SELECT * FROM movie_maintenance_fields WHERE ${where}`).bind(...ids).all<{movie_id:string;provider:string;operation:CoverageOperation;identity_provider:string;external_id:string;checks_json:string}>()).results:[];
     const scope=ids.length?`id IN (${ids.map(()=>'?').join(',')})`:'0';
     const families=['countries','languages','companies','credits','content_ratings','keywords','watch_offers','identity_claims'];
-    const relationshipRows=await this.db.prepare(`WITH scope AS (SELECT id AS movie_id FROM movies WHERE ${scope}) ${families.map(f=>`SELECT r.movie_id,r.provider,'${f}' AS family FROM movie_provider_${f} r JOIN scope ON scope.movie_id=r.movie_id GROUP BY r.movie_id,r.provider`).join(' UNION ALL ')}`).bind(...ids).all<{movie_id:string;provider:string;family:string}>();
+    // D1 allows only five terms in a compound SELECT. Indexed EXISTS probes keep
+    // all eight families in one statement without an eight-way UNION.
+    const relationshipRows=await this.db.prepare(`WITH scope AS (SELECT id AS movie_id FROM movies WHERE ${scope})
+      SELECT scope.movie_id,p.value AS provider,f.value AS family FROM scope
+      CROSS JOIN json_each('["tmdb","mdblist","omdb"]') p CROSS JOIN json_each('${JSON.stringify(families)}') f
+      WHERE CASE f.value ${families.map(f=>`WHEN '${f}' THEN EXISTS(SELECT 1 FROM movie_provider_${f} r WHERE r.movie_id=scope.movie_id AND r.provider=p.value)`).join(' ')} END`).bind(...ids).all<{movie_id:string;provider:string;family:string}>();
     const presentFamilies=new Set(relationshipRows.results.map(r=>`${r.movie_id}:${r.provider}:${r.family}`));
     const add=(movie_id:string,provider:string,operation:CoverageOperation,identity:ExternalId,states:Record<string,FieldState>,at:string)=>{
       const fields=Object.fromEntries(Object.entries(states).map(([key,state])=>[key,{state,checked_at:at}]));
