@@ -4,6 +4,7 @@ import { ApiError, type Env } from './http';
 import { ProviderEvidenceRepository } from './provider-evidence-repository';
 import type { Repository } from './repository';
 import { FieldCoverageRepository } from './field-coverage-repository';
+import { omdbCredentials } from './providers/omdb-credentials';
 
 export class CoverageRepository {
   constructor(private db:D1Database) {}
@@ -32,10 +33,10 @@ export class CoverageRepository {
       if (!(provider==='tmdb'?env.TMDB_READ_TOKEN:env.MDBLIST_API_KEY)) unavailable[provider]='Not configured.';
       else {const cooldown=await repo.providerCooldown(provider,true);if(cooldown) unavailable[provider]=`Cooling down for ${cooldown} seconds.`;}
     }
-    const omdb=env.OMDB_API_KEY ? await repo.providerCooldown('omdb',true) : Infinity;
-    const secondary=env.OMDB_API_KEY_SECONDARY ? await repo.providerCooldown('omdb-secondary',true) : Infinity;
-    if (!env.OMDB_API_KEY && !env.OMDB_API_KEY_SECONDARY) unavailable.omdb='Not configured.';
-    else if(omdb && secondary) unavailable.omdb=`Cooling down for ${Math.min(omdb,secondary)} seconds.`;
+    const credentials=omdbCredentials(env).filter(([,key])=>Boolean(key));
+    const waits=await Promise.all(credentials.map(([identity])=>repo.providerCooldown(identity,true)));
+    if (!credentials.length) unavailable.omdb='Not configured.';
+    else if(waits.every(wait=>wait!==null&&wait>0)) unavailable.omdb=`Cooling down for ${Math.min(...waits as number[])} seconds.`;
     const coverage:MaintenanceCoverage={evidence,evidenceSupported,failures,checks:(rows[0].results as (Omit<ProviderCoverage,'absent'> & {absent_json:string})[]).map(({absent_json,...r})=>({...r,absent:JSON.parse(absent_json)})),negativeScores:rows[1].results as MaintenanceCoverage['negativeScores'],enrichment:rows[2].results as MaintenanceCoverage['enrichment'],unavailable};
     const fields=new FieldCoverageRepository(this.db);coverage.fieldsSupported=await fields.supported();coverage.fields=await fields.read(ids,coverage);
     return coverage;

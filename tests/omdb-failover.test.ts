@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { disposableD1 } from './d1';
+import { CoverageRepository } from '../worker/src/coverage-repository';
 import { Repository } from '../worker/src/repository';
 import { ScoreService } from '../worker/src/score-service';
 import type { Env } from '../worker/src/http';
@@ -131,3 +132,21 @@ it('never logs credential-bearing network errors or raw rejected bodies',async()
   expect(JSON.stringify(result)).not.toContain(primary);expect(JSON.stringify(result)).not.toContain(secondary);
   for(const log of logs)expect(log).not.toHaveBeenCalled();
 });
+it('prefers premium without touching either fallback or their cooldowns',async()=>{
+ env.OMDB_API_KEY_PREMIUM='fictional-premium-secret';await repo.setProviderCooldown('omdb',600);await repo.setProviderCooldown('omdb-secondary',120);const fetch=vi.fn(async(_url:string)=>ok());vi.stubGlobal('fetch',fetch);const result=await service().maintain('metadata',[ids[0]]);expect(fetch.mock.calls.map(([url])=>key(url))).toEqual(['fictional-premium-secret']);expect(result.results[0].providers[0].status).toBe('success');expect(JSON.stringify(result)).not.toContain('fictional-premium-secret');
+ const coverage=await new CoverageRepository(local.db).read(repo,env,ids);expect(coverage.unavailable.omdb).toBeNull();
+});
+it.each(['quota','credentials'] as const)('uses all three tiers in order after premium and primary %s',async kind=>{
+ env.OMDB_API_KEY_PREMIUM='fictional-premium-secret';vi.useFakeTimers();const fetch=vi.fn(async(url:string)=>key(url)===secondary?ok():kind==='quota'?quota():credentials());vi.stubGlobal('fetch',fetch);const result=await maintain('metadata');expect(fetch.mock.calls.map(([url])=>key(url))).toEqual(['fictional-premium-secret',primary,secondary,secondary]);expect(result.results.every(r=>r.providers[0].status==='success')).toBe(true);expect(cooldowns()).toEqual(kind==='quota'?['omdb','omdb-premium']:[]);
+});
+it('supports premium only in health, coverage and execution',async()=>{
+ env.OMDB_API_KEY_PREMIUM='fictional-premium-secret';env.OMDB_API_KEY=undefined;env.OMDB_API_KEY_SECONDARY=undefined;const fetch=vi.fn(async(_url:string)=>ok({'X-RateLimit-Remaining':'0'}));vi.stubGlobal('fetch',fetch);const result=await service().maintain('metadata',[ids[0]]);expect(result.results[0].providers[0].status).toBe('success');expect(cooldowns()).toEqual(['omdb-premium']);const health=await(await worker.fetch(new Request('http://api/api/v1/health'),env)).json() as {data:{omdbConfigured:boolean}};expect(health.data.omdbConfigured).toBe(true);expect(JSON.stringify(health)).not.toContain('fictional-premium-secret');const coverage=await new CoverageRepository(local.db).read(repo,env,ids);expect(coverage.unavailable.omdb).toMatch(/Cooling down/);
+});
+it('uses independent premium cooldown and earliest recovery across all three tiers',async()=>{
+ env.OMDB_API_KEY_PREMIUM='fictional-premium-secret';await repo.setProviderCooldown('omdb-premium',60);await repo.setProviderCooldown('omdb',600);await repo.setProviderCooldown('omdb-secondary',120);const fetch=vi.fn();vi.stubGlobal('fetch',fetch);const coverage=await new CoverageRepository(local.db).read(repo,env,ids);expect(coverage.unavailable.omdb).toMatch(/Cooling down for 60 seconds/);const result=await service().maintain('metadata',[ids[0]]);expect(fetch).not.toHaveBeenCalled();expect(result.results[0].providers[0].retryAfter).toBeLessThanOrEqual(60);
+});
+it('skips a cooling premium key without suppressing primary',async()=>{
+ env.OMDB_API_KEY_PREMIUM='fictional-premium-secret';await repo.setProviderCooldown('omdb-premium',600);const fetch=vi.fn(async(_url:string)=>ok());vi.stubGlobal('fetch',fetch);await service().maintain('metadata',[ids[0]]);expect(fetch.mock.calls.map(([url])=>key(url))).toEqual([primary]);expect((await new CoverageRepository(local.db).read(repo,env,ids)).unavailable.omdb).toBeNull();
+});
+it('exhausts all three credentials once and suppresses later films',async()=>{env.OMDB_API_KEY_PREMIUM='fictional-premium-secret';vi.useFakeTimers();const fetch=vi.fn(async(_url:string)=>quota());vi.stubGlobal('fetch',fetch);const result=await maintain('metadata');expect(fetch.mock.calls.map(([url])=>key(url))).toEqual(['fictional-premium-secret',primary,secondary]);expect(cooldowns()).toEqual(['omdb','omdb-premium','omdb-secondary']);expect(result.results[1].providers[0]).toMatchObject({status:'skipped',blocking:true});expect(JSON.stringify(result)).not.toContain('fictional-premium-secret');});
+it('does not spend fallback quota on a premium transport outage',async()=>{env.OMDB_API_KEY_PREMIUM='fictional-premium-secret';vi.useFakeTimers();const fetch=vi.fn(async(_url:string)=>{throw Error('fictional-premium-secret');});vi.stubGlobal('fetch',fetch);const result=await maintain('metadata');expect(fetch.mock.calls.map(([url])=>key(url))).toEqual(['fictional-premium-secret']);expect(JSON.stringify(result)).not.toContain('fictional-premium-secret');});

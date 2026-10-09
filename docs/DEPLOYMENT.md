@@ -315,12 +315,13 @@ Optional provider secrets include:
 
 - `TMDB_READ_TOKEN`
 - `MDBLIST_API_KEY`
-- `OMDB_API_KEY` (primary)
+- `OMDB_API_KEY_PREMIUM` (preferred first tier)
+- `OMDB_API_KEY` (second tier; first when premium is absent)
 - `OMDB_API_KEY_SECONDARY` (optional bounded failover)
 
 Use supported Cloudflare secret mechanisms such as interactive `wrangler secret put` or stdin bulk mechanisms. Never put secret values in tracked files or command-line arguments.
 
-OMDb failover requires only an API Worker deployment and the desired Worker secret bindings; no frontend deployment, D1 migration or cooldown cleanup is required. Both keys remain Worker-only secrets; no OMDb username is needed. Local development uses the ignored `worker/.dev.vars.local` mechanism.
+OMDb failover requires only an API Worker deployment and the desired Worker secret bindings; no frontend deployment, D1 migration or cooldown cleanup is required. All three keys remain Worker-only secrets; no OMDb username is needed. Local development uses the ignored `worker/.dev.vars.local` mechanism.
 
 [INTEGRATIONS](INTEGRATIONS.md) owns provider/configuration detail.
 

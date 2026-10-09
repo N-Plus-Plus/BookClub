@@ -4,14 +4,20 @@ import type { Repository } from '../repository';
 import { ProviderError } from './http';
 import { OmdbProvider } from './omdb';
 
+export const omdbCredentials=(env:Env)=>[
+  ['omdb-premium',env.OMDB_API_KEY_PREMIUM],
+  ['omdb',env.OMDB_API_KEY],
+  ['omdb-secondary',env.OMDB_API_KEY_SECONDARY],
+] as const;
+
 // One instance per operation: rejected credentials are never retried for later films.
 export class OmdbCredentials {
   private unavailable = new Map<string,ProviderError>();
   constructor(private repo: Repository, private env: Env, private limits: (identity: string) => (headers: Headers) => Promise<void>, private onAttempt?:()=>void | Promise<void>) {}
-  get configured() { return Boolean(this.env.OMDB_API_KEY || this.env.OMDB_API_KEY_SECONDARY); }
+  get configured() { return omdbCredentials(this.env).some(([,key])=>Boolean(key)); }
   async details(id: string) {
     const failures: ProviderError[] = [];
-    for (const [identity,key] of [['omdb',this.env.OMDB_API_KEY],['omdb-secondary',this.env.OMDB_API_KEY_SECONDARY]] as const) {
+    for (const [identity,key] of omdbCredentials(this.env)) {
       if (!key) continue;
       let error = this.unavailable.get(identity);
       if (!error) {

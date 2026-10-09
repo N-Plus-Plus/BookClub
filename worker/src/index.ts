@@ -33,7 +33,7 @@ async function route(request: Request, env: Env, verify: GoogleVerifier): Promis
   const repo = new Repository(env.DB), movies = new MovieService(repo,env), product = new ProductRepository(env.DB);
   if (!['GET','POST','PUT','DELETE','OPTIONS'].includes(method)) throw new ApiError(405,'METHOD_NOT_ALLOWED','Method not supported.');
   if (path === '/api/v1/health' && method === 'GET') return json({ status: 'ok', environment: env.APP_ENV,
-    authenticationRequired: !localBypass(env), googleAuthConfigured: Boolean(env.GOOGLE_CLIENT_ID?.trim()), tmdbConfigured: Boolean(env.TMDB_READ_TOKEN), mdblistConfigured: Boolean(env.MDBLIST_API_KEY), omdbConfigured: Boolean(env.OMDB_API_KEY || env.OMDB_API_KEY_SECONDARY), demo: env.APP_ENV === 'local' });
+    authenticationRequired: !localBypass(env), googleAuthConfigured: Boolean(env.GOOGLE_CLIENT_ID?.trim()), tmdbConfigured: Boolean(env.TMDB_READ_TOKEN), mdblistConfigured: Boolean(env.MDBLIST_API_KEY), omdbConfigured: Boolean(env.OMDB_API_KEY_PREMIUM || env.OMDB_API_KEY || env.OMDB_API_KEY_SECONDARY), demo: env.APP_ENV === 'local' });
   if (path === '/api/v1/auth/google' && method === 'POST') {
     const input = await body(request);
     return json(await login(input && typeof input === 'object' ? (input as {credential?: unknown}).credential : undefined,env,verify));
