@@ -104,7 +104,7 @@ it('invalidating saved enrichment refreshes an already mounted Metrics screen',a
   vi.mocked(api.metricsEnrichment).mockReset().mockResolvedValueOnce(metricsEnrichmentFixture()).mockResolvedValueOnce({movies:{}});
   const container=document.createElement('div'),root=createRoot(container);document.body.appendChild(container);
   try{
-    await act(async()=>root.render(createElement(MetricsScreen,{catalog:metricsFixture(),viewer:null,onUpdated:async()=>{},resource})));
+    await act(async()=>root.render(createElement(MetricsScreen,{catalog:{...metricsFixture(),sessions:[...metricsFixture().sessions,...Array.from({length:8},(_,i)=>({...metricsFixture().sessions[0],id:`repeat-${i}`}))]},viewer:null,onUpdated:async()=>{},resource})));
     await act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent === 'Tastes')!.click());
     expect(container.querySelectorAll('.metrics-theme-cloud li').length).toBeGreaterThan(0);
     await act(async()=>resource.invalidate());

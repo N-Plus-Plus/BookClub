@@ -17,5 +17,5 @@ export function EnrichedFingerprints({isAll,themeReport,signatures}: Pick<Enrich
     const keywords = report.values;
     return keywords.length ? <ul className="metrics-theme-cloud">{keywords.map((v,index) => <li key={v.id} style={{color:`var(--${metricsPalette[index % metricsPalette.length]})`,fontSize:`${1.25-index*0.025}em`}}><span>{v.label}</span><strong>{formatCount(v.count)}, {v.ratio!.toFixed(1)}x club</strong></li>)}</ul> : <p className="meta">No eligible keywords for this selection.</p>;
   };
-  return <><section className="stack metrics-themes" data-metric="F"><h3>Theme fingerprint</h3><p className="meta">Most frequent keywords for each boob.</p>{isAll ? signatures.map(s => <div className="stack metrics-theme-signature" key={s.label}><strong>{s.label}</strong>{comparison(s.report)}</div>) : comparison(themeReport)}</section></>;
+  return <><section className="stack metrics-themes" data-metric="F"><h3>Theme fingerprint</h3><p className="meta">Recurring themes that distinguish each boob from the rest of the club.</p>{isAll ? signatures.map(s => <div className="stack metrics-theme-signature" key={s.label}><strong>{s.label}</strong>{comparison(s.report)}</div>) : comparison(themeReport)}</section></>;
 }

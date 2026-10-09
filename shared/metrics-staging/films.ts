@@ -129,19 +129,20 @@ export function collectionCompletion(all:Appearance[],data:MetricsEnrichment,asO
     const roster=cached?parseCollectionRoster(cached,group.id,cached.checked_at):null;
     if(!roster || !group.films.every(row=>roster.parts.some(part=>part.id===tmdbId(row)))){pending++;return [];}
     const members=new Map(roster.parts.map(part=>[part.id,part]));
-    const films=history.filter(row=>members.has(tmdbId(row) ?? -1));
+    const films=history.filter(row=>members.get(tmdbId(row) ?? -1)?.release_date);
     const selected=new Set(films.map(tmdbId));
     const partOrder=(a:typeof roster.parts[number],b:typeof roster.parts[number])=>{
       return a.release_date && b.release_date ? order(a.release_date,b.release_date)||order(a.title ?? '',b.title ?? '')||a.id-b.id : order(a.title ?? '',b.title ?? '')||a.id-b.id;
     };
-    // Dated films first, then undated titles: a transitive, stable ordering.
+    // Date-qualified films retain transitive, stable ordering.
     const stable=(a:typeof roster.parts[number],b:typeof roster.parts[number])=>Number(!a.release_date)-Number(!b.release_date)||partOrder(a,b);
     films.sort((a,b)=>stable(members.get(tmdbId(a)!)!,members.get(tmdbId(b)!)!));
-    const eligible=roster.parts.filter(part=>selected.has(part.id)||!part.release_date||part.release_date<=asOf);
+    const eligible=roster.parts.filter(part=>part.release_date && (selected.has(part.id)||part.release_date<=asOf));
+    if (!eligible.length) return [];
     const missing=eligible.filter(part=>!selected.has(part.id)).sort(stable);
     return [{id:group.id,name:roster.name,films,total:eligible.length,missing,checked_at:roster.checked_at}];
   }).sort((a,b)=>b.films.length-a.films.length||order(a.name,b.name)||a.id-b.id);
-  return {completed:values.filter(group=>!group.missing.length),unrequited:values.filter(group=>group.missing.length),pending};
+  return {completed:values.filter(group=>group.films.length>0 && !group.missing.length),unrequited:values.filter(group=>group.missing.length),pending};
 }
 export function awardsReport(rows:Appearance[],data:MetricsEnrichment) {
   const films=uniqueAppearances(rows);let checked=0,unquantified=0,unavailable=0;

@@ -88,14 +88,16 @@ it('failed/partial loading preserves existing reports, supports explicit retry a
 it.each([true,false])('theme counts use grouped thousands metadata with unchanged ratios in ALL=%s',async isAll=>{
  const all=selectedAppearances(metricsFixture()),data=metricsEnrichmentFixture();
  const rows=Array.from({length:1234},()=>all[0]);
- const report=themeFingerprint(rows,rows,data),container=document.createElement('div'),root=createRoot(container);
+ const other=all.find(row=>row.movie.id!==all[0].movie.id)!;
+ data.movies[other.movie.id]={...data.movies[other.movie.id],keywords:[]};
+ const report=themeFingerprint(rows,[...rows,...Array.from({length:1234},()=>other)],data),container=document.createElement('div'),root=createRoot(container);
  try {
   await act(async()=>root.render(createElement(EnrichedFingerprints,{isAll,themeReport:report,signatures:[{label:'SEAN',rows,report}]})));
   const terms=[...container.querySelectorAll('.metrics-theme-cloud li')];
   expect(terms).toHaveLength(report.values.length);expect(terms.length).toBeGreaterThan(0);
   for(const [index,term] of terms.entries()) {
    expect(term.firstElementChild?.textContent).toBe(report.values[index].label);
-   expect(term.lastElementChild?.textContent).toBe('1,234, 1.0x club');
+   expect(term.lastElementChild?.textContent).toBe('1,234, 2.0x club');
   }
  }finally{await act(async()=>root.unmount());}
 });

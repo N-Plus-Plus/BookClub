@@ -93,7 +93,7 @@ try {
         assert(!/appearances|%/.test(await page.locator('.metrics-fingerprint').textContent()));
         assert.deepEqual(await page.locator('.metrics-comparison-bars small').allTextContents(),Array.from({length:5},()=>['Brought','vs. Club']).flat());
         assert.deepEqual(await page.locator('.metrics-signature .metrics-enriched-row').evaluateAll(rows=>rows.map(e=>e.style.getPropertyValue('--chart-colour'))),['var(--jeans)','var(--lavender)','var(--jeans)','var(--lavender)','var(--jeans)']);
-        assert.equal(await page.locator('.metrics-themes > .meta').textContent(),'Most frequent keywords for each boob.');
+        assert.equal(await page.locator('.metrics-themes > .meta').textContent(),'Recurring themes that distinguish each boob from the rest of the club.');
         assert.equal(await page.locator('.metrics-diversity.metrics-section').count(),0);
         for(const cloud of await page.locator('.metrics-theme-cloud').all()) assert((await cloud.locator('li').count())<=12);
       }

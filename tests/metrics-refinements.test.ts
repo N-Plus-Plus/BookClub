@@ -77,7 +77,7 @@ it('renders revised visuals, stable colours, clean presentation and linked ratio
     expect(container.querySelector('.metrics-fingerprint')?.textContent).not.toMatch(/appearances|%/);
     expect([...container.querySelectorAll('.metrics-comparison-bars small')].map(e=>e.textContent)).toEqual(Array.from({length:5},()=>['Brought','vs. Club']).flat());
     expect([...container.querySelectorAll<HTMLElement>('.metrics-signature .metrics-enriched-row')].map(e=>e.style.getPropertyValue('--chart-colour'))).toEqual(['var(--jeans)','var(--lavender)','var(--jeans)','var(--lavender)','var(--jeans)']);
-    expect(container.querySelector('.metrics-themes > .meta')?.textContent).toBe('Most frequent keywords for each boob.');
+    expect(container.querySelector('.metrics-themes > .meta')?.textContent).toBe('Recurring themes that distinguish each boob from the rest of the club.');
     expect(container.querySelector('.metrics-diversity')?.classList.contains('metrics-section')).toBe(false);
     expect(container.querySelector('.metrics-five-scroll')).toBeNull();
     expect(container.querySelector('.metrics-themes .metrics-comparison-bars')).toBeNull();

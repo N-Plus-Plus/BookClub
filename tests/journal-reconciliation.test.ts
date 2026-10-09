@@ -255,10 +255,10 @@ it('current relationships govern every Metrics category despite retained scores,
  expect(selectedAppearances(data.catalog!).map(r=>r.movie.id)).toEqual(['B']);expect(Object.keys((await enrichment.enrichment()).movies)).toEqual(['B']);
  await apply(await mutation(`/sessions/${second.session!.id}/restore`,'POST'));
  expect(selectedAppearances(data.catalog!).map(r=>r.movie.id).sort()).toEqual(['B','C']);
- // Retained released/unknown-date roster parts are supplementary information, not appearances.
+ // Retained released roster parts are supplementary information, not appearances.
  // Known upcoming parts are excluded from the required/missing population.
  for(const id of ['B','C'])retained.movies[id].collection={status:'checked_present',external_id:id==='B'?'101':'102',checked_at:'2030',collection_id:1,collection_name:'Fixture collection'};
- retained.collections={'1':{status:'checked',attempted_at:'2030',roster:{id:1,name:'Fixture collection',checked_at:'2030',parts:[{id:101,title:'B',release_date:null},{id:102,title:'C',release_date:null},{id:100,title:'Lost in London',release_date:null},{id:999,title:'Upcoming',release_date:'2099-01-01'}]}}};
+ retained.collections={'1':{status:'checked',attempted_at:'2030',roster:{id:1,name:'Fixture collection',checked_at:'2030',parts:[{id:101,title:'B',release_date:'2000-01-01'},{id:102,title:'C',release_date:'2000-01-01'},{id:100,title:'Lost in London',release_date:'2000-01-01'},{id:999,title:'Upcoming',release_date:'2099-01-01'}]}}};
  const completion=collectionCompletion(selectedAppearances(data.catalog!),retained,'2030-01-01').unrequited[0];
  expect(completion.films.map(r=>r.movie.id).sort()).toEqual(['B','C']);expect(completion.missing.map(p=>p.id).sort()).toEqual([100]);
  expect(report(await repo.catalog())).toEqual(report(data.catalog!));

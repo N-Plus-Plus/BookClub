@@ -15,7 +15,7 @@ import { local,env,call,data,session } from './helpers/product-api';
 import worker from '../worker/src/index';
 import { reconcileRosterCheckpoint,rosterPlan,runRosterMaintenance, type RosterCheckpoint } from '../frontend/collection-roster-maintenance';
 const at='2020-01-01T00:00:00.000Z';
-const payload=(ids=[42,43])=>({id:7,name:'Fictional series',parts:ids.map(id=>({id,title:`Part ${id}`,release_date:id===44?'':`2000-01-01`}))});
+const payload=(ids=[42,43])=>({id:7,name:'Fictional series',parts:ids.map(id=>({id,title:`Part ${id}`,release_date:'2000-01-01'}))});
 afterEach(()=>vi.restoreAllMocks());
 async function eligible(){
   expect((await session({movie_ids:['moon','arrival','moon']})).ok).toBe(true);
@@ -26,7 +26,7 @@ async function eligible(){
   env.TMDB_READ_TOKEN='fictional';return new CollectionRosterService(env);
 }
 it('validates identities, complete nonempty parts, duplicates and undated announced films without requiring art',()=>{
-  const valid=parseCollectionRoster({...payload([42,44,44]),parts:[...payload([42,44,44]).parts,{id:45}]},7,at)!;
+  const valid=parseCollectionRoster({...payload([42,44,44]),parts:[...payload([42,44,44]).parts.map(part=>({...part,release_date:part.id===44?'':part.release_date})),{id:45}]},7,at)!;
   expect(valid.parts.map(p=>p.id)).toEqual([42,44,45]);expect(valid.parts[1].release_date).toBeNull();expect(valid.parts[2].title).toBeNull();
   for(const value of [null,{...payload(),id:8},{...payload(),name:''},{...payload(),parts:[]},{...payload(),parts:undefined},{...payload(),parts:[{id:0}]},{...payload(),parts:[{id:42},{id:'43'}]},{...payload(),parts:[{id:42,media_type:'tv'}]}])expect(parseCollectionRoster(value,7,at)).toBeNull();
 });
@@ -94,7 +94,7 @@ it('freezes the collection queue, retains failures, stops safely and reconciles 
   await expect(runRosterMaintenance({checkpoint,batch:lost,stopped:()=>false,changed:()=>{},progress:()=>{},checkpointChanged:value=>{saved=value;}})).rejects.toThrow('Lost response');expect(saved.pending).toEqual([7,8,9]);
 });
 
-it('partitions collections by date-only eligibility, preserving unknown dates and future History evidence',()=>{
+it('partitions collections by date-only eligibility, excluding unknown dates and preserving future History evidence',()=>{
  const a=metricsFilm('a',{external_ids:[{provider:'tmdb',external_id:'42'}]}),b=metricsFilm('b',{external_ids:[{provider:'tmdb',external_id:'43'}]}),c=metricsFilm('c',{external_ids:[{provider:'tmdb',external_id:'44'}]});
  const catalog={...metricsFixture(),movies:[a,b,c],sessions:[metricsEvent('first',[a,a,b]),metricsEvent('repeat',[b])]};
  const evidence:MetricsEnrichment={movies:Object.fromEntries([a,b,c].map((m,i)=>[m.id,{...emptyEnrichmentMovie(),collection:{status:'checked_present' as const,external_id:String(42+i),checked_at:at,collection_id:7,collection_name:'Series'}}])),collections:{7:{status:'checked',attempted_at:at,roster:parseCollectionRoster({...payload(),parts:[...payload().parts,{id:44,title:'Sequel',release_date:'2026-10-11'}]},7,at)}}};
@@ -102,7 +102,15 @@ it('partitions collections by date-only eligibility, preserving unknown dates an
  expect(derive('2026-10-10')).toMatchObject({completed:[{total:2,missing:[]}],unrequited:[],pending:0});expect(derive('2026-10-10').completed[0].films).toHaveLength(2);
  for(const date of ['2026-10-11','2026-10-12'])expect(derive(date)).toMatchObject({completed:[],unrequited:[{total:3,missing:[{id:44}]}]});
  catalog.sessions.push(metricsEvent('future evidence',[c]));expect(derive('2026-10-10').completed[0].total).toBe(3);catalog.sessions.pop();
- evidence.collections![7].roster!.parts.push({id:45,title:'Past',release_date:'2000-01-01'},{id:46,title:'Untitled Now You See Me 4',release_date:null},{id:47,title:'Invalid',release_date:'2026-02-30'});
- expect(derive('2026-10-10').unrequited[0]).toMatchObject({total:5,missing:expect.arrayContaining([{id:45,title:'Past',release_date:'2000-01-01'},{id:46,title:'Untitled Now You See Me 4',release_date:null},{id:47,title:'Invalid',release_date:null}])});
+ evidence.collections![7].roster!.parts.push({id:45,title:'Past',release_date:'2000-01-01'},{id:46,title:'Untitled Now You See Me 4',release_date:null},{id:47,title:'Invalid',release_date:'2026-02-30'},{id:48,title:'Another undated',release_date:null},...parseCollectionRoster({id:7,name:'Series',parts:[{id:49,title:'Missing date'}]},7,at)!.parts);
+ expect(derive('2026-10-10').unrequited[0]).toMatchObject({total:3,missing:[{id:45,title:'Past',release_date:'2000-01-01'}]});
+ evidence.collections![7].roster!.parts=evidence.collections![7].roster!.parts.filter(part=>part.id!==45);
+ expect(derive('2026-10-10')).toMatchObject({completed:[{total:2,missing:[]}],unrequited:[],pending:0});
+ catalog.sessions.push(metricsEvent('undated brought',[c]));evidence.collections![7].roster!.parts.find(part=>part.id===44)!.release_date=null;
+ expect(derive('2026-10-10').completed[0].films.map(row=>row.movie.id)).toEqual(['a','b']);
+ evidence.collections![7].roster!.parts.forEach(part=>part.release_date=null);
+ expect(derive('2026-10-10')).toEqual({completed:[],unrequited:[],pending:0});
+ evidence.collections![7].roster!.parts[0].release_date='2000-01-01';
+ expect(derive('2026-10-10').completed[0]).toMatchObject({total:1,films:[expect.objectContaining({movie:expect.objectContaining({id:'a'})})]});
  evidence.collections![7].roster=null;expect(derive('2026-10-10')).toEqual({completed:[],unrequited:[],pending:1});
 });

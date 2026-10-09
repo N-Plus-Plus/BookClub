@@ -14,9 +14,28 @@ export function fingerprint(rows: Appearance[],all: Appearance[],read: FactReade
   values.sort((a,b) => (options.distinctive ? (b.ratio ?? 0)-(a.ratio ?? 0) || b.percentage-a.percentage : 0) || b.count-a.count || order(a.label,b.label) || order(a.id,b.id));
   return {covered:selected.covered,distinct:selected.values.length,values:values.slice(0,options.limit ?? 10)};
 }
-/** Frequency selects exactly twelve at most; club ratios describe rather than rank themes. */
+/** Smoothed, support-weighted comparison with the other contributors' appearances. */
+export function themeDistinctiveness(selfCount:number,selfTotal:number,otherCount:number,otherTotal:number):number | null {
+  if (![selfCount,selfTotal,otherCount,otherTotal].every(Number.isFinite) || selfTotal<=0 || otherTotal<=0 || selfCount<Math.max(4,Math.ceil(.03*selfTotal)) || selfCount>selfTotal || otherCount<0 || otherCount>otherTotal) return null;
+  const pooledRate=(selfCount+otherCount)/(selfTotal+otherTotal);
+  const selfRate=(selfCount+12*pooledRate)/(selfTotal+12);
+  const otherRate=(otherCount+12*pooledRate)/(otherTotal+12);
+  const score=Math.sqrt(selfCount)*Math.log(selfRate/otherRate);
+  return score>0 && Number.isFinite(score)?score:null;
+}
+/** Ranking excludes self; visible ratios retain the whole-club baseline. */
 export function themeFingerprint(rows: Appearance[],all: Appearance[],data: MetricsEnrichment) {
-  return fingerprint(rows,all,themeReader(data),{limit:12});
+  const read=themeReader(data), selected=frequency(rows,read), baseline=frequency(all,read);
+  const club=new Map(baseline.values.map(value=>[value.id,value.count]));
+  // Scopes partition canonical appearances, so subtract frequencies, never movie identities.
+  const values=selected.values.flatMap(value=>{
+    const clubCount=club.get(value.id) ?? 0;
+    const distinctiveness=themeDistinctiveness(value.count,rows.length,clubCount-value.count,all.length-rows.length);
+    if (distinctiveness===null) return [];
+    const percentage=percent(value.count,rows.length), clubShare=percent(clubCount,all.length);
+    return [{...value,percentage,ratio:clubShare?percentage/clubShare:null,colour:genreColour(value.id),distinctiveness}];
+  }).sort((a,b)=>b.distinctiveness-a.distinctiveness || b.count-a.count || order(a.label,b.label) || order(a.id,b.id));
+  return {covered:selected.covered,distinct:selected.values.length,values:values.slice(0,12)};
 }
 /** Safe aggregate diagnostic; no movie IDs, titles, provenance or private rows are returned. */
 export function themeKeywordAudit(data: MetricsEnrichment,rows: Appearance[] = []) {
