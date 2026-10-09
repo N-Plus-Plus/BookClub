@@ -30,14 +30,14 @@ export function cycleScorecards(catalog:Catalog,all:Appearance[],rows:Appearance
   }).sort((a,b)=>b.ordinal-a.ordinal || b.id.localeCompare(a.id)).map(cycle=>({cycle,...scoreMeans(rows.filter(row=>row.session.cycle_id===cycle.id))}));
 }
 export function contributorSpreads(catalog:Catalog,all:Appearance[],filter:MetricsFilter,dimension:'year'|'runtime') {
-  const groups=contributorScopes(catalog,all).map(scope=>{
+  const groups=contributorScopes(catalog,all).map((scope,index)=>{
     const values=scope.rows.map(row=>row.movie[dimension]).filter((n):n is number=>positive(n) && (dimension!=='year' || Number.isInteger(n) && n>=1000 && n<=9999));
     const average=mean(values),sd=average===null?null:Math.sqrt(values.reduce((sum,n)=>sum+(n-average)**2,0)/values.length);
     const low=average===null?null:dimension==='year'?average-(sd??0):Math.min(...values);
     const high=average===null?null:dimension==='year'?average+(sd??0):Math.max(...values);
-    return {...scope,count:values.length,mean:average,sd,low,high};
+    return {...scope,colour:index%2===0?'jeans':'lavender',count:values.length,mean:average,sd,low,high,oldest:values.length?Math.min(...values):null,newest:values.length?Math.max(...values):null};
   });
-  const ends=groups.flatMap(g=>g.low===null||g.high===null?[]:[g.low,g.high]);
+  const ends=groups.flatMap(g=>g.oldest===null||g.newest===null?[]:[g.oldest,g.newest]);
   const minimum=ends.length?Math.floor(Math.min(...ends)):0,maximum=ends.length?Math.ceil(Math.max(...ends)):1;
   return {groups:filterContributorScopes(groups,filter),minimum,maximum:maximum===minimum?minimum+1:maximum};
 }

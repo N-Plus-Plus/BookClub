@@ -12,8 +12,8 @@ import { metricsEnrichmentFixture } from './metrics-enrichment-fixture';
 vi.mock('../frontend/api',()=>({api:{metricsEnrichment:vi.fn()}}));
 Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
 afterEach(()=>{vi.resetAllMocks();vi.restoreAllMocks();});
-const headings=['Cycle scorecards','Release-year spread','Runtime spread','Critics or audiences?','Top 5 genre combinations','Genre taste overlap','First shared theme','Shared stars','Creative partnerships','Highest-grossing film by genre','Expensive flops','Classification versus acclaim','Streaming platform representation','Top 5 hidden gems','Top 5 most cult','Franchise / collection spotlight','Awards and nominations'];
-it('renders all 17 independent reports, all five tabs and every Records addition without additional reads',async()=>{
+const headings=['Cycle scorecards','Release-year spread','Runtime spread','Critics or audiences?','Genre taste overlap','First shared theme','Shared stars','Creative partnerships','Highest-grossing film by genre','Expensive flops','Classification versus acclaim','Streaming platform representation','Top 5 hidden gems','Top 5 most cult','Franchise / collection spotlight','Awards and nominations'];
+it('renders all 16 independent Staging reports and moves genre combinations into Top 5, all five tabs and every Records addition without additional reads',async()=>{
   const combinations=vi.spyOn(overlapCalculations,'genreCombinations');
   const catalog=metricsFixture(),data=metricsEnrichmentFixture();
   catalog.movies[0].scores=[observation('metacritic','critic',60,100),observation('imdb','rating',8,10,250)];
@@ -25,6 +25,7 @@ it('renders all 17 independent reports, all five tabs and every Records addition
   const container=document.createElement('div'),root=createRoot(container);document.body.appendChild(container);
   try {
     await act(async()=>root.render(createElement(MetricsScreen,{catalog,viewer:null,onUpdated:async()=>{}})));
+    expect(container.querySelector('.metrics-genre-combinations > .meta')?.textContent).toBe('Unique genre subsets of two or more genres.');
     const tabs=[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')];expect(tabs.map(t=>t.textContent)).toEqual(['Top 5','Tastes','Breakdowns','Records','Staging']);
     await act(async()=>tabs[4].click());
     // Resolve the actual dynamic import without a timing-based sleep.
@@ -44,7 +45,7 @@ it('renders all 17 independent reports, all five tabs and every Records addition
     await act(async()=>tabs[1].click());expect(container.querySelector('.metrics-fingerprint')).not.toBeNull();
     await act(async()=>tabs[2].click());expect(container.textContent).toContain('Ratings profile');
     await act(async()=>tabs[0].click());expect(container.querySelector('.metrics-rankings')).not.toBeNull();
-    await act(async()=>tabs[4].click());expect(combinations).toHaveBeenCalledTimes(2);
+    const combinationReads=combinations.mock.calls.length;await act(async()=>tabs[4].click());expect(combinations).toHaveBeenCalledTimes(combinationReads);expect(container.querySelector('.metrics-genre-combinations')).toBeNull();
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(1);expect(container.textContent).not.toMatch(/NaN|Infinity|undefined/);
   } finally {await act(async()=>root.unmount());container.remove();}
 });
@@ -54,10 +55,28 @@ it('keeps every complete historical cycle in a named keyboard-scrollable region 
   const all=selectedAppearances(catalog),container=document.createElement('div'),root=createRoot(container);
   try {
     await act(async()=>root.render(createElement(Staging,{catalog,all,rows:all,filter:{kind:'all'},data:{movies:{}}})));
-    const cycles=container.querySelector('.staging-cycles')!;expect(cycles.getAttribute('tabindex')).toBe('0');expect(cycles.getAttribute('role')).toBe('region');expect(cycles.children).toHaveLength(8);expect(cycles.firstElementChild?.textContent).toContain('Cycle 8');expect(cycles.lastElementChild?.textContent).toContain('Cycle 1');
+    const cycles=container.querySelector('.staging-cycles')!;expect(cycles.getAttribute('tabindex')).toBe('0');expect(cycles.getAttribute('role')).toBe('region');expect(cycles.children).toHaveLength(8);expect(cycles.firstElementChild?.querySelector('h3')?.textContent).toBe('8');expect(cycles.lastElementChild?.querySelector('h3')?.textContent).toBe('1');
     expect(container.querySelector('[aria-label="Awards and nominations"]')?.textContent).toContain('0 of 1 distinct films checked');
     expect(container.querySelector('[aria-label="Franchise / collection spotlight"]')?.textContent).toContain('1 unknown');
-    expect(container.querySelector('[aria-label="Shared stars"]')?.textContent).toContain('No qualifying evidence');expect(container.querySelector('[aria-label="Streaming platform representation"]')?.textContent).toContain('Cached Australian availability');
+    expect(container.querySelector('[aria-label="Shared stars"]')?.textContent).toContain('No qualifying evidence');expect(container.querySelector('[aria-label="Streaming platform representation"]')?.textContent).toContain('cached Australian availability');
     expect(container.textContent).not.toMatch(/NaN|Infinity|undefined/);
   } finally {await act(async()=>root.unmount());}
+});
+
+it('keeps concise labels, rounded years/runtimes, touching bar order and all-human stars columns',async()=>{
+  const catalog=metricsFixture(),data=metricsEnrichmentFixture();
+  catalog.movies[0].runtime=125.836;catalog.movies[0].year=1969;
+  const all=selectedAppearances(catalog),container=document.createElement('div'),root=createRoot(container);
+  try{
+    await act(async()=>root.render(createElement(Staging,{catalog,all,rows:all,filter:{kind:'all'},data})));
+    expect(container.querySelector('[aria-label="Release-year spread"]')?.textContent).toContain('Mean 1969');
+    expect(container.querySelector('[aria-label="Release-year spread"]')?.textContent).not.toContain('1,969');
+    const runtime=container.querySelector('[aria-label="Runtime spread"]')!;expect(runtime.textContent).toContain('Mean 2 hrs, 6 mins');expect(runtime.textContent).toContain('Shortest: 2 hrs, 6 mins · Longest: 2 hrs, 6 mins');expect(runtime.textContent).not.toMatch(/known|125\.836/);
+    const leaning=container.querySelector('[aria-label="Critics or audiences?"]')!;expect(leaning.textContent).toMatch(/\d critic \/ \d audience \/ \d neutral · [\d.]+% (critic|audience|neutral) leaning/);expect(leaning.textContent).not.toMatch(/\([\d.% /]+\)/);
+    const paired=container.querySelector('.staging-paired')!;expect([...paired.children].map(n=>n.className)).toEqual(['meta','staging-score-track','staging-score-track','meta']);expect(paired.lastElementChild?.textContent).toContain('Audience:');expect(paired.textContent).not.toContain('scored appearances');
+    expect([...container.querySelectorAll('.staging-stars-table thead th')].map(n=>n.textContent)).toEqual(['Actor','Sean','Troy','Matt','Jess']);
+    expect(container.querySelector('.staging-revenue-table .meta')?.textContent).toMatch(/^\$[\d,]+ USD$/);
+    expect(container.querySelector('.staging-flop-content')?.children).toHaveLength(4);
+    for(const report of container.querySelectorAll('.staging-discoveries > li')){expect(report.querySelector('.staging-discovery-rank')?.textContent).toMatch(/^#\d/);expect(report.querySelector('.poster')).not.toBeNull();expect(report.querySelector('.staging-discovery-index')).not.toBeNull();}
+  }finally{await act(async()=>root.unmount());}
 });

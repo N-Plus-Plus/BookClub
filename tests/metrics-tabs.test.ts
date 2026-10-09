@@ -11,7 +11,7 @@ vi.mock('../frontend/api',() => ({api:{metricsEnrichment:vi.fn()}}));
 Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
 afterEach(() => vi.resetAllMocks());
 const assignments = {
-  'Top 5':['U','V','W','G','J','L','H','I'],Tastes:['C','F','O','P','R','S'],
+  'Top 5':['U','V','W','genre-combinations','G','J','L','H','I'],Tastes:['C','F','O','P','R','S'],
   'Breakdowns':['B','D','Y','K','M','N','T'],Records:['X'],Staging:[],
 };
 it('renders every metric in exactly one associated active panel, keeps global filters and cached enrichment',async() => {
@@ -43,7 +43,7 @@ it('renders every metric in exactly one associated active panel, keeps global fi
       for(const element of container.querySelectorAll('[aria-label],[title]'))expect(`${element.getAttribute('aria-label') ?? ''} ${element.getAttribute('title') ?? ''}`).not.toMatch(superseded);
       if(label === 'Records')expect(panels[0].querySelector('h2')?.textContent).toBe('Records');
     }
-    expect(new Set(seen).size).toBe(22);expect(seen).toHaveLength(22);
+    expect(new Set(seen).size).toBe(23);expect(seen).toHaveLength(23);
     expect(metricsTabs.flatMap(t => [...t.metrics]).sort()).toEqual(seen.sort());
     await select('Tastes');
     const all = container.querySelector('.metrics-fingerprint')!.textContent;

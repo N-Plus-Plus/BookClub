@@ -38,15 +38,37 @@ export function genreOverlap(catalog:Catalog,all:Appearance[]) {
     if(!normA||!normB)return null;
     return Math.min(100,Math.max(0,[...a].reduce((n,[k,v])=>n+v*(b.get(k)??0),0)/normA/normB*100));
   }));
-  return {scopes,values};
+  const colours=values.map(row=>row.map(()=>null as string|null));
+  const palette=['emerald','grass','avacado','sunflower','pumpkin','carrot','grapefruit','ruby','rose','lavender'];
+  const pairs=values.flatMap((row,a)=>row.flatMap((value,b)=>b>a&&value!==null?[{a,b,value}]:[]));
+  pairs.sort((x,y)=>y.value-x.value||x.a-y.a||x.b-y.b).forEach(({a,b},rank)=>{colours[a][b]=colours[b][a]=palette[rank];});
+  return {scopes,values,colours};
 }
 export function firstSharedTheme(catalog:Catalog,all:Appearance[],data:MetricsEnrichment) {
   const scopes=contributorScopes(catalog,all),read=themeReader(data);
   const lists=scopes.map(scope=>frequency(scope.rows,read).values.map((fact,index)=>({...fact,rank:index+1})));
-  const values=lists.map(a=>lists.map(b=>{
+  const candidates=lists.map(a=>lists.map(b=>{
     const byId=new Map(b.map(f=>[f.id,f]));
     const common=a.flatMap(f=>{const other=byId.get(f.id);return other?[{id:f.id,label:order(f.label,other.label)<=0?f.label:other.label,rankA:f.rank,rankB:other.rank,countA:f.count,countB:other.count}]:[];});
-    return common.sort((x,y)=>Math.max(x.rankA,x.rankB)-Math.max(y.rankA,y.rankB) || x.rankA+x.rankB-y.rankA-y.rankB || order(x.label,y.label)||order(x.id,y.id))[0]??null;
+    return common.sort((x,y)=>Math.max(x.rankA,x.rankB)-Math.max(y.rankA,y.rankB) || x.rankA+x.rankB-y.rankA-y.rankB || order(x.label,y.label)||order(x.id,y.id));
   }));
+  const pairs=candidates.flatMap((row,a)=>row.flatMap((list,b)=>b>a?[{a,b,list,index:0}]:[]));
+  // Advance every conflicting pair simultaneously, including previously uncontested pairs
+  // when another pair reaches their term. Each preference list is finite.
+  while(true){
+    const terms=new Map<string,typeof pairs>();
+    for(const pair of pairs){const candidate=pair.list[pair.index];if(!candidate)continue;
+      const key=candidate.label.toLocaleLowerCase('en-AU');
+      const matches=terms.get(key)??[];matches.push(pair);terms.set(key,matches);
+    }
+    const conflicts=[...terms.values()].filter(matches=>matches.length>1).flat();
+    if(!conflicts.length)break;
+    for(const pair of conflicts)pair.index++;
+  }
+  type Candidate=typeof candidates[number][number][number];
+  const values:(Candidate|null)[][]=scopes.map(()=>scopes.map(()=>null));
+  for(const {a,b,list,index} of pairs){const value=list[index]??null;values[a][b]=value;
+    values[b][a]=value?{...value,rankA:value.rankB,rankB:value.rankA,countA:value.countB,countB:value.countA}:null;
+  }
   return {scopes,values};
 }

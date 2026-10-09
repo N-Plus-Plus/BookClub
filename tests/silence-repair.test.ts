@@ -43,7 +43,7 @@ it.each([false,true])('repairs identity and relationships without wrong-provider
   expect(local.sqlite.prepare('SELECT id FROM source_scores').all()).toEqual([{id:'legacy'}]);
   for(const t of ['movie_assets','movie_genres','movie_score_checks','movie_provider_metadata','movie_provider_enrichment_state','movie_provider_credits'])expect(local.sqlite.prepare(`SELECT * FROM ${t}`).all()).toEqual([]);
   const receipt=JSON.parse(String(local.sqlite.prepare('SELECT snapshot_json FROM movie_identity_merge_receipts').get()!.snapshot_json));
-  expect(receipt.source_scores).toHaveLength(2);expect(receipt.movie_provider_credits).toHaveLength(21);
+  expect(receipt.source_scores).toHaveLength(2);expect(receipt.movie_provider_credits).toHaveLength(22);
   expect(receipt.movie_provider_collections).toHaveLength(merge?2:1);
   expect(local.sqlite.prepare('SELECT collection_id FROM movie_provider_collections').all()).toEqual(merge?[{collection_id:null}]:[]);
   expect(local.sqlite.prepare('SELECT awards_text FROM movie_provider_awards').all()).toEqual(merge?[{awards_text:null}]:[]);

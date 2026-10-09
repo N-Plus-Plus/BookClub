@@ -24,7 +24,7 @@ describe('read-only lazy Metrics projection',() => {
       local.sqlite.prepare("INSERT INTO movie_provider_countries(movie_id,provider,item_key,code,name,fetched_at) VALUES (?,'tmdb','JP','JP','Japan','2020')").run(active);
       local.sqlite.prepare("INSERT INTO movie_provider_languages(movie_id,provider,item_key,code,english_name,fetched_at) VALUES (?,'tmdb','ja','ja','Japanese','2020')").run(active);
       local.sqlite.prepare("INSERT INTO movie_provider_companies(movie_id,provider,item_key,external_id,name,fetched_at) VALUES (?,'tmdb','1','1','Studio','2020')").run(active);
-      for (const role of ['writer','screenplay','unrelated']) local.sqlite.prepare("INSERT INTO movie_provider_credits(movie_id,provider,item_key,kind,role,person_id,name,ordinal,fetched_at) VALUES (?,'tmdb',?,'crew',?,'1','Person',0,'2020')").run(active,role,role);
+      for (const role of ['director','writer','screenplay','unrelated']) local.sqlite.prepare("INSERT INTO movie_provider_credits(movie_id,provider,item_key,kind,role,person_id,name,ordinal,fetched_at) VALUES (?,'tmdb',?,'crew',?,'1','Person',0,'2020')").run(active,role,role);
       for (const country of ['AU','US']) local.sqlite.prepare("INSERT INTO movie_provider_content_ratings(movie_id,provider,item_key,country,certification,release_type,fetched_at) VALUES (?,'tmdb',?,?,'M',3,'2020')").run(active,country,country);
       const before = local.sqlite.prepare('SELECT total_changes() n').get()!.n;
       const queries:string[] = [],original = local.db.prepare.bind(local.db),batch = vi.spyOn(local.db,'batch');
@@ -32,7 +32,7 @@ describe('read-only lazy Metrics projection',() => {
       const payload = await new MetricsRepository(local.db).enrichment();
       expect(queries).toHaveLength(11);expect(batch).toHaveBeenCalledTimes(2);expect(queries.filter(sql=>!sql.includes('sqlite_master')).every(sql => sql.includes('s.deleted_at IS NULL') && sql.includes('SELECT sm.movie_id'))).toBe(true);
       expect(Object.keys(payload.movies)).toEqual([active]);expect(payload.movies[active]).toMatchObject({metadata:{original_language:'ja',budget:10,revenue:30},keywords:[{provider:'mdblist',name:'MDB keyword'}],countries:[{code:'JP',name:'Japan'}],contentRatings:[{certification:'M',release_type:3}]});
-      expect(payload.movies[active].credits.map(c => c.role).sort()).toEqual(['screenplay','writer']);
+      expect(payload.movies[active].credits.map(c => c.role).sort()).toEqual(['director','screenplay','writer']);
       expect(JSON.stringify(payload)).not.toMatch(/Provider title|Private irrelevant text|popularity|fetched_at|item_key|watch_offers|identity_claims/);
       expect(local.sqlite.prepare('SELECT total_changes() n').get()!.n).toBe(before);expect(fetch).not.toHaveBeenCalled();
       // Repeat History and many canonical films never change query count.

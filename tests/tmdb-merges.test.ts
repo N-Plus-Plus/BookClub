@@ -76,7 +76,7 @@ it('preserves complete provider cache sets and archives source cache during expl
   expect(local.sqlite.prepare("SELECT title,title_source FROM movies WHERE id='b'").get()).toEqual({title:a.title,title_source:'omdb'});
   expect(local.sqlite.prepare('SELECT provider FROM movie_provider_metadata ORDER BY provider').all()).toEqual([{provider:'mdblist'},{provider:'omdb'},{provider:'tmdb'}]);
   expect(local.sqlite.prepare('SELECT movie_id,provider FROM movie_provider_enrichment_state ORDER BY provider').all()).toEqual([{movie_id:'b',provider:'mdblist'},{movie_id:'b',provider:'tmdb'}]);
-  expect(local.sqlite.prepare('SELECT * FROM movie_provider_keywords').all()).toHaveLength(4);expect(local.sqlite.prepare('SELECT * FROM movie_provider_credits').all()).toHaveLength(21);
+  expect(local.sqlite.prepare('SELECT * FROM movie_provider_keywords').all()).toHaveLength(4);expect(local.sqlite.prepare('SELECT * FROM movie_provider_credits').all()).toHaveLength(22);
   const receipt=JSON.parse(String(local.sqlite.prepare('SELECT snapshot_json FROM local_movie_merge_receipts').get()!.snapshot_json));expect(receipt.movie_provider_watch_offers).toHaveLength(1);expect(local.sqlite.prepare('SELECT movie_id,country FROM movie_provider_watch_offers').all()).toEqual([{movie_id:'b',country:'AU'}]);
   expect(local.sqlite.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
 });

@@ -8,7 +8,7 @@ const text = (v: unknown) => typeof v === 'string' && v.trim() ? v.trim() : null
 const number = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
 const id = (v: unknown) => typeof v === 'number' && Number.isSafeInteger(v) && v > 0 ? String(v) : typeof v === 'string' && /^[1-9]\d*$/.test(v) ? v : null;
 // Exact jobs, rather than broad department guesses. Screenplay is a separate analytical role.
-export const crewRoles: Record<string,string> = {Writer:'writer',Screenplay:'screenplay',Producer:'producer','Director of Photography':'cinematographer',Cinematography:'cinematographer','Original Music Composer':'composer',Editor:'editor'};
+export const crewRoles: Record<string,string> = {Director:'director',Writer:'writer',Screenplay:'screenplay',Producer:'producer','Director of Photography':'cinematographer',Cinematography:'cinematographer','Original Music Composer':'composer',Editor:'editor'};
 function rows<T>(value: unknown, parse: (v: ObjectValue,index: number) => T | undefined): T[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const result: T[] = [];

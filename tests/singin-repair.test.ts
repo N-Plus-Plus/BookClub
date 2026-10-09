@@ -51,8 +51,8 @@ it('archives and discards wrong-identity cache while preserving the survivor cac
   const cache=local.sqlite.prepare('SELECT * FROM movie_provider_enrichment_state WHERE movie_id=?').all(survivor);
   local.sqlite.exec(repairSql(local.sqlite)!);
   expect(local.sqlite.prepare('SELECT * FROM movie_provider_enrichment_state').all()).toEqual(cache);
-  expect(local.sqlite.prepare('SELECT * FROM movie_provider_credits').all()).toHaveLength(21);
-  const receipt=JSON.parse(String(local.sqlite.prepare('SELECT snapshot_json FROM movie_identity_merge_receipts').get()!.snapshot_json));expect(receipt.movie_provider_credits).toHaveLength(21);
+  expect(local.sqlite.prepare('SELECT * FROM movie_provider_credits').all()).toHaveLength(22);
+  const receipt=JSON.parse(String(local.sqlite.prepare('SELECT snapshot_json FROM movie_identity_merge_receipts').get()!.snapshot_json));expect(receipt.movie_provider_credits).toHaveLength(22);
 });
 it('fails closed for unfamiliar movie dependencies',()=>{
   local.sqlite.exec('CREATE TABLE unexpected(movie_id TEXT REFERENCES movies(id))');

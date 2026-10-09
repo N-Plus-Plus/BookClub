@@ -21,7 +21,7 @@ describe('TMDB analytical capture',()=>{
     expect(parsed.languages?.[1]).toEqual({code:'fr',name:'Français',english_name:'French'});
     expect(parsed.companies).toEqual([{external_id:'7',name:'Studio',origin_country:'AU'}]);
   });
-  it.each([['Writer','writer'],['Screenplay','screenplay'],['Producer','producer'],['Director of Photography','cinematographer'],['Original Music Composer','composer'],['Editor','editor']])('preserves exact %s and its analytical role %s',(job,role)=>{
+  it.each([['Director','director'],['Writer','writer'],['Screenplay','screenplay'],['Producer','producer'],['Director of Photography','cinematographer'],['Original Music Composer','composer'],['Editor','editor']])('preserves exact %s and its analytical role %s',(job,role)=>{
     expect(parseTmdbEnrichment(tmdbEnrichmentFixture(),at)!.credits).toContainEqual(expect.objectContaining({kind:'crew',job,role,person_id:expect.any(String),department:expect.any(String),credit_id:expect.any(String),original_name:expect.any(String)}));
   });
   it('excludes unrelated producer/camera jobs and preserves the first fifteen upstream billed cast',()=>{
@@ -53,7 +53,7 @@ describe('TMDB analytical capture',()=>{
   });
   it('uses one details request with all supported append targets, no people/company calls',async()=>{
     const fetch=vi.fn().mockResolvedValue(Response.json(tmdbEnrichmentFixture()));vi.stubGlobal('fetch',fetch);
-    const detail=await new TmdbProvider('fictional').details('42');expect(detail.enrichment?.credits).toHaveLength(21);
+    const detail=await new TmdbProvider('fictional').details('42');expect(detail.enrichment?.credits).toHaveLength(22);
     expect(fetch).toHaveBeenCalledTimes(1);expect(fetch.mock.calls[0][0]).toBe('https://api.themoviedb.org/3/movie/42?append_to_response=external_ids,credits,keywords,release_dates,watch/providers');
   });
 });
@@ -104,7 +104,7 @@ describe('provider cache API and durable current state',()=>{
     const before=await repo.catalog(),scores=local.sqlite.prepare('SELECT * FROM source_scores').all();
     const fetch=vi.fn(async()=>Response.json(tmdbEnrichmentFixture()));vi.stubGlobal('fetch',fetch);
     const result=await data(await call('tmdb',['film']));expect(result.results[0].status).toBe('updated');expect(result).not.toHaveProperty('movies');
-    expect(rows('credits')).toHaveLength(21);expect(rows('content_ratings')).toHaveLength(3);expect(rows('metadata')[0]).toMatchObject({budget:1000000,provider:'tmdb'});
+    expect(rows('credits')).toHaveLength(22);expect(rows('content_ratings')).toHaveLength(3);expect(rows('metadata')[0]).toMatchObject({budget:1000000,provider:'tmdb'});
     const after=await repo.catalog();
     expect(after.movies.find(m=>m.id==='film')).toEqual({...before.movies.find(m=>m.id==='film'),title:'Provider title',au_classification:'M'});
     expect({...after,movies:after.movies.filter(m=>m.id!=='film')}).toEqual({...before,movies:before.movies.filter(m=>m.id!=='film')});
@@ -112,7 +112,7 @@ describe('provider cache API and durable current state',()=>{
   });
   it('dedicated TMDB capture tolerates unrelated malformed optional presentation fields without clearing cached scalars',async()=>{
     vi.stubGlobal('fetch',vi.fn(async()=>Response.json({...tmdbEnrichmentFixture(),genres:{},original_title:{},budget:{},popularity:[]})));
-    const result=await data(await call('tmdb',['film']));expect(result.results[0].status).toBe('updated');expect(rows('credits')).toHaveLength(21);expect(rows('metadata')[0]).toMatchObject({revenue:2000000,budget:null});
+    const result=await data(await call('tmdb',['film']));expect(result.results[0].status).toBe('updated');expect(rows('credits')).toHaveLength(22);expect(rows('metadata')[0]).toMatchObject({revenue:2000000,budget:null});
   });
   it('idempotent rerun checks freshness, changed and successful empty sets replace only the provider set',async()=>{
     let m=tmdbEnrichmentFixture();const fetch=vi.fn(async()=>Response.json(m));vi.stubGlobal('fetch',fetch);

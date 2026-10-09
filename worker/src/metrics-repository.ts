@@ -12,7 +12,7 @@ export class MetricsRepository {
       ['movie_provider_countries','countries','code,name',"provider='tmdb'"],
       ['movie_provider_languages','languages','code,name,english_name',"provider='tmdb'"],
       ['movie_provider_companies','companies','external_id,name',"provider='tmdb'"],
-      ['movie_provider_credits','credits','kind,role,person_id,name',"provider='tmdb' AND (kind='cast' OR role IN ('writer','screenplay','cinematographer','composer','editor','producer'))"],
+      ['movie_provider_credits','credits','kind,role,person_id,name',"provider='tmdb' AND (kind='cast' OR role IN ('director','writer','screenplay','cinematographer','composer','editor','producer'))"],
       ['movie_provider_content_ratings','contentRatings','certification,release_type',"provider='tmdb' AND country='AU'"],
       ['movie_provider_keywords','keywords','provider,name',"provider IN ('tmdb','mdblist')"],
     ] as const;

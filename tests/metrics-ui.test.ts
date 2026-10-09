@@ -90,8 +90,8 @@ it('switches both unique popularity lists, keeps both medians visible and render
   expect(lists()[0].textContent).toContain('210 audience votes');
   expect(lists()[1].textContent).toContain('110 audience votes');
   expect(report.querySelector('p')!.textContent).toBe(median);
-  expect(container.querySelectorAll('ol')).toHaveLength(4);
-  for(const list of container.querySelectorAll('ol')) {
+  expect(container.querySelectorAll('ol.metrics-list')).toHaveLength(4);
+  for(const list of container.querySelectorAll('ol.metrics-list')) {
    expect(list.querySelectorAll('li').length).toBeGreaterThan(0);
    for(const row of list.querySelectorAll('a')) {
     expect(row.classList.contains('metrics-film-item')).toBe(true);
