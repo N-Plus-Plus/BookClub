@@ -18,14 +18,15 @@ import {App} from '/frontend/App.tsx';import {metricsFixture} from '/tests/metri
 const catalog=metricsFixture();catalog.members.forEach((m,i)=>m.avatar=i+1);catalog.movies=Array.from({length:24},(_,i)=>({...catalog.movies[0],id:'film-'+i,title:'Film '+i,classic:true,scores:[],external_ids:[{provider:'tmdb',external_id:String(i+1)},{provider:'imdb',external_id:'tt'+String(i+1).padStart(7,'0')}],tmdb_metadata_checked_at:null,tmdb_artwork_checked_at:null}));catalog.sessions=[];
 api.health=async()=>({status:'ok',environment:'test',authenticationRequired:true,demo:false});api.me=async()=>({viewer:{...catalog.members[0],role:'admin'}});api.catalog=async()=>catalog;api.rotation=async()=>({id:1,nominal_slot:1,cycle_id:null,version:0,updated_at:''});api.builders=async()=>[];
 api.maintenanceCoverage=async()=>({checks:[],negativeScores:[],enrichment:[],evidence:[],evidenceSupported:true,unavailable:{tmdb:null,omdb:null,mdblist:null},next:null});
+window.collectionCalls=[];window.collectionCandidates=[{id:7,name:'Collection with two historical films',films:2,checked_at:null},{id:8,name:'Collection with three historical films',films:3,checked_at:null}];api.collectionRosterStatus=async()=>({collections:window.collectionCandidates,unavailable:null});api.maintainCollectionRosters=async(intent,ids)=>new Promise(resolve=>{window.collectionCalls.push({intent,ids});window.finishCollection=()=>{window.finishCollection=null;window.collectionCandidates=window.collectionCandidates.map(c=>ids.includes(c.id)?{...c,checked_at:new Date().toISOString()}:c);resolve({results:ids.map(id=>({id,status:'checked',message:'Checked'})),requests:ids.length,cacheChanged:true});};});
 window.calls=[];api.maintenanceProvider=async(intent,units)=>new Promise(resolve=>{window.calls.push({intent,units});window.finishBatch=(failed=false)=>{window.finishBatch=null;resolve({results:units.map((u,i)=>({movieId:u.movieId,provider:u.provider,status:failed&&i===1?'failed':'updated',message:failed&&i===1?'Synthetic provider failure':'Saved',...(failed&&i===1?{retryAfter:60}:{})})),canonicalChanged:true,cacheChanged:true,requests:units[0].provider==='mdblist'?1:units.length,stopped:failed});};});
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
 `}));
 try {
- for(const width of [320,390,720,1440]) {
+ for(const width of [320,390,720,951,1440]) {
   await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/admin');await page.evaluate(()=>localStorage.clear());await page.reload();
   await page.getByRole('heading',{name:'Swap current turn',exact:true}).waitFor();await page.getByRole('button',{name:'Populate missing data',exact:true}).waitFor();
-  assert.equal(await page.locator('main section.card').count(),17);assert.equal(await page.evaluate(()=>window.calls.length),0);
+  assert.equal(await page.locator('main section.card').count(),19);assert.equal(await page.evaluate(()=>window.calls.length),0);
   const headings=await page.locator('main section.card h2,main section.card h3').allTextContents();assert.equal(headings[0],'Swap current turn');assert.equal(headings[1],'Populate missing data');assert.equal(headings[9],'Refresh all data');
   for(const title of ['Populate missing data','Refresh all data']) {
    await page.getByRole('button',{name:title,exact:true}).click();await page.getByRole('dialog').waitFor();assert((await page.getByRole('dialog').innerText()).includes('Estimated API requests:'));assert.equal(await page.evaluate(()=>window.calls.length),0);await page.getByRole('button',{name:'Cancel',exact:true}).click();
@@ -34,6 +35,13 @@ try {
   for(const b of bounds){assert(b.height>=44,b.label+' touch target');assert(b.left>=0&&b.right<=width,b.label+' containment');}
   const borders=await page.locator('main section.card').evaluateAll(es=>es.map(e=>({width:getComputedStyle(e).borderTopWidth,color:getComputedStyle(e).borderTopColor})));for(const border of borders){assert.equal(border.width,'1px');assert.notEqual(border.color,'rgba(0, 0, 0, 0)');}
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:output+'/admin-'+width+'.png',fullPage:true});await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:output+'/admin-top-'+width+'.png'});
+  assert.equal(await page.evaluate(()=>window.collectionCalls.length),0);
+  await page.getByRole('button',{name:'Populate missing collection rosters',exact:true}).click();await page.waitForFunction(()=>typeof window.finishCollection==='function');
+  assert(await page.getByRole('button',{name:'Refresh all data',exact:true}).isDisabled());assert(await page.getByRole('button',{name:'Refresh collection rosters',exact:true}).isDisabled());
+  await page.getByRole('button',{name:'Stop after this batch',exact:true}).click();await page.evaluate(()=>window.finishCollection());await page.getByRole('button',{name:'Stop after this batch',exact:true}).waitFor({state:'hidden'});
+  assert.equal(await page.evaluate(()=>window.collectionCalls.length),1);await page.getByRole('button',{name:'Resume collection checks',exact:true}).click();await page.waitForFunction(()=>typeof window.finishCollection==='function');
+  assert.deepEqual(await page.evaluate(()=>window.collectionCalls.map(c=>c.ids)),[[7],[8]]);await page.getByRole('button',{name:'Stop after this batch',exact:true}).click();await page.evaluate(()=>window.finishCollection());await page.getByRole('button',{name:'Stop after this batch',exact:true}).waitFor({state:'hidden'});
+  await page.locator('[aria-label="Collection roster maintenance"]').screenshot({path:output+'/collection-rosters-'+width+'.png'});
   await page.getByRole('button',{name:'Refresh all data',exact:true}).click();await page.getByRole('button',{name:'Start maintenance',exact:true}).click();await page.waitForFunction(()=>typeof window.finishBatch==='function');
   assert(await page.getByRole('button',{name:'Refresh TMDB enrichment',exact:true}).isDisabled());await page.getByRole('button',{name:'Stop after this batch',exact:true}).click();await page.evaluate(()=>window.finishBatch(false));await page.getByRole('button',{name:'Stop after this batch',exact:true}).waitFor({state:'hidden'});
   const progress=page.locator('#refresh-all-heading').locator('xpath=..').locator('progress');assert.equal(await progress.getAttribute('data-state'),'normal');
@@ -44,5 +52,5 @@ try {
   await page.evaluate(()=>window.finishBatch(true));await page.getByRole('button',{name:'Stop after this batch',exact:true}).waitFor({state:'hidden'});assert.equal(await progress.getAttribute('data-state'),'interrupted');const interrupted=await progress.evaluate(e=>({value:e.value,max:e.max,accent:getComputedStyle(e).accentColor}));assert.notEqual(interrupted.accent,normal.accent);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:output+'/interrupted-'+width+'.png',fullPage:true});samples.push({width,headings,bounds,borders,normal,interrupted});
  }
- assert.deepEqual(errors,[]);fs.writeFileSync(output+'/measurements.json',JSON.stringify({samples,errors},null,2));console.log('Unified Admin: order, confirmations, lock, Stop/resume, normal/ruby progress and no overflow passed at 320/390/720/1440px.');
+ assert.deepEqual(errors,[]);fs.writeFileSync(output+'/measurements.json',JSON.stringify({samples,errors},null,2));console.log('Unified Admin: order, confirmations, lock, Stop/resume, normal/ruby progress and no overflow passed at 320/390/720/951/1440px.');
 } finally {await browser.close();}
