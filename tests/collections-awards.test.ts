@@ -25,7 +25,7 @@ function fixture(last?:string) {
 }
 afterEach(()=>{fixtures.splice(0).forEach(f=>f.sqlite.close());vi.unstubAllGlobals();vi.restoreAllMocks();});
 function upstream(collection:unknown=null,awards:unknown='N/A') {
-  const fetch=vi.fn(async(input:RequestInfo | URL)=>String(input).includes('omdbapi') ? Response.json({Response:'True',imdbID:'tt0000042',Title:'OMDb title',Awards:awards,imdbRating:'8',Metascore:'80'}) : Response.json({...tmdbEnrichmentFixture(),belongs_to_collection:collection}));
+  const fetch=vi.fn(async(input:RequestInfo | URL)=>String(input).includes('omdbapi') ? Response.json({Response:'True',imdbID:'tt0000042',Title:'OMDb title',Awards:awards,Year:'N/A',Runtime:'N/A',Director:'N/A',Genre:'N/A',Ratings:[],imdbRating:'8',Metascore:'80'}) : Response.json({...tmdbEnrichmentFixture(),belongs_to_collection:collection}));
   vi.stubGlobal('fetch',fetch);return fetch;
 }
 it('validates positive collections, explicit negatives and malformed or missing evidence',()=>{
@@ -85,7 +85,7 @@ it('Refresh replaces positives with valid negatives and back again while failure
     for(const batch of plan.batches) expect((await service.execute('refresh',batch,at)).results[0].status).toBe('failed');
     expect([local.sqlite.prepare('SELECT * FROM movie_provider_collections').get(),local.sqlite.prepare('SELECT * FROM movie_provider_awards').get()]).toEqual(before);
   }
-  expect(local.sqlite.prepare('SELECT count(*) AS n FROM source_scores').get()?.n).toBe(0);
+  expect(local.sqlite.prepare('SELECT count(*) AS n FROM source_scores').get()?.n).toBe(12);
 });
 it('an inconclusive first attempt remains eligible and cannot become a negative check',async()=>{
   const {repo,service,local}=fixture();upstream({},42);
@@ -94,7 +94,7 @@ it('an inconclusive first attempt remains eligible and cannot become a negative 
   expect((await service.status(null)).evidence).toEqual([]);
   expect(operationCoverage((await repo.catalog()).movies[0],'omdb-awards',await service.status(null))).toBe('inconclusive');
   expect(planMaintenance(await repo.catalog(),await service.status(null),'populate',['tmdb-collections','omdb-awards']).units).toHaveLength(2);
-  expect(local.sqlite.prepare('SELECT count(*) AS n FROM source_scores').get()?.n).toBe(0);
+  expect(local.sqlite.prepare('SELECT count(*) AS n FROM source_scores').get()?.n).toBe(3);
 });
 it('guards writes against identity races, is idempotent and cascades on deletion',async()=>{
   const {repo,local}=fixture();const c=parseCollection(null,'42',at)!;
@@ -129,7 +129,8 @@ it('supports older schemas without incidental failures and copies pre/post migra
   const fetch=upstream();
   const units=planMaintenance(await old.repo.catalog(),await old.service.status(null),'refresh',['tmdb-collections']).units;
   await expect(old.service.execute('refresh',units,at)).rejects.toMatchObject({code:'SCHEMA_UPGRADE_REQUIRED'});expect(fetch).not.toHaveBeenCalled();
-  await old.service.execute('refresh',[{...units[0],operations:['tmdb-metadata']}],at);expect(fetch).toHaveBeenCalledOnce();
+  await expect(old.service.execute('refresh',[{...units[0],operations:['tmdb-metadata']}],at)).rejects.toMatchObject({code:'SCHEMA_UPGRADE_REQUIRED'});expect(fetch).not.toHaveBeenCalled();
+  await old.repo.enrichMetadata('film','42',await new TmdbProvider('fictional').details('42'));expect(fetch).toHaveBeenCalledOnce();
   expect(await new MetricsRepository(old.local.db).enrichment()).toEqual({movies:{}});
   copySnapshot(old.local.sqlite,target.sqlite);expect(target.sqlite.prepare('SELECT count(*) AS n FROM movie_provider_collections').get()?.n).toBe(0);
   old.local.sqlite.exec(readFileSync('worker/migrations/0021_collections_awards.sql','utf8'));

@@ -48,15 +48,20 @@ export function operationCoverage(movie:Movie,operation:MaintenanceOperation,cov
   const identity=providerIdentity(movie,provider);
   if (!identity) return 'unidentifiable';
   if(coverage.fields && operation!=='scores'){
-    const check=coverage.fields.find(c=>c.movie_id===movie.id&&c.operation===operation&&c.identity_provider===identity.provider&&c.external_id===identity.external_id);
-    const fields=maintenanceContract[operation].fields.map(f=>check?.fields[f.id]);
-    if(fields.every(Boolean))return fields.some(f=>f!.state==='checked_unavailable')?'checked_unavailable':fields.some(f=>tmdbMetadataIsStale(f!.checked_at))?'stale':'present';
+    const check=coverage.fields.find(c=>c.movie_id===movie.id&&c.provider===provider&&c.operation===operation&&c.identity_provider===identity.provider&&c.external_id===identity.external_id);
+    const fields=maintenanceContract[operation].fields.map(f=>!f.optional&&check?.fields[f.id]?.state!=='present'?undefined:check?.fields[f.id]);
+    if(fields.every(Boolean))return fields.some(f=>f!.state==='checked_unavailable')?'checked_unavailable':operation==='tmdb-metadata'&&fields.some(f=>tmdbMetadataIsStale(f!.checked_at))?'stale':'present';
     if(coverage.unavailable[provider])return 'unavailable_provider';
     return coverage.failures?.some(f=>f.movie_id===movie.id&&f.operation===operation)?'inconclusive':'unchecked';
   }
   if (operation==='scores') {
     const missing=missingMaintainedScores(movie.scores);
-    return !missing.length?'present':missing.every(key=>negativeScore(movie,key,coverage))?'checked_unavailable':coverage.unavailable[provider]?'unavailable_provider':'unchecked';
+    if(!missing.length)return 'present';
+    const actionable=missing.filter(key=>!negativeScore(movie,key,coverage));
+    if(!actionable.length)return 'checked_unavailable';
+    const capable=(Object.keys(providerKeys) as MaintenanceProvider[]).filter(p=>{const id=providerIdentity(movie,p);return id&&actionable.some(key=>providerKeys[p].includes(key)&&!matchingCheck(coverage,movie.id,p,'scores',id)?.absent.includes(key));});
+    if(!capable.length)return 'unidentifiable';
+    return capable.some(p=>!coverage.unavailable[p])?'unchecked':'unavailable_provider';
   }
   if (coverage.unavailable[provider]) return 'unavailable_provider';
   const evidenceOperation=operation==='tmdb-collections' || operation==='omdb-awards';
@@ -86,9 +91,9 @@ export function planMaintenance(catalog:Catalog,coverage:MaintenanceCoverage,int
           const identity=providerIdentity(movie,provider);
           const needed=missing.filter(key=>providerKeys[provider].includes(key));
           if(!needed.length)continue;
+          const check=identity?matchingCheck(coverage,movie.id,provider,'scores',identity):undefined;
+          if(intent==='populate'&&needed.every(key=>check?.absent.includes(key)))continue;
           if (!identity || coverage.unavailable[provider]) {blocked.add(movie.id);continue;}
-          const check=matchingCheck(coverage,movie.id,provider,'scores',identity);
-          if (!needed.length || intent==='populate' && needed.every(key=>check?.absent.includes(key))) continue;
           requested.set(provider,[...(requested.get(provider) ?? []),operation]);
           scoreKeys.set(provider,needed);
         }
@@ -98,6 +103,7 @@ export function planMaintenance(catalog:Catalog,coverage:MaintenanceCoverage,int
       if (category==='unidentifiable' || category==='unavailable_provider') {blocked.add(movie.id);continue;}
       if (intent==='populate' && category!=='unchecked' && category!=='inconclusive') {if(category==='checked_unavailable') skipped.add(movie.id);continue;}
       const provider=operation.startsWith('omdb')?'omdb':operation.startsWith('tmdb')?'tmdb':'mdblist';
+      if(intent==='refresh'&&coverage.unavailable[provider]){blocked.add(movie.id);continue;}
       requested.set(provider,[...(requested.get(provider) ?? []),operation]);
     }
     for (const [provider,selected] of requested) units.push({movieId:movie.id,provider,identity:providerIdentity(movie,provider)!,operations:[...new Set(selected)],...(scoreKeys.has(provider)?{scoreKeys:scoreKeys.get(provider)}:{})});

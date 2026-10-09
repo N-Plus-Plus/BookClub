@@ -125,7 +125,7 @@ it.each([401,403])('classifies OMDb HTTP %s bodies without leaking upstream data
 it('keeps successful OMDb details unchanged',async()=>{
  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({Response:'True',imdbID:'tt0000001',imdbRating:'8.2',Year:'2001',Runtime:'100 min',Director:'A Director',Genre:'Drama'})));
  const detail=await new OmdbProvider('secret-key').details('tt0000001');
- expect(detail.metadata).toEqual({title:null,year:2001,runtime:100,director:'A Director',genres:['Drama']});
+ expect(detail.metadata).toEqual({checkedFields:['year','runtime','director','genres'],title:null,year:2001,runtime:100,director:'A Director',genres:['Drama']});
  expect(detail.scores[0]).toMatchObject({provider:'imdb',raw_value:8.2,retrieved_via:'omdb'});
 });
 it.each([401,403])('keeps MDBList HTTP %s as credentials despite quota-like bodies',async status=>{

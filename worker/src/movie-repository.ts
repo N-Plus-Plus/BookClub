@@ -24,7 +24,9 @@ export class MovieRepository {
   async cacheProviderTitle(id: string, provider: string, title: unknown, identity: ExternalId, at: string) {
     if (!await new TitleRepository(this.db).supported()) return;
     const statement=providerTitleStatement(this.db,id,provider,title,identity,at);
-    await this.db.batch([...(statement ? [statement] : []),canonicalTitleStatement(this.db,id,identity)]);
+    const checks:D1PreparedStatement[]=[];
+    if(statement)for(const operation of provider==='omdb'?['omdb-metadata'] as const:provider==='tmdb'?['tmdb-metadata','tmdb-enrichment'] as const:['mdblist-enrichment'] as const)checks.push(...await new FieldCoverageRepository(this.db).statements(id,provider,operation,identity,{title},at));
+    await this.db.batch([...(statement ? [statement] : []),...checks,canonicalTitleStatement(this.db,id,identity)]);
   }
 
   async assertMovie(id: string) {
@@ -106,6 +108,11 @@ export class MovieRepository {
         statements.push(canonicalTitleStatement(this.db,id));
       }
     }
+    const tmdbIdentity=m.external_ids.find(e=>e.provider==='tmdb');
+    if(tmdbIdentity){
+      const values={title:m.title,original_title:m.original_title,release:m.release_date,runtime:m.runtime,overview:m.overview,director:m.director,genres:m.genres,poster:m.assets.find(a=>a.asset_type==='poster')?.reference ?? null,backdrop:m.assets.find(a=>a.asset_type==='backdrop')?.reference ?? null};
+      statements.push(...await new FieldCoverageRepository(this.db).statements(id,'tmdb','tmdb-metadata',tmdbIdentity,m.checkedFields?Object.fromEntries(Object.entries(values).filter(([key])=>m.checkedFields!.includes(key))):values,m.fetched_at));
+    }
     await this.db.batch(statements);
     await new ProviderEvidenceRepository(this.db).save(id,'collections',m.collection);
     if (m.enrichment) await this.cacheEnrichment(id,m.enrichment);
@@ -131,7 +138,7 @@ export class MovieRepository {
     const fieldStates=collectedFieldStates('omdb-metadata',values);
     statements.push(...await new FieldCoverageRepository(this.db).statements(id,'omdb','omdb-metadata',identity,values,at));
     const coverage=new CoverageRepository(this.db);
-    if(await coverage.supported())statements.push(coverage.statement(id,'omdb','metadata',identity,Object.entries(fieldStates).filter(([,state])=>state==='checked_unavailable').map(([key])=>key)));
+    if(Object.keys(fieldStates).length===5 && await coverage.supported())statements.push(coverage.statement(id,'omdb','metadata',identity,Object.entries(fieldStates).filter(([,state])=>state==='checked_unavailable').map(([key])=>key)));
     if (fields.length) statements.push(this.db.prepare(`UPDATE movies SET ${fields.map(field => `${field}=?`).join(',')},updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=? AND ${guard} AND (${fields.map(field => `${field} IS NOT ?`).join(' OR ')}) RETURNING id`)
       .bind(...fields.map(field => metadata[field]),id,id,imdbId,...fields.map(field => metadata[field])));
     if (desired.size && (!populate || !existing.size)) {

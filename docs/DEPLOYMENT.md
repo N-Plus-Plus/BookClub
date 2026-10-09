@@ -246,6 +246,9 @@ Migration `0021_collections_awards.sql` adds two successful-evidence tables and 
 
 ## Applying production migrations
 
+Migration `0023_maintenance_fields.sql` is additive/idempotent and leaves existing provider evidence untouched. After clean preflight and commit/push verification, inspect the ledger, create a fresh verified export, apply schema first, verify it, deploy/smoke the API, and publish the frontend last. The old Worker ignores the new table. Ordinary provider capture remains capability-aware on older schemas; current unified field-aware execution and Admin controls require 0023 before provider work. Legacy field interpretation is read-only; uncertain gaps become eligible only for explicit administrator-initiated Populate. Do not backfill, Populate, Refresh or reconcile identities during release. Retain all earlier compatibility gates.
+
+
 Migration `0022_collection_rosters.sql` is additive and compatible with the prior Worker. After clean preflight and the committed/pushed source check, inspect the ledger, create a fresh verified production export, apply 0022 schema first, verify schema, deploy and smoke the API, then explicitly publish the frontend last. Older schemas omit roster projection while ordinary film maintenance remains usable; dedicated collection maintenance fails before provider calls until 0022 exists. Do not run Populate, Refresh or roster backfill during release. The empty cache is healthy: Metrics reports pending membership evidence until an administrator explicitly selects Populate missing collection rosters.
 
 After the fresh backup and compatibility gate are complete, apply the tracked pending migrations to the exact production database:

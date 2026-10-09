@@ -77,7 +77,7 @@ describe('verified MDBList Media Info shape',()=>{
     const result=await new MdbListProvider('fictional',undefined,capture).batch('imdb',['tt0000042']);
     expect(fetch).toHaveBeenCalledTimes(1);expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ids:['tt0000042'],append_to_response:['keyword']});
     expect(result.get('tt0000042')).toEqual(parseMdbList(mdbEnrichmentFixture(),expect.any(String),'batch'));
-    expect(capture).toHaveBeenCalledWith({provider:'imdb',external_id:'tt0000042'},expect.objectContaining({provider:'mdblist'}),'MDBList title');
+    expect(capture).toHaveBeenCalledWith({provider:'imdb',external_id:'tt0000042'},expect.objectContaining({provider:'mdblist'}),'MDBList title',expect.arrayContaining(['metacritic:user','trakt:rating','rogerebert:rating']));
   });
 });
 describe('provider cache API and durable current state',()=>{

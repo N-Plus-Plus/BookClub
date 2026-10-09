@@ -2,6 +2,7 @@ import type { ExternalId, Score } from '../../../shared/types';
 import { RatingError, ratingRequest, record } from './ratings';
 import { ProviderError } from './http';
 import { parseMdbEnrichment, parseMdbTitle } from './enrichment';
+import { maintainedScoreKeys } from '../../../shared/maintenance-contract';
 import type { EnrichmentCapture } from '../../../shared/enrichment';
 // Official Media Info schema: https://api.mdblist.com/schema/ (GET and POST media routes).
 const sources: Record<string,[string,string,number]> = {
@@ -26,16 +27,29 @@ export function parseMdbList(data: unknown, at = new Date().toISOString(), endpo
   }
   return [...scores.values()];
 }
+/** A valid empty ratings array checks every capability; malformed values check none for that dimension. */
+export function mdbCheckedKeys(data:unknown,endpoint:'single'|'batch'='single'):string[]{
+  const ratings=(data as {ratings?:unknown})?.ratings;if(!Array.isArray(ratings))return [];
+  const checked=new Set<string>(maintainedScoreKeys);
+  for(const item of ratings){
+    if(!item || typeof item!=='object'){return [];}
+    const r=item as {source?:string;value?:unknown},mapping=r.source?sources[r.source]:undefined;
+    if(!mapping)continue;
+    const empty=r.value===null || r.value==='N/A' || r.value==='';
+    if(!empty && !record(mapping[0],mapping[1],r.value,r.source==='letterboxd'&&endpoint==='batch'?10:mapping[2],'mdblist',''))checked.delete(`${mapping[0]}:${mapping[1]}`);
+  }
+  return [...checked];
+}
 export function mdbId(ids: ExternalId[]): ExternalId | undefined {
   return ids.find(e => e.provider === 'imdb' && /^tt\d{7,10}$/.test(e.external_id))
     ?? ids.find(e => e.provider === 'tmdb' && /^[1-9]\d*$/.test(e.external_id));
 }
 export class MdbListProvider {
-  constructor(private key: string, private onLimits?: (headers: Headers) => Promise<void>, private onMedia?: (id: ExternalId,capture: EnrichmentCapture | undefined, title: string | null) => Promise<void>) {}
+  constructor(private key: string, private onLimits?: (headers: Headers) => Promise<void>, private onMedia?: (id: ExternalId,capture: EnrichmentCapture | undefined, title: string | null,checkedKeys?:string[]) => Promise<void>) {}
   async scores(id: ExternalId) {
     const data=await ratingRequest(`https://api.mdblist.com/${id.provider}/movie/${encodeURIComponent(id.external_id)}/?apikey=${encodeURIComponent(this.key)}&append_to_response=keyword`,'MDBList',undefined,this.onLimits);
     const scores=parseMdbList(data), capture=parseMdbEnrichment(data,id,new Date().toISOString());
-    await this.onMedia?.(id,capture,parseMdbTitle(data,id)); return scores;
+    await this.onMedia?.(id,capture,parseMdbTitle(data,id),mdbCheckedKeys(data)); return scores;
   }
   async batch(provider: string, ids: string[]): Promise<Map<string,Score[]>> {
     if (!ids.length || ids.length > 10) throw new RatingError('MDBList batches require 1–10 IDs.');
@@ -74,7 +88,7 @@ export class MdbListProvider {
     // Validate the complete ratings/correlation envelope before saving any enrichment.
     for (const entry of data) {
       const externalId=String(provider === 'imdb' ? entry?.ids?.imdb ?? entry?.imdb_id : entry?.ids?.tmdb);
-      if (result.has(externalId)) { const identity={provider,external_id:externalId}; await this.onMedia?.(identity,parseMdbEnrichment(entry,identity,at),parseMdbTitle(entry,identity)); }
+      if (result.has(externalId)) { const identity={provider,external_id:externalId}; await this.onMedia?.(identity,parseMdbEnrichment(entry,identity,at),parseMdbTitle(entry,identity),mdbCheckedKeys(entry,'batch')); }
     }
     return result;
   }

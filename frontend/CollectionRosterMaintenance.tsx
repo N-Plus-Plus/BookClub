@@ -38,6 +38,7 @@ export function CollectionRosterMaintenance({writesEnabled,onEnrichmentChanged}:
     finally{if(changed)onEnrichmentChanged?.();await reload();setActive(null);}
   });
   return <section className="stack maintenance-section" aria-label="Collection roster maintenance"><h2>Collection membership</h2><p className="meta">TMDB rosters for collections with at least two distinct films in active History. One collection per request; no films are imported.</p>
+    {status&&<p className="meta">Collection-check evidence: {formatCount(status.collections.filter(c=>!c.checked_at).length)} unchecked/inconclusive · {formatCount(status.collections.filter(c=>c.checked_at).length)} validated rosters · {formatCount(status.unavailable?status.collections.filter(c=>!c.checked_at).length:0)} temporarily blocked.</p>}
     {readError&&<p className="meta" role="status">{readError}</p>}{job.error&&<p className="error-message" role="alert">{job.error}</p>}
     {(['populate','refresh'] as const).map(intent=>{
       const checkpoint=status&&saved[intent]?reconcileRosterCheckpoint(saved[intent]!,status):null,plan=status?rosterPlan(status,intent):null;

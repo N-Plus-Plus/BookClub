@@ -11,7 +11,7 @@ const catalog:Catalog={members:[],sessions:[],cycles:[],movies:Array.from({lengt
 let root:Root,container:HTMLDivElement;const updated=vi.fn(async()=>{}),cacheChanged=vi.fn();
 const button=(name:string)=>[...container.querySelectorAll<HTMLButtonElement>('button')].find(b=>b.textContent===name)!;
 const render=async(writesEnabled=true)=>{await act(async()=>root.render(createElement(AdminScreen,{catalog,writesEnabled,onMovie:()=>{},onUpdated:updated,onEnrichmentChanged:cacheChanged})));};
-beforeEach(()=>{vi.resetAllMocks();localStorage.clear();Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});HTMLDialogElement.prototype.showModal=function(){this.open=true;};HTMLDialogElement.prototype.close=function(){this.open=false;};vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],evidence:[],evidenceSupported:true,unavailable:{tmdb:null,omdb:null,mdblist:null},next:null});container=document.createElement('div');document.body.appendChild(container);root=createRoot(container);});
+beforeEach(()=>{vi.resetAllMocks();localStorage.clear();Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});HTMLDialogElement.prototype.showModal=function(){this.open=true;};HTMLDialogElement.prototype.close=function(){this.open=false;};vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],evidence:[],evidenceSupported:true,fieldsSupported:true,fields:[],unavailable:{tmdb:null,omdb:null,mdblist:null},next:null});container=document.createElement('div');document.body.appendChild(container);root=createRoot(container);});
 afterEach(async()=>{await act(async()=>root.unmount());container.remove();vi.useRealTimers();});
 it.each(['TMDB','MDBList'])('%s actions hold the whole lock and Stop saves only accepted work',async label=>{
  let resolve!:(value:MaintenanceBatchResult)=>void;vi.mocked(api.maintenanceProvider).mockImplementation(()=>new Promise(done=>{resolve=done;}));await render();
@@ -42,7 +42,7 @@ it('disables zero-work actions and fails clearly against an older Worker',async(
 });
 it('blocks aggregate execution when collections/awards schema support is unavailable',async()=>{
  vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],evidence:[],evidenceSupported:false,unavailable:{tmdb:null,omdb:null,mdblist:null},next:null});
- await render();expect(container.textContent).toContain('Install migration 0021');expect(button('Refresh all data').disabled).toBe(true);expect(api.maintenanceProvider).not.toHaveBeenCalled();
+ await render();expect(container.textContent).toContain('Install migration 0023');expect(button('Refresh all data').disabled).toBe(true);expect(api.maintenanceProvider).not.toHaveBeenCalled();
 });
 it('refreshes catalogue-derived TMDB availability/classification when only the cache changed',async()=>{
  vi.mocked(api.maintenanceProvider).mockImplementation(async(_intent,units)=>({results:units.map(u=>({movieId:u.movieId,provider:u.provider,status:'updated',message:'Saved'})),canonicalChanged:false,cacheChanged:true,stopped:true}));

@@ -46,7 +46,7 @@ it('renders both Admin maintenance groups in sentence case without changing prov
     'Swap current turn','Populate missing data','Populate missing scores','Populate missing OMDb metadata','Populate missing TMDB metadata and artwork','Populate missing TMDB enrichment','Populate missing MDBList enrichment','Populate missing TMDB collections','Populate missing OMDb awards',
     'Refresh all data','Refresh scores','Refresh OMDb metadata','Refresh TMDB metadata and artwork','Refresh TMDB enrichment','Refresh MDBList enrichment','Refresh TMDB collections','Refresh OMDb awards','Populate missing collection rosters','Refresh collection rosters',
   ]);
-  expect([...harness.container.querySelectorAll('.utility-disclosure summary')].map(node => node.textContent)).toEqual(Array(16).fill('Data collected and safeguards'));
+  expect([...harness.container.querySelectorAll('.utility-disclosure summary')].map(node => node.textContent)).toEqual(Array(18).fill('Data collected and safeguards'));
 });
 
 it('renders both composite categories/directions, all Metrics tabs and Cabinet roles without recasing canonical identities',async () => {

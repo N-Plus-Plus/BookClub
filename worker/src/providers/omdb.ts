@@ -51,7 +51,10 @@ export class OmdbProvider {
     }).map(f=>f.id):[];
     if (!(data && typeof data === 'object' && 'imdbID' in data && data.imdbID === id)) metadata.title=null;
     const raw=data as Record<string,unknown>;
-    const scoreCheckedKeys=[...(Object.hasOwn(raw,'imdbRating')?['imdb:rating']:[]),...(Object.hasOwn(raw,'Metascore')?['metacritic:critic']:[]),...(Array.isArray(raw.Ratings)?['rottentomatoes:critic']:[])];
+    const validScore=(value:unknown,provider:string,metric:string,scale:number)=>value===null || value==='N/A' || value==='' || Boolean(record(provider,metric,value,scale,'omdb',''));
+    const ratings=Array.isArray(raw.Ratings)?raw.Ratings as {Source?:unknown;Value?:unknown}[]:undefined;
+    const critic=ratings?.find(r=>r?.Source==='Rotten Tomatoes');
+    const scoreCheckedKeys=[...(Object.hasOwn(raw,'imdbRating')&&validScore(raw.imdbRating,'imdb','rating',10)?['imdb:rating']:[]),...(Object.hasOwn(raw,'Metascore')&&validScore(raw.Metascore,'metacritic','critic',100)?['metacritic:critic']:[]),...(ratings && ratings.every(r=>r&&typeof r==='object'&&typeof r.Source==='string'&&typeof r.Value==='string') && (!critic || critic.Value==='N/A' || typeof critic.Value==='string'&&/^\d+(\.\d+)?%$/.test(critic.Value)&&validScore(critic.Value.slice(0,-1),'rottentomatoes','critic',100))?['rottentomatoes:critic']:[])];
     return {scores:parseOmdb(data),scoreCheckedKeys,metadata,awards:data && typeof data==='object' && 'imdbID' in data && data.imdbID===id ? parseAwards('Awards' in data ? data.Awards : undefined,id,new Date().toISOString()) : undefined};
   }
   async scores(id: string) { return (await this.details(id)).scores; }

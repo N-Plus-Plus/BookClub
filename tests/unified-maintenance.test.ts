@@ -46,7 +46,7 @@ it('coordinates 36 refresh films with reproducible request savings and preserves
   expect(counters).toEqual({mdblist:4,omdb:36,tmdb:36});
   const naive=36+36+36+36+36+4+4;expect(naive).toBe(188);expect(Object.values(counters).reduce((a,b)=>a+b,0)).toBe(76);
   for(const c of plan.calls) {expect(counters[c.provider]).toBeGreaterThanOrEqual(c.min);expect(counters[c.provider]).toBeLessThanOrEqual(c.max);}
-  expect((await repo.movieDetails(['film-001']))[0].scores.length).toBe(6);
+  const observations=(await repo.movieDetails(['film-001']))[0].scores;expect(observations).toHaveLength(9);expect(new Set(observations.map(s=>s.provider+':'+s.metric)).size).toBe(6);
 });
 it('successful empty provider checks are durable and a repeated Populate makes zero requests',async()=>{
   const {repo,service,local}=fixture();upstream(true);
@@ -122,12 +122,12 @@ it('Refresh records fresh confirmed absence while retaining older usable score o
   expect(local.sqlite.prepare('SELECT raw_value,fetched_at FROM source_scores').get()).toEqual({raw_value:8,fetched_at:'2000-01-01T00:00:00.000Z'});
 });
 it('recognises stored TMDB artwork as positive evidence when an older artwork marker is absent',async()=>{
-  const {repo,service}=fixture();
-  const catalog=await repo.catalog(),movie=catalog.movies[0];
-  Object.assign(movie,{original_title:'Original',release_date:'2000-01-01',runtime:100,director:'Director',overview:'Overview',genres:['Drama'],tmdb_metadata_checked_at:'2000-01-01',tmdb_artwork_checked_at:null,assets:['poster','backdrop'].map(asset_type=>({provider:'tmdb',asset_type,reference:'/stored',preferred:1,width:null,height:null}))});
-  const coverage=await service.status(null);
-  expect(planMaintenance(catalog,coverage,'populate',['tmdb-metadata']).units).toHaveLength(0);
-  movie.assets.pop();expect(planMaintenance(catalog,coverage,'populate',['tmdb-metadata']).units).toHaveLength(1);
+  const {repo,service,local}=fixture();
+  local.sqlite.exec("UPDATE movies SET original_title='Original',release_date='2000-01-01',runtime=100,director='Director',overview='Overview',tmdb_metadata_checked_at='2000-01-01';INSERT INTO movie_genres VALUES('film-001','Drama');INSERT INTO movie_provider_metadata(movie_id,provider,title,fetched_at) VALUES('film-001','tmdb','Provider title','2000-01-01')");
+  for(const type of ['poster','backdrop'])local.sqlite.prepare("INSERT INTO movie_assets(id,movie_id,provider,asset_type,reference,preferred,fetched_at) VALUES(?,'film-001','tmdb',?,'/stored',1,'2000-01-01')").run(type,type);
+  expect(planMaintenance(await repo.catalog(),await service.status(null),'populate',['tmdb-metadata']).units).toHaveLength(0);
+  local.sqlite.exec("DELETE FROM movie_assets WHERE asset_type='backdrop'");
+  expect(planMaintenance(await repo.catalog(),await service.status(null),'populate',['tmdb-metadata']).units).toHaveLength(1);
 });
 
 it.each([
