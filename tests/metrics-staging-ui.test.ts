@@ -12,8 +12,8 @@ import { metricsEnrichmentFixture } from './metrics-enrichment-fixture';
 vi.mock('../frontend/api',()=>({api:{metricsEnrichment:vi.fn()}}));
 Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
 afterEach(()=>{vi.resetAllMocks();vi.restoreAllMocks();});
-const headings=['Cycle scorecards','Release-year spread','Runtime spread','Critics or audiences?','Genre taste overlap','First shared theme','Shared stars','Creative partnerships','Highest-grossing film by genre','Expensive flops','Classification versus acclaim','Streaming platform representation','Top 5 hidden gems','Top 5 most cult','Franchise / collection spotlight','Awards and nominations'];
-it('renders all 16 independent Staging reports and moves genre combinations into Top 5, all five tabs and every Records addition without additional reads',async()=>{
+const headings=['Cycle scorecards','Release-year spread','Runtime spread','Critics or audiences?','Genre taste overlap','First shared theme','Shared stars','Creative partnerships','Highest-grossing film by genre','Expensive flops','Classification versus acclaim','Streaming platform representation','Franchise / collection completed','Unrequited collections','Awards and nominations'];
+it('renders all 15 independent Staging reports and moves genre combinations into Top 5, all five tabs and every Records addition without additional reads',async()=>{
   const combinations=vi.spyOn(overlapCalculations,'genreCombinations');
   const catalog=metricsFixture(),data=metricsEnrichmentFixture();
   catalog.movies[0].scores=[observation('metacritic','critic',60,100),observation('imdb','rating',8,10,250)];
@@ -31,8 +31,8 @@ it('renders all 16 independent Staging reports and moves genre combinations into
     // Resolve the actual dynamic import without a timing-based sleep.
     await act(async()=>{await import('../frontend/metrics/Staging');});
     expect([...container.querySelectorAll('.staging-report > h2')].map(h=>h.textContent)).toEqual(headings);
-    expect(container.textContent).toContain('Fictional collection');expect(container.textContent).toContain('0 wins & 3 nominations.');expect(container.textContent).toContain('Fictional service');
-    expect(container.querySelector('[aria-label="Top 5 most cult"] a')).not.toBeNull();expect(container.querySelector('[aria-label="Top 5 hidden gems"] a')).not.toBeNull();expect(container.querySelector('[role="table"][aria-label="Reliably quantified OMDb awards"]')).not.toBeNull();
+    expect(container.textContent).toContain('0 wins & 3 nominations.');expect(container.textContent).toContain('Fictional service');
+    expect(container.querySelector('[aria-label="Top 5 most cult"]')).toBeNull();expect(container.querySelector('[aria-label="Top 5 hidden gems"]')).toBeNull();expect(container.querySelector('[role="table"][aria-label="Reliably quantified OMDb awards"]')).not.toBeNull();
     expect(container.querySelectorAll('.staging-matrix tbody tr')).toHaveLength(10);expect(container.querySelectorAll('.staging-matrix td[aria-label]')).toHaveLength(50);
     expect(container.querySelectorAll('.staging-matrix td[title]')).toHaveLength(50);
     const originalAxes=[...container.querySelectorAll('[aria-label^="Shared"]')].map(n=>n.getAttribute('aria-label'));
@@ -57,7 +57,7 @@ it('keeps every complete historical cycle in a named keyboard-scrollable region 
     await act(async()=>root.render(createElement(Staging,{catalog,all,rows:all,filter:{kind:'all'},data:{movies:{}}})));
     const cycles=container.querySelector('.staging-cycles')!;expect(cycles.getAttribute('tabindex')).toBe('0');expect(cycles.getAttribute('role')).toBe('region');expect(cycles.children).toHaveLength(8);expect(cycles.firstElementChild?.querySelector('h3')?.textContent).toBe('8');expect(cycles.lastElementChild?.querySelector('h3')?.textContent).toBe('1');
     expect(container.querySelector('[aria-label="Awards and nominations"]')?.textContent).toContain('0 of 1 distinct films checked');
-    expect(container.querySelector('[aria-label="Franchise / collection spotlight"]')?.textContent).toContain('1 unknown');
+    expect(container.querySelector('[aria-label="Franchise / collection completed"]')?.textContent).toContain('No qualifying evidence');
     expect(container.querySelector('[aria-label="Shared stars"]')?.textContent).toContain('No qualifying evidence');expect(container.querySelector('[aria-label="Streaming platform representation"]')?.textContent).toContain('cached Australian availability');
     expect(container.textContent).not.toMatch(/NaN|Infinity|undefined/);
   } finally {await act(async()=>root.unmount());}
@@ -74,7 +74,7 @@ it('keeps concise labels, rounded years/runtimes, touching bar order and all-hum
     const runtime=container.querySelector('[aria-label="Runtime spread"]')!;expect(runtime.textContent).toContain('Mean 2 hrs, 6 mins');expect(runtime.textContent).toContain('Shortest: 2 hrs, 6 mins · Longest: 2 hrs, 6 mins');expect(runtime.textContent).not.toMatch(/known|125\.836/);
     const leaning=container.querySelector('[aria-label="Critics or audiences?"]')!;expect(leaning.textContent).toMatch(/\d critic \/ \d audience \/ \d neutral · [\d.]+% (critic|audience|neutral) leaning/);expect(leaning.textContent).not.toMatch(/\([\d.% /]+\)/);
     const paired=container.querySelector('.staging-paired')!;expect([...paired.children].map(n=>n.className)).toEqual(['meta','staging-score-track','staging-score-track','meta']);expect(paired.lastElementChild?.textContent).toContain('Audience:');expect(paired.textContent).not.toContain('scored appearances');
-    expect([...container.querySelectorAll('.staging-stars-table thead th')].map(n=>n.textContent)).toEqual(['Actor','Sean','Troy','Matt','Jess']);
+    expect([...container.querySelectorAll('.staging-stars-table thead th')].map(n=>n.textContent)).toEqual(['Actor','Sean','Troy','Matt','Jess','Total']);
     expect(container.querySelector('.staging-revenue-table .meta')?.textContent).toMatch(/^\$[\d,]+ USD$/);
     expect(container.querySelector('.staging-flop-content')?.children).toHaveLength(4);
     for(const report of container.querySelectorAll('.staging-discoveries > li')){expect(report.querySelector('.staging-discovery-rank')?.textContent).toMatch(/^#\d/);expect(report.querySelector('.poster')).not.toBeNull();expect(report.querySelector('.staging-discovery-index')).not.toBeNull();}

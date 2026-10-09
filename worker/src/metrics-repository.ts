@@ -1,6 +1,7 @@
 import { emptyEnrichmentMovie, type MetricsEnrichment } from '../../shared/metrics-enrichment/facts';
 import { ApiError } from './http';
 import { ProviderEvidenceRepository } from './provider-evidence-repository';
+import { CollectionRosterRepository } from './collection-roster-repository';
 
 /** Fixed set-based projections with additive evidence capability detection; no HTTP or writes. */
 export class MetricsRepository {
@@ -46,6 +47,10 @@ export class MetricsRepository {
       for(const {movie_id,...fact} of rows[0].results) initialise(String(movie_id)).collection={...fact,status:fact.collection_id===null?'checked_none':'checked_present'} as NonNullable<typeof payload.movies[string]['collection']>;
       for(const {movie_id,...fact} of rows[1].results) initialise(String(movie_id)).awards={...fact,status:fact.awards_text===null?'checked_unavailable':fact.wins===null && fact.nominations===null?'checked_unquantified':'checked_quantified'} as NonNullable<typeof payload.movies[string]['awards']>;
       for(const id of Object.keys(payload.movies)) initialise(id);
+    }
+    const rosters=new CollectionRosterRepository(this.db);
+    if(await rosters.supported()) {
+      payload.collections=Object.fromEntries((await rosters.eligible()).map(c=>[c.id,c.evidence]));
     }
     return payload;
   }

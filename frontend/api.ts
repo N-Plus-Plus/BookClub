@@ -46,6 +46,8 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
   return payload.data as T;
 }
 export const api = {
+  collectionRosterStatus:()=>request<import('../shared/collection-roster').CollectionRosterStatus>('/collections/maintenance'),
+  maintainCollectionRosters:(intent:'populate'|'refresh',ids:number[],startedAt:string)=>request<import('../shared/collection-roster').CollectionRosterBatch>('/collections/maintenance','POST',{intent,ids,startedAt}),
   maintenanceCoverage: (after:string | null=null) => request<import('../shared/maintenance-plan').MaintenanceCoverage & {next:string | null}>(`/movies/maintenance-coverage${after ? '?after='+encodeURIComponent(after) : ''}`),
   maintenanceProvider: (intent:import('../shared/maintenance-plan').MaintenanceIntent,units:import('../shared/maintenance-plan').MaintenanceUnit[],startedAt:string) => request<import('../shared/maintenance-plan').MaintenanceBatchResult>('/movies/maintenance-provider','POST',{intent,units,startedAt}),
   metricsEnrichment: () => request<import('../shared/metrics-enrichment').MetricsEnrichment>('/metrics/enrichment'),

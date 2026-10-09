@@ -1,4 +1,5 @@
 import { genreCombinations } from '../../shared/metrics-staging/overlap';
+import { DiscoveryRankings } from './Discoveries';
 import { formatCount } from '../../shared/format';
 import type { Appearance, MetricsScoreCategory, PopularityMeasure, RankedAppearance, PopularAppearance } from '../../shared/metrics';
 import { catalogIndex } from '../../shared/catalog-index';
@@ -74,6 +75,7 @@ export function TopFiveEnrichment({rows,all,data,isAll,cached,talentReport,role,
   const combinations=cached('genreCombinations',()=>genreCombinations(rows));
   return <>
     <section className="stack metrics-genre-combinations" aria-label="Top 5 genre combinations" data-metric="genre-combinations"><h3>Top 5 genre combinations</h3><p className="meta">Unique genre subsets of two or more genres.</p><ol className="staging-ranking"><MetricsResults label="Genre combinations" list items={combinations} render={v=><li key={v.label}><span>{v.label}</span><strong>{formatCount(v.count)} films</strong></li>}/></ol>{!combinations.length&&<p className="meta">No qualifying evidence for this selection.</p>}</section>
+    <DiscoveryRankings rows={rows}/>
     <section className="stack metrics-talent" data-metric="G"><h3>Top 5 talent</h3><label className="input-label">Role<select className="field__input" value={role} onChange={e => setRole(e.target.value as TalentRole)}>{talentRoles.map(r => <option key={r}>{r}</option>)}</select></label><p className="meta">Share of appearances with {role.toLowerCase()} credit.</p><FrequencyRows report={talentReport} label="Talent" compare={!isAll} /></section>
     <section className="stack metrics-companies" data-metric="J"><h3>Top 5 studios</h3><FrequencyRows report={studios} label="Studios" /></section>
     <RevenueRatios report={cached('revenueRatios',()=>revenueRatioRankings(rows,data))} />

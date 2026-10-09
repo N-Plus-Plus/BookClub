@@ -50,22 +50,29 @@
 }
 .staging-axis > span { min-width: 0; overflow-wrap: anywhere; }
 .staging-axis > span:last-child { text-align: right; }
-.staging-leaning-axis { position: relative; }
-.staging-leaning-axis > span:nth-child(2) { position: absolute; left: 50%; transform: translateX(-50%); }
-.staging-classification { display: grid; grid-template-columns: 5rem minmax(0,1fr); gap: var(--space-12); align-items: center; }
+.staging-classification { display: grid; grid-template-columns: 9rem minmax(0,1fr); gap: var(--space-12); align-items: center; }
 .staging-table-scroll { max-width: 100%; overflow-x: auto; }
 .staging-stars-table,.staging-revenue-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.staging-stars-table { min-width: 400px; font-size: var(--text-metadata); }
+.staging-stars-table { min-width: 480px; font-size: var(--text-metadata); }
 .staging-stars-table th,.staging-stars-table td,.staging-revenue-table th,.staging-revenue-table td { padding: var(--space-12) var(--space-8); border-bottom: 1px solid var(--asphalt); overflow-wrap: anywhere; vertical-align: top; }
 .staging-stars-table th:first-child { width: 40%; text-align: left; }
 .staging-stars-table th:not(:first-child),.staging-stars-table td { text-align: right; font-variant-numeric: tabular-nums; }
 .staging-stars-table tbody th { font-weight: 400; }
 .staging-stars-table .metrics-table-pages td { text-align: left; }
-.staging-revenue-table th { width: 25%; text-align: left; font-size: var(--text-metadata); }
+.staging-revenue-table th { width: 25%; text-align: left; font-size: var(--text-body); font-weight: 600; }
+.staging-gross-film .movie-title { font-size: var(--text-body); font-weight: 600; }
 .staging-revenue-table td { text-align: left; }
 .staging-gross-film + .staging-gross-film { margin-top: var(--space-16); }
 .staging-gross-film .meta { margin: var(--space-4) 0 0; }
-.staging-partnership-films { list-style: none; padding-left: var(--space-16); margin: var(--space-8) 0 0; display: grid; gap: var(--space-8); }
+.metrics-metadata-films { list-style: none; padding-left: var(--space-16); margin: 0; display: grid; gap: 0; font-size: var(--text-metadata); font-weight: 400; line-height: var(--leading-prose); color: var(--text-muted); }
+.metrics-metadata-films > li { margin: 0; padding: 0; }
+.metrics-metadata-films .movie-link { min-height: 0; color: inherit; }
+.staging-missing-films { padding-left: var(--space-16); display: grid; gap: 0; }
+.staging-classification h3 { white-space: nowrap; font-size: var(--text-body); }
+@container member-content (max-width: 500px) {
+  .staging-classification { grid-template-columns: 7rem minmax(0,1fr); gap: var(--space-8); }
+  .staging-classification h3 { font-size: var(--text-metadata); }
+}
 .staging-flop { display: grid; grid-template-columns: 5rem minmax(0,1fr); gap: var(--space-12); align-items: start; }
 .staging-flop > .club-identity { flex-direction: column; }
 .staging-flop-content { min-width: 0; display: grid; gap: var(--space-4); }

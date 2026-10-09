@@ -246,6 +246,8 @@ Migration `0021_collections_awards.sql` adds two successful-evidence tables and 
 
 ## Applying production migrations
 
+Migration `0022_collection_rosters.sql` is additive and compatible with the prior Worker. After clean preflight and the committed/pushed source check, inspect the ledger, create a fresh verified production export, apply 0022 schema first, verify schema, deploy and smoke the API, then explicitly publish the frontend last. Older schemas omit roster projection while ordinary film maintenance remains usable; dedicated collection maintenance fails before provider calls until 0022 exists. Do not run Populate, Refresh or roster backfill during release. The empty cache is healthy: Metrics reports pending membership evidence until an administrator explicitly selects Populate missing collection rosters.
+
 After the fresh backup and compatibility gate are complete, apply the tracked pending migrations to the exact production database:
 
 `corepack pnpm exec wrangler d1 migrations apply bookclub-prod --config worker/wrangler.jsonc --remote`

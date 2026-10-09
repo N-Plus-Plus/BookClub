@@ -42,11 +42,11 @@ export function MovieLink({movie,children,className = ''}: {movie: Movie; childr
   return <a className={`movie-link ${className}`} href={`#/movie/${movie.id}`} aria-label={movie.title}>{children ?? <span className="movie-title">{movie.title}</span>}</a>;
 }
 type CompactFilm = Pick<Movie,'title'|'year'> & Partial<Pick<Movie,'runtime'|'au_classification'|'director'>>;
-export function FilmInformation({movie,children,titleBadge,titleHeading = false,directorClassName = ''}: {movie: CompactFilm;children?: ReactNode;titleBadge?: ReactNode;titleHeading?: boolean;directorClassName?: string}) {
+export function FilmInformation({movie,children,beforeMetadata,titleBadge,titleHeading = false,directorClassName = ''}: {movie: CompactFilm;children?: ReactNode;beforeMetadata?:ReactNode;titleBadge?: ReactNode;titleHeading?: boolean;directorClassName?: string}) {
   const director = movie.director?.trim();
   const Title = titleHeading ? 'h3' : 'span';
   return <div className="movie-copy">{titleBadge ? <div className="film-title-line"><Title className="movie-title">{movie.title}</Title>{titleBadge}</div> : <Title className="movie-title">{movie.title}</Title>}
-    <p className="meta">{movie.year ?? 'Year unknown'}{movie.runtime ? ` · ${movie.runtime} min` : ''}{movie.au_classification ? ` · ${movie.au_classification}` : ''}</p>
+    {beforeMetadata}<p className="meta">{movie.year ?? 'Year unknown'}{movie.runtime ? ` · ${movie.runtime} min` : ''}{movie.au_classification ? ` · ${movie.au_classification}` : ''}</p>
     {director && director.toLowerCase() !== 'unknown' && <p className={`meta film-director ${directorClassName}`.trim()}>{movie.director}</p>}{children}</div>;
 }
 export function MovieRow({movie,children,variant}: {movie: Movie; children?: ReactNode;variant?: 'candidate'}) {

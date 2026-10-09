@@ -6,7 +6,7 @@ import worker from '../worker/src/index';
 import type { Env } from '../worker/src/http';
 
 describe('read-only lazy Metrics projection',() => {
-  it('uses ten scoped set queries plus one schema check for active History, omitting candidate-only/deleted films and unrelated facts without HTTP/writes',async() => {
+  it('uses eleven scoped set queries plus two schema checks for active History, omitting candidate-only/deleted films and unrelated facts without HTTP/writes',async() => {
     const local = disposableD1();
     const fetch = vi.fn(() => {throw new Error('Provider/network access forbidden');});vi.stubGlobal('fetch',fetch);
     try {
@@ -30,14 +30,14 @@ describe('read-only lazy Metrics projection',() => {
       const queries:string[] = [],original = local.db.prepare.bind(local.db),batch = vi.spyOn(local.db,'batch');
       vi.spyOn(local.db,'prepare').mockImplementation(sql => {queries.push(sql);if (!/^SELECT /i.test(sql)) throw new Error('Mutation forbidden');return original(sql);});
       const payload = await new MetricsRepository(local.db).enrichment();
-      expect(queries).toHaveLength(11);expect(batch).toHaveBeenCalledTimes(2);expect(queries.filter(sql=>!sql.includes('sqlite_master')).every(sql => sql.includes('s.deleted_at IS NULL') && sql.includes('SELECT sm.movie_id'))).toBe(true);
+      expect(queries).toHaveLength(13);expect(batch).toHaveBeenCalledTimes(2);expect(queries.filter(sql=>!sql.includes('sqlite_master')).every(sql => sql.includes('s.deleted_at IS NULL') && (sql.includes('SELECT sm.movie_id') || sql.includes('HAVING COUNT(DISTINCT e.movie_id)>=2')))).toBe(true);
       expect(Object.keys(payload.movies)).toEqual([active]);expect(payload.movies[active]).toMatchObject({metadata:{original_language:'ja',budget:10,revenue:30},keywords:[{provider:'mdblist',name:'MDB keyword'}],countries:[{code:'JP',name:'Japan'}],contentRatings:[{certification:'M',release_type:3}]});
       expect(payload.movies[active].credits.map(c => c.role).sort()).toEqual(['director','screenplay','writer']);
       expect(JSON.stringify(payload)).not.toMatch(/Provider title|Private irrelevant text|popularity|fetched_at|item_key|watch_offers|identity_claims/);
       expect(local.sqlite.prepare('SELECT total_changes() n').get()!.n).toBe(before);expect(fetch).not.toHaveBeenCalled();
       // Repeat History and many canonical films never change query count.
       queries.length = 0;
-      await new MetricsRepository(local.db).enrichment();expect(queries).toHaveLength(11);
+      await new MetricsRepository(local.db).enrichment();expect(queries).toHaveLength(13);
     } finally {local.sqlite.close();vi.unstubAllGlobals();vi.restoreAllMocks();}
   });
   it('authenticated route needs no provider credentials, returns partial cache and leaves catalog transports unchanged',async() => {
@@ -46,7 +46,7 @@ describe('read-only lazy Metrics projection',() => {
       local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));
       const env:Env = {DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:4173'};
       const response = await worker.fetch(new Request('http://api/api/v1/metrics/enrichment'),env);
-      expect(response.status).toBe(200);expect(await response.json()).toEqual({data:{movies:{}}});
+      expect(response.status).toBe(200);expect(await response.json()).toEqual({data:{movies:{},collections:{}}});
       expect(response.headers.get('Cache-Control')).toBe('no-store');
       for (const path of ['/catalog','/catalog/compact']) {
         const json = await (await worker.fetch(new Request(`http://api/api/v1${path}`),env)).text();expect(json).not.toMatch(/contentRatings|keywords|original_language|companies/);

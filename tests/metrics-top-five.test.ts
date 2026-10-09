@@ -69,13 +69,13 @@ it('financial ranks use actual ratios for ties and exclude overflow/underflow fr
  data.movies['1'].metadata={original_language:null,budget:Number.MAX_VALUE,revenue:Number.MIN_VALUE};
  expect(revenueRatioRankings(rows,data).covered).toBe(5);
 });
-it('owns the exact eleven reports, keeps selectors and roles local, and removes moved reports from their old categories',async()=>{
+it('owns the exact thirteen reports, keeps selectors and roles local, and removes moved reports from their old categories',async()=>{
  vi.mocked(api.metricsEnrichment).mockResolvedValue(metricsEnrichmentFixture());
  const container=document.createElement('div'),root=createRoot(container);
  try {
   await act(async()=>root.render(createElement(MetricsScreen,{catalog:metricsFixture(),viewer:null,onUpdated:async()=>{}})));
   const titles=()=>[...container.querySelectorAll('.metrics-panel h2,.metrics-panel h3')].map(e=>e.textContent);
-  const expected=['Top 5 highest critic scores','Top 5 lowest critic scores','Top 5 most popular · IMDb','Top 5 most obscure · IMDb','Top 5 genre combinations','Top 5 talent','Top 5 studios','Top 5 highest revenue / budget ratio','Top 5 lowest revenue / budget ratio','Top 5 production countries','Top 5 non-English original languages'];
+  const expected=['Top 5 highest critic scores','Top 5 lowest critic scores','Top 5 most popular · IMDb','Top 5 most obscure · IMDb','Top 5 genre combinations','Top 5 hidden gems','Top 5 most cult','Top 5 talent','Top 5 studios','Top 5 highest revenue / budget ratio','Top 5 lowest revenue / budget ratio','Top 5 production countries','Top 5 non-English original languages'];
   expect(container.querySelector('[role=tab][aria-selected=true]')?.textContent).toBe('Top 5');expect(titles()).toEqual(expected);
   expect(container.querySelector('.metrics-directors')).toBeNull();
   for(const selector of ['.metrics-talent','.metrics-companies','.metrics-revenue-ratios','.metrics-countries'])expect(container.querySelectorAll(selector)).toHaveLength(1);
@@ -91,7 +91,7 @@ it('owns the exact eleven reports, keeps selectors and roles local, and removes 
   await tab('Tastes');expect(titles()).toEqual(['Genre fingerprint','Theme fingerprint','Production countries','Original languages','Directors','Recurring cast']);expect(container.querySelector('.metrics-talent,.metrics-companies')).toBeNull();
   await tab('Breakdowns');expect(container.querySelector('.metrics-revenue-ratios')).toBeNull();
   await tab('Top 5');expect((container.querySelector('.metrics-talent select') as unknown as HTMLSelectElement)?.value).toBe('Producer');
-  for(const index of [1,5]){await act(async()=>container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[index].click());expect(container.querySelector('[role=tab][aria-selected=true]')?.textContent).toBe('Top 5');expect(titles()).toHaveLength(11);
+  for(const index of [1,5]){await act(async()=>container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[index].click());expect(container.querySelector('[role=tab][aria-selected=true]')?.textContent).toBe('Top 5');expect(titles()).toHaveLength(13);
    const studioRows=[...container.querySelectorAll('.metrics-companies .metrics-frequency-row')];expect(studioRows).toHaveLength(2);
    for(const row of studioRows)expect(row.textContent).toContain(index===1?'2 appearances · 66.7%':'1 appearances · 50.0%');
    for(const row of container.querySelectorAll('.metrics-countries .metrics-frequency-row'))expect(row.textContent).toContain('1 films · 50.0%');

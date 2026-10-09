@@ -5,6 +5,7 @@ import { compositeScore, audienceVotes, uniqueAppearances, withCutoffTies, type 
 import { normalizedGenres } from '../genres';
 import { contributorScopes, filterContributorScopes, metricsTalentReader, australianClassification, classificationCategories, emptyEnrichmentMovie, type MetricsEnrichment } from '../metrics-enrichment';
 import { positive, paired, scoreMeans } from './numerical';
+import { parseCollectionRoster } from '../collection-roster';
 
 const filmOrder=(a:Appearance,b:Appearance)=>order(a.movie.title,b.movie.title)||order(a.movie.id,b.movie.id);
 export function sharedStars(catalog:Catalog,all:Appearance[],data:MetricsEnrichment) {
@@ -106,6 +107,32 @@ export function collectionSpotlight(rows:Appearance[],data:MetricsEnrichment) {
   }
   const values=[...collections.values()].sort((a,b)=>b.films.length-a.films.length||order(a.name,b.name)||a.id-b.id),members=values.reduce((n,c)=>n+c.films.length,0);
   return {total:films.length,checked,standalone,members,percentage:checked?members/checked*100:null,values};
+}
+/** Completion always compares cached TMDB parts with the entire active club History. */
+export function collectionCompletion(all:Appearance[],data:MetricsEnrichment) {
+  const history=uniqueAppearances(all),tmdbId=(row:Appearance)=>{
+    const id=row.movie.external_ids.find(id=>id.provider==='tmdb')?.external_id;
+    return id && /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id))?Number(id):null;
+  };
+  const groups=collectionSpotlight(history.filter(row=>data.movies[row.movie.id]?.collection?.external_id===String(tmdbId(row))),data).values.filter(group=>group.films.length>=2);
+  let pending=0;
+  const values=groups.flatMap(group=>{
+    const evidence=data.collections?.[group.id],cached=evidence?.status==='checked'?evidence.roster:null;
+    const roster=cached?parseCollectionRoster(cached,group.id,cached.checked_at):null;
+    if(!roster || !group.films.every(row=>roster.parts.some(part=>part.id===tmdbId(row)))){pending++;return [];}
+    const members=new Map(roster.parts.map(part=>[part.id,part]));
+    const films=history.filter(row=>members.has(tmdbId(row) ?? -1));
+    const selected=new Set(films.map(tmdbId));
+    const partOrder=(a:typeof roster.parts[number],b:typeof roster.parts[number])=>{
+      return a.release_date && b.release_date ? order(a.release_date,b.release_date)||order(a.title ?? '',b.title ?? '')||a.id-b.id : order(a.title ?? '',b.title ?? '')||a.id-b.id;
+    };
+    // Dated films first, then undated titles: a transitive, stable ordering.
+    const stable=(a:typeof roster.parts[number],b:typeof roster.parts[number])=>Number(!a.release_date)-Number(!b.release_date)||partOrder(a,b);
+    films.sort((a,b)=>stable(members.get(tmdbId(a)!)!,members.get(tmdbId(b)!)!));
+    const missing=roster.parts.filter(part=>!selected.has(part.id)).sort(stable);
+    return [{id:group.id,name:roster.name,films,total:roster.parts.length,missing,checked_at:roster.checked_at}];
+  }).sort((a,b)=>b.films.length-a.films.length||order(a.name,b.name)||a.id-b.id);
+  return {completed:values.filter(group=>!group.missing.length),unrequited:values.filter(group=>group.missing.length),pending};
 }
 export function awardsReport(rows:Appearance[],data:MetricsEnrichment) {
   const films=uniqueAppearances(rows);let checked=0,unquantified=0,unavailable=0;

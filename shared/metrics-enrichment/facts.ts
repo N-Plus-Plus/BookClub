@@ -13,7 +13,7 @@ export interface MetricsEnrichmentMovie {
   contentRatings: { certification: string; release_type: number | null }[];
   keywords: { provider: string; name: string }[];
 }
-export interface MetricsEnrichment { movies: Record<string, MetricsEnrichmentMovie> }
+export interface MetricsEnrichment { movies: Record<string, MetricsEnrichmentMovie>; collections?:Record<string,import('../collection-roster').CollectionRosterEvidence> }
 export const emptyEnrichmentMovie = (): MetricsEnrichmentMovie => ({metadata:null,countries:[],languages:[],companies:[],credits:[],contentRatings:[],keywords:[]});
 export const talentRoles = ['Cast','Director','Writer','Cinematographer','Composer','Editor','Producer'] as const;
 export type TalentRole = typeof talentRoles[number];
@@ -59,7 +59,7 @@ type FrequencyReport={covered:number;values:(Fact & {count:number})[]};
 const cachedFrequencies = new WeakMap<FactReader,WeakMap<Appearance[],FrequencyReport>>();
 export function prepareMetricsEnrichment(source: MetricsEnrichment): MetricsEnrichment {
   const old=projections.get(source);if(old)return old;
-  const data={movies:source.movies};prepared.set(data,new Map());projections.set(source,data);return data;
+  const data={...source};prepared.set(data,new Map());projections.set(source,data);return data;
 }
 function readerFor(data:MetricsEnrichment,key:string,read:(row:Appearance)=>Fact[]):FactReader {
   const readers=prepared.get(data);if(!readers)return read;

@@ -23,10 +23,10 @@ describe('Admin screen and Account navigation',() => {
     expect(button('Populate missing scores')).toBeUndefined();
     expect(harness.container.textContent).not.toContain('Scores and OMDb metadata');
   });
-  it('renders sixteen maintenance operations and Swap Turn only on Admin and keeps them out of navigation and member screens',async()=>{
+  it('renders eighteen maintenance operations and Swap Turn only on Admin and keeps them out of navigation and member screens',async()=>{
     await asAdmin(); await navigate('admin');
     expect(harness.container.querySelector('h1')?.textContent).toBe('Admin');
-    expect(harness.container.querySelectorAll('main section.card h2,main section.card h3')).toHaveLength(17);
+    expect(harness.container.querySelectorAll('main section.card h2,main section.card h3')).toHaveLength(19);
     for(const label of ['Populate missing scores','Refresh scores','Refresh OMDb metadata','Populate missing TMDB metadata and artwork']) expect(button(label)).toBeTruthy();
     expect(harness.container.textContent).toContain('Refresh OMDb metadata');
     expect(harness.container.textContent).toContain('Populate missing TMDB metadata and artwork');

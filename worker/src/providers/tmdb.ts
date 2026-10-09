@@ -1,4 +1,4 @@
-import type { MovieArtworkProvider, MovieMetadataProvider, MovieScoreProvider, MovieSearchProvider, ProviderMovie } from './types';
+import type { CollectionMembershipProvider, MovieArtworkProvider, MovieMetadataProvider, MovieScoreProvider, MovieSearchProvider, ProviderMovie } from './types';
 import type { SearchResult, TmdbPreview } from '../../../shared/types';
 import { ApiError } from '../http';
 import { record } from './ratings';
@@ -6,6 +6,7 @@ import { providerJson } from './http';
 import { parseTmdbEnrichment } from './enrichment';
 import { parseCollection } from '../../../shared/provider-evidence';
 import { usableTitle } from '../../../shared/titles';
+import { parseCollectionRoster } from '../../../shared/collection-roster';
 
 interface TmdbFilm {
   belongs_to_collection?: unknown;
@@ -18,7 +19,7 @@ export function directors(crew: {job: string; name: string}[] = []): string | nu
   const names = [...new Set((Array.isArray(crew) ? crew : []).filter(person => person?.job === 'Director' && typeof person.name==='string').map(person => person.name.trim()).filter(Boolean))];
   return names.length ? new Intl.ListFormat('en-AU',{style:'long',type:'conjunction'}).format(names) : null;
 }
-export class TmdbProvider implements MovieSearchProvider, MovieMetadataProvider, MovieArtworkProvider, MovieScoreProvider {
+export class TmdbProvider implements CollectionMembershipProvider, MovieSearchProvider, MovieMetadataProvider, MovieArtworkProvider, MovieScoreProvider {
   constructor(private token: string,private onLimits?: (headers: Headers) => Promise<void>) {}
   private async request<T>(path: string): Promise<T> {
     return providerJson(`https://api.themoviedb.org/3/${path}`,'TMDB',{headers:{Authorization:`Bearer ${this.token}`}},this.onLimits) as Promise<T>;
@@ -28,6 +29,9 @@ export class TmdbProvider implements MovieSearchProvider, MovieMetadataProvider,
     return result.results.slice(0,20).map(m => ({ provider: 'tmdb', externalId: String(m.id), title: m.title,
       year: m.release_date ? Number(m.release_date.slice(0,4)) : null,
       poster: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null }));
+  }
+  async collectionDetails(id:number) {
+    return parseCollectionRoster(await this.request<unknown>(`collection/${id}`),id,new Date().toISOString());
   }
   async details(id: string): Promise<ProviderMovie> {
     const m = await this.movie(id);
