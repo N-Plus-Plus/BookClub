@@ -13,9 +13,31 @@ import { MetricsEnrichmentResource } from '../frontend/metrics-cache';
 import { api } from '../frontend/api';
 import { metricsFixture } from './metrics-fixture';
 import { metricsEnrichmentFixture } from './metrics-enrichment-fixture';
+import { GenreRevenueReport,FlopsReport } from '../frontend/metrics/staging/Evidence';
 vi.mock('../frontend/api',()=>({api:{metricsEnrichment:vi.fn()}}));
 Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
 afterEach(()=>vi.restoreAllMocks());
+
+it('keeps every genre-revenue and contributor flop tie accessible in bounded pages',async()=>{
+ const seed=metricsFixture(),movies=Array.from({length:43},(_,i)=>({...seed.movies[0],id:`tie-${i}`,title:`Tie ${i}`}));
+ const catalog={...seed,movies,sessions:[{...seed.sessions[0],movies}]};
+ const rows=selectedAppearances(catalog),data={movies:Object.fromEntries(movies.map(movie=>[movie.id,{...reports.emptyEnrichmentMovie(),metadata:{original_language:null,budget:1000000,revenue:2000000}}]))};
+ const node=document.createElement('div'),root=createRoot(node);document.body.appendChild(node);
+ try{
+  for(const Component of [GenreRevenueReport,FlopsReport]){
+   await act(async()=>root.render(createElement(Component,{catalog,all:rows,rows,filter:{kind:'all'},data})));
+   const group=Component===GenreRevenueReport?node.querySelector('.staging-revenue-table tbody tr')!:node.querySelector('.staging-flop-group')!;
+   const found=new Set<string>();
+   for(let page=0;page<3;page++){
+    expect(group.querySelectorAll('a').length).toBeLessThanOrEqual(20);
+    for(const link of group.querySelectorAll('a'))found.add(link.getAttribute('href')!);
+    const next=[...group.querySelectorAll('button')].find(button=>button.textContent==='Next')!;
+    if(page<2)await act(async()=>next.click());else expect(next.disabled).toBe(true);
+   }
+   expect(found.size).toBe(43);
+  }
+ }finally{await act(async()=>root.unmount());node.remove();}
+});
 
 it('cached analytical snapshots preserve every filter, role, repeat, score and missing-data result',()=>{
   const source=metricsFixture(),catalog=metricsCatalog(source),raw=metricsEnrichmentFixture(),data=reports.prepareMetricsEnrichment(raw);

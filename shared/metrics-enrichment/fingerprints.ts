@@ -54,7 +54,7 @@ export function themeKeywordAudit(data: MetricsEnrichment,rows: Appearance[] = [
   return {rawLabels:raw.size,normalisedIdentities:values.length,excludedIdentities:excluded.length,includedIdentities:included.length,
     topExcluded:excluded.slice(0,20).map(f => ({label:f.label,films:f.films})),
     topIncluded:included.slice(0,20).map(f => ({label:themeDisplayLabel(f.label),films:f.films})),
-    fingerprint:themeFingerprint(rows,rows,data).values.map(f => ({label:f.label,count:f.count}))};
+    aggregateFrequency:fingerprint(rows,rows,themeReader(data),{limit:12}).values.map(f => ({label:f.label,count:f.count}))};
 }
 
 /** Frequency rankings retain every actual fifth-place count tie, in stable label/ID order. */

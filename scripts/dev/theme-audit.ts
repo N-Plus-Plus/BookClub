@@ -18,6 +18,7 @@ try {
     const movie = data.movies[String(row.movie_id)] ??= emptyEnrichmentMovie();
     movie.keywords.push({provider:String(row.provider),name:String(row.name)});
   }
+  // Output aggregateFrequency describes sample frequency, not contributor distinctiveness.
   // Only canonical identities and actual active appearances are needed for this diagnostic.
   // Other Movie fields are unused by theme analytics; private titles are never reported.
   const movies = new Map<string,Movie>();

@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { metricsFixture } from './metrics-fixture.ts';
 import { emptyEnrichmentMovie } from '../shared/metrics-enrichment.ts';
+import { formatCount } from '../shared/format.ts';
+import { metricsInventory } from './helpers/metrics-inventory.ts';
+const filmReports=['Top critic','Top audience','Bottom critic','Bottom audience','Most popular','Most obscure','Oldest','Newest','Longest','Shortest'];
+assert(filmReports.every(name=>metricsInventory.Records.includes(name)));
 const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
 const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || (process.platform==='win32'?'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe':undefined),headless:true});
 const seed=metricsFixture(),n=1000;
@@ -59,11 +63,31 @@ try{
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
    assert(await page.locator('.metrics-talent .metrics-frequency-row').count()<=20);
    assert(await page.locator('.metrics-directors .metrics-distribution-label').count()<=20);
-   assert(await page.locator('.metrics-film-extreme a').count()<=40);
+   const reports=page.locator('.metrics-film-extreme');
+   assert.equal(await reports.count(),name==='Records'?filmReports.length:0);
+   let bound=0;
+   for(const report of await reports.all()){
+    assert(filmReports.includes(await report.locator('h3').textContent()));
+    const size=await report.getByRole('button',{name:'Next',exact:true}).count()?5:20;
+    assert(await report.locator('a').count()<=size);bound+=size;
+   }
+   assert(await page.locator('.metrics-film-extreme a').count()<=bound);
+   // A fixed per-report budget catches expansion elsewhere without tying it to film count.
+   const nodes=await page.locator('.metrics-content *').count();
+   assert(nodes<=metricsInventory[name].length*300, `${name}: ${nodes} nodes`);
+   if(name==='Breakdowns')for(const row of await page.locator('.staging-revenue-table tbody tr').all())assert(await row.locator('a').count()<=20);
   }
   await page.getByRole('tab',{name:'Records',exact:true}).click();
-  const tied=page.locator('.metrics-film-extreme').first();assert.match(await tied.textContent(),/1000-way tie/);
-  assert.equal(await tied.locator('a').count(),5);await tied.getByRole('button',{name:'Next',exact:true}).click();assert.equal(await tied.locator('a').count(),5);
+  const tied=page.locator('.metrics-film-extreme').first();assert((await tied.textContent()).includes(`${formatCount(n)}-way tie`));
+  const reachable=new Set();
+  for(let index=0;index<Math.ceil(n/5);index++){
+   assert.equal(await tied.locator('a').count(),5);
+   for(const href of await tied.locator('a').evaluateAll(links=>links.map(link=>link.getAttribute('href'))))reachable.add(href);
+   const next=tied.getByRole('button',{name:'Next',exact:true});
+   if(index<Math.ceil(n/5)-1){assert.equal(await next.isEnabled(),true);await next.click();}
+   else assert.equal(await next.isEnabled(),false);
+  }
+  assert.equal(reachable.size,n);
   await page.screenshot({path:`.verification/metrics/performance-extremes-${width}.png`,fullPage:true});
   await tied.screenshot({path:`.verification/metrics/performance-card-${width}.png`});
   results.push(await measure('nav a[href="#/home"]','Home'));

@@ -113,7 +113,7 @@ The compatibility enrichment controllers derive eligible/unidentified counts fro
 | --- | --- |
 | POST `/movies/maintain` | Admin; `{mode:"missing"|"refresh"|"metadata",movie_ids:[1-10 IDs]}` -> `{results:RefreshResult[]}`. IDs deduplicate. Score modes require Classics, active History or a currently saved Builder relationship and reject deleted/out-of-scope IDs with 422 `INVALID_SCOPE` before provider calls. Metadata covers the whole catalogue with a valid IMDb identity; deleted IDs return 404, invalid IMDb films are skipped without calls. |
 | POST `/movies/:id/refresh-scores` | Admin; compatibility explicit capture -> `{movie,providers}` |
-| POST `/classics/enrich` | Admin; compatibility `{limit?:1–10}` default 10 -> `{results:RefreshResult[],remaining,unidentified}` |
+| POST `/classics/enrich` | Admin; compatibility `{limit?:1–10}` default 10 -> `{results:RefreshResult[],remaining,unidentified}`. Classics retain score/Seen readiness selection; non-Classics active History and saved Builder films use unresolved live/API score dimensions, excluding conclusive unavailable checks, independently of Seen. |
 | POST `/movies/enrich-metadata-selected` | Admin; `{movie_ids:[1–2 IDs]}` -> `{results:[{movieId,title,provider:"tmdb",status:"success"|"failed"|"conflict"|"skipped",message,retryAfter?}]}`. IDs deduplicate; missing films return 422 (without any fallback), invalid stored TMDB identities report per-film failure, already-checked films report skipped. No global counts. |
 | POST `/movies/enrich-metadata` | Admin; compatibility `{limit?:1–10}` default 10 -> `{results:[{movieId,title,provider:"tmdb",status:"success"|"failed"|"conflict",message,retryAfter?}],remaining,unidentified}` |
 

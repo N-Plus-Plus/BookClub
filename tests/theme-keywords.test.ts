@@ -62,9 +62,11 @@ describe('shared clean theme eligibility and frequency signatures',() => {
     expect(themeFrequency(rows.slice(0,1),rows,data).values).toHaveLength(2);
     expect(data).toEqual(original);
   });
-  it('reports raw/normalised counts, included/excluded film counts and eligible fingerprints',() => {
+  it('reports raw/normalised counts, included/excluded film counts and aggregate appearance frequency without a comparison population',() => {
     expect(themeKeywordAudit(data,rows)).toMatchObject({rawLabels:4,normalisedIdentities:3,excludedIdentities:1,includedIdentities:2,
-      topExcluded:[{label:'bmw',films:2}],fingerprint:[]});
+      topExcluded:[{label:'bmw',films:2}],aggregateFrequency:[{label:'Escape plan',count:3},{label:'Grief',count:3}]});
+    expect(themeKeywordAudit(data,[]).aggregateFrequency).toEqual([]);
+    expect(themeKeywordAudit(data,rows)).not.toHaveProperty('fingerprint');
   });
 });
 

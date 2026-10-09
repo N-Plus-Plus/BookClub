@@ -102,10 +102,6 @@ If completed work contains durable information that future agents still need, pl
 
 ## Current roadmap
 
-### Priority 0.5 - Stale/failing tests
-
-- `tests/metrics-performance.browser.mjs` fails at line 62: `.metrics-film-extreme a` count must be <=40. Records currently has ten film reports, each permitting five tied results per page, so the established presentation can render 50 links. This analytical pass does not change Records rendering; the main Metrics browser sweep passes. Replace the aggregate bound with per-report page-size assertions or a bound derived from the report inventory. Also check the subsequent literal `1000-way tie` assertion against grouped `1,000` count formatting. The performance harness stops at the first assertion, so later measurements remain unverified.
-
 ### Priority 2 - Bottom horizontal divider consistency sweep
 Status: Incomplete
 

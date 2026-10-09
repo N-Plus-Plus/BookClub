@@ -96,7 +96,7 @@ export class MaintenanceRepository {
       .bind(new Date().toISOString()).first<{remaining:number;unidentified:number}>())!;
   }
 
-  /** Compatibility selection uses only identity, usable score existence and roster completeness. */
+  /** Classics retain rankability selection; other score films need unresolved provider scores only. */
   async enrichmentCandidates(limit:number) {
     const sql = `WITH active AS (SELECT id FROM members WHERE active=1), recognised(score_key) AS (VALUES ${requiredScores.map(k => "('"+k+"')").join(',')}),
       scored AS (SELECT DISTINCT movie_id FROM source_scores ss JOIN recognised r ON r.score_key=ss.provider||':'||ss.metric WHERE ${usableScoreSql()}),
@@ -104,7 +104,13 @@ export class MaintenanceRepository {
       identified AS (SELECT DISTINCT movie_id FROM movie_external_ids WHERE (provider='tmdb' AND ${validTmdbSql('external_id',false)}) OR (provider='imdb' AND ${validImdbSql('external_id')})),
       candidates AS (SELECT m.id,m.title,i.movie_id IS NOT NULL AS identified FROM movies m
         LEFT JOIN scored s ON s.movie_id=m.id LEFT JOIN answered a ON a.movie_id=m.id LEFT JOIN identified i ON i.movie_id=m.id
-        WHERE (${scoreScopeSql('m.id')}) AND (s.movie_id IS NULL OR coalesce(a.count,0)<>(SELECT count(*) FROM active) OR (SELECT count(*) FROM active)=0))`;
+        WHERE (${scoreScopeSql('m.id')}) AND (
+          (EXISTS(SELECT 1 FROM classics WHERE movie_id=m.id) AND
+            (s.movie_id IS NULL OR coalesce(a.count,0)<>(SELECT count(*) FROM active) OR (SELECT count(*) FROM active)=0))
+          OR (NOT EXISTS(SELECT 1 FROM classics WHERE movie_id=m.id) AND EXISTS(
+            SELECT 1 FROM recognised r WHERE NOT EXISTS(SELECT 1 FROM source_scores ss
+              WHERE ss.movie_id=m.id AND ss.provider||':'||ss.metric=r.score_key AND (${usableScoreSql()}) AND (${liveScoreSql()}))
+            AND NOT EXISTS(SELECT 1 FROM movie_score_checks c WHERE c.movie_id=m.id AND c.score_key=r.score_key AND c.available=0)))))`;
     const results = await this.db.batch([
       this.db.prepare(`${sql} SELECT id FROM candidates WHERE identified ORDER BY title,id LIMIT ?`).bind(limit),
       this.db.prepare(`${sql} SELECT coalesce(sum(identified),0) AS eligible,coalesce(sum(NOT identified),0) AS unidentified FROM candidates`),

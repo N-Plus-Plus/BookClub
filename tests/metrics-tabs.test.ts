@@ -57,7 +57,7 @@ it('renders every metric in exactly one associated active panel, keeps global fi
     expect(container.querySelector('.metrics-fingerprint')!.textContent).not.toBe(all);
     expect(container.querySelector('.metrics-theme-signature')).toBeNull();
     await act(async() => container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[4].click());
-    expect(container.querySelector('.metrics-themes')!.textContent).toContain('Murder1, 1.3x club');
+    expect(container.querySelector('.metrics-themes')!.textContent).toContain('No eligible keywords for this selection.');
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(1);
   } finally {await act(async()=>root.unmount());container.remove();}
 });
