@@ -21,8 +21,10 @@ export function sharedStars(catalog:Catalog,all:Appearance[],data:MetricsEnrichm
 }
 // Conservative name fallback for absent IDs, including one established screen-name alias.
 const personName=(name:string)=>name.normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/^charlie chaplin$/,'charles chaplin');
-export function partnerships(rows:Appearance[],data:MetricsEnrichment) {
-  return (['Writer','Composer','Cinematographer'] as const).map(role=>{
+export const partnershipRoles=['Writer','Composer','Cinematographer','Editor'] as const;
+export type PartnershipRole=typeof partnershipRoles[number];
+export function partnerships(rows:Appearance[],data:MetricsEnrichment,selectedRole?:PartnershipRole) {
+  return (selectedRole?[selectedRole]:partnershipRoles).map(role=>{
     const read=metricsTalentReader(data,role),canonicalDirectors=metricsTalentReader(data,'Director');
     const pairs=new Map<string,{id:string;director:string;partner:string;films:Appearance[]}>();
     for(const row of uniqueAppearances(rows)){

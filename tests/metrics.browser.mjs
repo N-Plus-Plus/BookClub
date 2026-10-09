@@ -199,6 +199,8 @@ try {
     const headingTexts=await page.locator('.metrics-panel h2,.metrics-panel h3').evaluateAll(es=>es.filter(e=>e.tagName==='H2'||!e.closest('.staging-report')).map(e=>e.textContent));
     assert.deepEqual(headingTexts,metricsInventory['Top 5']);
     assert.match(await page.locator('.metrics-revenue-ratios a').first().getAttribute('href'),/^#\/movie\//);
+    const ratios=await page.locator('.metrics-ratio-data > p').allTextContents();assert(ratios.every(text=>/ · Ratio: (?:[\d,]+ : 1|1 : [\d,]+)$/.test(text)));
+    const partnership=page.locator('[aria-label="Creative partnerships"] select');assert.equal(await partnership.inputValue(),'Writer');await partnership.selectOption('Editor');assert.equal(await page.locator('[aria-label="Creative partnerships"] section').count(),1);
     const modes=page.locator('.metrics-score-filters').first();
     assert.equal(await modes.locator('button').count(),2);
     assert(await modes.evaluate(e=>{const buttons=[...e.querySelectorAll('button')],active=buttons.find(b=>b.getAttribute('aria-pressed')==='true'),style=getComputedStyle(active);return buttons.every(b=>b.offsetTop===buttons[0].offsetTop) && parseFloat(getComputedStyle(active,'::after').height)>0 && style.borderRadius==='0px';}));
@@ -208,6 +210,7 @@ try {
     const selected=page.getByRole('tab',{name:'Tastes',exact:true});await selected.focus();await page.keyboard.press('ArrowRight');assert.equal(await active(),'Breakdowns');
     assert(await page.locator('[role=tab][aria-selected=true]').evaluate(e=>e===document.activeElement && getComputedStyle(e).outlineStyle!=='none'),'visible keyboard focus');
     await page.keyboard.press('End');assert.equal(await active(),'Records');await page.keyboard.press('Home');assert.equal(await active(),'Top 5');
+    assert.equal(await partnership.inputValue(),'Editor');assert.equal(await page.locator('.metrics-talent select').inputValue(),'Studios');
     assert.equal(requests.length,baseline,'tab/identity/role/score changes generate no API reads');assert.equal(requests.filter(p=>p.endsWith('/metrics/enrichment')).length,1);
     results.push({width,available,overflow:false,filterCalls:requests.length-baseline,tabs:tabs.length});
   }

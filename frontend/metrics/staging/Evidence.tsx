@@ -1,9 +1,10 @@
+import { ChevronDown } from 'lucide-react';
 import { useEffect, useLayoutEffect, useReducer, useRef } from 'react';
 import { oscarSummary } from '../../../shared/provider-evidence';
 import type { Catalog } from '../../../shared/types';
 import type { Appearance, MetricsFilter } from '../../../shared/metrics';
 import type { MetricsEnrichment } from '../../../shared/metrics-enrichment';
-import { sharedStars, partnerships, genreRevenue, expensiveFlops, classificationAcclaim, platforms, collectionCompletion, localCalendarDate, awardsReport } from '../../../shared/metrics-staging/films';
+import { sharedStars, partnerships, genreRevenue, expensiveFlops, classificationAcclaim, platforms, collectionCompletion, localCalendarDate, awardsReport, partnershipRoles, type PartnershipRole } from '../../../shared/metrics-staging/films';
 import { useStagingReports } from './cache';
 import { MetricsResults } from '../../MetricsResults';
 import { MovieLink, Poster } from '../../components';
@@ -15,16 +16,16 @@ export function SharedStarsReport({catalog,all,rows,filter,data,reportCache}:Evi
   const stars=cached('stars',()=>sharedStars(catalog,all,data));
   return <Report title="Shared stars" note="Actors shared across the boobs.">{stars.length?<div className="staging-table-scroll" tabIndex={0} role="region" aria-label="Shared stars table"><table className="staging-stars-table"><caption className="visually-hidden">Actor appearances across Sean, Troy, Matt and Jess, and their total</caption><thead><tr><th scope="col">Actor</th>{catalog.members.filter(m=>m.sort_order>=1&&m.sort_order<=4).sort((a,b)=>a.sort_order-b.sort_order).map(m=><th scope="col" key={m.id}>{m.display_name}</th>)}<th scope="col">Total</th></tr></thead><tbody><MetricsResults label="Shared stars" tableColumns={6} items={stars} render={v=><tr key={v.id}><th scope="row">{v.label}</th>{v.counts.map((n,i)=><td key={i}>{formatCount(n)}</td>)}<td>{formatCount(v.appearances)}</td></tr>}/></tbody></table></div>:<Empty/>}</Report>;
 }
-export function PartnershipsReport({catalog,all,rows,filter,data,reportCache}:EvidenceProps) {
+export function PartnershipsReport({catalog,all,rows,filter,data,reportCache,role='Writer',setRole}:EvidenceProps & {role?:PartnershipRole;setRole?:(role:PartnershipRole)=>void}) {
   const cached=useStagingReports([catalog,all,rows,filter,data],reportCache,"people");
-  const pairs=cached('pairs',()=>partnerships(rows,data));
-  return <Report title="Creative partnerships" note="Most frequent director collaborations, with fifth-place ties.">{pairs.map(group=><section className="stack" key={group.role}><h3>Director + {group.role}</h3>{group.values.length?<MetricsResults label={`Director + ${group.role}`} items={group.values} render={v=><article className="staging-data-row" key={v.id}><strong>{v.director} + {v.partner}</strong><p className="staging-supporting">{formatCount(v.films.length)} distinct films</p><ul className="metrics-metadata-films">{v.films.map(row=><li key={row.movie.id}><MovieLink movie={row.movie}>{row.movie.title}</MovieLink></li>)}</ul></article>}/>:<Empty/>}</section>)}</Report>;
+  const pairs=cached(`pairs:${role}`,()=>partnerships(rows,data,role));
+  return <Report title="Creative partnerships" note="Most frequent director collaborations, with fifth-place ties."><label className="input-label">Director +<select className="field__input" value={role} onChange={e=>setRole?.(e.target.value as PartnershipRole)}>{partnershipRoles.map(value=><option key={value}>{value}</option>)}</select></label>{pairs.map(group=><section className="stack" key={group.role}>{group.values.length?<MetricsResults label={`Director + ${group.role}`} items={group.values} render={v=><article className="staging-data-row" key={v.id}><strong>{v.director} + {v.partner}</strong><p className="staging-supporting">{formatCount(v.films.length)} distinct films</p><ul className="metrics-metadata-films">{v.films.map(row=><li key={row.movie.id}><MovieLink movie={row.movie}>{row.movie.title}</MovieLink></li>)}</ul></article>}/>:<Empty/>}</section>)}</Report>;
 }
 export interface EvidenceProps {catalog:Catalog;all:Appearance[];rows:Appearance[];filter:MetricsFilter;data:MetricsEnrichment;reportCache?:Map<string,unknown>}
 export function GenreRevenueReport({catalog,all,rows,filter,data,reportCache}:EvidenceProps) {
   const cached=useStagingReports([catalog,all,rows,filter,data],reportCache,"reception");
   const revenue=cached('revenue',()=>genreRevenue(rows,data));
-  return <Report title="Highest-grossing film by genre" note="The biggest reported worldwide gross in each genre.">{revenue.length?<table className="staging-revenue-table"><thead><tr><th scope="col">Genre</th><th scope="col">Film / reported gross</th></tr></thead><tbody>{revenue.map(v=><tr key={v.genre}><th scope="row">{v.genre}</th><td>{v.films.map(row=><div className="staging-gross-film" key={row.movie.id}><MovieLink movie={row.movie}><span className="movie-title">{row.movie.title}</span></MovieLink><p className="meta">{grossMillions(v.revenue)}</p></div>)}</td></tr>)}</tbody></table>:<Empty/>}</Report>;
+  return <Report title="Highest-grossing film by genre" note="The biggest reported worldwide gross in each genre.">{revenue.length?<MeasuredWindow className="staging-revenue-scroll" label="Highest-grossing films by genre; scroll vertically for more" header="thead" row="tbody tr"><table className="staging-revenue-table"><thead><tr><th scope="col">Genre</th><th scope="col">Film / reported gross</th></tr></thead><tbody>{revenue.map(v=><tr key={v.genre}><th scope="row">{v.genre}</th><td>{v.films.map(row=><div className="staging-gross-film" key={row.movie.id}><MovieLink movie={row.movie}><span className="movie-title">{row.movie.title}</span></MovieLink><p className="meta">{grossMillions(v.revenue)}</p></div>)}</td></tr>)}</tbody></table></MeasuredWindow>:<Empty/>}</Report>;
 }
 export function FlopsReport({catalog,all,rows,filter,data,reportCache}:EvidenceProps) {
   const cached=useStagingReports([catalog,all,rows,filter,data],reportCache,"reception");
@@ -39,14 +40,14 @@ export function ClassificationAcclaimReport({catalog,all,rows,filter,data,report
 export function PlatformsReport({catalog,all,rows,filter,data,reportCache}:EvidenceProps) {
   const cached=useStagingReports([catalog,all,rows,filter,data],reportCache,"reception");
   const offers=cached('offers',()=>platforms(rows));
-  return <Report title="Streaming platform representation" note="Top streaming services across selected films, from cached Australian availability.">{offers.values.length?<MetricsResults label="Streaming platforms" items={offers.values} render={v=><article className="staging-data-row" key={v.id}><strong>{v.name}</strong><p className="staging-supporting">Stream {formatCount(v.count)} distinct films · {number(v.percentage)}%</p><p className="meta">Rent {formatCount(v.access.find(a=>a.type==='rent')?.count ?? 0)} · Buy {formatCount(v.access.find(a=>a.type==='buy')?.count ?? 0)}</p></article>}/>:<Empty/>}<p className="meta">Australian watch availability: <a href="https://www.justwatch.com/au" target="_blank" rel="noreferrer">JustWatch</a> via <a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer">TMDB</a>; cached options may change.</p></Report>;
+  return <Report title="Streaming platform representation" note="Top streaming services across selected films, from cached Australian availability.">{offers.values.length?<MetricsResults label="Streaming platforms" items={offers.values} render={v=><article className="staging-data-row staging-platform" key={v.id}><strong>{v.name}</strong><p className="staging-supporting">Stream {formatCount(v.count)} distinct films · {number(v.percentage)}%</p><p className="meta">Rent {formatCount(v.access.find(a=>a.type==='rent')?.count ?? 0)} · Buy {formatCount(v.access.find(a=>a.type==='buy')?.count ?? 0)}</p></article>}/>:<Empty/>}<p className="meta">Australian watch availability: <a href="https://www.justwatch.com/au" target="_blank" rel="noreferrer">JustWatch</a> via <a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer">TMDB</a>; cached options may change.</p></Report>;
 }
 export function CollectionReports({catalog,all,rows,data,reportCache}:EvidenceProps) {
  const today=useCollectionDate();
  const cached=useStagingReports([catalog,all,rows,data],reportCache,'discovery');
  const collections=cached(`collections:${today}`,()=>collectionCompletion(all,data,today));
- return <>{(['completed','unrequited'] as const).map(status=><Report key={status} title={status==='completed'?'Franchise / collection completed':'Unrequited collections'} note={status==='completed'?'Every eligible TMDB collection film brought, excluding known future releases.':'Collections with eligible films still to bring, excluding known future releases.'}>
-    {collections[status].length?<MetricsResults label={status==='completed'?'Completed collections':'Unrequited collections'} items={collections[status]} render={v=><article className="staging-data-row" key={v.id}><h3>{v.name}</h3><p className="meta">{formatCount(v.films.length)} of {formatCount(v.total)} films</p><ul className="metrics-metadata-films">{v.films.map(row=><li key={row.movie.id}><MovieLink movie={row.movie}>{row.movie.title}</MovieLink></li>)}</ul>{v.missing.some(part=>part.title)&&<div className="staging-missing-films meta"><span>Not brought:</span>{v.missing.filter(part=>part.title).map(part=><span key={part.id}>{part.title}</span>)}</div>}</article>}/>:<Empty/>}
+ return <>{(['completed','unrequited'] as const).map(status=><Report key={status} title={status==='completed'?'Franchise / collection completed':'Incomplete collections'} note={status==='completed'?'Every eligible TMDB collection film brought, excluding known future releases.':'Collections with eligible films still to bring, excluding known future releases.'}>
+    {collections[status].length?<MetricsResults label={status==='completed'?'Completed collections':'Incomplete collections'} items={collections[status]} render={v=><details className="staging-data-row staging-collection" key={v.id}><summary><h3>{v.name}</h3><span className="staging-disclosure-control"><span className="staging-more">More</span><span className="staging-less">Less</span><ChevronDown size={16} aria-hidden="true"/></span></summary><p className="meta">{formatCount(v.films.length)} of {formatCount(v.total)} films</p><ul className="metrics-metadata-films">{v.films.map(row=><li key={row.movie.id}><MovieLink movie={row.movie}>{row.movie.title}</MovieLink></li>)}</ul>{v.missing.some(part=>part.title)&&<div className="staging-missing-films meta"><span>Not brought:</span>{v.missing.filter(part=>part.title).map(part=><span key={part.id} title={part.release_date?`Release date: ${part.release_date}`:'Release date unknown'}>{part.title}</span>)}</div>}</details>}/>:<Empty/>}
     {collections.pending>0&&<p className="meta">{formatCount(collections.pending)} eligible {collections.pending===1?'collection awaits':'collections await'} a validated membership check in Admin.</p>}
   </Report>)}</>;
 }
@@ -77,4 +78,15 @@ function useCollectionDate() {
     return ()=>{clearTimeout(timer);window.removeEventListener('focus',resume);document.removeEventListener('visibilitychange',resume);};
   },[today]);
   return today;
+}
+
+function MeasuredWindow({children,className,label,header,row}:{children:import('react').ReactNode;className:string;label:string;header:string;row:string}) {
+  const ref=useRef<HTMLDivElement>(null);
+  useLayoutEffect(()=>{
+    const node=ref.current;if(!node)return;
+    const fit=()=>{const rows=[...node.querySelectorAll(row)].slice(0,5);const height=(node.querySelector(header)?.getBoundingClientRect().height??0)+rows.reduce((sum,item)=>sum+item.getBoundingClientRect().height,0);if(height>0)node.style.maxHeight=`${height}px`;};
+    fit();if(typeof ResizeObserver==='undefined')return;
+    const observer=new ResizeObserver(fit);for(const item of node.querySelectorAll(`${header},${row}`))observer.observe(item);return ()=>observer.disconnect();
+  },[children,header,row]);
+  return <div ref={ref} className={className} tabIndex={0} role="region" aria-label={label}>{children}</div>;
 }

@@ -64,11 +64,11 @@ function CountryRows({report}: {report:ReturnType<typeof productionCountryRankin
   return report.values.length ? <MetricsResults label="Production countries" items={report.values} render={(v,index)=><Bar key={v.id} label={v.label} value={`${formatCount(v.count)} ${v.count===1?'film':'films'}`} width={v.count/maximum*100} colour={index%2===0?'jeans':'lavender'} />} /> : <p className="meta">No qualifying evidence for this selection.</p>;
 }
 const reportedMoney = new Intl.NumberFormat('en-AU',{style:'currency',currency:'USD',maximumFractionDigits:0});
-const ratioNumber = new Intl.NumberFormat('en-AU',{minimumFractionDigits:1,maximumFractionDigits:1});
-export function formatRevenueRatio(ratio:number,lowest=false):string {
+const ratioNumber = new Intl.NumberFormat('en-AU',{maximumFractionDigits:0,notation:'standard'});
+export function formatRevenueRatio(ratio:number,_lowest=false):string {
   if (!Number.isFinite(ratio) || ratio<=0) return 'Ratio unavailable';
-  if (lowest && ratio<1) return Number.isFinite(1/ratio) ? `1 ÷ ${ratioNumber.format(1/ratio)}` : 'Ratio unavailable';
-  return `${ratioNumber.format(ratio)}×`;
+  if (ratio<1) return Number.isFinite(1/ratio) ? `Ratio: 1 : ${ratioNumber.format(Math.round(1/ratio))}` : 'Ratio unavailable';
+  return `Ratio: ${ratioNumber.format(Math.round(ratio))} : 1`;
 }
 function RevenueRatios({report}: {report:ReturnType<typeof revenueRatioRankings>}) {
   return <div className="metrics-paired metrics-revenue-ratios" data-metric="L">{(['highest','lowest'] as const).map(direction => <section className="stack" key={direction}>

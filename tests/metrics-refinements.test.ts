@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { expect,it,vi } from 'vitest';
 import { compositeScore,metricsScoreDimensions,selectedAppearances,withCutoffTies,extremesCabinet } from '../shared/metrics';
 import { comparisonWidths,ratingCircleFills } from '../frontend/MetricsVisuals';
+import { CreatorExtremes } from '../frontend/metrics/Extremes';
 import { MetricsScreen } from '../frontend/MetricsScreen';
 import { api } from '../frontend/api';
 import { metricsFilm,metricsEvent,metricsFixture,observation } from './metrics-fixture';
@@ -114,4 +115,12 @@ it('renders revised visuals, stable colours, clean presentation and linked ratio
     expect(container.querySelector('.metrics-creator-extreme > .meta')).not.toBeNull();
     expect(api.metricsEnrichment).toHaveBeenCalledTimes(1);
   } finally {await act(async()=>root.unmount());}
+});
+
+it('stacks canonical tied creator names under the supporting line for all six roles',async()=>{
+ const roles=['director','writer','composer','cinematographer','editor','producer'];
+ const movies=['a','b'].map(id=>metricsFilm(id,{director:`director ${id}`}));const catalog={...metricsFixture(),movies,sessions:[metricsEvent('one',movies),metricsEvent('two',movies)]};
+ const data={movies:Object.fromEntries(movies.map(m=>[m.id,{...emptyEnrichmentMovie(),credits:roles.map(role=>({kind:'crew' as const,role,person_id:`${role}-${m.id}`,name:`${role} ${m.id}`}))}]))};
+ const node=document.createElement('div'),root=createRoot(node);
+ try{await act(async()=>root.render(createElement(CreatorExtremes,{rows:selectedAppearances(catalog),data})));const sections=node.querySelectorAll('.metrics-creator-extreme');expect(sections).toHaveLength(6);sections.forEach((section,i)=>{expect(section.querySelector('h3')?.textContent).toBe(`Most recurring ${roles[i]}`);expect(section.querySelector('p')?.textContent).toBe('2-way tie · 2 appearances');expect([...section.querySelectorAll('.metrics-creator-winners > div')].map(n=>n.textContent)).toEqual([`${roles[i]} a`,`${roles[i]} b`]);});}finally{await act(async()=>root.unmount());}
 });

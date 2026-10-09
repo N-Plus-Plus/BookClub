@@ -29,7 +29,7 @@ export const metricsInventory = {
     "Contribution by host",
     "Cycle scorecards",
     "Franchise / collection completed",
-    "Unrequited collections",
+    "Incomplete collections",
     "Critics or audiences?",
     "Ratings profile",
     "Awards and nominations",

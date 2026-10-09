@@ -20,6 +20,7 @@ import type { MetricsTab } from './metrics-tabs';
 import { useMetricsReports } from './metrics-cache';
 
 export function EnrichedMetrics({category,catalog,all,rows,filter,data,status,retry,dashboard,metrics,contributions}: {category:MetricsTab;catalog:Catalog;all:Appearance[];rows:Appearance[];filter:MetricsFilter;data:MetricsEnrichment;status:string;retry:()=>void;dashboard:ReturnType<typeof metricsDashboard>;metrics:CatalogMetricsProps["metrics"];contributions:CatalogMetricsProps["contributions"]}) {
+  const [partnershipRole,setPartnershipRole] = useState<import('../shared/metrics-staging/films').PartnershipRole>('Writer');
   const [role,setRole] = useState<TalentRole|'Studios'>('Cast');
   const cached=useMetricsReports([catalog,all,rows,filter,data]);
   const scopes = category==='fingerprints'?cached('scopes',()=>comparisonScopes(catalog,all,filter)):[];
@@ -58,6 +59,6 @@ export function EnrichedMetrics({category,catalog,all,rows,filter,data,status,re
       <MedianEconomics catalog={catalog} economics={filterContributorScopes(economics.groups,filter)} maximum={economics.maximum}/>
       <GenreRevenueReport {...reportProps}/><FlopsReport {...reportProps}/><PlatformsReport {...reportProps}/>
     </>}
-    {category === 'top-bottom' && <TopFiveEnrichment rows={rows} data={data} isAll={isAll} cached={cached} talentReport={talentReport} role={role} setRole={setRole} partnerships={<PartnershipsReport {...reportProps}/>} />}
+    {category === 'top-bottom' && <TopFiveEnrichment rows={rows} data={data} isAll={isAll} cached={cached} talentReport={talentReport} role={role} setRole={setRole} partnerships={<PartnershipsReport {...reportProps} role={partnershipRole} setRole={setPartnershipRole}/>} />}
   </>;
 }

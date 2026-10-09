@@ -282,3 +282,30 @@
 .staging-awards-film .poster { width: 64px; height: 96px; flex-shrink: 0; }
 .staging-awards-film .movie-link { min-height: 0; }
 .staging-awards-film .meta { margin: 0; }
+
+.staging-mobile-comparisons { display: none; }
+@container member-content (width < 720px) {
+  .staging-matrix-scroll { display: none; }
+  .staging-mobile-comparisons { display: grid; gap: var(--space-16); }
+}
+.staging-comparison-group { display: grid; grid-template-columns: 5rem minmax(0,1fr); gap: var(--space-12); align-items: start; }
+.staging-comparison-group > .club-identity { flex-direction: column; }
+.staging-comparison-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); }
+.staging-comparison-group li { overflow-wrap: anywhere; }
+.staging-comparison-group[data-emphasis=true] > .club-identity,.staging-comparison-group li[data-emphasis=true] { outline: 1px solid var(--lavender); outline-offset: 2px; }
+.staging-collection summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); min-height: 44px; cursor: pointer; list-style: none; }
+.staging-collection summary::-webkit-details-marker { display: none; }
+.staging-collection summary h3 { margin: 0; }
+.staging-collection summary:focus-visible { outline: 2px solid var(--focus-outline); outline-offset: 2px; }
+.staging-disclosure-control { display: flex; align-items: center; gap: var(--space-8); font-size: var(--text-metadata); flex-shrink: 0; }
+.staging-less,.staging-collection[open] .staging-more { display: none; }
+.staging-collection[open] .staging-less { display: inline; }
+.staging-collection[open] .staging-disclosure-control svg { transform: rotate(180deg); }
+.staging-collection > p { margin: var(--space-8) 0; }
+.staging-missing-films { margin-top: var(--space-8); }
+.staging-missing-films > span:not(:first-child) { padding-left: var(--space-16); }
+.staging-platform > p { margin: var(--space-4) 0 0; }
+.staging-awards-row,.staging-awards-header { padding-inline: var(--space-16); }
+.staging-revenue-scroll { overflow-y: auto; scrollbar-gutter: stable; }
+.staging-revenue-scroll thead { position: sticky; top: 0; z-index: 1; background: var(--surface-base); }
+.metrics-creator-winners { padding-left: var(--space-16); display: grid; gap: var(--space-4); }

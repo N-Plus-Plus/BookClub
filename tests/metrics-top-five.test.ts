@@ -57,7 +57,7 @@ it.each(examples)('country frequency includes fifth-place film-count ties: $coun
  expect(report.values.map(v=>v.count)).toEqual(counts.slice(0,length));
  expect(report.unique).toBe(movies.length);
 });
-it.each([[4144,false,'4,144.0×'],[.5,true,'1 ÷ 2.0'],[.025,true,'1 ÷ 40.0'],[1/4144,true,'1 ÷ 4,144.0'],[1,true,'1.0×'],[2.25,true,'2.3×'],[0,true,'Ratio unavailable'],[NaN,false,'Ratio unavailable'],[Infinity,true,'Ratio unavailable'],[Number.MIN_VALUE,true,'Ratio unavailable']] as const)('formats ratio %s defensively', (ratio,lowest,display)=>expect(formatRevenueRatio(ratio,lowest)).toBe(display));
+it.each([[4144,false,'Ratio: 4,144 : 1'],[.5,true,'Ratio: 1 : 2'],[.025,true,'Ratio: 1 : 40'],[1/4144,true,'Ratio: 1 : 4,144'],[1,true,'Ratio: 1 : 1'],[2.25,true,'Ratio: 2 : 1'],[1/621428.6,false,'Ratio: 1 : 621,429'],[1e12,false,'Ratio: 1,000,000,000,000 : 1'],[1e-12,true,'Ratio: 1 : 1,000,000,000,000'],[0,true,'Ratio unavailable'],[NaN,false,'Ratio unavailable'],[Infinity,true,'Ratio unavailable'],[Number.MIN_VALUE,true,'Ratio unavailable']] as const)('formats ratio %s defensively', (ratio,lowest,display)=>expect(formatRevenueRatio(ratio,lowest)).toBe(display));
 it('financial ranks use actual ratios for ties and exclude overflow/underflow from otherwise finite positive money',()=>{
  const {catalog,data}=fixture([1,1,1,1,1,1,1]);
  const ratios=[6,5,4,3,2.04,2.04,2.03];
@@ -91,9 +91,14 @@ it('owns the exact thirteen reports, keeps selectors and roles local, and remove
   for(const role of talentRoles){await act(async()=>{select.value=role;select.dispatchEvent(new Event('change',{bubbles:true}));});expect(container.querySelector('.metrics-talent > p')?.textContent).toBe(`Share of appearances with ${role.toLowerCase()} credit.`);}
   await act(async()=>{select.value='Studios';select.dispatchEvent(new Event('change',{bubbles:true}));});
   const tab=(name:string)=>act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===name)!.click());
+  const partner=container.querySelector('[aria-label="Creative partnerships"] select') as unknown as HTMLSelectElement;
+  expect([...partner.options].map(o=>o.value)).toEqual(['Writer','Composer','Cinematographer','Editor']);
+  expect(partner.value).toBe('Writer');
+  for(const value of ['Composer','Cinematographer','Editor'])await act(async()=>{partner.value=value;partner.dispatchEvent(new Event('change',{bubbles:true}));});
+  expect(select.value).toBe('Studios');
   await tab('Tastes');expect(titles()).toEqual(metricsInventory.Tastes);expect(container.querySelector('.metrics-talent,.metrics-companies')).toBeNull();
   await tab('Breakdowns');expect(container.querySelector('.metrics-revenue-ratios')).toBeNull();
-  await tab('Top 5');expect((container.querySelector('.metrics-talent select') as unknown as HTMLSelectElement)?.value).toBe('Studios');
+  await tab('Top 5');expect((container.querySelector('[aria-label="Creative partnerships"] select') as unknown as HTMLSelectElement).value).toBe('Editor');expect((container.querySelector('.metrics-talent select') as unknown as HTMLSelectElement)?.value).toBe('Studios');
   for(const index of [1,5]){await act(async()=>container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[index].click());expect(container.querySelector('[role=tab][aria-selected=true]')?.textContent).toBe('Top 5');expect(titles()).toHaveLength(13);
    const studioRows=[...container.querySelectorAll('.metrics-talent .metrics-frequency-row')];expect(studioRows).toHaveLength(2);
    for(const row of studioRows)expect(row.textContent).toContain(index===1?'2 appearances · 66.7%':'1 appearances · 50.0%');

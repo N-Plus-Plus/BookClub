@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect,it,vi } from 'vitest';
 import { selectedAppearances,metricsDashboard,matchesMetricsFilter,type MetricsFilter } from '../shared/metrics';
 import { contributorScopes,filterContributorScopes,classificationDistribution,medianEconomicsComparison,nonEnglishLanguageRankings,emptyEnrichmentMovie,type MetricsEnrichment } from '../shared/metrics-enrichment';
+import { GenreRevenueReport } from '../frontend/metrics/staging/Evidence';
 import { ClassificationChart } from '../frontend/metrics/Profiles';
 import { MetricsScreen } from '../frontend/MetricsScreen';
 import { api } from '../frontend/api';
@@ -100,4 +101,12 @@ it('language bars use the winning film count, alternating colours and readable f
     expect([...node.querySelectorAll<HTMLElement>('.metrics-non-english .metrics-enriched-row')].map(row=>row.style.getPropertyValue('--chart-colour'))).toEqual(['var(--jeans)','var(--lavender)']);
     expect(node.querySelector('.metrics-non-english')?.textContent).toContain('Japanese2 films');expect(node.querySelector('.metrics-non-english')?.textContent).toContain('French1 film');
   }finally{await act(async()=>root.unmount());vi.clearAllMocks();}
+});
+
+it.each([1,5,8])('keeps all %s genre gross rows inside the keyboard-scrollable window without pagination',count=>{
+ const genres=['Action','Adventure','Animation','Comedy','Crime','Drama','Fantasy','Horror'].slice(0,count);
+ const movies=['a','b'].map(id=>metricsFilm(id,{genres})),catalog={...metricsFixture(),movies,sessions:[metricsEvent('gross',movies)]};
+ const all=selectedAppearances(catalog),data={movies:Object.fromEntries(movies.map(m=>[m.id,{...emptyEnrichmentMovie(),metadata:{original_language:null,budget:100,revenue:125000000}}]))};
+ const node=document.createElement('div');node.innerHTML=renderToStaticMarkup(createElement(GenreRevenueReport,{catalog,all,rows:all,filter:{kind:'all'},data}));
+ expect(node.querySelector('.staging-revenue-scroll')?.getAttribute('tabindex')).toBe('0');expect(node.querySelector('.staging-revenue-scroll')?.getAttribute('role')).toBe('region');expect(node.querySelectorAll('tbody tr')).toHaveLength(count);expect(node.querySelectorAll('tbody a')).toHaveLength(count*2);expect(node.querySelectorAll('button')).toHaveLength(0);expect(node.textContent).toContain('$125M USD');
 });

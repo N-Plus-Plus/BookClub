@@ -102,7 +102,7 @@ it('partitions collections by date-only eligibility, preserving unknown dates an
  expect(derive('2026-10-10')).toMatchObject({completed:[{total:2,missing:[]}],unrequited:[],pending:0});expect(derive('2026-10-10').completed[0].films).toHaveLength(2);
  for(const date of ['2026-10-11','2026-10-12'])expect(derive(date)).toMatchObject({completed:[],unrequited:[{total:3,missing:[{id:44}]}]});
  catalog.sessions.push(metricsEvent('future evidence',[c]));expect(derive('2026-10-10').completed[0].total).toBe(3);catalog.sessions.pop();
- evidence.collections![7].roster!.parts.push({id:45,title:'Past',release_date:'2000-01-01'},{id:46,title:'Undated',release_date:null},{id:47,title:'Invalid',release_date:'2026-02-30'});
- expect(derive('2026-10-10').unrequited[0]).toMatchObject({total:5,missing:expect.arrayContaining([{id:45,title:'Past',release_date:'2000-01-01'},{id:46,title:'Undated',release_date:null},{id:47,title:'Invalid',release_date:null}])});
+ evidence.collections![7].roster!.parts.push({id:45,title:'Past',release_date:'2000-01-01'},{id:46,title:'Untitled Now You See Me 4',release_date:null},{id:47,title:'Invalid',release_date:'2026-02-30'});
+ expect(derive('2026-10-10').unrequited[0]).toMatchObject({total:5,missing:expect.arrayContaining([{id:45,title:'Past',release_date:'2000-01-01'},{id:46,title:'Untitled Now You See Me 4',release_date:null},{id:47,title:'Invalid',release_date:null}])});
  evidence.collections![7].roster=null;expect(derive('2026-10-10')).toEqual({completed:[],unrequited:[],pending:1});
 });

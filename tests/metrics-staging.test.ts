@@ -73,7 +73,7 @@ describe('Staging evidence and discovery reports',()=>{
     const c=simple(),all=selectedAppearances(c),data=metricsEnrichmentFixture();
     const stars=sharedStars(c,all,data);expect(stars[0]).toMatchObject({appearances:6,counts:[3,1,1,1]});
     data.movies.b.credits.filter(v=>v.kind==='cast').forEach(v=>v.person_id='other');expect(sharedStars(c,all,data)).toEqual([]);
-    const pairs=partnerships(all,metricsEnrichmentFixture());expect(pairs.map(p=>p.role)).toEqual(['Writer','Composer','Cinematographer']);expect(pairs[0].values[0].films).toHaveLength(3);
+    const pairs=partnerships(all,metricsEnrichmentFixture());expect(pairs.map(p=>p.role)).toEqual(['Writer','Composer','Cinematographer','Editor']);expect(pairs[0].values[0].films).toHaveLength(3);
     c.movies[0].director='A and B';expect(partnerships(selectedAppearances(c),data)[0].values.some(v=>v.director==='A and B')).toBe(true);
   });
   it('retains genre revenue ties and uses distinct-film financial extremes without assuming profit',()=>{
@@ -245,4 +245,12 @@ it('excludes original ad-provider names before aliases without changing films, a
  expect(result.values.find(v=>v.name==='Netflix')?.access).toEqual([{type:'subscription',count:1},{type:'ads',count:1},{type:'rent',count:1}]);
  expect(result.values.find(v=>v.name==='Apple')?.access).toEqual([{type:'subscription',count:1},{type:'rent',count:1},{type:'buy',count:1}]);
  }finally{nameSpy.mockRestore();}
+});
+
+it('calculates only the selected canonical partnership role, including exact Editor credits',()=>{
+ const c=metricsFixture(),data=metricsEnrichmentFixture(),rows=selectedAppearances(c);
+ data.movies.a.credits.push({kind:'crew',role:'editor',person_id:'edit-1',name:'Canonical Editor'});
+ data.movies.a.credits.push({kind:'crew',role:'camera operator',person_id:'edit-2',name:'Other Crew'});
+ const report=partnerships(rows,data,'Editor');expect(report).toHaveLength(1);expect(report[0].role).toBe('Editor');expect(report[0].values.map(v=>v.partner)).toContain('Canonical Editor');expect(report[0].values.map(v=>v.partner)).not.toContain('Other Crew');
+ for(const role of ['Writer','Composer','Cinematographer','Editor'] as const)expect(partnerships(rows,data,role)).toEqual(partnerships(rows,data).filter(v=>v.role===role));
 });
