@@ -29,6 +29,9 @@ export const average = (rows: Appearance[]) => {
   const scores = rows.flatMap(a => a.imdb === null ? [] : [a.imdb]);
   return scores.length ? scores.reduce((sum,n) => sum+n,0)/scores.length : null;
 };
+/** Authoritative History reporting population: current active Event lineups only.
+ * Canonical metadata, Seen answers and enrichment cannot establish an appearance.
+ */
 export function selectedAppearances(catalog: Catalog, filter: MetricsFilter = {kind: 'all'}): Appearance[] {
   const sessions = catalog.sessions.filter(s => matchesMetricsFilter(s,filter));
   const canonical = catalogIndex(catalog).movieById;

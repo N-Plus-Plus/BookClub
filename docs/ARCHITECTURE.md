@@ -70,6 +70,8 @@ The independently deployed Worker keeps request/security policy in `worker/src/i
 
 Normal development prepares local D1, then runs Vite and a Node supervisor that starts/stops local Wrangler. Vite proxies `/__dev/refresh` to loopback 8790. `frontend/DevTools.tsx`, rendered only on local Admin (never import-preview), and the supervisor support an explicitly confirmed one-way production snapshot replacement; neither is present in production. Member switching and completed local replacement use the full auth-aware bootstrap reload. Development fixes its API to localhost even if root env files specify production.
 
+Metrics History population ownership is `shared/metrics-summary.ts:selectedAppearances()`, with canonical-ID History evidence in `shared/catalog-index.ts`. All historical report families consume these appearances; provider facts only enrich them. `ProductRepository.saveSession()` atomically replaces the stored lineup, `useBookClubData.applyJournalMutation()` replaces the client Event and invalidates the App enrichment resource, and catalogue identity invalidates analytical/report memoisation. Canonical films remain available independently of History. Population exceptions and read-only diagnostics belong in [DATA](DATA.md).
+
 ## Stylesheet ownership
 
 `frontend/main.tsx` loads font faces, canonical `style.css`, then `frontend/app.css`. The root file remains the shared design system: palette, typography foundations, document rules, generic controls/surfaces, utilities and intent styling. The application entry imports these files in an explicit order:

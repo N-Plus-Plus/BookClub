@@ -8,6 +8,12 @@ import { Repository } from '../worker/src/repository';
 import { catalogIndex } from '../shared/catalog-index';
 import { missingAnswers } from '../shared/ranking';
 import { ProductRepository } from '../worker/src/product-repository';
+import { MetricsRepository } from '../worker/src/metrics-repository';
+import { hydrateCatalog } from '../shared/catalog';
+import { calculateMetrics, metricsDashboard, contributorMetrics } from '../shared/metrics';
+import { filmEconomics, themeFingerprint, recurringTalent } from '../shared/metrics-enrichment';
+import { genreRevenue, collectionCompletion } from '../shared/metrics-staging/films';
+import { classicsViewed } from '../shared/metrics-staging/numerical';
 import { disposableD1 } from './d1';
 import { api } from '../frontend/api';
 import { MetricsScreen } from '../frontend/MetricsScreen';
@@ -185,4 +191,74 @@ it('replacing one A appearance retains A in Cabinet only for identities with ano
  const ids=(filter:MetricsFilter)=>new Set(Object.values(extremesCabinet(selectedAppearances(metricsCatalog(data.catalog!),filter))).flatMap(r=>r?.items.map(a=>a.movie.id)??[]));
  expect(ids({kind:'all'}).has(A)).toBe(true);expect(ids(repeat.session!.kind==='classics'?{kind:'classics'}:{kind:'member',memberId:repeat.session!.host_member_id!}).has(A)).toBe(true);
  expect(ids({kind:'member',memberId:'member-3'}).has(A)).toBe(false);expect(ids({kind:'member',memberId:'member-3'}).has(B)).toBe(true);
+});
+
+it('current relationships govern every Metrics category despite retained scores, Seen and provider caches',async()=>{
+ // Five synthetic canonical identities, independent of titles and provider identity.
+ local.sqlite.exec("UPDATE sessions SET deleted_at='2030-01-01';UPDATE club_rotation SET nominal_slot=2,version=version+1");
+ for(const [i,id] of ['A','B','C','D','E'].entries()) {
+   local.sqlite.prepare('INSERT INTO movies(id,title,year,runtime,director,overview) VALUES(?,?,?,?,?,?)').run(id,id==='A'?'Lost in London':`Replacement fixture ${id}`,2000+i,100+i,`Director ${id}`,'Retained overview');
+   local.sqlite.prepare("INSERT INTO movie_external_ids(movie_id,provider,external_id) VALUES(?,'tmdb',?)").run(id,String(100+i));
+   local.sqlite.prepare('INSERT INTO movie_genres(movie_id,genre) VALUES(?,?)').run(id,['Horror','Comedy','Drama','Crime','Action'][i]);
+   for(const [provider,metric,value,scale] of [['imdb','rating',i===0?10:8,10],['metacritic','critic',i===0?100:80,100]] as const)
+     local.sqlite.prepare("INSERT INTO source_scores(id,movie_id,provider,metric,raw_value,raw_scale,fetched_at,retrieved_via) VALUES(?,?,?,?,?,?,'2030','tmdb')").run(`${id}-${provider}`,id,provider,metric,value,scale);
+   local.sqlite.prepare("INSERT INTO movie_provider_metadata(movie_id,provider,original_language,budget,revenue,fetched_at) VALUES(?,'tmdb','ja',100,?,'2030')").run(id,i===0?999999:1000);
+   local.sqlite.prepare("INSERT INTO movie_provider_keywords(movie_id,provider,item_key,name,fetched_at) VALUES(?,'tmdb','k',?,'2030')").run(id,i===0?'time travel':'space');
+   local.sqlite.prepare("INSERT INTO movie_provider_credits(movie_id,provider,item_key,kind,role,person_id,name,ordinal,fetched_at) VALUES(?,'tmdb','cast','cast','cast',?,?,0,'2030')").run(id,id,`Actor ${id}`);
+   local.sqlite.prepare("INSERT INTO movie_provider_countries(movie_id,provider,item_key,code,name,fetched_at) VALUES(?,'tmdb','JP','JP','Japan','2030')").run(id);
+ }
+ local.sqlite.exec("INSERT INTO classics(movie_id,source) VALUES('D','test');INSERT INTO seen_states(movie_id,member_id,seen) SELECT 'D',id,0 FROM members");
+ const first=await mutation('/sessions','POST',{event_date:'2030-01-01',movie_ids:['A','C','C']});await apply(first);
+ const second=await mutation('/sessions','POST',{event_date:'2030-01-02',movie_ids:['C']});await apply(second);
+ const deleted=await mutation('/sessions','POST',{event_date:'2030-01-03',movie_ids:['E']});await apply(deleted);
+ await apply(await mutation(`/sessions/${deleted.session!.id}`,'DELETE'));
+ await act(async()=>data.refreshData());
+ const enrichment=new MetricsRepository(local.db),retained=await enrichment.enrichment();
+ expect(filmEconomics(selectedAppearances(data.catalog!),retained).points.find(p=>p.movie.id==='A')?.revenue).toBe(999999);
+ await data.metricsResource.load(()=>Promise.resolve(retained));
+ await apply(await data.readJournalMutation(()=>mutation(`/sessions/${first.session!.id}`,'PUT',{event_date:'2030-01-01',movie_ids:['B','C','C']})));
+ expect(data.metricsResource.peek()).toBeNull();
+ expect(local.sqlite.prepare('SELECT movie_id FROM session_movies WHERE session_id=? ORDER BY position').all(first.session!.id).map(r=>r.movie_id)).toEqual(['B','C','C']);
+ const A=data.catalog!.movies.find(m=>m.id==='A')!;
+ expect(A).toMatchObject({title:'Lost in London',genres:['Horror'],external_ids:[{provider:'tmdb',external_id:'100'}]});
+ expect(A.scores).toHaveLength(2);expect(A.seen).toHaveLength(4);
+ expect(local.sqlite.prepare("SELECT revenue FROM movie_provider_metadata WHERE movie_id='A'").get()!.revenue).toBe(999999);
+ const current=await enrichment.enrichment();expect(Object.keys(current.movies).sort()).toEqual(['B','C']);
+ // Deliberately over-broad provider payload: facts alone must never create appearances.
+ Object.assign(retained.movies,current.movies,{D:retained.movies.A,E:retained.movies.A});
+ const report=(catalog:Catalog,facts=retained)=>{
+   const all=selectedAppearances(metricsCatalog(catalog)),dashboard=metricsDashboard(all,all);
+   return {top:calculateMetrics(catalog).top.map(r=>r.movie.id),tastes:dashboard.fingerprint,
+     breakdowns:calculateMetrics(catalog).genres,records:dashboard.extremes,
+     staging:genreRevenue(all,facts),economics:filmEconomics(all,facts),themes:themeFingerprint(all,all,facts),
+     cast:recurringTalent(all,facts,'Cast'),contributors:contributorMetrics(catalog),ratings:dashboard.ratings};
+ };
+ const result=report(data.catalog!);
+ expect(result.top).toEqual(['B','C','C','C']);
+ expect(calculateMetrics(data.catalog!)).toMatchObject({appearances:4,uniqueFilms:2,imdbAverage:8});
+ expect(result.breakdowns.map(g=>[g.genre,g.appearances])).toEqual([['Drama',3],['Comedy',1]]);
+ expect(result.economics.points.map(p=>p.movie.id).sort()).toEqual(['B','C']);expect(result.economics.revenue.median).toBe(1000);
+ expect(JSON.stringify(result)).not.toMatch(/Lost in London|Horror|Actor A|time travel|999999/);
+ expect(selectedAppearances(data.catalog!,{kind:'member',memberId:'member-2'})).toHaveLength(4);
+ expect(selectedAppearances(data.catalog!,{kind:'member',memberId:'member-1'})).toHaveLength(0);
+ expect(selectedAppearances(data.catalog!,{kind:'classics'})).toHaveLength(0);
+ expect(result.contributors.find(r=>r.filter.kind==='member'&&r.filter.memberId==='member-2')?.count).toBe(4);
+ expect(result.ratings.find(r=>r.id==='imdb')).toMatchObject({coverage:4,mean:80});
+ expect(classicsViewed(data.catalog!).pool).toBeGreaterThanOrEqual(1); // D remains an intentional candidate population.
+ expect(report(await repo.catalog(),current)).toEqual(result);
+ expect(report(hydrateCatalog(await repo.compactCatalog()),current)).toEqual(result);
+ // Explicit reload and immediate mutation produce the same populations and reports.
+ await act(async()=>data.refreshData());expect(report(data.catalog!,current)).toEqual(result);
+ await apply(await data.readJournalMutation(()=>mutation(`/sessions/${first.session!.id}`,'PUT',{event_date:'2030-01-01',movie_ids:['B']})));
+ expect(selectedAppearances(data.catalog!).map(r=>r.movie.id).sort()).toEqual(['B','C']);
+ await apply(await mutation(`/sessions/${second.session!.id}`,'DELETE'));
+ expect(selectedAppearances(data.catalog!).map(r=>r.movie.id)).toEqual(['B']);expect(Object.keys((await enrichment.enrichment()).movies)).toEqual(['B']);
+ await apply(await mutation(`/sessions/${second.session!.id}/restore`,'POST'));
+ expect(selectedAppearances(data.catalog!).map(r=>r.movie.id).sort()).toEqual(['B','C']);
+ // Retained roster parts are legitimate supplementary information, not appearances.
+ for(const id of ['B','C'])retained.movies[id].collection={status:'checked_present',external_id:id==='B'?'101':'102',checked_at:'2030',collection_id:1,collection_name:'Fixture collection'};
+ retained.collections={'1':{status:'checked',attempted_at:'2030',roster:{id:1,name:'Fixture collection',checked_at:'2030',parts:[{id:101,title:'B',release_date:null},{id:102,title:'C',release_date:null},{id:100,title:'Lost in London',release_date:null},{id:999,title:'Upcoming',release_date:'2099-01-01'}]}}};
+ const completion=collectionCompletion(selectedAppearances(data.catalog!),retained).unrequited[0];
+ expect(completion.films.map(r=>r.movie.id).sort()).toEqual(['B','C']);expect(completion.missing.map(p=>p.id).sort()).toEqual([100,999]);
+ expect(report(await repo.catalog())).toEqual(report(data.catalog!));
 });
