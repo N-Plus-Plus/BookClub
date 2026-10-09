@@ -14,3 +14,5 @@
 .rotation-swap-form > .button[type="submit"] { align-self: flex-start; width: fit-content; }
 
 .maintenance-progress[data-state="interrupted"] { --progress-fill: var(--ruby); }
+
+.classics-maintenance > .maintenance-field-summary { margin: calc(-1 * var(--space-8)) 0 0; min-width: 0; overflow-wrap: anywhere; }

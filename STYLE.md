@@ -560,6 +560,8 @@ When a contextual admin control genuinely belongs on a screen, keep it visually 
 
 Local developer tooling must remain clearly separate from member-facing workflows.
 
+Every Admin maintenance card places a concise field-type summary immediately beneath its heading, using the shared operation inventory, ordinary 13px subdued metadata, microdot separators and natural wrapping. Populate and Refresh share the same summary. Keep heading/summary spacing compact; retain explanatory copy, coverage/estimates, controls and the detailed safeguards disclosure afterward. Aggregate progress distinguishes film/provider work from collection rosters and names the current phase.
+
 ## 30. BookClub screen priorities
 
 ### Home

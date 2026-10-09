@@ -6,12 +6,12 @@ import { AdminScreen } from '../frontend/AdminScreen';
 import { api } from '../frontend/api';
 import type { Catalog } from '../shared/types';
 import type { MaintenanceBatchResult } from '../shared/maintenance-plan';
-vi.mock('../frontend/api',()=>({api:{maintenanceCoverage:vi.fn(),maintenanceProvider:vi.fn()}}));
+vi.mock('../frontend/api',()=>({api:{collectionRosterStatus:vi.fn(async()=>({collections:[],unavailable:null})),maintainCollectionRosters:vi.fn(),catalog:vi.fn(), maintenanceCoverage:vi.fn(),maintenanceProvider:vi.fn()}}));
 const catalog:Catalog={members:[],sessions:[],cycles:[],movies:Array.from({length:12},(_,i)=>({id:`film-${i}`,title:`Film ${i}`,original_title:null,year:null,release_date:null,runtime:null,overview:null,genres:[],assets:[],scores:[],seen:[],classic:true,ranking:null,external_ids:i<11?[{provider:'tmdb',external_id:String(i+1)}]:[]}))};
 let root:Root,container:HTMLDivElement;const updated=vi.fn(async()=>{}),cacheChanged=vi.fn();
 const button=(name:string)=>[...container.querySelectorAll<HTMLButtonElement>('button')].find(b=>b.textContent===name)!;
 const render=async(writesEnabled=true)=>{await act(async()=>root.render(createElement(AdminScreen,{catalog,writesEnabled,onMovie:()=>{},onUpdated:updated,onEnrichmentChanged:cacheChanged})));};
-beforeEach(()=>{vi.resetAllMocks();localStorage.clear();Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});HTMLDialogElement.prototype.showModal=function(){this.open=true;};HTMLDialogElement.prototype.close=function(){this.open=false;};vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],evidence:[],evidenceSupported:true,fieldsSupported:true,fields:[],unavailable:{tmdb:null,omdb:null,mdblist:null},next:null});container=document.createElement('div');document.body.appendChild(container);root=createRoot(container);});
+beforeEach(()=>{vi.resetAllMocks();vi.mocked(api.collectionRosterStatus).mockResolvedValue({collections:[],unavailable:null});localStorage.clear();Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});HTMLDialogElement.prototype.showModal=function(){this.open=true;};HTMLDialogElement.prototype.close=function(){this.open=false;};vi.mocked(api.maintenanceCoverage).mockResolvedValue({checks:[],negativeScores:[],enrichment:[],evidence:[],evidenceSupported:true,fieldsSupported:true,fields:[],unavailable:{tmdb:null,omdb:null,mdblist:null},next:null});container=document.createElement('div');document.body.appendChild(container);root=createRoot(container);});
 afterEach(async()=>{await act(async()=>root.unmount());container.remove();vi.useRealTimers();});
 it.each(['TMDB','MDBList'])('%s actions hold the whole lock and Stop saves only accepted work',async label=>{
  let resolve!:(value:MaintenanceBatchResult)=>void;vi.mocked(api.maintenanceProvider).mockImplementation(()=>new Promise(done=>{resolve=done;}));await render();

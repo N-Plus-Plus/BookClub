@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { RefreshCw, Square } from 'lucide-react';
 import type { CollectionRosterStatus } from '../shared/collection-roster';
 import { formatCount } from '../shared/format';
-import { maintenanceContract,collectedDescription } from '../shared/maintenance-contract';
+import { maintenanceContract,collectedDescription,maintenanceFieldSummary } from '../shared/maintenance-contract';
 import { api } from './api';
 import { Action } from './components';
 import { MaintenanceProgress, useBulkJobController } from './bulk-maintenance';
@@ -44,12 +44,14 @@ export function CollectionRosterMaintenance({writesEnabled,onEnrichmentChanged}:
       const checkpoint=status&&saved[intent]?reconcileRosterCheckpoint(saved[intent]!,status):null,plan=status?rosterPlan(status,intent):null;
       const count=checkpoint?checkpoint.pending.length:plan?.collections ?? 0;
       return <section className="card stack classics-maintenance" key={intent}><h3>{intent==='populate'?'Populate missing collection rosters':'Refresh collection rosters'}</h3>
+        <p className="meta maintenance-field-summary">{maintenanceFieldSummary('collection-rosters')}</p>
+        <p className="meta">{maintenanceContract['collection-rosters'].scope}</p>
         <p className="meta">{formatCount(count)} eligible collections · {formatCount(count)} BookClub batches · {formatCount(count)} estimated TMDB requests.</p>
         {status?.unavailable&&<p className="meta">{status.unavailable}</p>}
-        <details className="utility-disclosure"><summary>Data collected and safeguards</summary><div className="maintenance-details"><p className="meta">{collectedDescription('collection-rosters')}</p><p className="meta">{maintenanceContract['collection-rosters'].scope} {maintenanceContract['collection-rosters'].success} Populate checks only eligible collections without a validated successful roster. Failed or inconclusive checks remain eligible; Refresh revisits every eligible collection. This collection-level queue is separate from the seven film operations in the aggregate actions.</p></div></details>
-        {run?.intent===intent&&<MaintenanceProgress processed={run.completed} total={run.completed+run.pending.length} label="Collection roster progress" state={job.error?'interrupted':'normal'} summary={`${formatCount(run.completed)} completed · ${formatCount(run.pending.length)} remaining · ${formatCount(run.requests)} measured requests · ${formatCount(failed)} failed checks`}/>}
         <div className="action-group action-group-wrap"><Action className="action-wrap" icon={RefreshCw} disabled={!writesEnabled || job.locked || !status || !!status.unavailable || !count} onClick={()=>void start(intent)}>{saved[intent]?'Resume collection checks':intent==='populate'?'Populate missing collection rosters':'Refresh collection rosters'}</Action>
         {active===intent&&<Action icon={Square} disabled={job.stopRequested} onClick={job.requestStop}>Stop after this batch</Action>}</div>
+        <details className="utility-disclosure"><summary>Data collected and safeguards</summary><div className="maintenance-details"><p className="meta">{collectedDescription('collection-rosters')}</p><p className="meta">{maintenanceContract['collection-rosters'].scope} {maintenanceContract['collection-rosters'].success} Populate checks only eligible collections without a validated successful roster. Failed or inconclusive checks remain eligible; Refresh revisits every eligible collection. Aggregate actions run this collection-level queue after their seven film operations. These dedicated controls remain independently usable.</p></div></details>
+        {run?.intent===intent&&<MaintenanceProgress processed={run.completed} total={run.completed+run.pending.length} label="Collection roster progress" state={job.error?'interrupted':'normal'} summary={`${formatCount(run.completed)} completed · ${formatCount(run.pending.length)} remaining · ${formatCount(run.requests)} measured requests · ${formatCount(failed)} failed checks`}/>}
       </section>;
     })}<Action icon={RefreshCw} disabled={job.locked} onClick={()=>void reload()}>Retry collection coverage</Action>
   </section>;
