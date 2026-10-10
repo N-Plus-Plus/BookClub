@@ -48,7 +48,9 @@
   .turn-row-with-predictions .turn-actions > .button:last-child { grid-row: 1; align-self: end; }
   .turn-row-with-predictions .turn-identity { grid-column: 1; grid-row: 1; }
   .turn-row-with-predictions .turn-predictions { grid-column: 2; grid-row: 1; }
-  .turn-row-with-predictions:has(.turn-actions > .button:nth-child(2)) :is(.turn-identity,.turn-predictions,.turn-actions > .button:last-child) { grid-row: 3; }
+  @media (min-width: 720px) {
+    .turn-row-with-predictions:has(.turn-actions > .button:nth-child(2)) :is(.turn-identity,.turn-predictions,.turn-actions > .button:last-child) { grid-row: 3; }
+  }
 }
 .turn-identity { min-width: 0; overflow-wrap: anywhere; }
 .turn-identity .club-identity { align-self: flex-start; max-width: 100%; }
@@ -101,3 +103,18 @@
 .home-session-card .movie-title + .meta,.history-event .movie-title + .meta { margin-top: var(--space-4); }
 
 @media (max-width: 719px) { .history-cycle-order { display: none; } }
+
+@media (max-width: 719px) {
+  .turn-row.turn-row-with-predictions { grid-template-columns: 80px minmax(0,1fr) max-content; }
+  .turn-row-with-predictions .turn-identity { display: contents; }
+  .turn-row-with-predictions .turn-identity h2 { grid-column: 1 / -1; grid-row: 1; margin: 0 0 var(--space-8); }
+  .turn-row-with-predictions .turn-identity .club-identity { grid-column: 1; grid-row: 2 / 4; align-self: start; }
+  .turn-row-with-predictions .turn-predictions { grid-column: 2 / 4; grid-row: 2; justify-self: start; }
+  .turn-row-with-predictions .turn-predictions h3 { white-space: nowrap; }
+  .turn-row-with-predictions .prediction-poster .poster { width: 48px; height: 72px; }
+  .turn-row-with-predictions .turn-actions > .button:last-child { grid-column: 3; grid-row: 3; }
+  .turn-row-with-predictions:has(.turn-actions > .button:nth-child(2)) .turn-identity h2 { grid-row: 3; }
+  .turn-row-with-predictions:has(.turn-actions > .button:nth-child(2)) .turn-identity .club-identity { grid-row: 4 / 6; }
+  .turn-row-with-predictions:has(.turn-actions > .button:nth-child(2)) .turn-predictions { grid-row: 4; }
+  .turn-row-with-predictions:has(.turn-actions > .button:nth-child(2)) .turn-actions > .button:last-child { grid-row: 5; }
+}

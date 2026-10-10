@@ -1,10 +1,18 @@
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { classificationCategories, classificationDistribution, type MetricsEnrichment } from '../../shared/metrics-enrichment';
 import type { Appearance } from '../../shared/metrics';
 
 export function ClassificationChart({scopes,data}: {scopes:{label:string;rows:Appearance[]}[];data:MetricsEnrichment}) {
+  const chart=useRef<HTMLElement>(null);
   const distributions=useMemo(()=>scopes.map(scope=>classificationDistribution(scope.rows,data)),[scopes,data]);
-  return <section className="stack metrics-classifications" data-metric="K"><h3>Australian classification</h3>
+  useLayoutEffect(()=>{
+    const labels=[...chart.current!.querySelectorAll<HTMLElement>('.metrics-segment-percentage')];
+    const fit=()=>labels.forEach(label=>{label.dataset.fits=String(label.scrollWidth<=label.parentElement!.clientWidth);});
+    fit();if(typeof ResizeObserver==='undefined')return;
+    const observer=new ResizeObserver(fit);labels.forEach(label=>{observer.observe(label.parentElement!);observer.observe(label);});
+    return ()=>observer.disconnect();
+  },[distributions]);
+  return <section ref={chart} className="stack metrics-classifications" data-metric="K"><h3>Australian classification</h3>
     <div className="metrics-stack-legend">{classificationCategories.map(category=><span key={category.id}><i aria-hidden="true" style={{background:`var(--${category.colour})`}} />{category.label}</span>)}</div>
     <div className="metrics-contributor-chart">{scopes.map((scope,index)=>{
       const distribution=distributions[index];

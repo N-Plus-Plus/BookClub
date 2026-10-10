@@ -156,6 +156,7 @@ textarea.field__input { min-height: 100px; resize: vertical; width: 100%; }
 .score-abbreviations th,.score-abbreviations td { padding: var(--space-8); text-align: left; border-bottom: 1px solid var(--asphalt-dark); }
 .score-abbreviations .score-example-column { width: 25%; }
 @media (max-width: 719px) {
+  .score-desktop-suffix { display: none; }
   .score-abbreviations { min-width: 0; }
   .score-abbreviations .score-example-column,.score-abbreviations th:nth-child(n+3),.score-abbreviations td:nth-child(n+3) { display: none; }
   .score-abbreviations th { white-space: nowrap; }

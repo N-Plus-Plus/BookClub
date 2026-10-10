@@ -41,17 +41,18 @@ try{
  predictions=true;
  for(const width of [320,360,375,390,430,720,951,1440]) {
   classics=false;await page.setViewportSize({width,height:900});await page.goto(uiBase+'/#/home');await page.reload();await page.locator('.turn-predictions').waitFor();
-  const positions=await page.locator('.turn-row').evaluate(e=>{const rect=s=>e.querySelector(s).getBoundingClientRect().toJSON();return {identity:rect('.turn-identity'),prediction:rect('.turn-predictions'),event:rect('.turn-actions > .button:last-child'),row:e.getBoundingClientRect().toJSON()};});
-  assert(positions.prediction.x>=positions.identity.right-1);assert(positions.event.x>=positions.prediction.right-1);assert(Math.abs(positions.event.bottom-positions.row.bottom)<1);
+  const positions=await page.locator('.turn-row').evaluate(e=>{const rect=s=>e.querySelector(s).getBoundingClientRect().toJSON();return {identity:rect(innerWidth<720?'.turn-identity .club-identity':'.turn-identity'),heading:rect('.turn-identity h2'),prediction:rect('.turn-predictions'),event:rect('.turn-actions > .button:last-child'),row:e.getBoundingClientRect().toJSON()};});
+  assert(positions.prediction.x>=positions.identity.right-1);if(width>=720)assert(positions.event.x>=positions.prediction.right-1);else {assert(positions.prediction.top>=positions.heading.bottom);assert(positions.event.top>=positions.prediction.bottom);assert(await page.locator('.turn-predictions h3').evaluate(e=>e.scrollWidth<=e.clientWidth));}assert(Math.abs(positions.event.bottom-positions.row.bottom)<1);
   await shot('home-ai-'+width);
  }
  predictions=false;
  for(const width of [320,360,390,719,720,1440]){
   await page.setViewportSize({width,height:900});await page.goto(uiBase+'/#/home');await page.reload();await page.getByRole('button',{name:'Explain score abbreviations'}).first().click();
   const dialog=page.getByRole('dialog');await dialog.waitFor();
-  const table=await page.locator('.score-abbreviations').evaluate(e=>({width:e.getBoundingClientRect().width,scroll:e.parentElement.scrollWidth,client:e.parentElement.clientWidth,rows:[...e.rows].map(r=>[...r.cells].filter(c=>getComputedStyle(c).display!=='none').map(c=>({text:c.textContent,align:getComputedStyle(c).textAlign,width:c.getBoundingClientRect().width,overflow:c.scrollWidth>c.clientWidth})))}));
+  const table=await page.locator('.score-abbreviations').evaluate(e=>({width:e.getBoundingClientRect().width,scroll:e.parentElement.scrollWidth,client:e.parentElement.clientWidth,rows:[...e.rows].map(r=>[...r.cells].filter(c=>getComputedStyle(c).display!=='none').map(c=>({text:c.innerText,align:getComputedStyle(c).textAlign,width:c.getBoundingClientRect().width,overflow:c.scrollWidth>c.clientWidth})))}));
   assert(table.scroll<=table.client);assert(table.rows.every(r=>r.length===(width<720?2:4)));assert.deepEqual(table.rows[0].map(c=>c.text),width<720?['Abbreviation','Source']:['Abbreviation','Source','Native','Normalised']);
   for(const r of table.rows){assert.deepEqual(r.map(c=>c.align),width<720?['left','left']:['left','left','right','right']);assert(r.every(c=>!c.overflow));if(width>=720)assert(Math.abs(r[2].width-r[3].width)<1);}
+  const rt=table.rows.filter(r=>r[1]?.text.startsWith('Rotten Tomatoes'));assert.deepEqual(rt.map(r=>r[1].text),width<720?['Rotten Tomatoes Audience','Rotten Tomatoes Critic']:['Rotten Tomatoes Audience Score','Rotten Tomatoes Critic Score']);
   results.push({width,table});await shot('glossary-'+width);await page.keyboard.press('Escape');
  }
  for(const width of [720,951,1440])for(const count of [0,1,9,99,100,126]){
