@@ -121,7 +121,7 @@ it('Home shows only the top two eligible rankable Classics with summary scores',
   expect(snapshot.querySelector('.section-title a')).toBeNull();
   expect(home.querySelector('.dashboard-grid > section:last-child .section-title a')?.getAttribute('href')).toBe('#/classics');
   expect([...snapshot.querySelectorAll('.stat strong')].map(e=>e.textContent)).toEqual(['3','1','0']);
-  expect([...snapshot.querySelectorAll('.stat > span')].map(e=>e.textContent)).toEqual(['Eligible Classics','Already seen by all',"Group's missing answers"]);
+  expect([...snapshot.querySelectorAll('.stat > span')].map(e=>e.textContent)).toEqual(['Eligible Classics','Already seen by all',"Missing answers"]);
   expect(snapshot.querySelector('.stat-link')?.getAttribute('href')).toBe('#/seen');
   const cards=harness.container.querySelectorAll('.home-rank-card');expect(cards).toHaveLength(2);
   const top=sortClassics(pool).filter(m=>m.ranking?.eligible&&m.ranking.rankable).slice(0,2);

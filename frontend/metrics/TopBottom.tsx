@@ -49,10 +49,9 @@ export function TopBottomMetrics({catalog,dashboard,topDimension,bottomDimension
   const medianLabel = (value:number|null,units:string) => value === null ? `No ${units} for this selection` : `Median ${countLabel(value)} ${units}`;
   return <>
     <div className="metrics-rankings">{list('Top',topDimension,setTopDimension,topRows)}{list('Bottom',bottomDimension,setBottomDimension,bottomRows)}</div>
-    <div className="stack" data-metric="W">
-      <p className="meta">{medianLabel(dashboard.popularity.median,'IMDb votes')} · {medianLabel(dashboard.audiencePopularity.median,'total audience votes')}</p>
-      <div className="metrics-paired">{popularityList('popular',popularMeasure,setPopularMeasure)}{popularityList('obscure',obscureMeasure,setObscureMeasure)}</div>
-    </div>
+    <p className="meta metrics-popularity-footnote" data-metric="W">
+      {medianLabel(dashboard.popularity.median,'IMDb votes')} · {medianLabel(dashboard.audiencePopularity.median,'total audience votes')}</p>
+      {popularityList('popular',popularMeasure,setPopularMeasure)}{popularityList('obscure',obscureMeasure,setObscureMeasure)}
   </>;
 }
 

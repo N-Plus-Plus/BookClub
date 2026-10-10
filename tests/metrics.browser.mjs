@@ -136,7 +136,7 @@ try {
     }
     assert(await page.locator('[data-metric="W"]').evaluate(e=>getComputedStyle(e).borderTopWidth==='0px'),'single row boundary without following group border');
     assert.equal(await page.locator('.metrics-film-footer').count(),0);
-    const medians=await page.locator('[data-metric="W"] > p').textContent();
+    const medians=await page.locator('[data-metric="W"]').textContent();
     assert.match(medians,/Median .* IMDb votes · Median .* total audience votes/);
     await page.getByRole('group',{name:'Most popular vote filter'}).getByRole('button',{name:'All audiences',exact:true}).click();
     assert.match(await page.locator('.metrics-popularity-list').first().textContent(),/audience votes/);
@@ -144,7 +144,7 @@ try {
     await page.getByRole('group',{name:'Most obscure vote filter'}).getByRole('button',{name:'All audiences',exact:true}).click();
     assert.match(await page.locator('.metrics-popularity-list').nth(1).textContent(),/audience votes/);
     await page.getByRole('group',{name:'Most obscure vote filter'}).getByRole('button',{name:'IMDb',exact:true}).click();
-    assert.equal(await page.locator('[data-metric="W"] > p').textContent(),medians);
+    assert.equal(await page.locator('[data-metric="W"]').textContent(),medians);
     await page.getByRole('group',{name:'Most popular vote filter'}).getByRole('button',{name:'IMDb',exact:true}).click();
     await tab('Breakdowns');
     assert.match(await page.locator('.metrics-decades').textContent(),/Unknown.*14.3%/s);
@@ -238,7 +238,7 @@ try {
     assert.match(await page.locator('[data-metric="U"] h2').textContent(),/audience/);
     assert.match(await page.locator('[data-metric="V"] h2').textContent(),/critic/);
     await page.getByRole('group',{name:'Bottom 5 score filter'}).getByRole('button',{name:'Audience',exact:true}).click();
-    const summary=await page.locator('[data-metric="W"] > p').textContent();
+    const summary=await page.locator('[data-metric="W"]').textContent();
     assert.notEqual(summary.split(' · ')[0].replace('IMDb',''),summary.split(' · ')[1].replace('total audience',''));
     const popularityFilter=page.getByRole('group',{name:'Most popular vote filter'});
     const options=await popularityFilter.getByRole('button').evaluateAll(buttons=>buttons.map(e=>e.getBoundingClientRect().width));
@@ -248,7 +248,7 @@ try {
     assert(await popularityFilter.getByRole('button',{name:'All audiences',exact:true}).evaluate(e=>getComputedStyle(e).outlineStyle!=='none'),'visible keyboard focus');
     assert.match(await page.locator('.metrics-popularity-list').first().textContent(),/3,000,012 audience votes/);
     assert.equal(await page.locator('.metrics-popularity-list').first().locator('a').first().getAttribute('href'),'#/movie/b');
-    assert.equal(await page.locator('[data-metric="W"] > p').textContent(),summary);
+    assert.equal(await page.locator('[data-metric="W"]').textContent(),summary);
     assert(await rows.locator('img.poster').first().evaluate(e=>e.complete && e.naturalWidth===64),'synthetic poster rendered');
     await page.locator('.metrics-popularity-list').first().scrollIntoViewIfNeeded();
     assert.equal(await page.locator('.metrics-popularity-list').first().locator('li').first().locator('.poster-empty').count(),1,'failed poster falls back');

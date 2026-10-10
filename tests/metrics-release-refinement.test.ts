@@ -21,7 +21,7 @@ it('renders exact subtitles, only spread axes, six right-aligned star columns/To
     expect(node.querySelector('[aria-label="Release-year spread"] > p')?.textContent).toBe('Mean release year and standard deviation spread, on a shared timeline.');
     expect(node.querySelector('[aria-label="Shared stars"] > p')?.textContent).toBe('Actors shared across the boobs.');
     expect(node.querySelector('[aria-label="Critics or audiences?"] .staging-axis')).toBeNull();expect(node.querySelectorAll('.staging-axis')).toHaveLength(2);
-    const table=node.querySelector('.staging-stars-table')!;expect([...table.querySelectorAll('thead th')].map(e=>e.textContent)).toEqual(['Actor','Sean','Troy','Matt','Jess','Total']);expect([...table.querySelectorAll('tbody tr:first-child td')].map(e=>e.textContent)).toEqual(['2','2','2','2','8']);expect(table.querySelector('.metrics-table-pages td')?.getAttribute('colspan')).toBe('6');
+    const table=node.querySelector('.staging-stars-table')!;expect([...table.querySelectorAll('thead th')].map(e=>e.querySelector('.stars-heading-desktop')?.textContent ?? e.textContent)).toEqual(['Actor','Sean','Troy','Matt','Jess','Total']);expect([...table.querySelectorAll('tbody tr:first-child td')].map(e=>e.textContent)).toEqual(['2','2','2','2','8']);expect(table.querySelector('.metrics-table-pages td')?.getAttribute('colspan')).toBe('6');
     expect(css).toMatch(/\.staging-stars-table th:not\(:first-child\),\.staging-stars-table td \{ text-align: right; font-variant-numeric: tabular-nums;/);expect(css).toContain('.staging-table-scroll { max-width: 100%; overflow-x: auto; }');
   }finally{await act(async()=>root.unmount());}
 });

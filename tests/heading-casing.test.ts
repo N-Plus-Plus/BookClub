@@ -26,7 +26,7 @@ it('uses sentence-case Home headings/statistics and preserves Classics, IMDb and
   await navigate('home');
   expect(headingTexts('.home-dashboard .section-title h2')).toEqual(['Last turn','Next Classics','Quick facts','Club timeline','Classics snapshot']);
   expect([...harness.container.querySelectorAll('.stats-grid .stat > span')].map(node => node.textContent)).toEqual([
-    'Events','Films brought','Average IMDb / 10','Days active','Cycles completed','Watch time hh:mm','Eligible Classics','Already seen by all',"Group's missing answers",
+    'Events','Films brought','Average IMDb','Days active','Cycles completed','Watch time hh:mm','Eligible Classics','Already seen by all',"Missing answers",
   ]);
   expect(harness.container.querySelector('.turn-identity h2')?.textContent).toBe('It is your turn');
   expect(harness.container.querySelector('.brand small')?.textContent).toBe('HAVE YOU UPDATED THE SPREADSH... WEB APP?');

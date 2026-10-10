@@ -20,7 +20,7 @@
 .turn-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: var(--space-20); }
 .turn-actions { flex-direction: column; align-items: flex-end; justify-content: flex-end; }
 .turn-actions .button { max-width: 100%; white-space: nowrap; }
-.turn-row-with-predictions { grid-template-columns: minmax(0,1fr) 160px minmax(0,1fr); align-items: center; }
+.turn-row-with-predictions { grid-template-columns: minmax(0,1fr) 160px minmax(0,1fr); align-items: end; }
 .turn-predictions { display: flex; flex-direction: column; align-items: center; gap: var(--space-4); min-width: 0; }
 .turn-predictions h3 { margin: 0; font-size: var(--text-eyebrow); text-align: center; }
 .prediction-poster { display: block; max-width: 100%; }
@@ -31,13 +31,6 @@
   6.557377%,88.524590% { opacity: 1; }
   98.360656%,100% { opacity: 0; }
 }
-@media (max-width: 950px) {
-  .turn-row-with-predictions { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
-  .turn-row-with-predictions .turn-actions { grid-column: 1 / -1; }
-}
-@media (max-width: 374px) {
-  .turn-row-with-predictions { grid-template-columns: minmax(0,1fr); }
-}
 @media (prefers-reduced-motion: reduce) {
   .prediction-animated { animation: none; opacity: 1; }
 }
@@ -46,6 +39,16 @@
 }
 @media (max-width: 374px) {
   .turn-row { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 950px) {
+  .turn-row.turn-row-with-predictions { grid-template-columns: minmax(0,1fr) 80px max-content; gap: var(--space-8); }
+  .turn-row-with-predictions .turn-actions { display: contents; }
+  .turn-row-with-predictions .turn-actions > .button { grid-column: 3; justify-self: end; }
+  .turn-row-with-predictions .turn-actions > .button:not(:last-child) { grid-column: 1 / -1; }
+  .turn-row-with-predictions .turn-actions > .button:last-child { grid-row: 1; align-self: end; }
+  .turn-row-with-predictions .turn-identity { grid-column: 1; grid-row: 1; }
+  .turn-row-with-predictions .turn-predictions { grid-column: 2; grid-row: 1; }
+  .turn-row-with-predictions:has(.turn-actions > .button:nth-child(2)) :is(.turn-identity,.turn-predictions,.turn-actions > .button:last-child) { grid-row: 3; }
 }
 .turn-identity { min-width: 0; overflow-wrap: anywhere; }
 .turn-identity .club-identity { align-self: flex-start; max-width: 100%; }
@@ -96,3 +99,5 @@
 }
 
 .home-session-card .movie-title + .meta,.history-event .movie-title + .meta { margin-top: var(--space-4); }
+
+@media (max-width: 719px) { .history-cycle-order { display: none; } }

@@ -76,7 +76,7 @@ it('desktop Missing answers follows session viewers and membership while excludi
   await act(async()=>harness.root.render(createElement(App)));await flush();
  };
  const label=()=>harness.container.querySelector('.desktop-navigation a[href="#/seen"]')?.getAttribute('aria-label');
- await remount(member);expect(label()).toBe('Seen: 1 missing answer');await navigate('home');expect(harness.container.querySelector('.stat-link strong')?.textContent).toBe('3');expect(harness.container.querySelector('.stat-link span')?.textContent).toBe("Group's missing answers");
+ await remount(member);expect(label()).toBe('Seen: 1 missing answer');await navigate('home');expect(harness.container.querySelector('.stat-link strong')?.textContent).toBe('3');expect(harness.container.querySelector('.stat-link span')?.textContent).toBe("Missing answers");
  await remount(other);expect(label()).toBe('Seen: 2 missing answers');expect(harness.container.querySelector('.stat-link strong')?.textContent).toBe('3');
  await remount(other,pool.map(m=>({...m,classic:m.id!==pool[1].id})));expect(label()).toBe('Seen: 1 missing answer');
  await remount(member,pool.map(m=>({...m,classic:m.id!==pool[1].id})));expect(label()).toBe('Seen');

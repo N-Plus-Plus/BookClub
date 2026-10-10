@@ -1,5 +1,5 @@
 /* app-shell: base rules and responsive refinements in their original relative order. */
-.bookclub-shell { max-width: var(--content-wide); margin: 0 auto; padding: max(var(--space-20), env(safe-area-inset-top)) var(--space-16) calc(105px + env(safe-area-inset-bottom)); }
+.bookclub-shell { max-width: var(--content-wide); margin: 0 auto; padding: max(var(--space-20), env(safe-area-inset-top)) var(--space-16) calc(80px + var(--space-8) + env(safe-area-inset-bottom)); }
 .site-header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-12); padding-bottom: var(--space-24); border-bottom: 1px solid var(--asphalt-dark); }
 .brand { display: flex; gap: var(--space-12); align-items: center; text-decoration: none; font-size: var(--text-brand); font-weight: 600; line-height: var(--leading-heading); min-height: var(--target-min); }
 .brand-icon { width: 45px; height: 45px; flex-shrink: 0; object-fit: contain; }
@@ -13,7 +13,7 @@
 .page-title-region { min-width: 0; }
 .demo-label { position: absolute; top: .5rem; left: .5rem; z-index: 30; pointer-events: none; display: flex; gap: var(--space-4); align-items: center; font-size: var(--text-eyebrow); line-height: 1; color: var(--straw); margin: 0; white-space: nowrap; }
 .demo-label svg { flex-shrink: 0; }
-.data-sources { border-top: 0; margin-top: var(--space-32); padding-top: var(--space-24); display: grid; gap: var(--space-12); color: var(--text-muted); font-size: var(--text-attribution-body); width: 100%; }
+.data-sources { border-top: 0; margin-top: var(--space-16); padding-top: 0; display: grid; gap: var(--space-12); color: var(--text-muted); font-size: var(--text-attribution-body); width: 100%; }
 .data-sources summary { font-size: var(--text-attribution-label); }
 .data-sources summary svg { width: 9px; height: 9px; }
 .data-sources h2 { display: flex; align-items: center; gap: var(--space-8); font-size: var(--text-supporting); }
@@ -74,7 +74,7 @@
   .navigation-tooltip { display: none; }
   .navigation-collapsed a:hover .navigation-tooltip,.navigation-collapsed a:focus-visible .navigation-tooltip { display: block; position: absolute; left: 100%; padding: var(--space-12); background: var(--surface-raised); color: var(--paper); white-space: nowrap; }
   .bottom-nav { display: none; }
-  .bookclub-shell { padding-bottom: var(--space-32); padding-inline: var(--space-24); }
+  .bookclub-shell { padding-bottom: var(--space-8); padding-inline: var(--space-24); }
 }
 .page-heading-actions { flex: 0 0 auto; display: flex; justify-content: flex-end; margin-left: auto; }
 .page-heading-actions .button { width: fit-content; flex: 0 0 auto; white-space: nowrap; }

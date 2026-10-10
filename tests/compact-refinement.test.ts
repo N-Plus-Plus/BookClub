@@ -86,6 +86,6 @@ it('does not offer deletion before a new set has been persisted',async()=>{
 });
 it('keeps Seen completion and recent empty text without redundant navigation or instructions',async()=>{
  await render(h(SeenScreen,{catalog:{...catalog,movies:[]},viewerId:'m1',writesEnabled:true,answer:vi.fn()}));
- expect(container.textContent).toContain('All caught up');expect(container.textContent).toContain('You have answered every current Classics candidate.');expect(container.textContent).toContain('THIS VISIT');expect(container.textContent).toContain('Your answers will appear here.');
+ expect(container.textContent).toContain('All caught up');expect(container.textContent).toContain('You have answered every current Classics candidate.');expect(container.textContent).not.toContain('THIS VISIT');expect(container.querySelector('aside')).toBeNull();
  expect(container.textContent).not.toMatch(/Explore Classics|You can correct your recent answers below/);expect(container.querySelector('a[href="#/classics"]')).toBeNull();
 });

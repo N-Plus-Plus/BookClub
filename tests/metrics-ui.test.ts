@@ -79,20 +79,20 @@ it('switches independent unique popularity lists, keeps both medians visible and
  const container=document.createElement('div');document.body.appendChild(container);const root=createRoot(container);
  try {
   await act(async()=>root.render(createElement(MetricsScreen,{catalog:data,viewer:null,onUpdated:async()=>{}})));
-  const report=container.querySelector('[data-metric="W"]')!;
-  const median=report.querySelector('p')!.textContent;
+  const report=container.querySelector('.metrics-panel')!;
+  const median=report.querySelector('[data-metric="W"]')!.textContent;
   expect(median).toBe('Median 100 IMDb votes · Median 110 total audience votes');
-  expect(report.querySelector('button[aria-pressed=true]')?.textContent).toBe('IMDb');
-  const lists=()=>[...report.querySelectorAll('ol')];
+  expect(report.querySelector('[aria-label="Most popular vote filter"] button[aria-pressed=true]')?.textContent).toBe('IMDb');
+  const lists=()=>[...report.querySelectorAll('.metrics-popularity-list')];
   expect(lists().map(l=>l.querySelector('a')?.getAttribute('href'))).toEqual(['#/movie/a','#/movie/b']);
-  await act(async()=>[...report.querySelectorAll('button')].find(b=>b.textContent==='All audiences')!.click());
+  await act(async()=>[...report.querySelectorAll<HTMLButtonElement>('[aria-label="Most popular vote filter"] button')].find(b=>b.textContent==='All audiences')!.click());
   expect(lists().map(l=>l.querySelector('a')?.getAttribute('href'))).toEqual(['#/movie/b','#/movie/b']);
   expect(lists()[1].textContent).toContain('10 IMDb votes');
   await act(async()=>[...report.querySelectorAll<HTMLButtonElement>('[aria-label="Most obscure vote filter"] button')].find(b=>b.textContent==='All audiences')!.click());
   expect(lists().map(l=>l.querySelector('a')?.getAttribute('href'))).toEqual(['#/movie/b','#/movie/a']);
   expect(lists()[0].textContent).toContain('210 audience votes');
   expect(lists()[1].textContent).toContain('110 audience votes');
-  expect(report.querySelector('p')!.textContent).toBe(median);
+  expect(report.querySelector('[data-metric="W"]')!.textContent).toBe(median);
   expect(container.querySelectorAll('ol.metrics-list')).toHaveLength(4);
   for(const list of container.querySelectorAll('ol.metrics-list')) {
    expect(list.querySelectorAll('li').length).toBeGreaterThan(0);
@@ -117,13 +117,38 @@ it('switches independent unique popularity lists, keeps both medians visible and
   expect(container.querySelector('.poster-empty')?.getAttribute('aria-label')).toBe('No poster available for Classic film');
   expect(container.querySelectorAll('.metrics-film-footer')).toHaveLength(0);
   expect(container.querySelectorAll('[data-metric="W"].metrics-section, [data-metric="W"] .metrics-section')).toHaveLength(0);
-  await act(async()=>[...report.querySelectorAll('button')].find(b=>b.textContent==='IMDb')!.click());
+  await act(async()=>[...report.querySelectorAll<HTMLButtonElement>('[aria-label="Most popular vote filter"] button')].find(b=>b.textContent==='IMDb')!.click());
   expect(lists()[0].textContent).toContain('100 IMDb votes');
   expect(lists()[1].textContent).toContain('110 audience votes');
   const tab=(label:string)=>act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===label)!.click());
   await tab('Tastes');await tab('Top 5');
-  expect([...container.querySelectorAll('[data-metric="W"] h2')].map(e=>e.textContent)).toEqual(['Top 5 most popular · IMDb','Top 5 most obscure · All audiences']);
+  expect([...container.querySelectorAll('section:has(.metrics-popularity-list) h2')].map(e=>e.textContent)).toEqual(['Top 5 most popular · IMDb','Top 5 most obscure · All audiences']);
   await act(async()=>container.querySelectorAll<HTMLButtonElement>('.metrics-filters button')[5].click());
   expect(container.querySelector('[aria-label="Most obscure vote filter"] [aria-pressed=true]')?.textContent).toBe('All audiences');
  } finally {await act(async()=>root.unmount());container.remove();}
+});
+
+
+it('keeps record dates and durations in film rows and offers immediate top navigation in every category',async()=>{
+ Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
+ const container=document.createElement('div');document.body.appendChild(container);const root=createRoot(container);
+ const oldest=metricsFilm('oldest',{year:1939,release_date:'1939-08-25',runtime:59});
+ const newest=metricsFilm('newest',{year:2025,release_date:'2025-10-09',runtime:120});
+ const data={...metricsFixture(),movies:[oldest,newest],sessions:[metricsEvent('old',[oldest]),metricsEvent('new',[newest])]};
+ const scroll=vi.spyOn(window,'scrollTo').mockImplementation(()=>{});
+ try {
+  await act(async()=>root.render(createElement(MetricsScreen,{catalog:data,viewer:null,onUpdated:async()=>{}})));
+  for(const label of ['Top 5','Tastes','Breakdowns','Records']) {
+   await act(async()=>[...container.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(b=>b.textContent===label)!.click());
+   const back=container.querySelector<HTMLButtonElement>('.metrics-back-to-top')!;
+   expect(back.type).toBe('button');expect(back.textContent).toBe('Back to top');expect(back.querySelectorAll('svg[aria-hidden=true]')).toHaveLength(2);
+   await act(async()=>back.click());expect(scroll).toHaveBeenLastCalledWith({top:0,behavior:'instant'});
+  }
+  const record=(label:string)=>[...container.querySelectorAll('.metrics-film-extreme')].find(e=>e.querySelector('h3')?.textContent===label)!;
+  for(const label of ['Oldest','Newest','Longest','Shortest'])expect(record(label).querySelector(':scope > strong')).toBeNull();
+  expect(record('Oldest').querySelector('.metrics-poster-film .meta')?.textContent).toBe('1939-08-25');
+  expect(record('Newest').querySelector('.metrics-poster-film .meta')?.textContent).toBe('2025-10-09');
+  expect(record('Longest').querySelector('.metrics-poster-film .meta')?.textContent).toBe('2025 · 2 hrs');
+  expect(record('Shortest').querySelector('.metrics-poster-film .meta')?.textContent).toBe('1939 · 59 mins');
+ }finally{scroll.mockRestore();await act(async()=>root.unmount());container.remove();}
 });

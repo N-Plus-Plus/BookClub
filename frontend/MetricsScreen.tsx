@@ -2,7 +2,7 @@ import { TopBottomMetrics } from './metrics/TopBottom';
 import { ExtremesMetrics } from './metrics/Extremes';
 import { useMemo, useState, useId } from 'react';
 
-import { Filter } from 'lucide-react';
+import { ChevronUp, Filter } from 'lucide-react';
 import type { Catalog, Viewer } from '../shared/types';
 import { metricsCatalog, rankedMetricsAppearances, calculateMetrics, matchesMetricsFilter, selectedAppearances, contributorMetrics, metricsDashboard, type PopularityMeasure, type MetricsScoreCategory, type MetricsFilter } from '../shared/metrics';
 
@@ -52,6 +52,6 @@ export function MetricsScreen({catalog:sourceCatalog,resource}: {catalog: Catalo
     {category === 'top-bottom' && <TopBottomMetrics catalog={catalog} rows={rows} dashboard={dashboard} topDimension={topDimension} bottomDimension={bottomDimension} setTopDimension={setTopDimension} setBottomDimension={setBottomDimension} topRows={topRows} bottomRows={bottomRows} popularMeasure={popularMeasure} setPopularMeasure={setPopularMeasure} obscureMeasure={obscureMeasure} setObscureMeasure={setObscureMeasure} />}
     {category === 'extremes' && <ExtremesMetrics catalog={catalog} rows={rows} dashboard={dashboard} enrichment={enrichment} />}
     <EnrichedMetrics metrics={metrics} contributions={contributions} category={category} catalog={catalog} all={all} rows={rows} filter={filter} dashboard={dashboard} {...enrichment} />
-    </div>
+    </div><button type="button" className="metrics-back-to-top" onClick={() => window.scrollTo({top:0,behavior:'instant'})}><ChevronUp size={18} aria-hidden="true" />Back to top<ChevronUp size={18} aria-hidden="true" /></button>
   </div>;
 }

@@ -78,9 +78,9 @@
 .staging-flop-content p { margin: 0; }
 .staging-discoveries { list-style: none; padding: 0; margin: 0; }
 .staging-discoveries > li:not(.metrics-result-pages) { display: grid; grid-template-columns: max-content 64px minmax(0,1fr) max-content; grid-template-rows: auto 1fr; gap: var(--space-8) var(--space-12); padding-block: var(--space-16); border-bottom: 1px solid var(--asphalt); }
-.staging-discovery-rank { grid-column: 1; grid-row: 1 / 3; font-size: var(--text-movie-title); font-weight: 600; white-space: nowrap; }
+.staging-discovery-rank { grid-column: 1; grid-row: 1 / 3; align-self: center; font-size: var(--text-movie-title); font-weight: 600; white-space: nowrap; }
 .staging-discoveries .poster { width: 64px; height: 96px; }
-.staging-discoveries li > a { grid-column: 2; grid-row: 1 / 3; align-self: start; }
+.staging-discoveries li > a { grid-column: 2; grid-row: 1 / 3; align-self: center; }
 .staging-discovery-text { grid-column: 3; grid-row: 1 / 3; min-width: 0; overflow-wrap: anywhere; }
 .staging-discovery-text .meta { margin: var(--space-4) 0 0; }
 .staging-discovery-index { grid-column: 4; grid-row: 1; text-align: right; font-size: var(--text-metadata); white-space: nowrap; }
@@ -144,8 +144,8 @@
 .metrics-content { gap: var(--space-32); }
 .metrics-panel { min-width: 0; gap: var(--space-32); }
 .metrics-category-tabs { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
-.metrics-section { border-top: 1px solid var(--asphalt); padding-top: var(--space-24); }
-.metrics-paired,.metrics-extremes { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-24); }
+.metrics-section { border-top: 1px solid var(--asphalt); padding-top: var(--space-32); }
+.metrics-paired,.metrics-extremes { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-32); }
 .metrics-paired > section,.metrics-extremes > section { min-width: 0; }
 .metrics-distribution-row { display: grid; gap: var(--space-6); min-width: 0; }
 .metrics-distribution-label { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-12); }
@@ -201,7 +201,7 @@
 .metrics-rating-circle i { position: absolute; inset-block: 0; left: 0; background: var(--chart-colour); }
 .metrics-creator-extreme h3 { color: var(--text-primary); }
 .metrics-ratio-list { padding-left: 0; list-style: none; display: grid; gap: var(--space-16); }
-.metrics-ratio-list li { display: grid; grid-template-columns: max-content minmax(0,1fr); align-items: start; gap: var(--space-12); }
+.metrics-ratio-list li { display: grid; grid-template-columns: max-content minmax(0,1fr); align-items: baseline; gap: var(--space-12); }
 .metrics-ratio-rank { white-space: nowrap; font-size: var(--text-movie-title); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
 .metrics-ratio-data { min-width: 0; overflow-wrap: anywhere; }
 
@@ -231,7 +231,7 @@
 
 .metrics-extremes .metrics-poster-film { padding-inline: 0; }
 
-.metrics-report-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8) var(--space-16); }
+.metrics-report-heading { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: var(--space-8) var(--space-16); }
 .metrics-report-heading h2 { flex: 1 1 16rem; margin: 0; }
 .metrics-report-heading .metrics-score-filters { flex: 1 1 14rem; }
 .metrics-frequency-row { min-width: 0; overflow-wrap: anywhere; }
@@ -302,3 +302,33 @@
 .staging-revenue-scroll { overflow-y: auto; scrollbar-gutter: stable; }
 .staging-revenue-scroll thead { position: sticky; top: 0; z-index: 1; background: var(--surface-base); }
 .metrics-creator-winners { padding-left: var(--space-16); display: grid; gap: var(--space-4); }
+
+/* Shared report rhythm and terminal navigation. */
+.metrics-panel > .metrics-section:first-child,.metrics-panel > [data-metric]:first-child > .metrics-section { border-top: 0; padding-top: 0; }
+.metrics-panel > [data-metric]:not(:first-child):not(.metrics-section):not(.metrics-popularity-footnote),.metrics-panel > section:not(.metrics-section),.metrics-panel > .metrics-revenue-ratios { padding-top: var(--space-32); }
+.metrics-panel > section:first-child { padding-top: 0; }
+@container member-content (max-width: 719px) { .metrics-rankings { gap: var(--space-24); } }
+.metrics-popularity-footnote { margin-top: calc(-1 * var(--space-20)); }
+.metrics-ratio-rank { line-height: var(--leading-heading); }
+.metrics-ratio-data > .movie-link { min-height: 0; }
+.metrics-ratio-data > .meta { margin-top: var(--space-8); }
+.metrics-back-to-top { display: flex; align-items: center; justify-content: center; gap: var(--space-8); width: 100%; min-height: var(--target-min); padding: var(--space-8); border: 0; border-radius: 0; background: transparent; color: var(--text-secondary); font: inherit; cursor: pointer; }
+.metrics-back-to-top:hover { color: var(--paper); }
+.metrics-back-to-top:focus-visible { outline: 2px solid var(--focus-outline); outline-offset: 2px; }
+.stars-heading-mobile { display: none; }
+@media (max-width: 719px) {
+  .stars-heading-desktop { display: none; }
+  .stars-heading-mobile { display: inline; text-decoration: none; }
+  .staging-stars-table { min-width: 0; }
+  .staging-stars-table th:first-child { width: 45%; }
+  .staging-stars-table th,.staging-stars-table td { padding-inline: var(--space-4); }
+}
+
+.metrics-panel > section:has(.metrics-popularity-list) + .staging-report { border-top: 0; }
+
+.metrics-panel h3 { margin-block: 0; }
+
+.staging-report[aria-label="Creative partnerships"] .staging-data-row:last-child,
+.staging-report[aria-label="Top 5 most cult"] .staging-discoveries > li:last-child,
+.metrics-genre-combinations .staging-ranking li:last-child,
+.staging-stars-table tbody tr:last-child > * { border-bottom: 1px solid var(--asphalt); }

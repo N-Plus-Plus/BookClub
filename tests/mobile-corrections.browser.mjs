@@ -8,14 +8,14 @@ const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER
 const context=await browser.newContext();const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
 const catalog=metricsFixture();catalog.movies.forEach(m=>{m.classic=true;m.seen=[];m.ranking=rankMovie(m.scores,m.seen,catalog.members);});
 const candidate=metricsFilm('candidate',{classic:true});candidate.seen=catalog.members.map(m=>({member_id:m.id,seen:0,updated_at:''}));candidate.ranking=rankMovie(candidate.scores,candidate.seen,catalog.members);catalog.movies.push(candidate);
-let classics=false;
+let classics=false, predictions=false;
 await context.addInitScript(()=>localStorage.setItem('bookclub.dev-member','m1'));
 await context.route('**/*',r=>['localhost','127.0.0.1'].includes(new URL(r.request().url()).hostname)?r.fallback():r.abort());
 await context.route('**/api/v1/**',async route=>{
  const path=new URL(route.request().url()).pathname;let data;
  if(path.endsWith('/health'))data={status:'ok',environment:'local',authenticationRequired:false,googleAuthConfigured:false,demo:true};
- else if(path.endsWith('/auth/preferences'))data={show_ai:false};
- else if(path.endsWith('/predictions'))data=[];
+ else if(path.endsWith('/auth/preferences'))data={show_ai:predictions};
+ else if(path.endsWith('/predictions'))data=predictions?[{member_id:'m1',movie_id:'candidate',id:'prediction',created_at:'',updated_at:''}]:[];
  else if(path.endsWith('/auth/me'))data={viewer:{...catalog.members[0],role:'admin'}};
  else if(path.endsWith('/rotation'))data={id:1,nominal_slot:classics?5:1,cycle_id:null,version:0,updated_at:''};
  else if(path.endsWith('/metrics/enrichment'))data={movies:{}};
@@ -38,6 +38,14 @@ try{
   assert.equal(await page.locator('.turn-actions .button').last().innerText(),'Event');
   results.push({width,turn,before,geometry});await shot('home-'+turn+'-'+width);
  }
+ predictions=true;
+ for(const width of [320,360,375,390,430,720,951,1440]) {
+  classics=false;await page.setViewportSize({width,height:900});await page.goto(uiBase+'/#/home');await page.reload();await page.locator('.turn-predictions').waitFor();
+  const positions=await page.locator('.turn-row').evaluate(e=>{const rect=s=>e.querySelector(s).getBoundingClientRect().toJSON();return {identity:rect('.turn-identity'),prediction:rect('.turn-predictions'),event:rect('.turn-actions > .button:last-child'),row:e.getBoundingClientRect().toJSON()};});
+  assert(positions.prediction.x>=positions.identity.right-1);assert(positions.event.x>=positions.prediction.right-1);assert(Math.abs(positions.event.bottom-positions.row.bottom)<1);
+  await shot('home-ai-'+width);
+ }
+ predictions=false;
  for(const width of [320,360,390,719,720,1440]){
   await page.setViewportSize({width,height:900});await page.goto(uiBase+'/#/home');await page.reload();await page.getByRole('button',{name:'Explain score abbreviations'}).first().click();
   const dialog=page.getByRole('dialog');await dialog.waitFor();

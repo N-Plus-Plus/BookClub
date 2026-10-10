@@ -35,3 +35,5 @@
 .detail-score-breakdown > .stack { padding-bottom: var(--space-16); }
 
 .detail-identity:has(.source-scores-summary) .film-identity-metadata > p:nth-last-child(-n+2) { padding-right: var(--target-min); }
+
+@media (max-width: 719px) { .desktop-score-suffix { display: none; } }
