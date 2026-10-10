@@ -8,7 +8,7 @@ import { nonHomeTitles, selectShellTitle } from '../frontend/app-shell-title';
 import type { Catalog } from '../shared/types';
 
 vi.mock('../frontend/api',() => ({
-  api:{health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),seen:vi.fn()},
+  api:{preferences:vi.fn(async()=>({show_ai:false})),predictions:vi.fn(async()=>[]),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(),seen:vi.fn()},
   ApiClientError:class extends Error {},hasSession:()=>true,setUnauthorizedHandler:vi.fn(),
   clearSession:vi.fn(),storeSession:vi.fn(),setDevMember:vi.fn(),
 }));

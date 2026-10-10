@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { LogOut, Settings } from 'lucide-react';
+import { Eye, EyeOff, LogOut, Settings } from 'lucide-react';
 import type { Viewer } from '../shared/types';
 import { ClubIdentity } from './ClubIdentity';
 
-export function AccountMenu({viewer,busy,onLogout}: {viewer: Viewer; busy: boolean; onLogout: () => void}) {
+export function AccountMenu({viewer,busy,onLogout,showAi=false,aiBusy=false,onToggleAi}: {showAi?:boolean;aiBusy?:boolean;onToggleAi?:()=>void;viewer: Viewer; busy: boolean; onLogout: () => void}) {
   const [open,setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -28,6 +28,7 @@ export function AccountMenu({viewer,busy,onLogout}: {viewer: Viewer; busy: boole
     </button>
     {open && <div id={dropdownId} className="select__menu account-menu-dropdown">
       {viewer.role === 'admin' && <a className="select__option" href="#/admin" onClick={() => { setOpen(false); trigger.current?.focus(); }}><Settings size={18} aria-hidden="true" />Admin</a>}
+      {onToggleAi && <button type="button" className="select__option" disabled={aiBusy} onClick={onToggleAi}>{showAi ? <EyeOff size={18} aria-hidden="true"/> : <Eye size={18} aria-hidden="true"/>}{showAi ? 'Hide AI' : 'Show AI'}</button>}
       <button type="button" className="select__option" disabled={busy} onClick={() => { setOpen(false); trigger.current?.focus(); onLogout(); }}><LogOut size={18} aria-hidden="true" />Logout</button>
     </div>}
   </div>;

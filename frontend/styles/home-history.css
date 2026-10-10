@@ -25,6 +25,27 @@
 .turn-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: var(--space-20); }
 .turn-actions { flex-direction: column; align-items: flex-end; justify-content: flex-end; }
 .turn-actions .button { max-width: 100%; white-space: nowrap; }
+.turn-row-with-predictions { grid-template-columns: minmax(0,1fr) 160px minmax(0,1fr); align-items: center; }
+.turn-predictions { display: flex; flex-direction: column; align-items: center; gap: var(--space-12); min-width: 0; }
+.turn-predictions h3 { text-align: center; }
+.prediction-poster { display: block; max-width: 100%; }
+.prediction-poster .poster { width: 100px; height: 150px; }
+.prediction-animated { animation: prediction-poster-cycle 6s linear; }
+@keyframes prediction-poster-cycle {
+  0% { opacity: 0; }
+  6.666667%,90% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (max-width: 950px) {
+  .turn-row-with-predictions { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .turn-row-with-predictions .turn-actions { grid-column: 1 / -1; }
+}
+@media (max-width: 374px) {
+  .turn-row-with-predictions { grid-template-columns: minmax(0,1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .prediction-animated { animation: none; opacity: 1; }
+}
 @media (max-width: 719px) {
   .turn-row { grid-template-columns: minmax(0,1fr) max-content; }
 }

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+const uiBase=process.env.BOOKCLUB_UI_URL || 'http://localhost:4173';
 import fs from 'node:fs/promises';
 import { metricsFixture } from './metrics-fixture.ts';
 import { rankMovie } from '../shared/ranking.ts';
@@ -23,6 +24,8 @@ await context.addInitScript(()=>localStorage.setItem('bookclub.dev-member','m1')
 await context.route('**/api/v1/**',async route=>{
  const path=new URL(route.request().url()).pathname,method=route.request().method();let data;requests.push({path,method});
  if(path.endsWith('/health'))data={status:'ok',environment:'local',authenticationRequired:false,googleAuthConfigured:false,demo:true};
+ else if(path.endsWith('/auth/preferences'))data={show_ai:false};
+ else if(path.endsWith('/predictions'))data=[];
  else if(path.endsWith('/auth/me'))data={viewer:{...catalog.members[0],role:'member'}};
  else if(path.endsWith('/rotation'))data={id:1,nominal_slot:1,cycle_id:'c55',version:0,updated_at:''};
  else if(path.endsWith('/catalog/compact'))data={...catalog,sessions:catalog.sessions.map(({movies,...session})=>({...session,movie_ids:movies.map(m=>m.id)}))};
@@ -55,7 +58,7 @@ try{
   await page.setViewportSize({width,height:900});
   for(const count of [1,2,3,4]){
    set.movie_ids=catalog.movies.slice(0,count).map(m=>m.id);catalog.movies[0].title='A very long preview film name that must truncate accessibly';catalog.movies[0].assets=[];
-   await page.goto('http://localhost:4173/#/builder');await page.reload();await page.getByRole('button',{name:'Open set',exact:true}).waitFor();
+   await page.goto(uiBase+'/#/builder');await page.reload();await page.getByRole('button',{name:'Open set',exact:true}).waitFor();
    const tiles=await page.locator('.builder-poster-film').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect(),p=e.querySelector('.poster').getBoundingClientRect();return {r:r.toJSON(),p:p.toJSON(),href:e.getAttribute('href'),label:e.getAttribute('aria-label'),title:e.querySelector('.builder-poster-title').title};}));
    assert.equal(tiles.length,count);for(const tile of tiles){assert(Math.abs(tile.r.top-tiles[0].r.top)<1);assert(Math.abs(tile.r.width-tiles[0].r.width)<1);assert(Math.abs(tile.p.height/tile.p.width-1.5)<.02);assert.equal(tile.label,tile.title);}
    const reads=requests.filter(r=>r.path.endsWith('/builders')&&r.method==='GET').length;
@@ -66,7 +69,7 @@ try{
    assert.equal(requests.filter(r=>r.path.endsWith('/builders')&&r.method==='GET').length,reads);await shot('builder-preview-'+count,width);
   }
   set.movie_ids=['a','b'];
-  await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/builder');await page.reload();await page.getByRole('button',{name:'Open set',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);await shot('builder-list',width);
+  await page.setViewportSize({width,height:900});await page.goto(uiBase+'/#/builder');await page.reload();await page.getByRole('button',{name:'Open set',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);await shot('builder-list',width);
   await page.getByRole('button',{name:'New set',exact:true}).click();assert.equal(await page.getByRole('button',{name:'Delete set',exact:true}).count(),0);await shot('builder-new',width);await page.getByRole('button',{name:'All sets',exact:true}).click();
   await page.getByRole('button',{name:'Open set',exact:true}).click();assert.deepEqual(await page.locator('.builder-editor-actions button').allTextContents(),['All sets','Delete set','Use set','Save set']);assert.equal(await page.locator('.builder-delete').count(),0);
   const actions=await page.locator('.builder-editor-actions').evaluate(e=>{const r=e.getBoundingClientRect(),left=e.firstElementChild.getBoundingClientRect(),group=e.lastElementChild.getBoundingClientRect();return {row:r.toJSON(),left:left.toJSON(),group:group.toJSON(),buttons:[...e.querySelectorAll('button')].map(b=>b.getBoundingClientRect().toJSON())};});assert.equal(actions.left.left,actions.row.left);assert(Math.abs(actions.group.right-actions.row.right)<1);for(const b of actions.buttons)assert(b.width>=44&&b.height>=44&&b.right<=actions.row.right);

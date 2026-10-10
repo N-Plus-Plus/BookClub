@@ -1,6 +1,7 @@
 // Synthetic durable Admin workflow; every API/provider request is intercepted.
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+const uiBase=process.env.BOOKCLUB_UI_URL || 'http://localhost:4173';
 const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
 const output='.verification/unified-admin';fs.mkdirSync(output,{recursive:true});
 const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
@@ -25,13 +26,13 @@ await page.route('**/api/v1/maintenance/jobs**',async route=>{
 });
 await page.route('**/api/**',route=>route.request().url().includes('/maintenance/jobs')?route.fallback():(errors.push('Unmocked API request'),route.abort()));
 await page.route(/\/frontend\/api\.ts(?:\?.*)?$/,route=>route.fulfill({contentType:'text/javascript',body:"export const api=window.bookclubSyntheticApi??={};export class ApiClientError extends Error {}export const hasSession=()=>true;export const setUnauthorizedHandler=()=>{};export const setDevMember=()=>{};export const clearSession=()=>{};export const storeSession=()=>{};"}));
-const source=await(await fetch('http://localhost:4173/frontend/main.tsx')).text(),reactUrl=source.match(/from "([^"\n]+\/react\.js[^"\n]*)"/)[1],domUrl=source.match(/from "([^"\n]+\/react-dom_client\.js[^"\n]*)"/)[1];
+const source=await(await fetch(uiBase+'/frontend/main.tsx')).text(),reactUrl=source.match(/from "([^"\n]+\/react\.js[^"\n]*)"/)[1],domUrl=source.match(/from "([^"\n]+\/react-dom_client\.js[^"\n]*)"/)[1];
 await page.route(/\/frontend\/main\.tsx(?:\?.*)?$/,route=>route.fulfill({contentType:'text/javascript',body:`
 import React from '${reactUrl}';import ReactDOM from '${domUrl}';import '/style.css';import '/frontend/app.css';
 import '/node_modules/@fontsource/lexend-deca/400.css';import '/node_modules/@fontsource/lexend-deca/500.css';import '/node_modules/@fontsource/lexend-deca/600.css';import '/node_modules/@fontsource/lexend-deca/700.css';
 import {maintenanceFieldSummary,aggregateFieldSummary} from '/shared/maintenance-contract.ts';import {App} from '/frontend/App.tsx';import {metricsFixture} from '/tests/metrics-fixture.ts';import {api} from '/frontend/api.ts';
 const catalog=metricsFixture();catalog.members.forEach((m,i)=>m.avatar=i+1);catalog.sessions=[];
-api.health=async()=>({status:'ok',environment:'test',authenticationRequired:true,demo:false});api.me=async()=>({viewer:{...catalog.members[0],role:'admin'}});api.catalog=async()=>catalog;api.rotation=async()=>({id:1,nominal_slot:1,cycle_id:null,version:0,updated_at:''});api.builders=async()=>[];
+api.preferences=async()=>({show_ai:false});api.predictions=async()=>[];api.health=async()=>({status:'ok',environment:'test',authenticationRequired:true,demo:false});api.me=async()=>({viewer:{...catalog.members[0],role:'admin'}});api.catalog=async()=>catalog;api.rotation=async()=>({id:1,nominal_slot:1,cycle_id:null,version:0,updated_at:''});api.builders=async()=>[];
 const request=(path='',body)=>fetch('/api/v1/maintenance/jobs'+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}).then(r=>r.json());
 api.maintenanceJobs=()=>request();api.maintenanceJob=id=>request('/'+id);api.createMaintenanceJob=(id,intent,operation)=>request('',{id,intent,operation});api.claimMaintenanceJob=id=>request('/'+id+'/claim',{});api.planMaintenanceJob=(id,token)=>request('/'+id+'/plan',{token});api.stepMaintenanceJob=(id,token)=>request('/'+id+'/step',{token});api.releaseMaintenanceJob=(id,token)=>request('/'+id+'/release',{token});api.stopMaintenanceJob=id=>request('/'+id+'/stop',{});api.retryMaintenanceJob=id=>request('/'+id+'/retry',{});
 window.expectedSummary=operation=>operation==='all'?aggregateFieldSummary():maintenanceFieldSummary(operation);
@@ -48,7 +49,7 @@ const finish=async(mode)=>{const {route,job}=pending;pending=null;job.requests++
 };
 try{
  for(const width of [320,390,720,951,1440]){
-  jobs={};pendingPlan=null;pending=null;stopped=false;executions=0;await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/admin');await page.reload();await page.getByRole('button',{name:'Refresh all data',exact:true}).waitFor();
+  jobs={};pendingPlan=null;pending=null;stopped=false;executions=0;await page.setViewportSize({width,height:900});await page.goto(uiBase+'/#/admin');await page.reload();await page.getByRole('button',{name:'Refresh all data',exact:true}).waitFor();
   await page.waitForFunction(()=>!document.querySelector('#refresh-all-heading').parentElement.querySelector('button').disabled);
   assert.equal(await page.locator('main .classics-maintenance').count(),18);assert.equal(executions,0);
   const summaries=await page.locator('main .classics-maintenance').evaluateAll(cards=>cards.map(card=>{const h=card.querySelector('h3'),p=h.nextElementSibling,operation=h.id.replace(/^(populate|refresh)-/,'').replace(/-heading$/,'');return {text:p.textContent,expected:window.expectedSummary(operation),font:getComputedStyle(p).fontSize};}));for(const item of summaries){assert.equal(item.text,item.expected);assert.equal(item.font,'13px');}

@@ -5,8 +5,26 @@ import { idSchema, sessionSchema } from '../validation';
 import { requireAdmin, requireViewer } from '../product-repository';
 import { avatarSchema, builderSchema, publishSchema, revisionSchema, rotationSchema } from '../validation';
 import type { RouteContext } from './context';
+import { PredictionRepository } from '../prediction-repository';
+import { z } from 'zod';
 
-export async function productRoutes({request,path,method,repo,product,auth,body}: RouteContext): Promise<Response | undefined> {
+export async function productRoutes({request,path,method,repo,product,auth,body,env}: RouteContext): Promise<Response | undefined> {
+  const predictions=new PredictionRepository(env.DB);
+  if (path === '/api/v1/auth/preferences') {
+    const actor=requireViewer(auth.viewer);
+    if (method === 'GET') return json(await predictions.preference(actor.id));
+    if (method === 'PUT') return json(await predictions.setPreference(actor.id,z.object({show_ai:z.boolean()}).strict().parse(await body(request)).show_ai));
+  }
+  if (path === '/api/v1/predictions') {
+    if (method === 'GET') { requireViewer(auth.viewer); return json(await predictions.list()); }
+    if (method === 'POST' || method === 'DELETE') {
+      requireAdmin(auth.viewer);
+      const input=z.object({member_id:idSchema,movie_id:idSchema}).strict().parse(await body(request));
+      return json(await (method === 'POST' ? predictions.add(input.member_id,input.movie_id) : predictions.remove(input.member_id,input.movie_id)));
+    }
+  }
+  const exportMatch=path.match(/^\/api\/v1\/participants\/([^/]+)\/history-export$/);
+  if (exportMatch && method === 'GET') { requireAdmin(auth.viewer); return json(await predictions.exportHistory(idSchema.parse(exportMatch[1]))); }
   if (path === '/api/v1/avatars' && method === 'GET') { requireViewer(auth.viewer); return json(await product.availableAvatars()); }
   if (path === '/api/v1/auth/avatar' && method === 'POST') return json(await product.claimAvatar(requireViewer(auth.viewer),avatarSchema.parse(await body(request)).avatar));
   if (path === '/api/v1/rotation' && method === 'GET') return json(await product.rotation());

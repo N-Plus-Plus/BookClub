@@ -1,4 +1,5 @@
 import { scoreScopeSql } from './score-scope';
+import { SchemaCapabilities } from './schema-capabilities';
 import type { JobOperation, MaintenanceJob } from '../../shared/maintenance-job';
 import { maintenanceOperations, planMaintenance, providerIdentity, type MaintenanceIntent, type MaintenanceUnit } from '../../shared/maintenance-plan';
 import { maintenanceContract } from '../../shared/maintenance-contract';
@@ -75,7 +76,7 @@ export class MaintenanceJobs {
     // A compact JSON parameter avoids thousands of binds/queries for import validation.
     const invalid=await this.db.prepare(`SELECT 1 FROM json_each(?) u WHERE NOT EXISTS(
       SELECT 1 FROM movie_external_ids i WHERE i.movie_id=json_extract(u.value,'$[0]') AND i.provider=json_extract(u.value,'$[2]') AND i.external_id=json_extract(u.value,'$[3]')
-    ) OR (EXISTS(SELECT 1 FROM json_each(json_extract(u.value,'$[4]')) o WHERE o.value='scores') AND NOT (${scoreScopeSql("json_extract(u.value,'$[0]')")}))
+    ) OR (EXISTS(SELECT 1 FROM json_each(json_extract(u.value,'$[4]')) o WHERE o.value='scores') AND NOT (${scoreScopeSql("json_extract(u.value,'$[0]')",await new SchemaCapabilities(this.db).predictionsSupported())}))
     OR (json_extract(u.value,'$[1]')='mdblist' AND json_extract(u.value,'$[2]')='tmdb' AND EXISTS(SELECT 1 FROM movie_external_ids i WHERE i.movie_id=json_extract(u.value,'$[0]') AND i.provider='imdb' AND i.external_id GLOB 'tt[0-9]*')) LIMIT 1`).bind(JSON.stringify(legacy.units)).first();
     if(invalid||new Set(legacy.collections).size!==legacy.collections.length)throw new ApiError(422,'INVALID_LEGACY_SCOPE','Legacy identity or eligibility changed; owner review is required.');
     if(legacy.collections.length){

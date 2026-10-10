@@ -79,7 +79,7 @@ export class CatalogRepository {
     const marks=ids.map(()=>'?').join(','),selected=(sql:string)=>this.db.prepare(sql).bind(...ids);
     const results=await this.db.batch([
       selected(`SELECT m.*,EXISTS(SELECT 1 FROM classics c WHERE c.movie_id=m.id) AS classic,
-        EXISTS(SELECT 1 FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE sm.movie_id=m.id AND s.deleted_at IS NULL) AS history,(${scoreScopeSql('m.id')}) AS scoreEligible FROM movies m WHERE id IN (${marks})`),
+        EXISTS(SELECT 1 FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE sm.movie_id=m.id AND s.deleted_at IS NULL) AS history,(${scoreScopeSql('m.id',await this.capabilities.predictionsSupported())}) AS scoreEligible FROM movies m WHERE id IN (${marks})`),
       selected(`SELECT movie_id,provider,external_id FROM movie_external_ids WHERE movie_id IN (${marks})`),
       selected(`SELECT ${scoreColumns} FROM source_scores ss WHERE movie_id IN (${marks}) AND (${usableScoreSql()}) AND (${liveScoreSql()})`),
       selected(`SELECT movie_id,provider,asset_type,reference,width,height,preferred FROM movie_assets WHERE movie_id IN (${marks})`),
@@ -166,7 +166,7 @@ export class CatalogRepository {
     const rows = <T>(i: number) => result[i].results as T[];
     const appearances = groupMovies(rows<WithMovie<import('../../shared/types').MovieDetail['appearances'][number]>>(8));
     const movies = assembleMovies(result).map(movie => ({...movie,appearances:appearances.get(movie.id) ?? []}));
-    const eligible = validateScope ? new Set((await this.db.prepare(`SELECT id FROM movies WHERE id IN (${placeholders}) AND (${scoreScopeSql('movies.id')})`).bind(...ids).all<{id:string}>()).results.map(row=>row.id)) : null;
+    const eligible = validateScope ? new Set((await this.db.prepare(`SELECT id FROM movies WHERE id IN (${placeholders}) AND (${scoreScopeSql('movies.id',await this.capabilities.predictionsSupported())})`).bind(...ids).all<{id:string}>()).results.map(row=>row.id)) : null;
     const byId = new Map(movies.map(m => [m.id,m]));
     return ids.map(id => {
       const movie = byId.get(id);

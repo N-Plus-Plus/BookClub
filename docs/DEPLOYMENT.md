@@ -250,6 +250,8 @@ Durable Admin maintenance requires additive migrations 0024 and 0025 as well as 
 
 ## Applying production migrations
 
+Migration `0026_ai_predictions.sql` adds empty prediction/preference tables, indexes and guarded triggers. The prior Worker remains structurally compatible and its History writes activate pruning. Apply schema first after exact production identity, committed/pushed green release CI and fresh verified backup; inspect both tables, indexes/triggers and ledger, deploy the matching API, then frontend last. Older-schema score paths capability-detect the absent relation; dedicated prediction/preference endpoints fail closed. No provider job, prediction population, preference change or History mutation belongs in release smoke. Rolling back code leaves the additive schema and pruning intact; do not delete the tables to roll back UI. Older snapshots may omit both tables and retain default-off preference semantics.
+
 Migration `0023_maintenance_fields.sql` is additive/idempotent and leaves existing provider evidence untouched. After clean preflight and commit/push verification, inspect the ledger, create a fresh verified export, apply schema first, verify it, deploy/smoke the API, and publish the frontend last. The old Worker ignores the new table. Ordinary provider capture remains capability-aware on older schemas; current unified field-aware execution and Admin controls require 0023 before provider work. Legacy field interpretation is read-only; uncertain gaps become eligible only for explicit administrator-initiated Populate. Do not backfill, Populate, Refresh or reconcile identities during release. Retain all earlier compatibility gates.
 
 
@@ -271,7 +273,7 @@ If migration output is ambiguous or reports failure, stop. Do not automatically 
 
 Journal mutation reconciliation requires the JournalMutationResult API responses; deploy the matching Worker before this frontend. No migration is needed. The previous frontend callbacks ignore the mutation body and retain their broad refresh, so Worker-first rollout preserves those workflows.
 
-OMDb metadata idempotency requires the API Worker; durable Admin resume requires migration 0024 and the matching frontend. Release both for the complete behaviour, with Worker first under the normal schema/API compatibility gates. This feature requires no schema migration; independently pending migrations retain their own release gates.
+OMDb metadata idempotency requires the API Worker; durable Admin resume requires migration 0024 and the matching frontend. Release both for the complete behaviour, with Worker first under the normal schema/API compatibility gates. OMDb metadata idempotency uses the existing schema; the durable job controls require 0024/0025. Independently pending migrations retain their own release gates.
 
 ## Deploying the production API Worker
 

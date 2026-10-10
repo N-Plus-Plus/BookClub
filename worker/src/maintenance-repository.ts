@@ -36,7 +36,7 @@ export class MaintenanceRepository {
 
   async scoreMaintenanceStatus(): Promise<import('../../shared/types').ScoreMaintenanceStatus> {
     const rows = (await this.db.prepare(`WITH scope AS (
-      SELECT id FROM movies WHERE (${scoreScopeSql('movies.id')})
+      SELECT id FROM movies WHERE (${scoreScopeSql('movies.id',await this.capabilities.predictionsSupported())})
     ), keys(score_key) AS (VALUES ${requiredScores.map(key => "('"+key+"')").join(',')}), missing AS (
       SELECT scope.id,keys.score_key,coalesce(c.available,1) AS available FROM scope CROSS JOIN keys
       LEFT JOIN movie_score_checks c ON c.movie_id=scope.id AND c.score_key=keys.score_key
@@ -104,7 +104,7 @@ export class MaintenanceRepository {
       identified AS (SELECT DISTINCT movie_id FROM movie_external_ids WHERE (provider='tmdb' AND ${validTmdbSql('external_id',false)}) OR (provider='imdb' AND ${validImdbSql('external_id')})),
       candidates AS (SELECT m.id,m.title,i.movie_id IS NOT NULL AS identified FROM movies m
         LEFT JOIN scored s ON s.movie_id=m.id LEFT JOIN answered a ON a.movie_id=m.id LEFT JOIN identified i ON i.movie_id=m.id
-        WHERE (${scoreScopeSql('m.id')}) AND (
+        WHERE (${scoreScopeSql('m.id',await this.capabilities.predictionsSupported())}) AND (
           (EXISTS(SELECT 1 FROM classics WHERE movie_id=m.id) AND
             (s.movie_id IS NULL OR coalesce(a.count,0)<>(SELECT count(*) FROM active) OR (SELECT count(*) FROM active)=0))
           OR (NOT EXISTS(SELECT 1 FROM classics WHERE movie_id=m.id) AND EXISTS(

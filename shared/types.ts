@@ -1,3 +1,4 @@
+export interface AiPrediction { member_id:string; movie_id:string }
 export interface Viewer { id: string; display_name: string; avatar: number | null; role: 'member' | 'admin'; sort_order: number }
 export interface AuthLogin { token: string; viewer: Viewer; expiresAt: string }
 export interface Member { id: string; display_name: string; sort_order: number; active: number; avatar?: number | null }

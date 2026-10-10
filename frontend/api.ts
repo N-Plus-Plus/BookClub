@@ -46,6 +46,12 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
   return payload.data as T;
 }
 export const api = {
+  predictions:()=>request<import('../shared/types').AiPrediction[]>('/predictions'),
+  addPrediction:(member_id:string,movie_id:string)=>request<import('../shared/types').AiPrediction[]>('/predictions','POST',{member_id,movie_id}),
+  removePrediction:(member_id:string,movie_id:string)=>request<import('../shared/types').AiPrediction[]>('/predictions','DELETE',{member_id,movie_id}),
+  preferences:()=>request<{show_ai:boolean}>('/auth/preferences'),
+  setShowAi:(show_ai:boolean)=>request<{show_ai:boolean}>('/auth/preferences','PUT',{show_ai}),
+  historyExport:(id:string)=>request<{filename:string;text:string}>(`/participants/${encodeURIComponent(id)}/history-export`),
   maintenanceJobs:(after:string|null=null)=>request<{jobs:Pick<import('../shared/maintenance-job').MaintenanceJob,'id'|'intent'|'operation'|'state'|'updated_at'>[];next?:string|null}>(`/maintenance/jobs${after?'?after='+encodeURIComponent(after):''}`),
   importMaintenanceJob:(value:import('../shared/maintenance-legacy').LegacyMaintenanceImport)=>request<import('../shared/maintenance-job').MaintenanceJob>('/maintenance/jobs/import','POST',value),
   maintenanceJob:(id:string,after:string|null=null)=>request<import('../shared/maintenance-job').MaintenanceJob>(`/maintenance/jobs/${id}${after?'?after='+encodeURIComponent(after):''}`),

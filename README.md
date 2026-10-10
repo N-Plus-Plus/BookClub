@@ -10,6 +10,8 @@ Home shows the explicit current turn. History records ordered films, actual host
 
 Admins can open Admin through Account. Populate missing data fills unchecked gaps and skips successful unavailable checks; Refresh all data deliberately revisits eligible records. Each offers a combined run plus individual scores, metadata/artwork, enrichment, collections, awards and collection-roster actions. Aggregate actions require confirmation. Planning shows progress and makes no provider requests. Resume planning recovers an interrupted preparation; Resume remaining recovers execution using the same server job and original start time. Stop preserves saved work. No maintenance runs automatically.
 
+Admins manually curate **AI predicted** film lists for the four participants using the common lookup, remove entries with one click and export a participant’s complete active History as a CSV-formatted `.txt` file. Bringing a film into History prunes it from every prediction list. Account **Show AI / Hide AI** controls the optional Home poster presentation; it starts hidden and persists per member across devices. This feature does not call an AI service or automatically collect provider data. Explicit Admin maintenance also covers predicted films.
+
 ## Requirements and setup
 
 Use Node >=22.12 (Node 24 recommended), Corepack and pinned pnpm 10.32.1. Node 24 is required for production-snapshot refresh; see [architecture](docs/ARCHITECTURE.md) for test/runtime details. No Cloudflare account, Google login or provider credentials are required for ordinary local demo development.

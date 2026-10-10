@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+const uiBase=process.env.BOOKCLUB_UI_URL || 'http://localhost:4173';
 import fs from 'node:fs/promises';
 import { metricsFixture } from './metrics-fixture.ts';
 import { metricsEnrichmentFixture } from './metrics-enrichment-fixture.ts';
@@ -18,6 +19,8 @@ await context.addInitScript(()=>localStorage.setItem('bookclub.dev-member','m1')
 await context.route('**/api/v1/**',async route=>{
  const path=new URL(route.request().url()).pathname,method=route.request().method();let data;
  if(path.endsWith('/health'))data={status:'ok',environment:'local',authenticationRequired:false,googleAuthConfigured:false,demo:true};
+ else if(path.endsWith('/auth/preferences'))data={show_ai:false};
+ else if(path.endsWith('/predictions'))data=[];
  else if(path.endsWith('/auth/me'))data={viewer:{...catalog.members[0],display_name:'An exceptionally long account member name',role:'member'}};
  else if(path.endsWith('/rotation'))data={id:1,nominal_slot:2,cycle_id:'c55',version:0,updated_at:''};
  else if(path.endsWith('/metrics/enrichment'))data=metricsEnrichmentFixture();
@@ -51,7 +54,7 @@ const accountCheck=async()=>{
 };
 try{
  for(const width of [320,390,720,951,1440]){
-  await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/home');await page.getByRole('heading',{name:'Club timeline',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);
+  await page.setViewportSize({width,height:900});await page.goto(uiBase+'/#/home');await page.getByRole('heading',{name:'Club timeline',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);
   const rects=await page.locator('.bookclub-shell, main, .turn-card, .home-session-card, .home-rank-card, .stats-grid').evaluateAll(es=>es.map(e=>({class:e.className,rect:e.getBoundingClientRect().toJSON(),padding:getComputedStyle(e).padding})));
   if(width<720)for(const r of rects.filter(r=>r.class!=='bookclub-shell')){assert.equal(r.rect.left,16);assert.equal(r.rect.right,width-16);}
   if(baseline){measurements.push({width,rects});continue;}

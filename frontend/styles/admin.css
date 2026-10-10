@@ -16,3 +16,10 @@
 .maintenance-progress[data-state="interrupted"] { --progress-fill: var(--ruby); }
 
 .classics-maintenance > .maintenance-field-summary { margin: calc(-1 * var(--space-8)) 0 0; min-width: 0; overflow-wrap: anywhere; }
+/* Manually curated predictions share ordinary film identities and controls. */
+.prediction-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-16); }
+.prediction-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); min-width: 0; }
+.prediction-list .movie-row { min-width: 0; }
+.prediction-export { border-top: 1px solid var(--asphalt-dark); padding-top: var(--space-24); }
+.prediction-export .button-set { align-items: flex-end; }
+.ai-predictions-card .film-search-form { min-width: 0; }

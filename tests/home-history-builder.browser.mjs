@@ -1,8 +1,9 @@
 // Synthetic local App review: all APIs mocked, all external requests blocked.
 import assert from 'node:assert/strict';
+const uiBase=process.env.BOOKCLUB_UI_URL || 'http://localhost:4173';
 import fs from 'node:fs/promises';
 const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
-const source=await (await fetch('http://localhost:4173/frontend/main.tsx')).text();
+const source=await (await fetch(uiBase+'/frontend/main.tsx')).text();
 const reactUrl=source.match(/from "([^"\n]+\/react\.js[^"\n]*)"/)[1];
 const domUrl=source.match(/from "([^"\n]+\/react-dom_client\.js[^"\n]*)"/)[1];
 const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
@@ -20,7 +21,7 @@ try {
  const cycles=Array.from({length:12},(_,i)=>({id:'c'+(12-i),ordinal:12-i,rough_date:'2026-01-01',title:null}));
  const sessions=cycles.flatMap(c=>[1,2].map(slot=>({id:c.id+'-'+slot,event_date:'2026-01-01',host_member_id:'owner',cycle_id:c.id,cycle_slot:slot,kind:'hosted',date_precision:'cycle_rough',legacy_cycle_label:null,movies:movies.slice(0,2)})));
  let sets=[1,2,3,9].map(n=>({id:'s'+n,owner_member_id:'owner',title:n+' film set',notes:'Private notes',movie_ids:movies.slice(0,n).map(m=>m.id),revision:1,created_at:'2026-01-'+String(n).padStart(2,'0'),updated_at:''}));
- api.health=async()=>({status:'ok',environment:'local',authenticationRequired:false,demo:false});api.me=async()=>({viewer:{...members[0],role:'member'}});api.catalog=async()=>({movies,members,cycles,sessions});api.rotation=async()=>({id:1,nominal_slot:2,cycle_id:'c12',version:0,updated_at:''});api.builders=async()=>[...sets].reverse();
+ api.preferences=async()=>({show_ai:false});api.predictions=async()=>[];api.health=async()=>({status:'ok',environment:'local',authenticationRequired:false,demo:false});api.me=async()=>({viewer:{...members[0],role:'member'}});api.catalog=async()=>({movies,members,cycles,sessions});api.rotation=async()=>({id:1,nominal_slot:2,cycle_id:'c12',version:0,updated_at:''});api.builders=async()=>[...sets].reverse();
  api.saveBuilder=async(body,id)=>{await new Promise(r=>setTimeout(r,30));const saved={...body,id:id||'new',owner_member_id:'owner',revision:(body.revision||0)+1,created_at:sets.find(s=>s.id===id)?.created_at || '2026-02-01',updated_at:'2026-03-01'};sets=[...sets.filter(s=>s.id!==saved.id),saved];return saved;};
  api.search=async()=>({local:movies.map(m=>({id:m.id,title:m.title,year:m.year,tmdbId:null,poster:null})),external:[],lookup:{available:true,message:null}});api.detail=async id=>movies.find(m=>m.id===id);
  ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
@@ -29,7 +30,7 @@ try {
  const overflow=async()=>assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  const shot=async(width,name)=>{await overflow();await page.screenshot({path:'.verification/home-history-builder/'+width+'-'+name+'.png',fullPage:true});};
  for(const width of [320,390,720,1440]) {
-  await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/home');await page.reload();await page.getByRole('heading',{name:'Classics snapshot',exact:true}).waitFor({timeout:10000}).catch(async e=>{console.log(errors,await page.locator('body').innerText());throw e;});
+  await page.setViewportSize({width,height:900});await page.goto(uiBase+'/#/home');await page.reload();await page.getByRole('heading',{name:'Classics snapshot',exact:true}).waitFor({timeout:10000}).catch(async e=>{console.log(errors,await page.locator('body').innerText());throw e;});
   if(width>=720) {
    const checkIcons=async()=>assert(await page.locator('.desktop-navigation .destination-icon').evaluateAll(nodes=>nodes.every(e=>{const rect=e.getBoundingClientRect();return rect.width===33 && rect.height===33;})));
    await checkIcons();await page.getByRole('button',{name:'Collapse navigation',exact:true}).click();await checkIcons();

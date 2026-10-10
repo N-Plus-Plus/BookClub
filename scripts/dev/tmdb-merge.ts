@@ -11,7 +11,7 @@ export type Member = {movie_id:string;title:string;source_refs:string[]};
 export type Merge = {tmdb_id:string;members:Member[];kind:'existing'|'group';owner_confirmed?:true};
 type Value = string|number|null;
 export type Row = Record<string,Value>;
-export const relatedTables=[...providerEvidenceRelationships,'movie_maintenance_fields','movie_maintenance_coverage','movie_maintenance_failures','movie_score_checks','movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies',...providerEnrichmentTables] as const;
+export const relatedTables=['ai_predictions',...providerEvidenceRelationships,'movie_maintenance_fields','movie_maintenance_coverage','movie_maintenance_failures','movie_score_checks','movie_external_ids','movie_genres','movie_assets','session_movies','classics','seen_states','classics_seed_allocations','source_scores','movie_import_refs','seen_import_observations','builder_movies',...providerEnrichmentTables] as const;
 export const receiptTable='local_movie_merge_receipts';
 const quote=(s:string)=>'"'+s.replaceAll('"','""')+'"';
 const hash=(op:Merge)=>createHash('sha256').update(JSON.stringify({kind:op.kind,tmdb_id:op.tmdb_id,members:[...op.members].sort((a,b)=>a.movie_id.localeCompare(b.movie_id)).map(m=>({...m,source_refs:[...m.source_refs].sort()}))})).digest('hex');
@@ -244,6 +244,11 @@ export async function applyMerge(db:D1Database,plan:MergePlan,metadata?:Provider
   if(metadata)statements.push(...repo.metadataStatements(survivor,metadata,captureScores,true,titleAuthority));
   else if(titleAuthority)statements.push(canonicalTitleStatement(db,survivor));
   // Old immutable audit/fingerprint IDs remain resolvable through these durable receipts.
+  // Preserve curated memberships only when the merged identity has no active History.
+  for(const row of snapshot.ai_predictions ?? []) statements.push(db.prepare(`INSERT INTO ai_predictions(member_id,movie_id)
+    SELECT ?,? WHERE EXISTS(SELECT 1 FROM members WHERE id=? AND active=1 AND sort_order BETWEEN 1 AND 4)
+    AND NOT EXISTS(SELECT 1 FROM session_movies sm JOIN sessions s ON s.id=sm.session_id WHERE sm.movie_id=? AND s.deleted_at IS NULL)
+    ON CONFLICT(member_id,movie_id) DO NOTHING`).bind(row.member_id,survivor,row.member_id,survivor));
   statements.push(db.prepare(`UPDATE ${receiptTable} SET survivor_movie_id=? WHERE survivor_movie_id IN (${removedWhere})`).bind(survivor,...removed));
   for(const table of ['movie_genres','seen_states'])statements.push(db.prepare(`DELETE FROM ${table} WHERE movie_id IN (${removedWhere})`).bind(...removed));
   for(const id of removed)statements.push(db.prepare('DELETE FROM movies WHERE id=?').bind(id));

@@ -6,6 +6,7 @@ import type { Repository } from './repository';
 import { FieldCoverageRepository } from './field-coverage-repository';
 import { scoreScopeSql } from './score-scope';
 import { omdbCredentials } from './providers/omdb-credentials';
+import { SchemaCapabilities } from './schema-capabilities';
 
 export class CoverageRepository {
   constructor(private db:D1Database) {}
@@ -20,7 +21,7 @@ export class CoverageRepository {
       this.db.prepare(`SELECT movie_id,score_key FROM movie_score_checks${where} AND available=0`).bind(...ids),
       this.db.prepare(`SELECT movie_id,provider,identity_provider,external_id,checked_at,CASE WHEN provider='mdblist' THEN NOT EXISTS(SELECT 1 FROM movie_provider_keywords k WHERE k.movie_id=state.movie_id AND k.provider=state.provider) ELSE ${['countries','languages','companies','credits','content_ratings','keywords','watch_offers'].map(table=>`(NOT EXISTS(SELECT 1 FROM movie_provider_${table} r WHERE r.movie_id=state.movie_id AND r.provider=state.provider))`).join('+')} END AS unavailable_families FROM movie_provider_enrichment_state state${where}`).bind(...ids),
       this.db.prepare(`SELECT movie_id,provider,operation,attempted_at FROM movie_maintenance_failures${where}`).bind(...ids),
-      this.db.prepare(`SELECT id FROM movies WHERE id IN (${ids.length?ids.map(()=>'?').join(','):'NULL'}) AND (${scoreScopeSql('movies.id')})`).bind(...ids),
+      this.db.prepare(`SELECT id FROM movies WHERE id IN (${ids.length?ids.map(()=>'?').join(','):'NULL'}) AND (${scoreScopeSql('movies.id',await new SchemaCapabilities(this.db).predictionsSupported())})`).bind(...ids),
     ]);
     const evidenceSupported=await new ProviderEvidenceRepository(this.db).supported();
     const evidence:ProviderCoverage[]=[];

@@ -1,6 +1,10 @@
 /** Request-scoped compatibility checks; never cache across database/schema lifetimes. */
 export class SchemaCapabilities {
   constructor(private db: D1Database) {}
+  private predictionsCapability?: Promise<boolean>;
+  predictionsSupported() {
+    return this.predictionsCapability ??= this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_predictions'").first().then(Boolean);
+  }
   private enrichmentCapability?: Promise<boolean>;
   enrichmentSupported() {
     return this.enrichmentCapability ??= this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='movie_provider_enrichment_state'").first().then(Boolean);

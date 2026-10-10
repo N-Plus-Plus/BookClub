@@ -30,7 +30,7 @@ it('uses sentence-case Home headings/statistics and preserves Classics, IMDb and
   ]);
   expect(harness.container.querySelector('.turn-identity h2')?.textContent).toBe('It is your turn');
   expect(harness.container.querySelector('.brand small')?.textContent).toBe('HAVE YOU UPDATED THE SPREADSH... WEB APP?');
-  expect(harness.container.textContent).toContain('Record an event');
+  expect(harness.container.textContent).toContain('Event');
   await navigate('classics'); await click(button('Add Classic'));
   expect(harness.container.querySelector('dialog h2')?.textContent).toBe('Add Classic');
   await click(harness.container.querySelector<HTMLButtonElement>('button[aria-label="Close Add Classic"]')!);
@@ -43,7 +43,7 @@ it('renders both Admin maintenance groups in sentence case without changing prov
   vi.mocked(api.me).mockResolvedValue({viewer:{...catalog.members[0],avatar:2,role:'admin'}});
   await remount(); await navigate('admin');
   expect(headingTexts('main section.card h2,main section.card h3')).toEqual([
-    'Swap current turn','Populate missing data','Populate missing scores','Populate missing OMDb metadata','Populate missing TMDB metadata and artwork','Populate missing TMDB enrichment','Populate missing MDBList enrichment','Populate missing TMDB collections','Populate missing OMDb awards',
+    'Swap current turn','AI predicted','Find a film','Participant History export','Populate missing data','Populate missing scores','Populate missing OMDb metadata','Populate missing TMDB metadata and artwork','Populate missing TMDB enrichment','Populate missing MDBList enrichment','Populate missing TMDB collections','Populate missing OMDb awards',
     'Refresh all data','Refresh scores','Refresh OMDb metadata','Refresh TMDB metadata and artwork','Refresh TMDB enrichment','Refresh MDBList enrichment','Refresh TMDB collections','Refresh OMDb awards','Populate missing collection rosters','Refresh collection rosters',
   ]);
   expect([...harness.container.querySelectorAll('.utility-disclosure summary')].map(node => node.textContent)).toEqual(Array(18).fill('Data collected and safeguards'));

@@ -216,6 +216,8 @@ Use Australian English throughout the interface. Possessive member display names
 
 ## 12. Copy and microcopy
 
+Home's Current turn action is `Event` with its existing primary icon/navigation. For opted-in members, human turns can show `Will they bring...` inside the same card, between identity and actions. Several predictions use one fixed shuffled poster sequence: 0.4s fade in, 5s hold, 0.6s fade out; membership/participant changes establish a fresh sequence. A single poster and reduced-motion presentation stay static; focus pauses transitions and there are no live announcements. Narrow layouts stack the action group or the full card content within the existing content width. Account controls say `Show AI` / `Hide AI`; new and existing members begin hidden. Admin's `AI predicted` card uses the common lookup, linked poster/title identities, named Lucide Trash actions without confirmation and a separate participant History export section.
+
 ### Casing
 
 Use sentence case by default for interface-authored page, section, report, chart, card, dialog, group, fieldset, disclosure and empty-state headings, navigation destinations, tabs, statistic descriptors, labels and ordinary action copy. Capitalise the first word and genuine proper nouns, not subsequent ordinary words: Quick facts, Club timeline, Classics snapshot, Cycles completed, Ratings profile, Top 5 talent, Top 5 highest revenue / budget ratio, Seen it, Add to set and Record an event.

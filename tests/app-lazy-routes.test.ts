@@ -21,7 +21,7 @@ vi.mock('../frontend/AdminScreen',async importOriginal=>{
   return importOriginal();
 });
 vi.mock('../frontend/api',()=>({
-  api:{maintenanceJobs:vi.fn(async()=>({jobs:[]})),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(async()=>null),seen:vi.fn(),
+  api:{preferences:vi.fn(async()=>({show_ai:false})),predictions:vi.fn(async()=>[]),maintenanceJobs:vi.fn(async()=>({jobs:[]})),health:vi.fn(),me:vi.fn(),catalog:vi.fn(),rotation:vi.fn(async()=>null),seen:vi.fn(),
     metricsEnrichment:vi.fn(async()=>({movies:{}})),
     scoreMaintenanceStatus:vi.fn(async()=>({candidateIds:[],eligibleDimensions:0,unavailableDimensions:0,unavailableFilms:0}))},
   ApiClientError:class extends Error {},hasSession:()=>true,setUnauthorizedHandler:vi.fn(),
