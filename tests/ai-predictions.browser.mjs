@@ -43,12 +43,31 @@ try{
     await page.locator('.account-menu-trigger').click();await page.getByRole('button',{name:'Show AI',exact:true}).click();await page.locator('.prediction-poster').waitFor();await page.locator('.account-menu-trigger').click();
     assert.equal(await page.locator('.turn-actions a:last-child').innerText(),'Event');assert.equal(await page.locator('.turn-predictions h3').innerText(),'Will they bring...');
     const geometry=await page.locator('.turn-row').evaluate(row=>[...row.children].map(e=>({class:e.className,rect:e.getBoundingClientRect().toJSON()})));
+    const proportions=await page.locator('.turn-predictions').evaluate(e=>({height:e.getBoundingClientRect().height,identityHeight:document.querySelector('.turn-identity').getBoundingClientRect().height,nominalIdentityHeight:(()=>{const identity=document.querySelector('.turn-identity'),name=identity.querySelector('.club-identity > span');return identity.getBoundingClientRect().height-name.getBoundingClientRect().height+parseFloat(getComputedStyle(name).lineHeight);})(),headingSize:getComputedStyle(e.querySelector('h3')).fontSize,gap:getComputedStyle(e).gap,poster:e.querySelector('.poster').getBoundingClientRect().toJSON()}));
+    assert.equal(proportions.headingSize,'11px');assert.equal(proportions.gap,'4px');assert.equal(proportions.poster.height,120);if(width>=951)assert(Math.abs(proportions.height-proportions.nominalIdentityHeight)<45,JSON.stringify(proportions));else assert(proportions.height<=proportions.identityHeight+24,JSON.stringify(proportions));
     assert.equal(geometry.length,3);if(width>=951){assert(geometry[0].rect.right<=geometry[1].rect.left);assert(geometry[1].rect.right<=geometry[2].rect.left);}
-    const timing=await page.locator('.prediction-poster').evaluate(async e=>{const animation=e.getAnimations()[0];if(!animation)throw Error('Missing animation');animation.pause();const opacities=[];for(const time of [0,200,400,3000,5400,5700,5999]){animation.currentTime=time;await new Promise(requestAnimationFrame);opacities.push(Number(getComputedStyle(e).opacity));}const result={duration:animation.effect.getTiming().duration,opacities};animation.cancel();return result;});
-    assert.equal(timing.duration,6000);assert(timing.opacities[0]<0.05);assert(Math.abs(timing.opacities[1]-.5)<.05);assert(timing.opacities[2]>.95);assert.equal(timing.opacities[3],1);assert(timing.opacities[4]>.95);assert(Math.abs(timing.opacities[5]-.5)<.05);assert(timing.opacities[6]<.05);
+    const timing=await page.locator('.prediction-poster').evaluate(async e=>{const animation=e.getAnimations()[0];if(!animation)throw Error('Missing animation');animation.pause();const opacities=[];for(const time of [0,200,400,3000,5400,5700,6000,6050,6100,6200]){animation.currentTime=time;await new Promise(requestAnimationFrame);opacities.push(Number(getComputedStyle(e).opacity));}const result={duration:animation.effect.getTiming().duration,opacities};return result;});
+    assert.equal(timing.duration,6100);assert(timing.opacities[0]<0.05);assert(Math.abs(timing.opacities[1]-.5)<.05);assert(timing.opacities[2]>.95);assert.equal(timing.opacities[3],1);assert(timing.opacities[4]>.95);assert(Math.abs(timing.opacities[5]-.5)<.05);assert(timing.opacities[6]<.00001);assert(timing.opacities.slice(7).every(value=>value===0));
+    await page.locator('.prediction-poster').evaluate(e=>{e.getAnimations()[0].currentTime=400;});await page.evaluate(()=>new Promise(requestAnimationFrame));
     await overflow('Home',width);await page.screenshot({path:`${out}/home-${width}.png`,fullPage:true});
     await page.emulateMedia({reducedMotion:'reduce'});await page.waitForTimeout(50);assert.equal(await page.locator('.prediction-animated').count(),0);await page.emulateMedia({reducedMotion:'no-preference'});
-    await go('admin');await page.getByRole('heading',{name:'AI predicted',exact:true}).waitFor();await page.locator('.ai-predictions-card select').first().selectOption(catalog.members[1].id);
+    if(width===1440){
+      // Observe actual React replacement, including the frame after CSS completion.
+      await page.reload();await page.locator('.prediction-poster').waitFor();
+      const frames=await page.evaluate(()=>new Promise(resolve=>{const samples=[];let previous=null,start=performance.now();function sample(){const e=document.querySelector('.prediction-poster'),animation=e.getAnimations()[0],time=animation?.currentTime;samples.push({href:e.getAttribute('href'),opacity:Number(getComputedStyle(e).opacity),time,changed:previous!==null&&previous!==e});previous=e;if(performance.now()-start<6500)requestAnimationFrame(sample);else resolve(samples);}requestAnimationFrame(sample);}));
+      assert(frames.some(f=>f.changed),'poster replaced on real timer');assert(frames.filter(f=>f.changed).every(f=>f.opacity<.1),'replacement starts invisible');assert(frames.filter(f=>f.time>=6000).every(f=>f.opacity<.00001),'outgoing stays invisible through replacement');
+      await fs.writeFile(`${out}/replacement-frames.json`,JSON.stringify(frames));
+    }
+    await go('admin');await page.getByRole('heading',{name:'AI predicted',exact:true}).waitFor();
+    const selector=page.locator('.ai-predictions-card select').first(),exportSelector=page.locator('.prediction-export select');
+    assert.equal(await selector.inputValue(),'');assert.equal(await exportSelector.inputValue(),catalog.members[0].id);
+    assert.equal(await page.locator('.ai-predictions-card .film-search-form,.prediction-list').count(),0);
+    await selector.selectOption(catalog.members[1].id);
+    assert.equal(await page.locator('.prediction-list li').count(),3);
+    const saved=JSON.stringify(predictions),writes=requests.filter(r=>r.path.endsWith('/predictions')&&r.method!=='GET').length;
+    await selector.selectOption('');assert.equal(await page.locator('.ai-predictions-card .film-search-form,.prediction-list').count(),0);
+    assert.equal(JSON.stringify(predictions),saved);assert.equal(requests.filter(r=>r.path.endsWith('/predictions')&&r.method!=='GET').length,writes);assert.equal(await exportSelector.inputValue(),catalog.members[0].id);
+    await selector.selectOption(catalog.members[1].id);
     const headings=await page.locator('.admin-screen').evaluate(e=>[...e.children].map(c=>c.querySelector('h2')?.textContent));assert.deepEqual(headings.slice(0,3),['Swap current turn','AI predicted','Populate missing data']);
     assert.equal(await page.locator('.prediction-list li').count(),3);await overflow('Admin',width);await page.screenshot({path:`${out}/admin-${width}.png`,fullPage:true});
     await page.locator('.prediction-list button').first().click();assert.equal(await page.locator('dialog').count(),0);await page.waitForFunction(()=>document.querySelectorAll('.prediction-list li').length===2);
@@ -57,7 +76,7 @@ try{
     const downloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export',exact:true}).click();const download=await downloadPromise;assert.equal(download.suggestedFilename(),'bookclub-participant-history.txt');const file=await download.path();assert.equal(await fs.readFile(file,'utf8'),'Title,Year,IMDb ID,TMDB ID\r\n"A, film",2020,tt1234567,123\r\n');
     await go('home');await page.locator('.prediction-poster').waitFor();await page.locator('.account-menu-trigger').click();await page.getByRole('button',{name:'Hide AI',exact:true}).click();assert.equal(await page.locator('.turn-predictions').count(),0);
     turn=5;show=true;await page.reload();await page.getByRole('heading',{name:'Club timeline',exact:true}).waitFor();assert.equal(await page.locator('.turn-predictions').count(),0);
-    predictions=ids.map(movie_id=>({member_id:catalog.members[1].id,movie_id}));checks.push({width,geometry,timing,overflow:false});
+    predictions=ids.map(movie_id=>({member_id:catalog.members[1].id,movie_id}));checks.push({width,geometry,proportions,timing,overflow:false});
   }
   assert.deepEqual(errors,[]);assert(!requests.some(r=>r.method==='POST' && /maintenance|refresh-scores|enrich/.test(r.path)));
   await fs.writeFile(`${out}/browser-results.json`,JSON.stringify({checks,errors,requests},null,2));console.log('AI Home/Admin browser checks passed at five widths; timing, reduced motion, toggle, lookup/import/removal/export and Classics exclusion passed.');

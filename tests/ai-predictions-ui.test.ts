@@ -19,13 +19,18 @@ beforeEach(()=>{vi.resetAllMocks();Object.assign(globalThis,{IS_REACT_ACT_ENVIRO
 afterEach(async()=>{await act(async()=>root.unmount());container.remove();vi.useRealTimers();vi.restoreAllMocks();vi.unstubAllGlobals();});
 const render=async(component:Parameters<typeof root.render>[0])=>act(async()=>root.render(component));
 const current=()=>container.querySelector('.prediction-poster')?.getAttribute('aria-label');
-it('shuffles once, loops the same sequence every 6 seconds and cleans up; unrelated rerenders retain the sequence',async()=>{
+it('shuffles once, loops the same sequence every 6.1 seconds and cleans up; unrelated rerenders retain the sequence',async()=>{
   vi.useFakeTimers();vi.spyOn(Math,'random').mockReturnValue(0);await render(h(PredictionPresentation,{movies}));
   const initialCalls=vi.mocked(Math.random).mock.calls.length;expect(shufflePredictions(['a','b','c'],()=>0)).toEqual(['b','c','a']);expect(current()).toBe('Film b');
-  for(const film of ['Film c','Film a','Film b','Film c','Film a','Film b']) {await act(async()=>vi.advanceTimersByTime(5999));expect(current()).not.toBe(film);await act(async()=>vi.advanceTimersByTime(1));expect(current()).toBe(film);}
+  for(const film of ['Film c','Film a','Film b','Film c','Film a','Film b']) {await act(async()=>vi.advanceTimersByTime(6099));expect(current()).not.toBe(film);await act(async()=>vi.advanceTimersByTime(1));expect(current()).toBe(film);}
   expect(Math.random).toHaveBeenCalledTimes(initialCalls);await render(h(PredictionPresentation,{movies:[...movies]}));expect(Math.random).toHaveBeenCalledTimes(initialCalls);
   expect(container.querySelector('[aria-live]')).toBeNull();await act(async()=>root.unmount());expect(vi.getTimerCount()).toBe(0);root=createRoot(container);
-  const css=readFileSync('frontend/styles/home-history.css','utf8');expect(css).toContain('6s linear');expect(css).toContain('6.666667%,90%');
+  const css=readFileSync('frontend/styles/home-history.css','utf8');expect(css).toContain('6.1s linear both');expect(css).toContain('98.360656%,100%');
+});
+it('holds the focused poster and restarts the cycle on blur without leaking timers',async()=>{
+  vi.useFakeTimers();await render(h(PredictionPresentation,{movies}));const poster=container.querySelector<HTMLAnchorElement>('.prediction-poster')!;
+  await act(async()=>poster.focus());const held=current();expect(container.querySelector('.prediction-animated')).toBeNull();await act(async()=>vi.advanceTimersByTime(20000));expect(current()).toBe(held);
+  await act(async()=>poster.blur());expect(container.querySelector('.prediction-animated')).not.toBeNull();await act(async()=>vi.advanceTimersByTime(6099));expect(current()).toBe(held);await act(async()=>vi.advanceTimersByTime(1));expect(current()).not.toBe(held);
 });
 it('handles zero/one film and reduced motion without periodic updates, retaining Film Detail navigation',async()=>{
   vi.useFakeTimers();await render(h(PredictionPresentation,{movies:[]}));expect(current()).toBeUndefined();expect(vi.getTimerCount()).toBe(0);
@@ -36,7 +41,7 @@ it('reestablishes presentation on membership/participant changes, hides by defau
   vi.useFakeTimers();vi.spyOn(Math,'random').mockReturnValue(0);const rotation={id:1,nominal_slot:1,cycle_id:null,version:1,updated_at:''};
   const predictions=[...movies.map(m=>({member_id:'m1',movie_id:m.id})),{member_id:'m2',movie_id:'c'}];const props={catalog,rotation,viewer,onUpdated:vi.fn(),onUseBuilder:vi.fn(),predictions};
   await render(h(RotationCard,props));expect(current()).toBeUndefined();expect(container.querySelector('.turn-actions a:last-child')?.textContent).toBe('Event');
-  await render(h(RotationCard,{...props,showAi:true}));expect(current()).toBe('Film b');await act(async()=>vi.advanceTimersByTime(6000));expect(current()).toBe('Film c');
+  await render(h(RotationCard,{...props,showAi:true}));expect(current()).toBe('Film b');await act(async()=>vi.advanceTimersByTime(6100));expect(current()).toBe('Film c');
   await render(h(RotationCard,{...props,showAi:true,predictions:predictions.filter(p=>p.movie_id!=='c')}));expect(current()).toBe('Film b');
   await render(h(RotationCard,{...props,showAi:true,rotation:{...rotation,human_order:{'1':'m2','2':'m1'}}}));expect(current()).toBe('Film c');
   await render(h(RotationCard,{...props,showAi:true,rotation:{...rotation,nominal_slot:5}}));expect(current()).toBeUndefined();expect(vi.getTimerCount()).toBe(0);
@@ -56,5 +61,14 @@ it('never exposes a previous member preference or delayed loads/writes, toggles 
 it('manages predictions using the common lookup, separate participant selectors and one-click removal',async()=>{
   vi.mocked(api.removePrediction).mockResolvedValue([]);await render(h(AiPredictionsCard,{catalog,writesEnabled:true,onMovie:vi.fn()}));
   expect(container.querySelector('h2')?.textContent).toBe('AI predicted');expect(container.querySelectorAll('select')).toHaveLength(2);expect([...container.querySelectorAll('select option')].map(e=>e.textContent)).not.toContain('Classics');
+  const [participant,exportParticipant]=container.querySelectorAll('select');
+  expect(participant.value).toBe('');expect(participant.options[0].value).toBe('');expect(exportParticipant.value).toBe('m1');
+  expect(container.querySelector('.prediction-list')).toBeNull();expect(container.querySelector('.film-search-form')).toBeNull();expect(api.addPrediction).not.toHaveBeenCalled();expect(api.removePrediction).not.toHaveBeenCalled();
+  await act(async()=>{participant.value='m1';participant.dispatchEvent(new Event('change',{bubbles:true}));});
+  expect(container.querySelectorAll('.prediction-list li')).toHaveLength(3);
+  await act(async()=>{participant.value='';participant.dispatchEvent(new Event('change',{bubbles:true}));});
+  expect(container.querySelector('.prediction-list')).toBeNull();expect(container.querySelector('.film-search-form')).toBeNull();expect(exportParticipant.value).toBe('m1');expect(api.removePrediction).not.toHaveBeenCalled();
+  await act(async()=>{participant.value='m1';participant.dispatchEvent(new Event('change',{bubbles:true}));});
+  expect(container.querySelectorAll('.prediction-list li')).toHaveLength(3);
   const remove=container.querySelector<HTMLButtonElement>('button[aria-label="Remove Film a prediction"]')!;await act(async()=>remove.click());expect(api.removePrediction).toHaveBeenCalledWith('m1','a');expect(container.querySelector('dialog')).toBeNull();expect(container.querySelectorAll('.prediction-list li')).toHaveLength(0);
 });

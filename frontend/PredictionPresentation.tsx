@@ -21,7 +21,7 @@ export function PredictionPresentation({movies}: {movies:Movie[]}) {
   },[]);
   useEffect(()=>{
     if(sequence.length<2 || reduced || focused)return;
-    const timer=setInterval(()=>setPosition(value=>(value+1)%sequence.length),6000);
+    const timer=setInterval(()=>setPosition(value=>(value+1)%sequence.length),6100);
     return()=>clearInterval(timer);
   },[sequence,reduced,focused]);
   const movie=movies.find(m=>m.id===sequence[position]);
