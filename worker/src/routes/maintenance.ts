@@ -18,9 +18,16 @@ import { ApiError } from '../http';
 import { maintenanceJobDatabase } from '../maintenance-job-db';
 import { Repository } from '../repository';
 import { MovieService } from '../services';
+import { DataHealthRepository } from '../data-health-repository';
 
 export async function maintenanceRoutes(context:RouteContext):Promise<Response|undefined>{
   const {path,method,env,request,auth,body}=context;
+  if(path==='/api/v1/admin/data-health'){
+    requireAdmin(auth.viewer);
+    if(method!=='GET')throw new ApiError(405,'METHOD_NOT_ALLOWED','Data health is read-only.');
+    const params=new URL(request.url).searchParams;
+    return json(await new DataHealthRepository(env).page(params.get('after')===null?null:idSchema.parse(params.get('after')),z.string().max(200).parse(params.get('q')??'')));
+  }
   if(path==='/api/v1/maintenance/jobs' || path.startsWith('/api/v1/maintenance/jobs/')){
     requireAdmin(auth.viewer);const jobs=new MaintenanceJobs(env);
     if(path==='/api/v1/maintenance/jobs/import'&&method==='POST'){

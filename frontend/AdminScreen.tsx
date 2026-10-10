@@ -4,6 +4,7 @@ import { UnifiedMaintenance } from './UnifiedMaintenance';
 import { CollectionRosterMaintenance } from './CollectionRosterMaintenance';
 import { BulkMaintenanceLock } from './bulk-maintenance';
 import { AiPredictionsCard } from './AiPredictionsCard';
+import { DataHealth } from './DataHealth';
 
 export function AdminScreen({catalog,rotation = null,onRotationUpdated = () => {},writesEnabled,onUpdated,onEnrichmentChanged,onMovie,onPredictionsChanged}: {
   onPredictionsChanged?:(rows:import('../shared/types').AiPrediction[])=>void;
@@ -12,6 +13,7 @@ export function AdminScreen({catalog,rotation = null,onRotationUpdated = () => {
   return <BulkMaintenanceLock><div className="stack admin-screen">
     <RotationSwapCard catalog={catalog} rotation={rotation} writesEnabled={writesEnabled} onUpdated={onRotationUpdated} />
     <AiPredictionsCard catalog={catalog} writesEnabled={writesEnabled} onMovie={onMovie} onPredictionsChanged={onPredictionsChanged}/>
+    <DataHealth/>
     <UnifiedMaintenance catalog={catalog} writesEnabled={writesEnabled} onUpdated={onUpdated} onEnrichmentChanged={onEnrichmentChanged} />
     <CollectionRosterMaintenance writesEnabled={writesEnabled} onEnrichmentChanged={onEnrichmentChanged}/>
   </div></BulkMaintenanceLock>;

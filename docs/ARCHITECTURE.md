@@ -76,6 +76,8 @@ Metrics History population ownership is `shared/metrics-summary.ts:selectedAppea
 
 ## Stylesheet ownership
 
+Admin composes `DataHealth.tsx` before bulk maintenance. `shared/data-health.ts` owns pure independent exception and relationship classification, reusing ranking, maintained dimensions, provider identity and operation coverage. `worker/src/data-health-repository.ts` supplies 80-film pages, aggregate private Builder counts, all AI participants, archived History and supported provider claims. Selected-film assembly uses existing effective score SQL against a page-scoped score CTE to avoid loading observation histories or rescanning unrelated scores. Collection roster reads reuse bounded `CollectionRosterRepository.eligible(ids)`. `frontend/api.ts` owns the Admin-only diagnostic read; `frontend/styles/admin.css` owns its compact disclosures and responsive filters. Explicit diagnostic refresh rereads stored evidence only.
+
 `frontend/main.tsx` loads font faces, canonical `style.css`, then `frontend/app.css`. The root file remains the shared design system: palette, typography foundations, document rules, generic controls/surfaces, utilities and intent styling. The application entry imports these files in an explicit order:
 
 | Order / file under `frontend/styles/` | Responsibility |

@@ -28,6 +28,7 @@ await context.route('**/api/v1/**',async route=>{
   else if(path.endsWith('/movies/import')){const film={...catalog.movies[0],id:'imported',title:'Imported prediction',external_ids:[{provider:'tmdb',external_id:'42'}],appearances:[]};if(!catalog.movies.some(m=>m.id==='imported'))catalog.movies.push(film);data=film;}
 
   else if(path.endsWith('/maintenance/jobs'))data={jobs:[]};
+  else if(path.endsWith('/admin/data-health'))data={films:[],scanned:0,next:null,partial:false};
   else if(path.endsWith('/builders'))data=[];
   else if(path.endsWith('/movies/maintenance-coverage'))data={checks:[],negativeScores:[],enrichment:[],evidence:[],evidenceSupported:true,fieldsSupported:true,fields:[],scoreEligibleIds:predictions.map(p=>p.movie_id),unavailable:{tmdb:null,omdb:null,mdblist:null},next:null};
   else if(path.includes('/movies/'))data={...catalog.movies.find(m=>m.id===path.split('/').at(-1)),appearances:[]};
@@ -69,7 +70,7 @@ try{
     await selector.selectOption('');assert.equal(await page.locator('.ai-predictions-card .film-search-form,.prediction-list').count(),0);
     assert.equal(JSON.stringify(predictions),saved);assert.equal(requests.filter(r=>r.path.endsWith('/predictions')&&r.method!=='GET').length,writes);assert.equal(await exportSelector.inputValue(),catalog.members[0].id);
     await selector.selectOption(catalog.members[1].id);
-    const headings=await page.locator('.admin-screen').evaluate(e=>[...e.children].map(c=>c.querySelector('h2')?.textContent));assert.deepEqual(headings.slice(0,3),['Swap current turn','AI predicted','Populate missing data']);
+    const headings=await page.locator('.admin-screen').evaluate(e=>[...e.children].map(c=>c.querySelector('h2')?.textContent));assert.deepEqual(headings.slice(0,4),['Swap current turn','AI predicted','Data health and exceptions','Populate missing data']);
     assert.equal(await page.locator('.prediction-list li').count(),3);await overflow('Admin',width);await page.screenshot({path:`${out}/admin-${width}.png`,fullPage:true});
     await page.locator('.prediction-list button').first().click();assert.equal(await page.locator('dialog').count(),0);await page.waitForFunction(()=>document.querySelectorAll('.prediction-list li').length===2);
     await page.getByRole('textbox',{name:'Search films'}).fill('film');await page.getByRole('button',{name:'Search',exact:true}).click();await page.getByRole('button',{name:`Select ${catalog.movies[3].title}`,exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.prediction-list li').length===3);

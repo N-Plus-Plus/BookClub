@@ -14,6 +14,25 @@ Describe the as-is state. Remove stale descriptions rather than preserving histo
 
 # DATA.md
 
+## Admin data health and exceptions
+
+Health is derived read-only by `shared/data-health.ts` and `worker/src/data-health-repository.ts`; no flags, migration, repair, provider calls, cooldown updates or background work are involved. Each request inspects at most 80 canonical films, using scoped set-based records, effective score selection, identity-bound field coverage and collection roster eligibility. The browser explicitly appends pages. Counts and category/location/priority filters describe inspected films, not an assumed whole-catalogue total. Title substring search scopes the database page across the catalogue.
+
+Exception definitions:
+
+| Category | Concrete deficiencies and priority |
+| --- | --- |
+| Identity | Missing or invalid IMDb/TMDB identity using `providerIdentity`; stored supported provider claims disagreeing with the canonical ID or owned by another film. Actionable. Claims remain historical evidence for review, never an automatic identity repair. |
+| Metadata | Missing release date, year, positive runtime, director, genres or overview. Actionable for active History or eligible Classics, otherwise lower-priority review. Identity-matching positive field evidence contradicting absent canonical data is actionable. |
+| Artwork | No nonblank canonical poster reference. Same context priority as metadata. |
+| Ratings | No usable genuine scores; blocking when an eligible Classic has no effective Watch Order inputs, actionable for active History, otherwise review. Each missing live maintained rating has a separate issue; eligible-Classics imputation is actionable, other gaps review. Legacy ranking bootstrap is retained by shared score rules and is distinct from live coverage. |
+| Provider coverage | Specific incomplete OMDb/TMDB metadata, TMDB/MDBList enrichment, collection or awards operations, with unresolved field names. Uses `operationCoverage`, including inconclusive (actionable), unchecked/blocked/stale (review). Only the existing operation policy determines age staleness; old caches are not assigned a new expiry. Latest failed score attempts remain inspectable without invalidating retained successful evidence. Eligible collection membership lacking a validated roster is actionable; a later failed roster attempt does not invalidate a retained successful roster. |
+| Consistency | Canonical release-date year disagrees with canonical year. Actionable. |
+
+Missing canonical fields are confirmed unavailable only when every applicable supported, identity-matching field path records `checked_unavailable`; an unattempted second provider remains unresolved. Individual rating absence uses authoritative `negativeScore`. Confirmed deficiencies are separately inspectable and excluded from the default actionable view. A confirmed rating absence may still cause ranking imputation; the separate no-usable-Watch-Order issue preserves feature impact when applicable. Successful empty relationships, optional enrichment scalars, backdrop/original-title absence, collection-free evidence, awards N/A/unquantified counts, zero financial amounts and absent AU offers do not independently create value deficiencies. Unresolved checks for those fields still appear under their owning maintenance operation. Missing Seen answers are not film data exceptions or disqualification. Collection membership checks use existing two-distinct-active-History-film eligibility, not repeated appearances.
+
+Locations are classified independently and retain overlaps: active History grouped by hosted/Classics kind with appearance counts and all hosting names; Classics membership uses stored shared ranking plus active History precedence for Ranked, Unranked or DQ; private saved Builder membership exposes only a distinct-set count; curated AI Predictions list every associated participant; archived/deleted History retains an appearance count. A film with no active relationship is catalogue-only even if archived History remains. Audit blobs, removed lineups and private local import/merge archives are excluded: they are not current relational membership. No private Builder set IDs, owners, titles, notes or lineups enter the diagnostic, catalogue or Metrics payloads.
+
 ## Curated AI predictions and member display preference
 
 Migration `0026_ai_predictions.sql` adds `ai_predictions(member_id,movie_id)` with a composite primary key and movie/member foreign keys, and `member_preferences(member_id,show_ai)` with a binary default of 0. Missing preference rows mean hidden, including future members. Preference writes use the authenticated member ID only; sign-out never deletes them. Predictions are manually curated by Admin and reference canonical catalogue IDs; each film may belong to several human lists. They establish no Classics, History, Builder, Seen, Watch Order or historical Metrics membership.

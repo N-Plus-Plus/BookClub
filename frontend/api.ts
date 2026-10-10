@@ -46,6 +46,7 @@ async function request<T>(path: string, method = 'GET', data?: unknown, authenti
   return payload.data as T;
 }
 export const api = {
+  dataHealth: (after:string|null=null,query='',signal?:AbortSignal) => request<import('../shared/data-health').HealthPage>(`/admin/data-health?q=${encodeURIComponent(query)}${after?'&after='+encodeURIComponent(after):''}`,'GET',undefined,true,signal),
   predictions:()=>request<import('../shared/types').AiPrediction[]>('/predictions'),
   addPrediction:(member_id:string,movie_id:string)=>request<import('../shared/types').AiPrediction[]>('/predictions','POST',{member_id,movie_id}),
   removePrediction:(member_id:string,movie_id:string)=>request<import('../shared/types').AiPrediction[]>('/predictions','DELETE',{member_id,movie_id}),

@@ -147,7 +147,7 @@ export class CatalogRepository {
   }
 
   /** Selected-film snapshot; never loads unrelated movies, relationships or cycles. */
-  async movieDetails(ids: string[], validateScope = false): Promise<import('../../shared/types').MovieDetail[]> {
+  async movieDetails(ids: string[], validateScope = false, compactScores = false): Promise<import('../../shared/types').MovieDetail[]> {
     if (!ids.length) return [];
     const director = await this.capabilities.hasDirector();
     const placeholders = ids.map(() => '?').join(',');
@@ -157,7 +157,7 @@ export class CatalogRepository {
       selected(`SELECT ${movieColumns(director)} FROM movies WHERE id IN (${placeholders})`),
       selected(`SELECT movie_id,provider,asset_type,reference,width,height,preferred FROM movie_assets WHERE movie_id IN (${placeholders}) ORDER BY preferred DESC,id`),
       selected(`SELECT movie_id,provider,external_id FROM movie_external_ids WHERE movie_id IN (${placeholders})`),
-      selected(`SELECT ${scoreColumns} FROM source_scores WHERE movie_id IN (${placeholders}) ORDER BY fetched_at,id`),
+      selected(compactScores ? `WITH diagnostic_scores AS (SELECT * FROM source_scores WHERE movie_id IN (${placeholders})), ${effectiveScoreSql('', 'diagnostic_scores').slice(5)}` : `SELECT ${scoreColumns} FROM source_scores WHERE movie_id IN (${placeholders}) ORDER BY fetched_at,id`),
       selected(`SELECT movie_id,member_id,seen,updated_at FROM seen_states WHERE movie_id IN (${placeholders})`),
       selected(`SELECT movie_id,rank_seed,added_at,source FROM classics WHERE movie_id IN (${placeholders})`),
       selected(`SELECT movie_id,genre FROM movie_genres WHERE movie_id IN (${placeholders}) ORDER BY genre`),
