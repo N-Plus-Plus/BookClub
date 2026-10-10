@@ -7,7 +7,6 @@ import { MovieService, TMDB_METADATA_REFRESH_DAYS, tmdbMetadataIsStale } from '.
 import { metadataCandidate, metadataGaps, metadataQueue, tmdbIdentity } from '../shared/metadata';
 import { hashToken } from '../worker/src/auth';
 import worker from '../worker/src/index';
-import { maintainMetadata } from '../frontend/metadata-maintenance';
 import type { Env } from '../worker/src/http';
 import type { MetadataEnrichment } from '../shared/types';
 let local:ReturnType<typeof disposableD1>,repo:Repository,service:MovieService,env:Env;
@@ -298,8 +297,7 @@ it('a 980-film run builds one catalogue queue then performs 490 selected metadat
   const fetch=vi.fn(async(url:string)=>Response.json(details(Number(url.match(/movie\/(\d+)/)![1]),'')));vi.stubGlobal('fetch',fetch);
   vi.useFakeTimers();
   try {
-    const pending=maintainMetadata({ids:queue,unidentified:0,batch:ids=>service.enrichMetadataSelected(ids),stopped:()=>false,progress:async()=>{}});
-    await vi.runAllTimersAsync();expect(await pending).toMatchObject({processed:980,updated:980,remaining:0});
+    for(let offset=0;offset<queue.length;offset+=2){const response=await service.enrichMetadataSelected(queue.slice(offset,offset+2));expect(response.results.every(result=>result.status==='success')).toBe(true);}
     expect(catalog).toHaveBeenCalledOnce();expect(candidates).not.toHaveBeenCalled();expect(counts).not.toHaveBeenCalled();
     expect(selected).toHaveBeenCalledTimes(490);expect(selected.mock.calls.flatMap(([ids])=>ids)).toEqual(queue);
     expect(selected.mock.calls.every(([ids])=>ids.length===2)).toBe(true);

@@ -16,6 +16,24 @@ beforeEach(()=>{vi.resetAllMocks();installJobMocks();localStorage.clear();HTMLDi
 afterEach(async()=>{await act(async()=>root.unmount());node.remove();vi.useRealTimers();});
 const render=async(operation:MaintenanceJob['operation']='tmdb-enrichment',intent:MaintenanceJob['intent']='refresh',allowed=true)=>act(async()=>root.render(createElement(BulkMaintenanceLock,null,createElement(DurableMaintenanceControl,{intent,operation,writesEnabled:allowed}))));
 
+it.each(['film','aggregate','roster'] as const)('recovers original %s checkpoint scope without changing browser evidence or dispatching providers',async kind=>{
+ const film={version:1,intent:'refresh',startedAt:'2020-01-01T00:00:00.000Z',pending:[{movieId:'original',provider:'omdb',identity:{provider:'imdb',external_id:'tt0000001'},operations:['omdb-metadata']}],completed:10};
+ const roster={version:1,intent:'refresh',startedAt:film.startedAt,pending:[7],completed:2};
+ const operation=kind==='roster'?'collection-rosters':'all';
+ const key=kind==='roster'?'bookclub.collection-rosters.refresh.v1':`bookclub.maintenance.refresh.all.${kind==='aggregate'?'v2':'v1'}`;
+ const value=kind==='roster'?roster:kind==='aggregate'?{version:2,intent:'refresh',phase:'collections',films:film,rosters:roster}:film;
+ const bytes=JSON.stringify(value);localStorage.setItem(key,bytes);await render(operation);
+ await act(async()=>button('Recover legacy progress').click());
+ expect(api.importMaintenanceJob).toHaveBeenCalledWith(expect.objectContaining({startedAt:film.startedAt,filmOnly:kind==='film',units:kind==='roster'?[]:[['original','omdb','imdb','tt0000001',['omdb-metadata'],[]]],collections:kind==='film'?[]:[7]}));
+ expect(localStorage.getItem(key)).toBe(bytes);expect(api.stepMaintenanceJob).not.toHaveBeenCalled();expect(api.createMaintenanceJob).not.toHaveBeenCalled();
+});
+
+it('rejects an oversized browser recovery queue while preserving its original evidence',async()=>{
+ const key='bookclub.maintenance.refresh.all.v1',bytes=JSON.stringify({version:1,intent:'refresh',pending:Array(3001).fill({}),startedAt:'2020-01-01T00:00:00.000Z'});
+ localStorage.setItem(key,bytes);await render('all');await act(async()=>button('Recover legacy progress').click());
+ expect(node.textContent).toContain('exceeds the bounded import size');expect(api.importMaintenanceJob).not.toHaveBeenCalled();expect(localStorage.getItem(key)).toBe(bytes);
+});
+
 it.each(maintenanceOperations.flatMap(operation=>(['populate','refresh'] as const).map(intent=>({operation,intent}))))('starts the correct durable $intent/$operation run without provider work on mount',async({operation,intent})=>{
  await render(operation,intent);expect(api.createMaintenanceJob).not.toHaveBeenCalled();expect(api.stepMaintenanceJob).not.toHaveBeenCalled();const start=[...node.querySelectorAll<HTMLButtonElement>('button')].find(b=>b.textContent!== 'Reload job status')!;await act(async()=>start.click());expect(api.createMaintenanceJob).toHaveBeenCalledWith(expect.any(String),intent,operation);expect(api.stepMaintenanceJob).toHaveBeenCalledOnce();expect(node.textContent).toContain('Completed');expect(node.textContent).toContain('1 successful');
 });

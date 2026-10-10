@@ -6,7 +6,6 @@ import { Repository } from '../worker/src/repository';
 import { ScoreService } from '../worker/src/score-service';
 import type { Env } from '../worker/src/http';
 import worker from '../worker/src/index';
-import { maintainOmdbMetadata, type OmdbCheckpoint } from '../frontend/omdb-maintenance';
 
 let local: ReturnType<typeof disposableD1>, repo: Repository, env: Env, ids: string[];
 const primary = 'fictional-primary-secret', secondary = 'fictional-secondary-secret';
@@ -118,12 +117,6 @@ it('keeps single-primary quota behaviour',async()=>{
   const result=await service().maintain('metadata',ids);
   expect(fetch).toHaveBeenCalledTimes(1);expect(cooldowns()).toEqual(['omdb']);
   expect(result.results[0].providers[0]).toMatchObject({blocking:true,retryAfter:86400,status:'failed'});
-});
-it.each([true,false])('metadata resume advances only when secondary succeeds: %s',async succeeds=>{
-  await repo.setProviderCooldown('omdb',86400);vi.stubGlobal('fetch',vi.fn(async()=>succeeds?ok():quota()));
-  const checkpoint: OmdbCheckpoint={version:1,completed:10,remainingIds:[ids[0]]};let saved: OmdbCheckpoint|null=checkpoint;
-  const result=await maintainOmdbMetadata({checkpoint,batch:selected=>service().maintain('metadata',selected),stopped:()=>false,progress:async()=>{},checkpointChanged:value=>{saved=value;}});
-  expect(saved).toEqual(succeeds?null:checkpoint);expect(result.remaining).toBe(succeeds?0:1);expect(result.processed).toBe(succeeds?11:10);
 });
 it('never logs credential-bearing network errors or raw rejected bodies',async()=>{
   const logs=[vi.spyOn(console,'log'),vi.spyOn(console,'warn'),vi.spyOn(console,'error')];

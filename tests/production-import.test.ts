@@ -6,7 +6,6 @@ import { config,workbook } from './import-fixture';
 import { analyseWorkbook } from '../scripts/import/workbook';
 import { resolvePlan } from '../scripts/import/resolution';
 import { capture,guard,sha256,productionTarget,verifyBackup,validateBootstrap,bootstrapMembers,bootstrapRotation,importProduction,verifyProduction,productionPreflight } from '../scripts/import/production';
-import runner, {type CutoverEnv} from '../scripts/import/production-worker';
 import { productionCommand,queryDatabase,remoteBoundary,writableProductionBoundary,wranglerInvocation } from '../scripts/import/production-remote';
 import { resolve } from 'node:path';
 
@@ -91,25 +90,8 @@ describe('disposable production workflow rehearsal',()=>{
   }finally{local.sqlite.close();}
  });
 });
-describe('retired native Worker binding runner',()=>{
- it('requires token, exact pinned plan/bootstrap/backup and completes only reviewed data',async()=>{
-  const local=disposableD1();try {
-   migrationLedger(local);const plan=resolved(),bootstrap=b(),bytes=Buffer.from(JSON.stringify(plan));
-   const backup={...target,path:'fictional.sql',capturedAt:new Date().toISOString(),planHash:sha256(bytes),exportHash:'fictional-backup-hash',bytes:10,remote:true},rehearsal={planHash:sha256(bytes)};
-   const env:CutoverEnv={DB:local.db,CUTOVER_TOKEN:'fictional-cutover-token',APP_ENV:'production',LOCAL_WRITE_BYPASS:'false',DATABASE_NAME:target.database_name,DATABASE_ID:target.database_id,PLAN_HASH:sha256(bytes),BOOTSTRAP_HASH:sha256(JSON.stringify(bootstrap)),BACKUP_PROOF_HASH:sha256(JSON.stringify(backup)),REHEARSAL_HASH:sha256(JSON.stringify(rehearsal)),MIGRATIONS:JSON.stringify(migrations)};
-   const body={planBytes:JSON.stringify(plan),config:{...config,snapshotCapturedAt:capture},bootstrap,backup,rehearsal,gates:gates(bytes)};
-   const request=(payload:unknown,token='fictional-cutover-token')=>new Request('https://fictional.invalid/cutover',{method:'POST',headers:{Authorization:'Bearer '+token},body:JSON.stringify(payload)});
-   expect((await runner.fetch(request(body,'wrong'),env)).status).toBe(403);
-   expect((await runner.fetch(request({...body,backup:{...backup,exportHash:'changed'}}),env)).status).toBe(409);
-   expect((await runner.fetch(request({...body,gates:{...body.gates,confirmation:undefined}}),env)).status).toBe(409);
-   expect(local.sqlite.prepare('SELECT count(*) n FROM members').get()?.n).toBe(0);
-   expect((await runner.fetch(request(body),env)).status).toBe(200);
-   expect((await runner.fetch(request(body),env)).status).toBe(200);
-   expect(local.sqlite.prepare('SELECT count(*) n FROM sessions').get()?.n).toBe(plan.events.length);
-   expect(local.sqlite.prepare('SELECT * FROM club_rotation').get()).toMatchObject({nominal_slot:5,version:0});
-  }finally{local.sqlite.close();}
- });
- it('native D1 failed event batch rolls back its header and resumes identical runner data',async()=>{
+describe('native import transaction recovery',()=>{
+ it('native D1 failed event batch rolls back its header and resumes identical import data',async()=>{
   const local=disposableD1();try {
    const plan=resolved(),bootstrap=b();local.sqlite.exec("CREATE TRIGGER synthetic_join_failure BEFORE INSERT ON session_movies BEGIN SELECT RAISE(ABORT,'fictional'); END");
    await expect(importProduction(local.db,plan,bootstrap)).rejects.toThrow('batch failed');expect(local.sqlite.prepare('SELECT count(*) n FROM sessions').get()?.n).toBe(0);
@@ -152,7 +134,7 @@ describe('mocked remote boundaries and private material protection',()=>{
   try{const fetcher=vi.fn(async()=>Response.json({success:true,result:{uuid:target.database_id,name:'wrong'}}));await expect(remoteBoundary(target,fetcher)).rejects.toThrow('identity');expect(fetcher).toHaveBeenCalledTimes(1);}finally{vi.unstubAllEnvs();}
  });
  it('tracked tooling and examples contain no credentials/emails or destructive SQL path',()=>{
-  for(const name of ['production.ts','production-cli.ts','production-remote.ts','production-worker.ts']){const source=readFileSync('scripts/import/'+name,'utf8');expect(source).not.toMatch(/\b(?:DROP TABLE|DELETE FROM|reset\.sql)\b/i);expect(source).not.toMatch(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/);}
+  for(const name of ['production.ts','production-cli.ts','production-remote.ts']){const source=readFileSync('scripts/import/'+name,'utf8');expect(source).not.toMatch(/\b(?:DROP TABLE|DELETE FROM|reset\.sql)\b/i);expect(source).not.toMatch(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/);}
   expect(readFileSync('.gitignore','utf8')).toContain('.verification/');
  });
 });

@@ -33,7 +33,7 @@ try {
  const sessions=[{id:'e1',event_date:'2026-01-01',date_precision:'exact',cycle_id:'c1',cycle_slot:1,kind:'hosted',host_member_id:'m1',legacy_cycle_label:null,movies:[movies[0],movies[1]],revision:1,has_audit:true}];
  const catalog={movies,members,cycles,sessions};
  const set={id:'set',owner_member_id:'m2',title:'Synthetic private set',notes:null,movie_ids:['f0','f1','f2','f3'],revision:1,created_at:'2026-01-01',updated_at:''};
- api.health=async()=>({status:'ok',environment:'test',authenticationRequired:true,googleAuthConfigured:false,demo:false});api.me=async()=>({viewer:{...members[1],role:'admin'}});
+ api.preferences=async()=>({show_ai:false});api.predictions=async()=>[];api.maintenanceJobs=async()=>({jobs:[]});api.health=async()=>({status:'ok',environment:'test',authenticationRequired:true,googleAuthConfigured:false,demo:false});api.me=async()=>({viewer:{...members[1],role:'admin'}});
  api.catalog=async()=>catalog;api.rotation=async()=>({id:1,nominal_slot:2,cycle_id:'c1',version:0,updated_at:'',human_order:{}});
  api.builders=async()=>[set];api.saveBuilder=async body=>({...set,...body});api.detail=async id=>({...movies.find(m=>m.id===id),appearances:[]});
  api.search=async()=>({local:movies.map(m=>({id:m.id,title:m.title,year:m.year,tmdbId:null,poster:null})),external:[{provider:'tmdb',externalId:'42',title:'External preview',year:2001,poster:null}],lookup:{available:true,message:null}});

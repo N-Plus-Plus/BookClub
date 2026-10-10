@@ -13,7 +13,6 @@ import { parseCollection } from '../shared/provider-evidence';
 import { disposableD1 } from './d1';
 import { local,env,call,data,session } from './helpers/product-api';
 import worker from '../worker/src/index';
-import { reconcileRosterCheckpoint,rosterPlan,runRosterMaintenance, type RosterCheckpoint } from '../frontend/collection-roster-maintenance';
 const at='2020-01-01T00:00:00.000Z';
 const payload=(ids=[42,43])=>({id:7,name:'Fictional series',parts:ids.map(id=>({id,title:`Part ${id}`,release_date:'2000-01-01'}))});
 afterEach(()=>vi.restoreAllMocks());
@@ -45,19 +44,6 @@ it('never classifies unchecked, corrupt, failed or incomplete roster evidence',(
   const evidence:MetricsEnrichment={movies:Object.fromEntries(catalog.movies.slice(0,2).map(m=>[m.id,{...emptyEnrichmentMovie(),collection:{status:'checked_present' as const,external_id:m.external_ids[0].external_id,checked_at:at,collection_id:7,collection_name:'Series'}}]))};
   for(const state of ['not_checked','inconclusive','failed','checked'] as const){evidence.collections={7:{status:state,roster:state==='checked'?{id:7,name:'Series',parts:[],checked_at:at}:null,attempted_at:at}};expect(collectionCompletion(selectedAppearances(catalog),evidence)).toMatchObject({completed:[],unrequited:[],pending:1});}
 });
-it('populates once per eligible collection and skips valid checks, with accurate Refresh estimates and atomic replacement',async()=>{
-  const service=await eligible(),fetch=vi.spyOn(globalThis,'fetch').mockResolvedValue(Response.json(payload()));
-  expect(rosterPlan(await service.status(),'populate')).toMatchObject({collections:1,requests:1,batches:1});
-  expect(await service.execute('populate',[7,7],at)).toMatchObject({requests:1,results:[{id:7,status:'checked'}]});expect(fetch).toHaveBeenCalledTimes(1);
-  expect(await service.execute('populate',[7],at)).toMatchObject({requests:0,results:[{status:'skipped'}]});
-  const start='2099-01-01T00:00:00.000Z';fetch.mockResolvedValue(Response.json(payload([42,43,44])));
-  expect(await service.execute('refresh',[7],start)).toMatchObject({requests:1});
-  let projection=await new MetricsRepository(local.db).enrichment();expect(projection.collections?.[7].roster?.parts).toHaveLength(3);
-  expect(collectionCompletion(selectedAppearances(await new Repository(local.db).catalog()),projection).unrequited).toHaveLength(1);
-  fetch.mockResolvedValue(Response.json(payload()));await service.execute('refresh',[7],start);
-  projection=await new MetricsRepository(local.db).enrichment();expect(projection.collections?.[7].roster?.parts).toHaveLength(2);expect(collectionCompletion(selectedAppearances(await new Repository(local.db).catalog()),projection).completed).toHaveLength(1);
-  expect(fetch.mock.calls.every(([url])=>String(url).endsWith('/collection/7'))).toBe(true);
-});
 it('preserves checked evidence on malformed/incomplete/failure responses and honours cooldown, quota and explicit retries',async()=>{
   const service=await eligible(),store=new CollectionRosterRepository(local.db);await store.save(parseCollectionRoster(payload(),7,at)!);
   const fetch=vi.spyOn(globalThis,'fetch').mockResolvedValue(Response.json({...payload(),parts:[]}));
@@ -83,16 +69,6 @@ it('adds the schema without changing existing data, and tolerates older schema o
     expect(()=>old.sqlite.exec("INSERT INTO tmdb_collection_rosters VALUES(7,'Series','2026',NULL,'2026','checked')")).toThrow();
   }finally{old.sqlite.close();}
 });
-it('freezes the collection queue, retains failures, stops safely and reconciles lost-response checks without replay',async()=>{
-  const checkpoint:RosterCheckpoint={version:1,intent:'refresh',startedAt:at,pending:[7,8,9],completed:0,requests:0};let saved=checkpoint,stop=false;
-  const batch=vi.fn(async(id:number)=>{if(id===8)stop=true;return {results:[{id,status:id===8?'failed' as const:'checked' as const,message:''}],requests:1,cacheChanged:id===7};});
-  await expect(runRosterMaintenance({checkpoint,batch,stopped:()=>stop,changed:()=>{},progress:()=>{},checkpointChanged:value=>{saved=value;},pause:async()=>{}})).rejects.toThrow('failed');
-  expect(batch.mock.calls.map(([id])=>id)).toEqual([7,8]);expect(saved).toMatchObject({pending:[8,9],completed:1,requests:2});
-  const status={collections:[{id:8,name:'Eight',films:2,checked_at:null},{id:9,name:'Nine',films:2,checked_at:'2026-01-01T00:00:00.000Z'},{id:10,name:'Ten',films:2,checked_at:null}],unavailable:null};
-  expect(reconcileRosterCheckpoint(saved,status)).toMatchObject({pending:[8],completed:2});
-  const lost=vi.fn(async()=>{throw new Error('Lost response');});
-  await expect(runRosterMaintenance({checkpoint,batch:lost,stopped:()=>false,changed:()=>{},progress:()=>{},checkpointChanged:value=>{saved=value;}})).rejects.toThrow('Lost response');expect(saved.pending).toEqual([7,8,9]);
-});
 
 it('partitions collections by date-only eligibility, excluding unknown dates and preserving future History evidence',()=>{
  const a=metricsFilm('a',{external_ids:[{provider:'tmdb',external_id:'42'}]}),b=metricsFilm('b',{external_ids:[{provider:'tmdb',external_id:'43'}]}),c=metricsFilm('c',{external_ids:[{provider:'tmdb',external_id:'44'}]});
@@ -113,4 +89,17 @@ it('partitions collections by date-only eligibility, excluding unknown dates and
  evidence.collections![7].roster!.parts[0].release_date='2000-01-01';
  expect(derive('2026-10-10').completed[0]).toMatchObject({total:1,films:[expect.objectContaining({movie:expect.objectContaining({id:'a'})})]});
  evidence.collections![7].roster=null;expect(derive('2026-10-10')).toEqual({completed:[],unrequited:[],pending:1});
+});
+
+it('populates once per eligible collection and skips valid checks, with accurate Refresh estimates and atomic replacement',async()=>{
+  const service=await eligible(),fetch=vi.spyOn(globalThis,'fetch').mockResolvedValue(Response.json(payload()));
+  expect(await service.execute('populate',[7,7],at)).toMatchObject({requests:1,results:[{id:7,status:'checked'}]});expect(fetch).toHaveBeenCalledTimes(1);
+  expect(await service.execute('populate',[7],at)).toMatchObject({requests:0,results:[{status:'skipped'}]});
+  const start='2099-01-01T00:00:00.000Z';fetch.mockResolvedValue(Response.json(payload([42,43,44])));
+  expect(await service.execute('refresh',[7],start)).toMatchObject({requests:1});
+  let projection=await new MetricsRepository(local.db).enrichment();expect(projection.collections?.[7].roster?.parts).toHaveLength(3);
+  expect(collectionCompletion(selectedAppearances(await new Repository(local.db).catalog()),projection).unrequited).toHaveLength(1);
+  fetch.mockResolvedValue(Response.json(payload()));await service.execute('refresh',[7],start);
+  projection=await new MetricsRepository(local.db).enrichment();expect(projection.collections?.[7].roster?.parts).toHaveLength(2);expect(collectionCompletion(selectedAppearances(await new Repository(local.db).catalog()),projection).completed).toHaveLength(1);
+  expect(fetch.mock.calls.every(([url])=>String(url).endsWith('/collection/7'))).toBe(true);
 });

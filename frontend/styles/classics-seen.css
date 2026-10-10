@@ -1,7 +1,7 @@
 /* classics-seen: base rules and responsive refinements in their original relative order. */
-.classics-grid,.seen-layout { display: grid; gap: var(--space-20); align-items: start; }
+.seen-layout { display: grid; gap: var(--space-20); align-items: start; }
 .rank-top { display: flex; align-items: center; gap: var(--space-12); }
-.classics-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-12); align-items: center; }
+
 .answer-card { display: flex; gap: var(--space-16); align-items: center; padding: var(--space-12) 0; }
 .answer-copy { min-width: 0; }
 .answer-card { --text-movie-title: var(--text-film-hero); }
@@ -12,9 +12,7 @@
 .recent-list { display: grid; gap: var(--space-16); }
 .recent-answer { --text-movie-title: var(--text-film-compact); padding-bottom: var(--space-16); border-bottom: 1px solid var(--asphalt-dark); font-size: var(--text-supporting); }
 .recent-answer .button { margin-top: var(--space-12); }
-@media (min-width: 720px) {
-  .classics-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
-}
+
 @media (max-width: 389px) { .answer-card .poster-large { width: 96px; height: 144px; } }
 .rank-top { flex-wrap: wrap; }
 .rank-top .score { margin-left: auto; }
@@ -49,9 +47,8 @@
 }
 .classics-filters { display: flex; flex-wrap: nowrap; gap: var(--space-4); }
 .classics-filters .tab-control { flex: 1 0 auto; min-width: 0; font-size: var(--text-body); }
-.classics-count-ranked { background: var(--grass); }
+
 .classics-count-needs-data { background: var(--rose); }
-.classics-count-seen { background: var(--mandarin); }
 
 .answer-actions .seen-yes { --button-colour: var(--aqua); --button-colour-dark: var(--aqua-dark); }
 .answer-actions .seen-no { --button-colour: var(--ruby); --button-colour-dark: var(--ruby-dark); }

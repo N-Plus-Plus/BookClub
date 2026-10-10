@@ -5,7 +5,6 @@ import { disposableD1 } from './d1';
 import { Repository } from '../worker/src/repository';
 import { ScoreService } from '../worker/src/score-service';
 import type { Env } from '../worker/src/http';
-import { maintainScores } from '../frontend/score-maintenance';
 import type { ScoreMaintenance } from '../shared/types';
 let local: ReturnType<typeof disposableD1>, env: Env;
 const call = (mode: string, movie_ids: string[], member='member-1') => worker.fetch(new Request('http://api/api/v1/movies/maintain',{method:'POST',headers:{'X-BookClub-Dev-Member':member},body:JSON.stringify({mode,movie_ids})}),env);
@@ -345,7 +344,7 @@ it('legacy-only ratings remain unresolved and the third live capture immediately
 });
 
 it.each(['scores','empty','not_found'])('recovers only the omitted film in a ten-film batch with %s and continues the run',async(outcome)=>{
- vi.useFakeTimers();env.OMDB_API_KEY=undefined;
+ env.OMDB_API_KEY=undefined;
  const films=[];for(let i=100;i<111;i++) films.push(await add(`tt0000${i}`));
  const repo=new Repository(local.db), omitted=films[4];
  const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
@@ -357,16 +356,14 @@ it.each(['scores','empty','not_found'])('recovers only the omitted film in a ten
   expect(url).toContain('/imdb/movie/tt0000104/');
   return outcome==='not_found'?new Response(null,{status:404}):Response.json({ratings:outcome==='scores'?singleRatings:[]});
  });vi.stubGlobal('fetch',fetch);
- const promise=maintainScores({ids:films,batch:async ids=>data(await call('missing',ids)),stopped:()=>false,progress:async()=>{}});
- await vi.runAllTimersAsync();const run=await promise;
+ const response=await data(await call('missing',films.slice(0,10)));
+ await data(await call('missing',films.slice(10)));
  expect(fetch).toHaveBeenCalledTimes(3);expect(fetch.mock.calls.filter(([,init])=>init?.method!=='POST')).toHaveLength(1);
- expect(run).toMatchObject({processed:11,remaining:0,failed:outcome==='not_found'?1:0,updated:outcome==='scores'?11:10});
  expect(warn).toHaveBeenCalledWith('MDBList batch correlation incomplete',expect.objectContaining({requested:10,returned:9,matched:9}));
  if(outcome==='not_found') {
-  expect(run.message).toBe('Finished with 1 unresolved film. Completed updates are saved.');
   expect(await repo.scoreChecks([omitted])).toEqual([]);
   expect((await repo.scoreMaintenanceStatus()).candidateIds).toContain(omitted);
-  expect(run.providers.find(p=>p.status==='failed')).toMatchObject({filmTitle:'tt0000104',blocking:false});
+  expect(response.results.flatMap(result=>result.providers).find(p=>p.status==='failed')).toMatchObject({status:'failed',blocking:false});
  } else if(outcome==='empty') {
   const checks=await repo.scoreChecks([omitted]);
   expect(checks.filter(c=>c.available===0).map(c=>c.score_key)).toEqual(expect.arrayContaining(['letterboxd:rating','rottentomatoes:audience','tmdb:rating']));
@@ -391,7 +388,7 @@ it('a valid empty targeted recovery exhausts OMDb/TMDB fallback before writing c
  const checks=await repo.scoreChecks([film]);expect(checks).toHaveLength(6);expect(checks.every(c=>c.available===0)).toBe(true);
 });
 it.each(['rate_limited','credentials','outage','network','contract'])('stops after a blocking %s during targeted recovery without retrying or losing matched updates',async(kind)=>{
- vi.useFakeTimers();env.OMDB_API_KEY=undefined;
+ env.OMDB_API_KEY=undefined;
  const films=[];for(let i=130;i<141;i++) films.push(await add(`tt0000${i}`));
  const fetch=vi.fn(async(_url:string,init?:RequestInit)=>{
   if(init?.method==='POST') return Response.json((JSON.parse(init.body as string).ids as string[]).filter(id=>!['tt0000131','tt0000132'].includes(id)).map(id=>({ids:{imdb:id},ratings})));
@@ -399,27 +396,25 @@ it.each(['rate_limited','credentials','outage','network','contract'])('stops aft
   if(kind==='contract') return Response.json({private:'payload'});
   return new Response(null,{status:kind==='rate_limited'?429:kind==='credentials'?401:503,headers:kind==='rate_limited'?{'Retry-After':'120'}:{}});
  });vi.stubGlobal('fetch',fetch);
- const promise=maintainScores({ids:films,batch:async ids=>data(await call('missing',ids)),stopped:()=>false,progress:async()=>{}});
- await vi.runAllTimersAsync();const run=await promise;
- expect(fetch).toHaveBeenCalledTimes(2);expect(run).toMatchObject({processed:10,remaining:1,updated:8,failed:1});expect(run.message).toContain('provider failure');
+ const response=await data(await call('missing',films.slice(0,10)));
+ expect(fetch).toHaveBeenCalledTimes(2);expect(response.results).toHaveLength(10);expect(response.results.flatMap(result=>result.providers).some(provider=>provider.blocking)).toBe(true);
  const repo=new Repository(local.db);
  expect(await repo.scoreChecks([films[1],films[2]])).toEqual([]);
  expect((await repo.movieDetails([films[0],films[9]])).every(m=>m.scores.length===6)).toBe(true);
  if(kind==='rate_limited') {
-  expect(run.providers.find(p=>p.status==='failed')).toMatchObject({blocking:true,retryAfter:120});
+  expect(response.results.flatMap(result=>result.providers).find(p=>p.status==='failed')).toMatchObject({blocking:true,retryAfter:120});
   await data(await call('refresh',[films[1]]));expect(fetch).toHaveBeenCalledTimes(2);
  }
 });
 it.each(['credentials','outage','network','contract','batch_not_found'])('stops on a provider-wide %s batch failure with no single-film recovery',async(kind)=>{
- vi.useFakeTimers();env.OMDB_API_KEY=undefined;
+ env.OMDB_API_KEY=undefined;
  const films=[];for(let i=150;i<161;i++) films.push(await add(`tt0000${i}`));
  const fetch=vi.fn(async()=>{
   if(kind==='network') throw new Error('private URL');
   if(kind==='contract') return Response.json([{ratings:[]}]);
   return new Response(null,{status:kind==='credentials'?403:kind==='batch_not_found'?404:503});
  });vi.stubGlobal('fetch',fetch);
- const promise=maintainScores({ids:films,batch:async ids=>data(await call('missing',ids)),stopped:()=>false,progress:async()=>{}});
- await vi.runAllTimersAsync();const run=await promise;
- expect(fetch).toHaveBeenCalledTimes(1);expect(run.remaining).toBe(1);expect(run.message).toContain('provider failure');
+ const response=await data(await call('missing',films.slice(0,10)));
+ expect(fetch).toHaveBeenCalledTimes(1);expect(response.results.flatMap(result=>result.providers).some(provider=>provider.blocking)).toBe(true);
  expect(await new Repository(local.db).scoreChecks(films)).toEqual([]);
 });

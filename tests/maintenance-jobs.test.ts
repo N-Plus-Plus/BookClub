@@ -8,6 +8,7 @@ import { tmdbEnrichmentFixture,mdbEnrichmentFixture } from './enrichment-fixture
 import type { Env } from '../worker/src/http';
 import { maintenanceJobDatabase } from '../worker/src/maintenance-job-db';
 import { classifyMaintenanceFailure } from '../worker/src/maintenance-failure';
+import { requiredScores } from '../shared/ranking';
 const fixtures:ReturnType<typeof disposableD1>[]=[];
 function fixture(n=3){const local=disposableD1();fixtures.push(local);for(let i=1;i<=n;i++){local.sqlite.prepare('INSERT INTO movies(id,title) VALUES(?,?)').run(`film-${i}`,`Film ${i}`);local.sqlite.prepare("INSERT INTO movie_external_ids VALUES(?,'imdb',?)").run(`film-${i}`,`tt${String(i).padStart(7,'0')}`);local.sqlite.prepare("INSERT INTO movie_external_ids VALUES(?,'tmdb',?)").run(`film-${i}`,String(i));local.sqlite.prepare("INSERT INTO classics(movie_id,source) VALUES(?,'member-added')").run(`film-${i}`);}
   const env:Env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'',TMDB_READ_TOKEN:'fictional',OMDB_API_KEY:'fictional',MDBLIST_API_KEY:'fictional'};return {local,env,jobs:new MaintenanceJobs(env),repo:new Repository(local.db)};}
@@ -20,6 +21,14 @@ async function ready(jobs:MaintenanceJobs,id:string,intent:Parameters<Maintenanc
  try{while(job.planning&&job.planning.stage!=='complete')job=await jobs.plan(id,claim.token);}finally{await jobs.release(id,claim.token);}return job;
 }
 async function drain(jobs:MaintenanceJobs,id:string,token:string){for(let i=0;i<1000;i++){const current=await jobs.status(id);const status=await (current.planning&&current.planning.stage!=='complete'?jobs.plan(id,token):jobs.step(id,token));if(['completed','completed_with_issues','failed','awaiting_cooldown','paused'].includes(status.state))return status;}throw Error('Job did not terminate');}
+
+it('legacy recovery freezes the original films and six score dimensions without adding current catalogue work',async()=>{
+ const {jobs,local}=fixture(3),id=crypto.randomUUID(),calls=upstream();
+ const job=await ready(jobs,id,'refresh','scores',{id,intent:'refresh',operation:'scores',startedAt:'2020-01-01T00:00:00.000Z',phase:'films',filmOnly:true,rosterStartedAt:null,units:[['film-1','mdblist','imdb','tt0000001',['scores'],[...requiredScores]]],collections:[]});
+ const units=local.sqlite.prepare('SELECT movie_id,score_keys_json FROM maintenance_job_units WHERE job_id=?').all(id);
+ expect(units).toHaveLength(1);expect(units[0].movie_id).toBe('film-1');expect(JSON.parse(String(units[0].score_keys_json))).toEqual([...requiredScores]);
+ expect(job.counts.pending).toBe(1);expect(calls).toHaveLength(0);
+});
 
 it.each(['populate','refresh'] as const)('persists %s success and failures across devices without poison replay',async intent=>{const {jobs,env,local}=fixture(),calls=upstream(2),id=crypto.randomUUID();await ready(jobs,id,intent,'all');const first=await jobs.claim(id,'Browser one');const complete=await drain(jobs,id,first.token);expect(complete.state).toBe('completed_with_issues');expect(complete.counts.deferred).toBe(3);expect(complete.counts.successful).toBe(6);expect(complete.phase).toBe('collections');await jobs.release(id,first.token);
   const other=new MaintenanceJobs(env),before=calls.length;expect((await other.list()).jobs.some(j=>j.id===id)).toBe(true);expect((await other.status(id)).issues).toHaveLength(3);await expect(other.claim(id,'Browser two')).rejects.toMatchObject({code:'JOB_COMPLETE'});expect(calls).toHaveLength(before);expect(local.sqlite.prepare("SELECT count(*) AS n FROM maintenance_job_units WHERE status='successful'").get()?.n).toBe(6);

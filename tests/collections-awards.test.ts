@@ -12,7 +12,6 @@ import { EnrichmentService } from '../worker/src/enrichment-service';
 import { ScoreService } from '../worker/src/score-service';
 import { copySnapshot } from '../scripts/dev/snapshot';
 import { tmdbEnrichmentFixture } from './enrichment-fixtures';
-import { loadUnifiedCheckpoint, reconcileUnifiedCheckpoint, type UnifiedCheckpoint } from '../frontend/unified-maintenance';
 import type { Env } from '../worker/src/http';
 
 const at='2026-01-01T00:00:00.000Z';
@@ -137,17 +136,6 @@ it('supports older schemas without incidental failures and copies pre/post migra
   await old.repo.cacheCollection('film',parseCollection(null,'42',at));await old.repo.cacheAwards('film',parseAwards('0 wins & 0 nominations.','tt0000042',at));
   copySnapshot(old.local.sqlite,target.sqlite);expect(target.sqlite.prepare('SELECT wins FROM movie_provider_awards').get()?.wins).toBe(0);
 });
-it('loads old frozen aggregate checkpoints without adding new operations and reconciles saved new evidence',async()=>{
-  const {repo,service}=fixture();const catalog=await repo.catalog(),coverage=await service.status(null);
-  const pending=planMaintenance(catalog,coverage,'refresh',['tmdb-metadata','omdb-metadata']).units;
-  const saved:UnifiedCheckpoint={version:1,intent:'refresh',operation:'all',startedAt:at,pending,completed:0};
-  const storage={getItem:()=>JSON.stringify(saved),removeItem:vi.fn()};
-  const loaded=loadUnifiedCheckpoint('old',storage)!;expect(loaded).toEqual(saved);
-  expect(reconcileUnifiedCheckpoint(loaded,catalog,coverage).pending.flatMap(u=>u.operations)).toEqual(['tmdb-metadata','omdb-metadata']);
-  const evidencePending=planMaintenance(catalog,coverage,'refresh',['tmdb-collections','omdb-awards']).units;
-  await repo.cacheCollection('film',parseCollection(null,'42',at));await repo.cacheAwards('film',parseAwards('N/A','tt0000042',at));
-  expect(reconcileUnifiedCheckpoint({...saved,pending:evidencePending},catalog,await service.status(null)).pending).toEqual([]);
-});
 it.each(['collections','awards'] as const)('preserves successful %s evidence after a later database failure',async kind=>{
   const {repo,local}=fixture();
   await repo.cacheCollection('film',parseCollection({id:7,name:'Series'},'42',at));await repo.cacheAwards('film',parseAwards('2 wins & 3 nominations.','tt0000042',at));
@@ -155,12 +143,4 @@ it.each(['collections','awards'] as const)('preserves successful %s evidence aft
   local.sqlite.exec(`CREATE TRIGGER reject_evidence BEFORE UPDATE ON ${table} BEGIN SELECT RAISE(ABORT,'synthetic failure');END`);
   await expect(kind==='collections'?repo.cacheCollection('film',parseCollection(null,'42','2026-02-01T00:00:00Z')):repo.cacheAwards('film',parseAwards('N/A','tt0000042','2026-02-01T00:00:00Z'))).rejects.toThrow();
   expect(local.sqlite.prepare(`SELECT * FROM ${table}`).get()).toEqual(before);
-});
-it('retains the frozen operation after a partially committed malformed combined response',async()=>{
-  const {repo,service}=fixture();upstream({},'N/A');
-  const catalog=await repo.catalog(),coverage=await service.status(null);
-  const pending=planMaintenance(catalog,coverage,'refresh',['scores','tmdb-enrichment','tmdb-collections']).units.filter(u=>u.provider==='tmdb');
-  expect((await service.execute('refresh',pending,at)).results[0].status).toBe('failed');
-  const resumed=reconcileUnifiedCheckpoint({version:1,intent:'refresh',operation:'all',startedAt:at,pending,completed:0},await repo.catalog(),await service.status(null));
-  expect(resumed.pending).toHaveLength(1);expect(resumed.pending[0].operations).toEqual(['tmdb-collections']);
 });

@@ -273,7 +273,7 @@ If migration output is ambiguous or reports failure, stop. Do not automatically 
 
 Journal mutation reconciliation requires the JournalMutationResult API responses; deploy the matching Worker before this frontend. No migration is needed. The previous frontend callbacks ignore the mutation body and retain their broad refresh, so Worker-first rollout preserves those workflows.
 
-OMDb metadata idempotency requires the API Worker; durable Admin resume requires migration 0024 and the matching frontend. Release both for the complete behaviour, with Worker first under the normal schema/API compatibility gates. OMDb metadata idempotency uses the existing schema; the durable job controls require 0024/0025. Independently pending migrations retain their own release gates.
+OMDb metadata idempotency itself requires no migration and is delivered by the API Worker. Durable Admin maintenance requires migrations 0024 and 0025 and matching API/frontend code, released schema first, API second and frontend last under the aggregate Admin compatibility gates. Independently pending migrations retain their own release gates.
 
 ## Deploying the production API Worker
 

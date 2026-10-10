@@ -3,7 +3,6 @@ import { disposableD1 } from './d1';
 import { Repository } from '../worker/src/repository';
 import { ScoreService } from '../worker/src/score-service';
 import { parseOmdbMetadata } from '../worker/src/providers/omdb';
-import { maintainScores } from '../frontend/score-maintenance';
 import type { Env } from '../worker/src/http';
 let local: ReturnType<typeof disposableD1>, repo: Repository, id: string, env: Env;
 const metadata = {year:1999,runtime:100,director:'Director',genres:['Drama','Sci-Fi']};
@@ -30,8 +29,6 @@ it('successful identical/reordered metadata makes no canonical mutations and rec
  expect(response.results[0].providers[0]).toMatchObject({status:'success',count:0});
  expect(writes()).toEqual([]);expect(row()).toEqual(before);
  expect(prepare.mock.calls.filter(([sql])=>/^(UPDATE|DELETE|INSERT)/.test(sql) && !sql.includes('movie_maintenance_coverage'))).toEqual([]);
- const run=await maintainScores({ids:[id],batch:async()=>response,stopped:()=>false,progress:async()=>{}});
- expect(run).toMatchObject({updated:0,noChange:1,failed:0});
 });
 it('changes only supplied changed scalars, preserving all other movie fields and genre rows',async()=>{
  const before=row();expect(await repo.enrichOmdbMetadata(id,'tt0000001',{...metadata,runtime:101})).toBe(true);

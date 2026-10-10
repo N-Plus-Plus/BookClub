@@ -78,7 +78,7 @@ The authenticated [D1 query endpoint](https://developers.cloudflare.com/api/reso
 
 The importer preserves deterministic dependency order: movie/ref/external-ID groups, cycles, event headers/ordered joins, memberships, scores/provenance and Seen state/evidence. Immutable fingerprints and row comparison are the recovery mechanism. A failed or ambiguous request may leave some rows written. Stop and run read-only preflight before any continuation. Matching existing rows without fingerprints remain pending; differing rows/fingerprints or a fingerprint with a missing entity are conflicts. Identical continuation is safe only after inspection establishes zero conflicts and expected pending entities. Never delete partial state, reset D1, replace rows or blindly replay. The whole archive is not a single transaction.
 
-`runner-config` and `--runner-url` are removed from the CLI. `production-worker.ts` is retained as retired, unused code; do not deploy it. No temporary Worker is part of this path.
+The guarded CLI uses direct REST access. No temporary Worker or runner URL is part of this path.
 
 ## Verify and close the cutover
 

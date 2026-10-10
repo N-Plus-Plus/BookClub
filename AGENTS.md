@@ -34,7 +34,6 @@ Do not read every project document on every task. Load only the guidance relevan
 | Deferred ideas and future work | `ROADMAP.md` |
 | Spreadsheet parsing, reconciliation, local import preview | `scripts/import/README.md` and `docs/LEGACY_SPREADSHEET_MODEL.md` |
 | Guarded archive production tooling and its recovery gates | `scripts/import/PRODUCTION.md` plus `docs/DATA.md` |
-| Reassessing earlier UI audit findings | `docs/UI_AUDIT_POST_ALIGNMENT.md`; `docs/UI_AUDIT.md` only for its comparison baseline |
 
 Do not create additional permanent guidance files by default. Add one only when a real body of stable guidance no longer fits cleanly in the existing authorities.
 

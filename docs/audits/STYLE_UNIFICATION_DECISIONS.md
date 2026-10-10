@@ -1,6 +1,6 @@
 # BookClub semantic style decisions
 
-Current design system, 8 October 2026. [STYLE.md](../../STYLE.md) is the lasting interface authority. The [inventory](LABEL_STYLE_INVENTORY.md) and [occurrences](LABEL_STYLE_OCCURRENCES.csv) are unchanged before-state evidence, including their reconstruction/runtime caveats.
+[STYLE.md](../../STYLE.md) is the lasting interface authority. This register owns semantic families and justified current exceptions.
 
 ## Typography
 
@@ -42,7 +42,7 @@ The `.narrative` variant supplies 14px/300/1.6 for Seen, saved Detail and Add Cl
 
 Intent variants preserve constructive green/dark text, secondary paper text/raised surfaces, transparent tertiary and quiet destructive pink. Builder direct-add retains emerald/black. Disabled constructive colour/opacity and other disabled opacity remain intentional. Border colour alone is no longer authored on borderless Action variants.
 
-Admin operations share action geometry, wrapping and metadata/progress typography. Their separate cards, order, availability, synchronous lock, Stop boundary, checkpoints, Resume, Discard and feedback remain workflow-owned. Account and generic standalone film links retain minimum targets even when their content is shorter or the header is crowded.
+Admin operations share action geometry, wrapping and metadata/progress typography. Their separate cards, order, availability, synchronous lock, Stop boundary, durable job recovery, Resume, Retry and feedback remain workflow-owned. Account and generic standalone film links retain minimum targets even when their content is shorter or the header is crowded.
 
 ## Spacing and badges
 
@@ -64,7 +64,7 @@ Regular spacing: 4, 8, 12, 16, 20, 24, 32px. Microspacing: explicitly defined 2p
 | Bottom dock | 5px image/label gap, 7px item padding | Six destinations retain the established dock composition and adequate targets independently of ordinary action geometry | Yes: navigation geometry |
 | Builder poster captions | Metadata size, 500 weight, ellipsis | Fixed 126px images need compact identification without making the whole strip taller for long names | Yes: metadata-label variant |
 | Narrow Builder editor below 390px | Decorative button icons hidden | Three named actions retain their single row, readable labels, standard padding and full targets | Yes: narrow editor action group |
-| Classics remove (C0257) | 44px target offset up/sideways, 12px top padding; 18px visible icon | Expands the original quiet icon dock without covering film identity or adjacent controls | Scoped icon-dock variant |
+| Classics remove | 44px target offset up/sideways, 12px top padding; 18px visible icon | Expands the original quiet icon dock without covering film identity or adjacent controls | Scoped icon-dock variant |
 | Seen/Detail/Add Classic overview | 300 weight | Sustained narrative reading is quieter than identity, scores and actions | Yes: `.narrative` |
 | Metrics themes and report colours | Twelve data-driven em sizes; ordered spectrum | Typography encodes ordered theme prominence; report colours identify stable analytical groups | Yes: report families; calculation/palette unchanged |
 | Metrics report tables | 13px below 720px; 14px above | Dense comparisons use metadata on mobile and supporting text where columns have room; small annotations remain metadata | Yes: responsive table family |
@@ -79,20 +79,12 @@ Content-width tiers, poster aspect ratios, History's non-wrapping edit/audit/del
 | Before-state evidence | Current rule |
 | --- | --- |
 | SourceScores, `classics-seen.css:47,50` | `space-2` explicitly defined; inline and stacked rows use the same microspacing |
-| Metrics retry, C0409/C0410 | Shared Action with retry icon; actual error component rendered synthetically |
-| Detail paragraphs, C0613–C0626/C0664–C0666 | Explicit metadata/supporting/narrative roles; broad override removed |
-| History evidence H4, C0748 | Shared minor-heading role; actual HistoryEvidence fixture rendered, not assumed from reconstructed DOM |
-| Metrics small, C0348/C0350 | Explicit metadata size/weight/leading |
+| Metrics retry | Shared Action with retry icon; actual error component rendered synthetically |
+| Detail paragraphs | Explicit metadata/supporting/narrative roles; broad override removed |
+| History evidence H4 | Shared minor-heading role; actual HistoryEvidence fixture rendered, not assumed from reconstructed DOM |
+| Metrics small | Explicit metadata size/weight/leading |
 | Borderless secondary/tertiary/danger/direct-add Actions | Ineffective border-colour declarations removed; semantic foreground/fill retained |
-| Classics remove, C0257 | 44px target; rendered film-link collision checks |
+| Classics remove | 44px target; rendered film-link collision checks |
 | Repeated type/padding/gap declarations | Shared tab, pagination, wrapping-action, count and narrative families; redundant consumer overrides removed |
 
 Count display uses `shared/format.ts`: `formatCount` for numbers and `formatCountText` for safe integer quota text. Timeline reuses the helper through its existing export. Formatting never feeds ranking, provider payloads, persisted values or calculations. Dates, years, identifiers, percentage/unit labels, native score precision and saved Detail rounding remain intact. Existing fractional IMDb vote medians retain precision.
-
-## Verification and owner review
-
-The reproducible local harness is `node tests/style-unification.browser.mjs` with Vite UI running, optional Playwright/Edge and entirely synthetic API functions. `BOOKCLUB_STYLE_PHASE=before` captures the baseline; default `after` also verifies targets, role labels, page overflow, Classics remove collisions and all six Admin operation states. Evidence stays ignored under `.verification/style-unification/`.
-
-The baseline captured 183 screen/state/width samples before implementation; the final matrix captured 303, across 320/390/720/951/1440px. Comparison covers all main routes, Detail, Preview, sign-in/avatar gates, Metrics/Classics panels, populated Builder/search, long titles, missing artwork, score glossary/Add/Remove dialogs, account controls, attribution, drawer state, developer/operation disclosures, loading/failure and actual evidence/error components. Additional after-state scenarios cover Builder set picker, History deletion confirmation, guarded developer confirmation and each Admin operation's running/focused/Stop/progress/Resume/Discard presentation. Provider functions are synthetic; no production, database, supervisor or external provider operation runs.
-
-The compact-score harness passed 64 source-count/width cases; the Seen-column harness passed 35 population/width cases, including 280px. Five additional rendered capped-count cases verify the 99+ badge, full accessible count and unclipped tab labels. The style harness also checks enabled hover/focus geometry, visible keyboard outlines, selected tab underlines and disabled controls at all five widths: 78 enabled cases passed, including text contrast of at least 4.5:1 against composited surfaces (using the lightest page-gradient endpoint). `BOOKCLUB_STYLE_CONTROLS_ONLY=1` runs those control-state checks alone. Normal quality checks passed: lint, typecheck, 88 test files/1,090 tests, build, static prod:check and diff whitespace checks. Current runtime evidence remains bounded: synthetic fixture review does not certify live data, browser-owned Google UI, every possible provider message, assistive-technology behaviour or all browser engines. Attribution readability is deliberately deferred for owner review; Metrics mobile information architecture remains separate roadmap work.

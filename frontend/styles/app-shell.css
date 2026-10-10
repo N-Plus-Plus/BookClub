@@ -37,7 +37,7 @@
 .site-header .viewer-controls { padding-right: var(--space-12); max-width: 50%; }
 .account-menu-trigger .club-identity { max-width: 100%; overflow-wrap: anywhere; }
 .account-menu-trigger { min-width: var(--target-min); min-height: var(--target-min); display: flex; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; border-radius: var(--radius-container); }
-.account-menu-trigger:focus-visible,.navigation-fav:focus-visible { outline: 2px solid var(--focus-outline); outline-offset: 3px; }
+.account-menu-trigger:focus-visible { outline: 2px solid var(--focus-outline); outline-offset: 3px; }
 .account-menu-dropdown { left: auto; right: 0; width: max-content; min-width: 120px; background: var(--surface-raised); }
 .account-menu-dropdown .select__option { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-min); font-size: var(--text-button); font-weight: 600; text-decoration: none; }
 .avatar-onboarding { max-width: var(--content-onboarding); padding-bottom: var(--space-32); }
