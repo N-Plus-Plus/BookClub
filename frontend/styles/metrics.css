@@ -330,6 +330,7 @@
 .metrics-panel > section:has(.metrics-popularity-list) + .staging-report { border-top: 0; }
 
 .metrics-panel h3 { margin-block: 0; }
+.metrics-panel :where(h3) { font-size: var(--text-section-heading); line-height: var(--leading-heading); }
 
 .staging-report[aria-label="Creative partnerships"] .staging-data-row:last-child,
 .staging-report[aria-label="Top 5 most cult"] .staging-discoveries > li:last-child,
