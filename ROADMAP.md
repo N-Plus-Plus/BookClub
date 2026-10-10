@@ -102,41 +102,16 @@ If completed work contains durable information that future agents still need, pl
 
 ## Current roadmap
 
-### Priority 2 - Bottom horizontal divider consistency sweep
+### Priority 1 - Data Health and Exceptions
 Status: Incomplete
 
-Audit and normalise bottom horizontal bars/dividers, especially systematically introduced bars that are inappropriate locally. Distinguish genuine content boundaries from decorative clutter; remove redundant bottom borders while preserving row separation, focus and hierarchy.
+Add an Admin-facing diagnostic view that makes film records requiring human attention easy to identify, inspect and resolve without ad hoc database queries.
 
-Depends on: None
+Surface actionable exceptions including missing IMDb or TMDB identities, identity conflicts, unresolved metadata, missing artwork, stale or incomplete enrichment, failed or inconclusive provider checks, and outstanding collection-roster evidence. Include films introduced through AI Predictions and other catalogue entry points where relevant.
 
-### Priority 2 - Specialist film enrichment
-Status: Incomplete
+Present useful context such as affected film, provider, exception type, severity, last checked date and appropriate next action, with navigation to the affected record.
 
-Expand enrichment only where additional external information would materially improve discovery, Builder, Film Detail or Metrics. Potential areas include awards and richer structured thematic or descriptive metadata.
-
-New sources or fields should have a clear product use rather than being collected simply because the data exists.
-
-Depends on: None
-
-### Priority 2 - Metrics information architecture and mobile navigation
-Status: Incomplete
-
-Revisit Metrics organisation now that the underlying reports and performance architecture are mature. The existing horizontal category tabs are too long for comfortable mobile use, so reconsider the report groupings and navigation model rather than merely shrinking or scrolling the tabs.
-
-Reports may be regrouped, merged, added or retired where that produces a clearer set of useful analytical views. Introduce charts or richer visualisations only where they improve understanding.
-
-Preserve the existing Metrics caching, lazy calculation and performance architecture.
-
-Depends on: None
-
-### Priority 2 - Data Health and Exceptions
-Status: Incomplete
-
-Add an Admin-facing view that makes records requiring human attention easy to find without needing to diagnose them through code or ad hoc queries.
-
-Surface actionable exceptions such as missing IMDb or TMDB identities, identity conflicts, unresolved metadata, missing artwork, stale or incomplete enrichment, failed or inconclusive provider checks, and similar data-quality conditions already represented by BookClub.
-
-The purpose is diagnosis and navigation to the affected films, not another bulk-maintenance engine. Reuse existing authoritative status and cache evidence rather than independently redefining provider health.
+Reuse existing authoritative maintenance status, coverage and cache evidence rather than redefining provider health. This is a diagnostic worklist, not another bulk-maintenance engine.
 
 Depends on: None
 
@@ -145,38 +120,38 @@ Status: Incomplete
 
 Support non-movie screen works such as television series, miniseries and anthology episodes.
 
-Address provider identity, canonical records, runtime/year/title presentation, search/import behaviour and appropriate UI treatment rather than simply allowing television records into the existing movie model.
+Establish an appropriate content model and identity granularity before implementation, addressing provider identity, canonical records, runtime/year/title presentation, search/import behaviour and suitable UI treatment rather than simply allowing television records into the existing movie model.
+
+Preserve existing movie behaviour and historical records.
 
 Depends on: None
 
 ### Priority 3 - Personal member retrospective
 Status: Incomplete
 
-Provide a lightweight retrospective for an individual BookClub member using existing History, film and Metrics data.
+Provide a curated personal retrospective for an individual BookClub member, distinct from the existing participant-filtered Metrics reports.
 
-Potentially useful measures include turns hosted, films brought, accumulated runtime and characteristic genres, directors or other meaningful patterns. Keep this focused on interesting personal history rather than introducing competitive scoring between members.
+Present an approachable account of their club history through measures such as turns hosted, films brought, accumulated runtime, characteristic genres, directors and recurring themes. Emphasise interesting personal patterns and historical milestones rather than competition or comparative scoring.
 
-Prefer deriving the view from existing data and Metrics primitives rather than creating new persisted aggregates.
-
-Depends on: None
-
-### Priority 4 - Metrics first-entry performance follow-up
-Status: Incomplete
-
-Revisit Metrics first-entry scheduling only if production measurement or future catalogue growth makes the first visit perceptibly slower.
-
-Compare the current immediate enrichment prefetch with paint-first or idle-prefetch alternatives while preserving cross-route caching and lazy per-category calculations.
-
-Current production navigation is fast, so this remains deliberately deferred.
+Derive information from existing History and Metrics data without introducing unnecessary persisted aggregates or duplicating existing analytical reports.
 
 Depends on: None
 
-### Priority 4 - History search
+### Priority 3 - History search
 Status: Incomplete
 
-Add a lightweight way to search BookClub History by film title so a user can quickly answer questions such as whether and when a film was previously watched.
+Add a lightweight way to search BookClub History by film title so a user can quickly establish whether, when and by whom a film was previously brought.
 
-Use the existing canonical History data and preserve current History ordering/filtering behaviour. Additional useful fields such as year or director may support identification, but avoid turning History into a general-purpose catalogue search.
+Use existing canonical History records, preserving repeated appearances, current ordering, filtering and pagination behaviour. Show sufficient identifying context, such as year and event, to distinguish matching films and navigate directly to the relevant historical record.
+
+Keep this focused on historical appearances rather than expanding it into a general catalogue search.
+
+Depends on: None
+
+### Priority 3 - Metrics title uniformity
+Status: Incomplete
+
+Revisit Metrics title uniformity and related typography using the [Metrics typography audit by display case](docs/audits/METRICS_TYPOGRAPHY_AUDIT.md). Assess titles, labels, legends and other display cases separately, identifying which differences should be unified and which serve a deliberate semantic or responsive purpose.
 
 Depends on: None
 
@@ -185,7 +160,9 @@ Status: Incomplete
 
 Improve how an already-open BookClub session notices legitimate changes made from another device or browser.
 
-Prefer lightweight approaches such as refresh-on-focus or age-based revalidation before considering continuous polling. The goal is to reduce surprising stale screens without adding unnecessary background traffic or synchronisation complexity.
+Prefer lightweight refresh-on-focus or age-based revalidation before considering continuous polling. Reuse existing catalogue refresh and mutation reconciliation mechanisms while protecting unsaved work, pending Seen answers and in-progress interactions.
+
+The goal is to reduce surprising stale screens without unnecessary background traffic or synchronisation complexity.
 
 Depends on: None
 
