@@ -1,18 +1,6 @@
-<!--
-AGENT MAINTENANCE INSTRUCTION
-
-Build this document only as real integrations are added.
-
-ARCHITECTURE.md should contain only a summary of external services. This file owns the operational and behavioural detail needed to understand, develop, test, or replace each integration.
-
-Update it whenever:
-1. implementation work changes provider use, credentials, endpoints, payloads, provider precedence, retries, rate limits, caching, fallbacks, or failure behaviour; or
-2. other work reveals that this document no longer matches the actual integration.
-
-Do not record secret values. Record secret names, binding names, scopes, and where they are supplied.
--->
-
 # INTEGRATIONS.md
+
+This authority owns provider and credential boundaries. Use mocked/local checks for changed parsing, retries, fallback and authentication; no routine live-vendor availability campaign. Preserve existing URL/credential boundaries. BookClub has explicit resumable Admin jobs, not scheduled provider refresh or notifications; no Cron/DST execution contract is currently implemented. Real provider/account acceptance remains distinct from synthetic verification.
 
 ## Integration index
 

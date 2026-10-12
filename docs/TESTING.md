@@ -1,137 +1,39 @@
-<!--
-AGENT MAINTENANCE INSTRUCTION
-
-Build this document around the tests and verification strategy that actually exist.
-
-Update it whenever:
-1. implementation work adds, removes, renames, or materially changes tests, fixtures, commands, coverage responsibilities, or verification policy; or
-2. other work reveals that the documented testing reality is stale.
-
-Keep the suite useful and proportionate. Do not encourage repeated full-suite runs merely because they are available.
--->
-
 # TESTING.md
 
-## Testing principle
+## Intent and risk posture
 
-Tests should protect meaningful behaviour, contracts, invariants, and regressions.
+BookClub is owner-operated with populated private data. Protect meaningful behaviour with minimal repeat work. Test authoring and execution are separate decisions; unchanged accepted functionality does not need to be re-proved each pass.
 
-Verification effort must be proportionate to the change.
+## When to create or update tests
 
-Prefer the smallest test scope that can give useful confidence.
+Add focused coverage for changed domain calculations, state transitions, authentication/authorisation, persistence/migrations, import/export, provider parsing/fallback, concurrency, time-zone rules and reproduced regressions when existing tests do not protect the risk. Extend the owning test before creating parallel infrastructure. Copy, icons, isolated CSS and ordinary spacing normally need no new automated test. Use synthetic/disposable data and mocked providers, never production accounts or credentials.
 
-## When to add or update a test
+## Development feedback
 
-Add or update tests when work introduces or changes:
+Finish a coherent edit, then run the smallest useful affected check. Small changes normally need one targeted run and one rerun after a fix; intermediate changes normally use up to three related invocations. Major/cross-cutting work may warrant grouped feedback and one final full suite, normally within four invocations. Do not repeatedly build/typecheck while editing or rerun unrelated passing checks. A full suite is warranted by broad impact, relevant failure evidence or explicit request, not every development prompt.
 
-- meaningful user-visible behaviour;
-- a domain rule or invariant;
-- a bug whose recurrence would matter;
-- a durable data or interface contract;
-- a failure/recovery path;
-- integration/provider selection or fallback;
-- authentication or authorisation behaviour;
-- a shared helper whose behaviour is relied on broadly.
+Documentation-only work uses links, paths, commands and diff inspection. Material UI work uses affected local rendering or owner review, reachable recovery states and implicated widths; available browser harnesses below are an inventory, not a mandatory campaign.
 
-A bug fix should normally gain a regression test when a practical automated test can reproduce the failure.
+## Bounded release check
 
-Do not add tests merely to:
+BookClub has no combined release-check wrapper. Use this single procedure with existing scripts; do not create tooling merely to conform:
 
-- mirror implementation line-by-line;
-- prove trivial getters/setters or framework behaviour;
-- duplicate equivalent coverage without a distinct risk;
-- inflate test counts.
+1. Inspect the intended diff and run git diff --check.
+2. Run corepack pnpm lint and corepack pnpm typecheck once for changed source unless matching evidence already exists.
+3. Select the directly affected test group. Use corepack pnpm test for major/cross-cutting or security/schema impact, or an explicit full-suite request; a small code/style release need not rerun the entire suite.
+4. For frontend publication, set intended public build inputs, run corepack pnpm prod:check --frontend and corepack pnpm build once, and inspect the output for wrong targets/private material. For API-only publication use corepack pnpm prod:check and the relevant Worker packaging dry-run described in DEPLOYMENT.
 
-## Test scope by change size
+Targets: bookclub-api and/or bookclub-frontend as authorised. Schema changes additionally require the target, ledger, recovery and compatibility gates in [DEPLOYMENT](DEPLOYMENT.md), not every code-only release.
 
-### Small / local change
+Budget: one invocation of each selected check, with a 20-minute aggregate ceiling for local release verification, measured through all selected children. This is a procedural ceiling, not an implemented local timeout/kill wrapper or CanBan’s 60-second cap. Existing CI has a separate configured 20-minute job timeout including installation. Monitor elapsed time and terminate local checks on expiry; report incomplete child cleanup if termination cannot be confirmed. No timing claim without measurement.
 
-Prefer one targeted test file, case, or directly related group.
+Reuse successful evidence only when relevant source, target, build inputs and artefacts are unchanged. Keep private evidence under ignored .verification/ if needed; no automatic report files or fingerprint tooling. Commit/push alone does not invalidate results. CI independently runs its existing static quality checks with fictional frontend inputs; it is not an additional deployment-permission gate. CI builds do not certify the production-configured artefact.
 
-Do not run the full suite unless the targeted result indicates wider impact.
+## Failure and timeout handling
 
-### Intermediate change
+A failed or expired release gate stops publication. Report the actual command, failure, elapsed time and remaining checks; obtain direction before retrying or broadening the gate/budget. During development, fix a regression caused by the change and rerun only affected checks within the normal allowance. A suspected stale test is not a passing result: report its case, observed failure, evidence, likely correction and uncertainty. Fix it if authorised by the task; add Priority 0.5 roadmap work only with owner approval. Do not change product behaviour to satisfy an obsolete assertion.
 
-Run the directly affected group or groups.
-
-Examples:
-
-- one subsystem;
-- API tests plus its persistence tests;
-- component tests plus the related integration test.
-
-Use broader coverage only where the dependency surface warrants it.
-
-### Major / cross-cutting change
-
-Use targeted or grouped tests while implementing, then run the full suite once when the change is otherwise ready.
-
-Examples:
-
-- shared infrastructure;
-- schema changes;
-- large refactors;
-- authentication changes;
-- dependency/toolchain changes;
-- release-critical work.
-
-## Test-run budget
-
-Avoid test-loop churn.
-
-Normal limits per pass:
-
-- **Small change:** normally 1 targeted run, with at most 1 rerun after a fix.
-- **Intermediate change:** normally up to 3 meaningful test invocations.
-- **Major change:** targeted/grouped checks during work, then 1 full-suite run at the end; normally no more than 4 meaningful test invocations total.
-
-A single invocation may run multiple related test files.
-
-Exceed these limits only when failures genuinely require diagnosis or the user explicitly asks for exhaustive verification.
-
-Do not repeatedly rerun the full suite after unrelated small edits.
-
-## Full-suite rule
-
-Run the complete suite when:
-
-- the user explicitly asks;
-- a major or cross-cutting change is ready for final verification;
-- shared infrastructure changed;
-- targeted failures suggest wider breakage;
-- deployment/release confidence requires it.
-
-Do not make a full-suite run the default closing ritual for a narrow pass.
-
-## Failed tests
-
-Classify a failed test before acting.
-
-### Genuine regression
-
-If the implementation appears wrong, fix the implementation within task scope and rerun the affected test.
-
-If the regression blocks application function or blocks an approved roadmap task and cannot be resolved in the current pass, it may justify a Priority 0 roadmap blocker.
-
-### Stale or obsolete test case
-
-If evidence indicates that the implementation now reflects the intended behaviour and the test itself is stale:
-
-1. do not silently treat the suite as passing;
-2. report the stale test to the user;
-3. add it to the dedicated **Priority 0.5 - Stale/failing tests** section in [ROADMAP](../ROADMAP.md);
-4. include enough diagnosis that a future agent can understand:
-   - test name/file;
-   - observed failure;
-   - why the test appears stale rather than the implementation being wrong;
-   - likely correction;
-   - any uncertainty.
-
-Priority 0.5 is reserved for non-blocking stale or failing tests that the user can address together later.
-
-Do not use Priority 0.5 for application regressions, production blockers, or feature work.
-
-If the current task explicitly includes updating stale tests, update them instead of deferring them.
+A timed-out remote mutation may already have succeeded. Stop for narrow read-only version/ledger inspection under DEPLOYMENT; local termination does not prove rollback.
 
 ## Shared workflow and journal regression coverage
 
@@ -237,7 +139,7 @@ The local pairing/merge tests use disposable migrated D1 and mocked TMDB. They c
 
 `tests/film-selection.test.ts` covers shared accepted-selection reset/focus, replacement identity/overview/eligibility, History/all-Seen rejection, read-only external preview, canonical import/retry, duplicate submission protection, immediate Classics reconciliation, derived Seen/unranked lifecycle and ordered Builder additions/repeats/removal/navigation. Event inspection tests verify accepted Yes resets while Nope/Back preserve the draft search. The disposable-D1 membership case in `domain-api.test.ts` verifies idempotent addition, immediate catalogue membership, derived per-member unanswered queues and absence of fabricated Seen/score/History data.
 
-`metrics-staging.test.ts` protects complete five-turn cycles/imports/Classics-first, filter-independent qualification, population SD versus observed ranges, single/missing evidence, observed-year axes, rounded year/runtime labels, mirrored saturated pair rank colours, fixed comparison populations, binary leaning with neutrals, deduplicated genre subsets including triples/cutoff ties, bounded symmetrical fractional cosine, min-max keyword preferences, permanent global conflict elimination across all ten pairs, later-round conflicts, skipped disqualified lower preferences, canonical identity/case equivalence, deterministic symmetry and exhaustion, stable cast IDs and all-four-human per-column counts, Writer/Screenplay deduplication, director person-ID/name/Chaplin exclusions and five-plus-ties partnerships, revenue/financial ties, separate classification score denominators, streamable AU service/access unions and cutoff ties, documented hidden-gem midrank formula and cult vote/gap thresholds, collection negatives/unknowns, original awards text/null/zero counts, reception ties and fully answered four-human Classics pools. `metrics-staging-ui.test.ts` renders the relocated reports at their owning destinations and the Records comparisons through the actual four-tab screen, protects the existing reports, aligned axis geometry, touching score bars, six shared table columns, poster/rank/index structure, stable filtered axes/full matrices, named keyboard-scrollable earlier cycles, partial/missing cache states and one enrichment read. With local Vite already running, `node tests/metrics-staging.browser.mjs` mocks the App/API using synthetic fixtures and blocks external/provider traffic; it checks all 15 relocated sections and genre combinations, Hidden gems and Most cult only in Top 5, eight historical cycles with a measured five-card initial window, stable axes, contained accessible matrices and no page overflow at 320/390/720/951/1440px, and saves screenshots/measurements under ignored `.verification/metrics-staging/`. It never reads local/production databases. Focused command: `corepack pnpm exec vitest run tests/metrics-staging.test.ts tests/metrics-staging-ui.test.ts tests/metrics-enrichment-ui.test.ts tests/heading-casing.test.ts`. Full gates remain lint, typecheck, test, build, prod:check and git diff --check.
+`metrics-staging.test.ts` protects complete five-turn cycles/imports/Classics-first, filter-independent qualification, population SD versus observed ranges, single/missing evidence, observed-year axes, rounded year/runtime labels, mirrored saturated pair rank colours, fixed comparison populations, binary leaning with neutrals, deduplicated genre subsets including triples/cutoff ties, bounded symmetrical fractional cosine, min-max keyword preferences, permanent global conflict elimination across all ten pairs, later-round conflicts, skipped disqualified lower preferences, canonical identity/case equivalence, deterministic symmetry and exhaustion, stable cast IDs and all-four-human per-column counts, Writer/Screenplay deduplication, director person-ID/name/Chaplin exclusions and five-plus-ties partnerships, revenue/financial ties, separate classification score denominators, streamable AU service/access unions and cutoff ties, documented hidden-gem midrank formula and cult vote/gap thresholds, collection negatives/unknowns, original awards text/null/zero counts, reception ties and fully answered four-human Classics pools. `metrics-staging-ui.test.ts` renders the relocated reports at their owning destinations and the Records comparisons through the actual four-tab screen, protects the existing reports, aligned axis geometry, touching score bars, six shared table columns, poster/rank/index structure, stable filtered axes/full matrices, named keyboard-scrollable earlier cycles, partial/missing cache states and one enrichment read. With local Vite already running, `node tests/metrics-staging.browser.mjs` mocks the App/API using synthetic fixtures and blocks external/provider traffic; it checks all 15 relocated sections and genre combinations, Hidden gems and Most cult only in Top 5, eight historical cycles with a measured five-card initial window, stable axes, contained accessible matrices and no page overflow at 320/390/720/951/1440px, and saves screenshots/measurements under ignored `.verification/metrics-staging/`. It never reads local/production databases. Focused command: `corepack pnpm exec vitest run tests/metrics-staging.test.ts tests/metrics-staging-ui.test.ts tests/metrics-enrichment-ui.test.ts tests/heading-casing.test.ts`. Release scope and reuse follow the single bounded release check above.
 
 `tests/metrics-dashboard.test.ts` and synthetic `tests/metrics-fixture.ts` cover active appearance filtering/repeats, ALL genre baselines/signatures, deterministic top-five fingerprints and stable colours, chronological decades/Unknown, genuine normalised rating means/medians/coverage with informational Watch Order isolation, IMDb and exactly-six-dimension audience votes, effective-snapshot/invalid-count exclusion, appearance-weighted medians and deterministic canonical list deduplication, exact director-credit grouping/coverage and tie-aware deduplicated film extremes with missing data, including positive IMDb vote maxima/minima, missing/invalid/non-IMDb vote exclusion and repeat deduplication. Shared summary derivations remain covered; Home tests verify Quick facts totals and placement. Metrics genre and Top 5 score regression coverage remains. `metrics-refinements.test.ts` covers defensive comparison widths, fractional circles, cutoff ties, every composite dimension, missing-score omission, canonical film ties, revised visuals, Popular/Obscure cabinet cards and the continuous film/creator palette sequence, frequency-ranked theme lists including below-club ratios, empty contributor distributions, coverage-copy removal, consolidated median bars on a shared population scale with carrot budget colour and median revenue/budget labels and stable diversity colour alternation. `metrics-enrichment.test.ts` covers conservative keyword deduplication, role/person/company identity, Writer union, country/language profiles, theatrical/severity AU resolution, known-only percentages, positive-money eligibility, unique positive-money eligibility and repeat-weighted medians, creator ties/recurrence, diversity/coverage and all six filters. `metrics-api.test.ts` uses disposable migrated SQLite to prove seven read-only set queries, active History scope, partial cache, omitted unrelated payloads, no HTTP/credentials, authentication, older-schema 503 and unchanged catalogue transport. `metrics-enrichment-ui.test.ts` verifies one StrictMode request, local filters/roles across category tabs, filtered theme frequencies/ratios and unchanged diversity calculations against domain reports, linked ratio lists, all tied film links and failure/retry/partial states. `theme-keywords.test.ts` covers display labels, hyphen/whitespace/case identity deduplication, evidence preservation, shared conservative exclusions, cleaned theme diversity including one-off themes, one-off keyword eligibility, repeat-weighted counts, cross-provider deduplication, count-first ordering and exact alphabetical twelve-item cutoffs, plus the self-only aggregateFrequency diagnostic, which retains eligible appearance frequencies without claiming distinctiveness. `metrics-tabs.test.ts` checks exactly four tabs and the approved 13/9/17/20 inventories and DOM order using synthetic `helpers/metrics-inventory.ts` expectations; every former Staging report appears once in its assigned destination, with no selectable Staging or standalone Studios section. It retains one active associated panel, default/new-mount state, global identity updates, no refetch/storage and four-destination keyboard focus/wrapping. The hand-maintained synthetic `metrics-enrichment-fixture.ts` contains TMDB-only, MDBList-only and combined keywords, partial evidence, multi-country/studio films, non-English languages, AU conflicts, recurring creators and missing/zero money; no private snapshots are used.
 
@@ -321,7 +223,7 @@ Metrics presentation regression suites cover independent vote selections and per
 
 ## Reporting and maintenance
 
-Report exact commands/results, full-suite run or omission, blocked/skipped checks and manual checks still required. No passing claim for an unavailable environment. Keep this policy aligned with actual tests and fixtures. A skipped test is not a Priority 0.5 finding; that section requires an observed failure and evidence-based diagnosis. Documentation adoption itself does not require a Vitest run.
+Report exact commands/results, full-suite run or omission, blocked/skipped checks and manual checks still required. No passing claim for an unavailable environment. Keep this policy aligned with actual tests and fixtures. A skipped test is not a stale-test finding; roadmap recording requires owner approval and an observed, diagnosed failure. Documentation adoption itself does not require a Vitest run.
 
 Score lifecycle regression coverage: `tests/score-lifecycle.test.ts` exercises the 0–6 live-dimension boundary, duplicates, invalid values, development demos, immediate retirement and disposable SQLite/shared-ranking equivalence. `tests/bulk-maintenance.test.ts` covers legacy-only live acquisition, negative checks and full Refresh reconsideration.
 

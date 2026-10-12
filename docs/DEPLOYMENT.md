@@ -109,37 +109,15 @@ Explicit task limits always override the default full-deployment rule.
 
 ## Deployment preflight
 
-Before any full production release:
+1. Inspect the local branch, worktree, intended diff and relevant specialist passages; preserve unrelated work and stage only authorised changes.
+2. Confirm the intended API/frontend target and operator authentication. For schema/data work, verify exact production identity and pending ledger, then use the recovery and compatibility gates below.
+3. Run or reuse the single bounded release-check procedure in [TESTING](TESTING.md#bounded-release-check). Use intended public frontend variables before the one production build; inspect packaging for private material and wrong URLs. No duplicate build or static check merely because source was committed/pushed.
+4. Track relevant source, target, build-input and artefact identity in the release result. Changed inputs invalidate reuse; successful unchanged inputs do not need a new check tier.
+5. Stop on failed/expired checks and report actual results before retrying or expanding the budget.
 
-1. Read `AGENTS.md`, this document, [DATA](DATA.md), [TESTING](TESTING.md), and relevant integration guidance.
-2. Inspect `git status`, current branch, intended changes, and remote `main`.
-3. Preserve unrelated work. Do not silently include unrelated files in the release commit.
-4. Confirm `worker/wrangler.jsonc` still identifies the exact production Worker/D1 target.
-5. Confirm operator Cloudflare and source-control authentication; inspect both Wrangler configurations.
-6. Run the final local release checks:
+Code-only publication does not require a database backup or migration rehearsal. A populated schema/data change requires one verified recovery point sized to its risk; retain the stronger specialised import/identity-repair gates when those operations are in scope.
 
-   `corepack pnpm lint`
-
-   `corepack pnpm test`
-
-   `corepack pnpm typecheck`
-
-   `corepack pnpm build`
-
-   `corepack pnpm prod:check`
-
-   `git diff --check`
-
-7. Run frontend production preflight with `VITE_API_BASE_URL` and `VITE_GOOGLE_CLIENT_ID` present in the process environment:
-
-   `corepack pnpm prod:check --frontend`
-
-8. Build with the intended public frontend variables and check that output contains no localhost/import-preview configuration, private material, secrets, or archive data.
-9. Resolve release-blocking failures before continuing.
-
-All checks run in the operator environment before publication; no push-triggered release automation is supported.
-
-`.github/workflows/quality.yml` automatically runs lint, type checking, tests, build and static production/frontend configuration checks on pull requests and pushes to main. It uses Node 24, Corepack and pinned pnpm, with fictional public frontend inputs, read-only repository permissions and no production secrets, provider credentials, database access or deployment step. Passing CI does not authorise publication.
+.github/workflows/quality.yml remains unchanged: it runs lint, types, the full suite, build and static frontend checks with fictional inputs on pull requests/main pushes, Node 24 and a 20-minute job timeout. It has no production secrets or deployment step. Reuse its matching source-check evidence where applicable; it does not certify production build inputs and is not a second permission gate.
 
 ## Commit and push
 
@@ -153,7 +131,7 @@ Do not mutate production first and commit later.
 
 ## Production D1 backup
 
-Before applying any pending production migration, create a fresh production export.
+Before an authorised batch of pending production migrations, create one fresh verified production recovery point. Reuse it within that guarded operation only while its target and captured state remain valid.
 
 Use a timestamped ignored path under `.verification/`, for example:
 
@@ -170,13 +148,13 @@ Verify that:
 - the source identity is the configured `bookclub-prod`;
 - the backup was created immediately before the migration operation.
 
-Do not rely on an older backup merely because one exists.
+Do not rely on an older backup merely because one exists. Verify an isolated restore/integrity and relevant coverage once for materially risky changes; export existence alone does not establish recoverability. Preserve newer writes and require explicit recovery authority before any production restore.
 
 Production exports are safety evidence, not tracked repository files.
 
 ## Production migration ledger
 
-Before Worker deployment, inspect the remote migration ledger:
+For releases requiring schema changes or changed schema capabilities, inspect the remote migration ledger:
 
 `corepack pnpm exec wrangler d1 migrations list bookclub-prod --config worker/wrangler.jsonc --remote`
 
@@ -250,7 +228,7 @@ Durable Admin maintenance requires additive migrations 0024 and 0025 as well as 
 
 ## Applying production migrations
 
-Migration `0026_ai_predictions.sql` adds empty prediction/preference tables, indexes and guarded triggers. The prior Worker remains structurally compatible and its History writes activate pruning. Apply schema first after exact production identity, committed/pushed green release CI and fresh verified backup; inspect both tables, indexes/triggers and ledger, deploy the matching API, then frontend last. Older-schema score paths capability-detect the absent relation; dedicated prediction/preference endpoints fail closed. No provider job, prediction population, preference change or History mutation belongs in release smoke. Rolling back code leaves the additive schema and pruning intact; do not delete the tables to roll back UI. Older snapshots may omit both tables and retain default-off preference semantics.
+Migration `0026_ai_predictions.sql` adds empty prediction/preference tables, indexes and guarded triggers. The prior Worker remains structurally compatible and its History writes activate pruning. Apply schema first after exact production identity, committed/pushed source with matching successful release-check evidence and fresh verified backup; inspect both tables, indexes/triggers and ledger, deploy the matching API, then frontend last. Older-schema score paths capability-detect the absent relation; dedicated prediction/preference endpoints fail closed. No provider job, prediction population, preference change or History mutation belongs in release smoke. Rolling back code leaves the additive schema and pruning intact; do not delete the tables to roll back UI. Older snapshots may omit both tables and retain default-off preference semantics.
 
 Migration `0023_maintenance_fields.sql` is additive/idempotent and leaves existing provider evidence untouched. After clean preflight and commit/push verification, inspect the ledger, create a fresh verified export, apply schema first, verify it, deploy/smoke the API, and publish the frontend last. The old Worker ignores the new table. Ordinary provider capture remains capability-aware on older schemas; current unified field-aware execution and Admin controls require 0023 before provider work. Legacy field interpretation is read-only; uncertain gaps become eligible only for explicit administrator-initiated Populate. Do not backfill, Populate, Refresh or reconcile identities during release. Retain all earlier compatibility gates.
 
@@ -340,7 +318,7 @@ corepack pnpm prod:check --frontend
 corepack pnpm build
 ```
 
-Inspect `dist/index.html` for root `/assets/` references, and inspect generated output for private material or local configuration. Validate packaging without publication:
+The commands above are the frontend portion of the single release check; reuse its matching output rather than rerunning them here. Inspect `dist/index.html` for root `/assets/` references, and inspect generated output for private material or local configuration. Validate packaging without publication:
 
 ```text
 corepack pnpm exec wrangler deploy --dry-run --config wrangler.frontend.jsonc
@@ -370,16 +348,16 @@ Reverting source or pushing main does not roll back deployed assets. Frontend re
 Unless the compatibility gate requires a specifically different safe schema/Worker order, a normal full deployment proceeds as follows:
 
 1. Inspect current state and intended release.
-2. Run complete local preflight.
+2. Run/reuse the single bounded release check for the authorised targets.
 3. Commit intended changes to `main`.
 4. Push `main`.
 5. Confirm remote `main` matches the release commit.
 6. Verify Cloudflare production identity.
 7. Create and verify a fresh production D1 export if schema mutation is required.
-8. Inspect pending production migrations.
-9. Inspect migration/old-Worker/new-Worker compatibility.
+8. Inspect pending production migrations only when schema work is required by the release.
+9. Inspect migration/old-Worker/new-Worker compatibility where schema/API boundaries changed.
 10. Apply required production migrations in the safe release order.
-11. Verify the migration ledger.
+11. Verify the migration ledger if migrations were applied.
 12. Deploy the current `bookclub-api` Worker.
 13. Verify production Worker health.
 14. LAST: explicitly deploy the verified `dist/` using `wrangler.frontend.jsonc`.
@@ -391,7 +369,7 @@ No second confirmation is required after a clean preflight when the user explici
 
 ## Production smoke check
 
-After the full release, verify the runtime surfaces rather than assuming successful commands imply a healthy application.
+After the authorised release, perform one brief non-destructive smoke of affected surfaces and necessary access boundaries. The inventories below guide selection; unchanged accepted routes/assets need no exhaustive campaign. Successful commands alone do not prove runtime health.
 
 ### Worker/API
 
@@ -445,7 +423,7 @@ Read current production state rather than assuming an older bootstrap rotation o
 
 ## Failure handling
 
-A failed release step does not authorise blindly continuing to later steps.
+A failed release step does not authorise blindly continuing to later steps. A timed-out deploy/migration may have succeeded remotely: stop, inspect the exact version/ledger read-only and obtain direction before retrying. Terminating the local process does not prove rollback.
 
 Examples:
 
@@ -475,4 +453,4 @@ Do not reset live identity or rotation, replay bootstrap/import operations, or p
 
 Local snapshot replacement has its own guarded retained-state recovery and is separate from production deployment.
 
-Source-control and platform histories record releases. This document is operational guidance, not a release diary.
+Last-confirmed deployment and acceptance belong only in [README](../README.md#current-state), based on collected evidence. Real Google sign-in and device acceptance require direct human review when automation cannot prove them. Source-control and platform histories record releases. This document is operational guidance, not a release diary.

@@ -1,18 +1,6 @@
-<!--
-AGENT MAINTENANCE INSTRUCTION
-
-Build this document from verified repository behaviour and explicit user decisions.
-
-Maintain it as the current source of truth for data that the application stores, reads, derives, caches, imports, exports, or receives from external systems.
-
-Update it whenever:
-1. implementation work changes any data shape, storage location, ownership rule, lifecycle, migration, or source; or
-2. other work reveals that this document has drifted from the actual implementation.
-
-Describe the as-is state. Remove stale descriptions rather than preserving history. Do not invent schemas or future persistence requirements before they exist.
--->
-
 # DATA.md
+
+This authority owns persistence invariants and recovery. Ordinary development uses isolated stores. Live schema/data changes require explicit task authority, exact target/ledger inspection and one appropriate verified recovery point; preserve newer writes. Applied migrations remain immutable. Specialised guarded archive and identity-repair operations retain their documented stronger gates. Code-only releases do not require backups.
 
 ## Admin data health and exceptions
 

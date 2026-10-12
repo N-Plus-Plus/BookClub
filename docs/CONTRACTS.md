@@ -1,18 +1,6 @@
-<!--
-AGENT MAINTENANCE INSTRUCTION
-
-Read `docs/DATA.md` whenever this document is relevant. CONTRACTS.md describes durable boundaries around data, not the storage model in isolation.
-
-Build this document only from implemented contracts, verified behaviour, or explicit user decisions.
-
-Update it whenever:
-1. a task changes a durable interface, import/export shape, API payload, file format, compatibility rule, or validation boundary; or
-2. unrelated work reveals that a documented contract no longer matches reality.
-
-Describe the current contract, not its historical evolution. Do not duplicate stored schema detail that belongs in DATA.md.
--->
-
 # CONTRACTS.md
+
+This authority owns implemented business, API, permission and durable-format contracts. Extend focused existing regression coverage when meaningful semantics change; labels and styling alone need no new contract harness. Verify direct consumers proportionately under [TESTING](TESTING.md). Journey guidance belongs in [USER_EXPERIENCE](../USER_EXPERIENCE.md).
 
 ## Predictions, display preference and participant export
 

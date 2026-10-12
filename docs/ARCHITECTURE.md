@@ -1,22 +1,6 @@
-<!--
-AGENT MAINTENANCE INSTRUCTION
-
-Build this document up only from facts established by the repository, the user's explicit decisions, or verified deployment/runtime behaviour.
-
-Maintain it as the concise technical map of the current as-is application.
-
-Update it in the same pass when:
-1. the task changes any documented architectural fact; or
-2. unrelated work reveals that this document no longer matches reality.
-
-Prefer concise factual statements, tables, and direct paths over prose. Do not preserve implementation history here. Remove stale information instead of appending contradictory notes.
-
-The first visible section must always let a future agent answer: "What does a totally fresh machine need in order to host, launch, and use this application correctly?"
-
-Only include API sections when APIs actually exist.
--->
-
 # ARCHITECTURE.md
+
+This authority owns verified topology and module boundaries. Read only affected passages; no routine architecture audit or reopening accepted modules. Last-confirmed live state belongs in [README](../README.md#current-state).
 
 `worker/src/prediction-repository.ts` owns curated prediction relations, member display preferences and participant CSV export, routed through `routes/product.ts`. Migration 0026 enforces active-History exclusion and pruning at the database boundary. `frontend/AiPredictionsCard.tsx` reuses FilmPicker and MovieRow; `useAiPredictions.ts` scopes asynchronous preference/list state to the viewer, and `PredictionPresentation.tsx` owns the fixed shuffled Home loop. Predictions remain a separate authenticated relationship rather than extending catalogue membership or analytics populations. Scores qualification remains centralized in `score-scope.ts` with a request-scoped pre-0026 compatibility probe.
 

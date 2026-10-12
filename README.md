@@ -2,7 +2,14 @@
 
 A mobile-first private film journal for a four-person weekly club. Repository: [N-Plus-Plus/BookClub](https://github.com/N-Plus-Plus/BookClub).
 
-## Status and purpose
+## Current state
+
+- **Implemented in source:** the film journal and workflows described below, with independent local development.
+- **Last-confirmed live deployment:** existing project guidance identifies https://bookclub.nissen.nexus and the separate bookclub-api Worker. No deployment version/date evidence was established in this documentation pass; current live parity is unverified.
+- **Accepted by user:** established product decisions are preserved in the specialist authorities. No new journey/device acceptance was established in this pass.
+- **Not yet verified:** current production schema/version, real Google sign-in and owner-device acceptance. Verify only within the relevant authorised task, not to refresh a documentation timestamp.
+
+Source, Git publication, live release and human acceptance are distinct. Update this summary from evidence already collected when materially changed.
 
 The canonical frontend after publication is [BookClub](https://bookclub.nissen.nexus), served by the static-only `bookclub-frontend` Cloudflare Worker, with a separate API Worker. Historical club data has been imported; local demo fixtures are fictional. This repository contains the current application and independent local development environment. Local schema and hosted schema must be checked separately before release.
 
@@ -62,7 +69,8 @@ Metrics is all-time, without date-range filtering. History restore is an admin A
 ## Further documentation
 
 - [AGENTS](AGENTS.md): agent routing and standing engineering rules.
-- [STYLE](STYLE.md): BookClub UI/UX authority and rendered review.
+- [STYLE](STYLE.md): reusable visual conventions and task-scaled rendered review.
+- [USER_EXPERIENCE](USER_EXPERIENCE.md): accepted journeys, feedback and recovery.
 - [ROADMAP](ROADMAP.md): user-approved future work.
 - [ARCHITECTURE](docs/ARCHITECTURE.md): requirements, topology and module ownership.
 - [DATA](docs/DATA.md): storage, lifecycle and snapshot safety.
@@ -74,4 +82,4 @@ Metrics is all-time, without date-range filtering. History restore is an admin A
 
 ## Maintenance rule for agents
 
-Keep this the fastest human-readable explanation of the current app and setup. Correct changed facts and discovered drift in the same pass; remove obsolete wording. Brevity and completeness are equally important. Link to specialised authorities instead of duplicating deep detail. Do not add implementation history, release diaries or speculative future work.
+Keep this the fastest human-readable explanation of the current app and setup. Correct enduring changed facts and verified drift in the owning authority; remove obsolete wording. Brevity and completeness are equally important. Link to specialised authorities instead of duplicating deep detail. Do not add implementation history, release diaries or speculative future work.
