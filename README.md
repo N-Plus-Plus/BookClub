@@ -5,9 +5,9 @@ A mobile-first private film journal for a four-person weekly club. Repository: [
 ## Current state
 
 - **Implemented in source:** the film journal and workflows described below, with independent local development.
-- **Last-confirmed live deployment:** existing project guidance identifies https://bookclub.nissen.nexus and the separate bookclub-api Worker. No deployment version/date evidence was established in this documentation pass; current live parity is unverified.
+- **Last-confirmed live deployment:** 19 October 2026 (Australia/Sydney), application release `fbe1131`: https://bookclub.nissen.nexus, frontend version `f5ac3d4a-4188-4a63-9a45-73815727195e`, API version `c03f7838-4757-4487-af00-99811575d0be`, production migrations through 0027. Fresh export restored and checked offline before migration. API health/access/CORS and published shell/JS/CSS/font/avatar sample checks passed.
 - **Accepted by user:** established product decisions are preserved in the specialist authorities. No new journey/device acceptance was established in this pass.
-- **Not yet verified:** current production schema/version, real Google sign-in and owner-device acceptance. Verify only within the relevant authorised task, not to refresh a documentation timestamp.
+- **Not yet verified:** real Google sign-in, authenticated production workflows and owner-device acceptance for this release. Production smoke made no club-record mutations.
 
 Source, Git publication, live release and human acceptance are distinct. Update this summary from evidence already collected when materially changed.
 
@@ -17,7 +17,7 @@ Home shows the explicit current turn. History records ordered films, actual host
 
 Admins can open Admin through Account. Populate missing data fills unchecked gaps and skips successful unavailable checks; Refresh all data deliberately revisits eligible records. Each offers a combined run plus individual scores, metadata/artwork, enrichment, collections, awards and collection-roster actions. Aggregate actions require confirmation. Planning shows progress and makes no provider requests. Resume planning recovers an interrupted preparation; Resume remaining recovers execution using the same server job and original start time. Stop preserves saved work. No maintenance runs automatically.
 
-Admins manually curate **AI predicted** film lists for the four participants using the common lookup, remove entries with one click and export a participant’s complete active History as a CSV-formatted `.txt` file. Bringing a film into History prunes it from every prediction list. Account **Show AI / Hide AI** controls the optional Home poster presentation; it starts hidden and persists per member across devices. This feature does not call an AI service or automatically collect provider data. Explicit Admin maintenance also covers predicted films.
+Admins manually curate **AI predicted** film lists for the four participants using the common lookup, remove entries with one click and export a participant’s complete active History as a CSV-formatted `.txt` file. Bringing a film into History prunes it from every prediction list. Account **Show AI / Hide AI** controls the optional Home poster presentation; it starts hidden and persists per member across devices. AI menu controls, the Home presentation and the Admin card are temporarily hidden; the implementation remains available for re-enabling. This feature does not call an AI service or automatically collect provider data. Explicit Admin maintenance also covers predicted films.
 
 ## Requirements and setup
 
