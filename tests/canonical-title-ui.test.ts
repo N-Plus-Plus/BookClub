@@ -49,6 +49,6 @@ it('canonical provider title is shared by Home, History, all Classics tabs, Seen
  await navigate('builder');await click(button('Open set'));expect(lineup()).toEqual([title]);
  await input(harness.container.querySelector<HTMLInputElement>('input[maxlength="150"]')!,title);
  await act(async()=>harness.container.querySelector('.builder-workflow .card form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));await flush();expect(harness.container.querySelector('.search-row')?.textContent).toContain(title);
- await navigate('home');await click(button('Use from Builder'));expect(harness.container.querySelector('dialog')?.textContent).toContain(title);await click(button('Cancel'));
+ await navigate('home');await click(button('Use Builder Set'));expect(harness.container.querySelector('dialog')?.textContent).toContain(title);await click(harness.container.querySelector<HTMLButtonElement>('button[aria-label="Close Builder set picker"]')!);
  expect(api.importMovie).not.toHaveBeenCalled();
 });

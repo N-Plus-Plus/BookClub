@@ -19,6 +19,10 @@ it('unresolvable and empty Builder sets are disabled without truncating their sa
   await act(async () => harness.root.render(createElement(BuilderSetPicker,{catalog,viewer:{id:'member-2',display_name:'Member',avatar:2,sort_order:2,role:'member'},onClose:vi.fn(),onChoose:choose}))); await flush();
   const actions = [...harness.container.querySelectorAll<HTMLButtonElement>('button')].filter(button => button.textContent === 'Use this set');
   expect(actions.map(button => button.disabled)).toEqual([true,true,false]);
+  expect(harness.container.querySelector('dialog h2')?.textContent).toBe('Use Builder Set');
+  expect(harness.container.querySelector('.builder-choice-row ol')?.parentElement?.querySelector('button')).not.toBeNull();
+  expect(harness.container.querySelector('dialog')?.textContent).not.toContain('Cancel');
+  expect(harness.container.querySelector('dialog .meta')).toBeNull();
   expect(harness.container.textContent).toContain('This set contains unavailable film data.');
   await click(actions[0]); expect(choose).not.toHaveBeenCalled();
   await click(actions[2]); expect(choose).toHaveBeenCalledWith(['saved-2','saved-0','saved-2']);

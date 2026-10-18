@@ -21,7 +21,7 @@ export function RotationCard({catalog,rotation,viewer,onUseBuilder,showAi=false,
     <div className={`turn-row${films.length?' turn-row-with-predictions':''}`}><div className="stack turn-identity"><h2>{personal ? 'It is your turn' : 'Current turn'}</h2>
       {rotation ? isClassicsTurn(rotation) ? <ClubIdentity identity={{kind:'classics'}} /> : current ? <ClubIdentity identity={{kind:'member',member:current}} /> : <p>Current member is unavailable.</p> : <p className="meta">Current turn has not been initialised.</p>}
     </div>{films.length>0 && <PredictionPresentation key={JSON.stringify([current?.id,films.map(m=>m.id)])} movies={films}/>} {rotation && <div className="button-set turn-actions">
-      {personal && <><RouteLink to="builder" icon={ListPlus} variant="secondary">Plan in Builder</RouteLink><Action icon={ListChecks} onClick={e => { pickerTrigger.current = e.currentTarget; setChoosing(true); }}>Use from Builder</Action></>}
+      {personal && <Action icon={ListChecks} onClick={e => { pickerTrigger.current = e.currentTarget; setChoosing(true); }}>Use Builder Set</Action>}
       {isClassicsTurn(rotation) && <RouteLink to="classics" icon={ListPlus} variant="secondary">View watch order</RouteLink>}
       <RouteLink to="event" icon={CalendarPlus} variant="primary">Event</RouteLink>
     </div>}</div>

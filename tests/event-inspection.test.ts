@@ -96,7 +96,7 @@ describe('preserved Event film inspection',() => {
   it('Builder prefill seeds once in exact order and survives Nope and Yes',async () => {
     await navigate('home');
     vi.mocked(api.builders).mockResolvedValue([{id:'set',owner_member_id:'member-2',title:'Saved set',movie_ids:['saved-2','saved-0','saved-2']} as BuilderSet]);
-    await click(button('Use from Builder')); await click(button('Use this set')); await flush();
+    await click(button('Use Builder Set')); await click(button('Use this set')); await flush();
     expect(lineup()).toEqual(['Film 2','Film 0','Film 2']); const editor = harness.container.querySelector('.event-workflow');
     await search(); await click(harness.container.querySelector<HTMLAnchorElement>('.search-row a')!); await click(button("Nope, this isn't it")); await flush();
     expect(lineup()).toEqual(['Film 2','Film 0','Film 2']); expect(harness.container.querySelector('.event-workflow')).toBe(editor);
@@ -142,4 +142,21 @@ it('identifies fuzzy suggestions in the search UI and retains normal pagination 
  await click(button('Next'));expect(harness.container.querySelectorAll('.search-row')).toHaveLength(1);
  await click(harness.container.querySelector<HTMLAnchorElement>('.search-row a')!);
  expect(api.detail).toHaveBeenCalledWith('saved-6');expect(button('Yes, this one!')).toBeTruthy();
+});
+
+
+it('makes manual entry and results exclusive, preserves draft fields and ignores late search responses',async()=>{
+ await search();expect(harness.container.querySelectorAll('.search-row')).toHaveLength(6);
+ const manual=()=>harness.container.querySelector<HTMLFormElement>('.manual-form')!;
+ await click(button('Add a film manually'));expect(manual().hidden).toBe(false);expect(harness.container.querySelector('.search-row')).toBeNull();
+ const title=harness.container.querySelector<HTMLInputElement>('.manual-form input[maxlength="300"]')!;
+ await input(title,'Private unfinished title');
+ await search();expect(manual().hidden).toBe(true);expect(harness.container.querySelector('.search-row')).not.toBeNull();
+ await click(button('Add a film manually'));expect(title.value).toBe('Private unfinished title');
+ let resolve!:(response:Awaited<ReturnType<typeof api.search>>)=>void;
+ vi.mocked(api.search).mockReturnValueOnce(new Promise(done=>resolve=done));
+ await search();await click(button('Add a film manually'));
+ await act(async()=>resolve({local:[],external:[],lookup:{available:true,message:null}}));await flush();
+ expect(manual().hidden).toBe(false);expect(title.value).toBe('Private unfinished title');expect(harness.container.querySelector('.search-row')).toBeNull();
+ await click(button('Add a film manually'));expect(harness.container.querySelectorAll('.search-row')).toHaveLength(6);
 });

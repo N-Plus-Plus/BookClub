@@ -18,9 +18,9 @@ const render = async (rotation=turn,club=catalog) => {await act(async()=>root.re
 const renderSwap = async (rotation=turn,club=catalog) => {await act(async()=>root.render(createElement(RotationSwapCard,{catalog:club,rotation,writesEnabled:true,onUpdated:updated})));};
 const actions = () => [...container.querySelectorAll('.turn-actions .button')].map(e=>e.textContent);
 it('groups heading and effective identity on the left and ordered secondary/constructive actions on the right',async()=>{
- await render();expect(actions()).toEqual(['Plan in Builder','Use from Builder','Event']);
+ await render();expect(actions()).toEqual(['Use Builder Set','Event']);
  expect(container.querySelector('.turn-identity h2')?.textContent).toBe('It is your turn');expect(container.querySelector('.turn-card-area-personal')).toBeTruthy();
- const buttons=container.querySelectorAll('.turn-actions .button');expect(buttons[0].getAttribute('data-variant')).toBe('secondary');expect(buttons[1].getAttribute('data-variant')).toBe('secondary');expect(buttons[2].getAttribute('data-intent')).toBe('constructive');
+ const buttons=container.querySelectorAll('.turn-actions .button');expect(buttons[0].getAttribute('data-variant')).toBe('secondary');expect(buttons[1].getAttribute('data-intent')).toBe('constructive');
  expect(container.querySelector('select')).toBeNull();expect(container.textContent).not.toContain('Swap current turn');
  await render({...turn,human_order:{'1':'m3','3':'m1'}});expect(actions()).toEqual(['Event']);expect(container.querySelector('.turn-identity')?.textContent).toContain('MEMBER 3');expect(container.querySelector('.turn-card-area-personal')).toBeNull();
 });
@@ -50,5 +50,5 @@ it('offers a hostless Classics target only before Sean starts the next cycle and
  await act(async()=>container.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
  expect(api.swapRotation).toHaveBeenCalledWith({target_kind:'classics',version:4});expect(updated).toHaveBeenCalledWith({...turn,classics_first:1,version:5});
  await render({...turn,classics_first:1});expect(actions()).toEqual(['View watch order','Event']);
- await render({...turn,classics_first:1,nominal_slot:5,cycle_id:'cycle'});expect(actions()).toEqual(['Plan in Builder','Use from Builder','Event']);
+ await render({...turn,classics_first:1,nominal_slot:5,cycle_id:'cycle'});expect(actions()).toEqual(['Use Builder Set','Event']);
 });
