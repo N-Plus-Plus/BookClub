@@ -31,11 +31,15 @@ export async function productRoutes({request,path,method,repo,product,auth,body,
   if (path === '/api/v1/rotation/swap' && method === 'POST') {
     const actor = requireAdmin(auth.viewer); return json(await product.swapRotation(actor,rotationSchema.parse(await body(request))));
   }
-  const builderMatch = path.match(/^\/api\/v1\/builders\/([^/]+)(?:\/(publish))?$/);
+  const builderMatch = path.match(/^\/api\/v1\/builders\/([^/]+)(?:\/(publish|move))?$/);
   if (path === '/api/v1/builders' || builderMatch) {
     const actor = requireViewer(auth.viewer), id = builderMatch ? idSchema.parse(builderMatch[1]) : undefined;
     if (!id && method === 'GET') return json(await product.builders(actor.id));
     if (!id && method === 'POST') return json(await product.saveBuilder(actor.id,builderSchema.parse(await body(request))),201);
+    if (id && builderMatch?.[2] === 'move' && method === 'POST') {
+      const {direction}=z.object({direction:z.enum(['up','down'])}).strict().parse(await body(request));
+      return json(await product.moveBuilder(actor.id,id,direction));
+    }
     if (id && builderMatch?.[2] === 'publish' && method === 'POST') {
       const {revision,...input} = publishSchema.parse(await body(request));
       const result: JournalMutationResult = {};

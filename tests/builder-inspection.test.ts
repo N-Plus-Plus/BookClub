@@ -189,3 +189,35 @@ it('Builder applies additions, move and removal before saving and Use set publis
  await act(async()=>second({...set,movie_ids:['saved-1'],revision:10}));await flush();expect(harness.container.querySelector('#publish-heading')).toBeTruthy();
  vi.mocked(api.publishBuilder).mockResolvedValue({} as Awaited<ReturnType<typeof api.publishBuilder>>);await click(button('Use set'));expect(api.publishBuilder).toHaveBeenCalledWith('race',expect.objectContaining({revision:10}));expect(api.builders).toHaveBeenCalledTimes(1);
 });
+
+
+it('moves Builder cards beside Open set, disables edges, keeps edits in place and reports failed moves',async()=>{
+ const sets=['a','b','c'].map((id,index)=>({id,owner_member_id:'member-2',title:id,notes:null,movie_ids:[],revision:0,created_at:`2026-01-0${index+1}`,updated_at:''}));
+ vi.mocked(api.builders).mockResolvedValue(sets);
+ await navigate('builder');
+ const cards=()=>[...harness.container.querySelectorAll('.history-grid article')];
+ const controls=(index:number)=>[...cards()[index].querySelectorAll<HTMLButtonElement>('button')];
+ const titles=()=>cards().map(card=>card.querySelector('h2')?.textContent);
+ expect(controls(0).map(button=>button.disabled)).toEqual([true,false,false]);
+ expect(controls(2).map(button=>button.disabled)).toEqual([false,false,true]);
+ let resolve!:(sets:BuilderSet[])=>void;
+ vi.mocked(api.moveBuilder).mockReturnValueOnce(new Promise(r=>resolve=r));
+ await click(controls(1)[0]);
+ expect(api.moveBuilder).toHaveBeenCalledWith('b','up');
+ expect(controls(1).every(button=>button.disabled)).toBe(true);
+ await act(async()=>resolve([sets[1],sets[0],sets[2]]));await flush();
+ expect(titles()).toEqual(['b','a','c']);
+ await click(controls(0)[1]);await click(button('Save set'));await flush();
+ expect(titles()).toEqual(['b','a','c']);
+ vi.mocked(api.moveBuilder).mockRejectedValueOnce(new Error('Could not save order.'));
+ await click(controls(0)[2]);await flush();
+ expect(titles()).toEqual(['b','a','c']);
+ expect(harness.container.querySelector('[role="alert"]')?.textContent).toContain('Could not save order.');
+});
+
+
+it('disables both ordering arrows for a single Builder set',async()=>{
+ vi.mocked(api.builders).mockResolvedValue([{id:'only',owner_member_id:'member-2',title:'Only',notes:null,movie_ids:[],revision:0,created_at:'2026-01-01',updated_at:''}]);
+ await navigate('builder');
+ expect([...harness.container.querySelectorAll<HTMLButtonElement>('.builder-set-actions button')].map(button=>button.disabled)).toEqual([true,false,true]);
+});

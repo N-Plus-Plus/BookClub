@@ -74,3 +74,34 @@ describe('Builder lineup write efficiency',()=>{
     expect((await repo.builders('member-1')).map(set=>set.id)).toEqual(['old','a','z']);
   });
 });
+
+
+describe('private Builder set order',()=>{
+  it('moves one space, persists across reads, keeps edits in place and appends new sets',async()=>{
+    await builder();await builder();await builder();
+    const initial=await data<BuilderSet[]>(await call('/builders'));
+    const ids=initial.map(set=>set.id),middle=ids[1];
+    const moved=await data<BuilderSet[]>(await call(`/builders/${middle}/move`,'POST',{direction:'up'}));
+    expect(moved.map(set=>set.id)).toEqual([ids[1],ids[0],ids[2]]);
+    expect(moved.find(set=>set.id===middle)).toEqual(initial[1]);
+    expect((await data<BuilderSet[]>(await call('/builders'))).map(set=>set.id)).toEqual(moved.map(set=>set.id));
+    await call(`/builders/${middle}/move`,'POST',{direction:'up'});
+    expect((await data<BuilderSet[]>(await call('/builders'))).map(set=>set.id)).toEqual(moved.map(set=>set.id));
+    await call(`/builders/${middle}`,'PUT',{revision:initial[1].revision,title:'Edited',movie_ids:[]});
+    const added=await builder();
+    expect((await data<BuilderSet[]>(await call('/builders'))).map(set=>set.id)).toEqual([...moved.map(set=>set.id),added.id]);
+    await call(`/builders/${middle}/move`,'POST',{direction:'down'});
+    expect((await data<BuilderSet[]>(await call('/builders'))).map(set=>set.id)).toEqual([...ids,added.id]);
+    await call(`/builders/${added.id}/move`,'POST',{direction:'down'});
+    expect((await data<BuilderSet[]>(await call('/builders'))).map(set=>set.id)).toEqual([...ids,added.id]);
+    await call(`/builders/${added.id}`,'DELETE',{revision:added.revision});
+    expect(local.sqlite.prepare('SELECT * FROM builder_set_order WHERE builder_id=?').all(added.id)).toEqual([]);
+  });
+  it('rejects other-owner moves (including admins) and malformed directions',async()=>{
+    const own=await builder(),other=await builder(2);
+    expect((await call(`/builders/${own.id}/move`,'POST',{direction:'up'},2)).status).toBe(404);
+    expect((await call(`/builders/${other.id}/move`,'POST',{direction:'down'})).status).toBe(404);
+    expect((await call(`/builders/${own.id}/move`,'POST',{direction:'sideways'})).status).toBe(422);
+    expect(local.sqlite.prepare('SELECT * FROM builder_set_order').all()).toEqual([]);
+  });
+});

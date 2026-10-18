@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { candidatePage, matchTitles, normalizeTitle, searchCandidates } from '../shared/search';
+import { candidatePage, fuzzyTitles, matchTitles, normalizeTitle, searchCandidates } from '../shared/search';
 import { eventHost } from '../shared/event-host';
 import type { Member, Rotation, SearchResponse, Session } from '../shared/types';
 import { directors } from '../worker/src/providers/tmdb';
@@ -22,6 +22,31 @@ describe('shared film title matching',() => {
   it('falls back in relevance order only when strict matches are absent',() => {
     expect(matchTitles(titles.slice(0,2),'fallen')).toEqual(titles.slice(0,2));
     expect(matchTitles(titles,'fallen')).not.toContain(titles[0]);
+  });
+  it('folds apostrophes, punctuation, accents and whitespace while removing only one article',()=>{
+    const titles=[{title:'The Astronaut’s Wife'},{title:'Amélie'},{title:'Spider-Man'},{title:'Spider Man 2'}];
+    expect(matchTitles(titles,'The Astronauts Wife')).toEqual([titles[0]]);
+    expect(matchTitles(titles,"astronaut's   wife")).toEqual([titles[0]]);
+    expect(matchTitles(titles,'Amelie')).toEqual([titles[1]]);
+    expect(matchTitles(titles,' AME\u0301LIE ')).toEqual([titles[1]]);
+    expect(matchTitles(titles,'spiderman')).toEqual([titles[2]]);
+    expect(matchTitles(titles,'spider   man')).toEqual([titles[2]]);
+    expect(matchTitles(titles,'astronautswife')).toEqual([titles[0]]);
+    expect(matchTitles(titles,'---')).toEqual([]);
+  });
+  it('ranks strong tokens and prefixes despite typos, incomplete words and long suffixes',()=>{
+    const titles=['Sweeney Todd: The Demon Barber of Fleet Street','Todd and the Book of Pure Evil','Sweet November','Sweeney 2','Sweeney Todd'].map(title=>({title}));
+    expect(fuzzyTitles(titles,'Sweeny Todd').map(movie=>movie.title)).toEqual(['Sweeney Todd',titles[0].title]);
+    expect(fuzzyTitles(titles,'Sweeny Tod').map(movie=>movie.title)).toEqual(['Sweeney Todd',titles[0].title]);
+    expect(fuzzyTitles(titles,'sweenytodd').map(movie=>movie.title)).toEqual(['Sweeney Todd',titles[0].title]);
+    expect(fuzzyTitles([{title:'The Lord of the Rings: The Return of the King'}],'Lord Rings Return').length).toBe(1);
+    for(const query of ['xyzzzz','Sweeny Road','Sweet Todd','xx','1998','---']) expect(fuzzyTitles(titles,query),query).toEqual([]);
+    expect(fuzzyTitles([{title:'Live'},{title:'Somewhere'}],'Love')).toEqual([]);
+  });
+  it('caps fuzzy suggestions at four existing six-result pages with stable ties',()=>{
+    const titles=Array.from({length:30},(_,id)=>({title:'Sweeney Todd',id}));
+    const matched=fuzzyTitles(titles,'Sweeny Todd');
+    expect(matched).toEqual(titles.slice(0,24));expect(candidatePage(matched,4).items).toHaveLength(6);
   });
   it('paginates six candidates with bounded transitions and local identity preference',() => {
     const results: SearchResponse = {local:[{id:'saved',title:'Film',year:null,tmdbId:'1',poster:null}],external:Array.from({length:14},(_,i) => ({provider:'tmdb',externalId:String(i+1),title:`Film ${i+1}`,year:null,poster:null})),lookup:{available:true,message:null}};
@@ -65,6 +90,39 @@ describe('search, preview and Event API',() => {
   it('retains provider relevance order for substring fallback',async () => {
     vi.stubGlobal('fetch',vi.fn(async () => Response.json({results:[{id:44,title:'Angel Has Fallen'},{id:45,title:'Fallen Angels'},{id:46,title:'Unrelated'}]})));
     expect((await new MovieService(repo,env).search('Fallen')).external.map(movie => movie.externalId)).toEqual(['44','45']);
+  });
+  it('finds normalized titles locally and uses fuzzy suggestions only after zero normal matches',async()=>{
+    const wife=await repo.manualMovie({title:"The Astronaut's Wife"});
+    const amelie=await repo.manualMovie({title:'Amélie'});
+    const todd=await repo.manualMovie({title:'Sweeney Todd: The Demon Barber of Fleet Street'});
+    const fetch=vi.fn();vi.stubGlobal('fetch',fetch);
+    const service=new MovieService(repo,{...env,TMDB_READ_TOKEN:undefined});
+    for(const [query,id] of [['The Astronauts Wife',wife],['Amelie',amelie],['AstronautsWife',wife]]) {
+      const result=await service.search(query);expect(result.local.map(movie=>movie.id)).toEqual([id]);
+      expect(result.lookup.message).not.toContain('similar titles');
+    }
+    const result=await service.search('Sweeny Todd');
+    expect(result.local.map(movie=>movie.id)).toEqual([todd]);expect(result.external).toEqual([]);
+    expect(result.lookup).toMatchObject({available:false,message:expect.stringContaining('Showing similar titles')});
+    expect(result.lookup.message).toContain('not configured');
+    expect((await service.search('Sweeney Tod')).lookup.message).not.toContain('similar titles');
+    expect((await service.search('Unrelated nonsense')).local).toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('does not invoke fuzzy retrieval when ordinary discovery returns a match',async()=>{
+    await repo.manualMovie({title:'Sweeney Todd'});await repo.manualMovie({title:'Sweeny Todd Returns'});
+    const search=vi.spyOn(repo,'searchMovies');
+    const result=await new MovieService(repo,{...env,TMDB_READ_TOKEN:undefined}).search('Sweeny Todd');
+    expect(result.local.map(movie=>movie.title)).toEqual(['Sweeny Todd Returns']);
+    expect(result.lookup.message).not.toContain('similar titles');expect(search).toHaveBeenCalledTimes(1);
+  });
+  it('reuses existing provider results for fuzzy discovery and keeps canonical identity preference',async()=>{
+    const owner=await repo.manualMovie({title:'Sweeney Todd: The Demon Barber of Fleet Street'});
+    local.sqlite.prepare('INSERT INTO movie_external_ids VALUES(?,?,?)').run(owner,'tmdb','42');
+    const fetch=vi.fn(async()=>Response.json({results:[{id:42,title:'Sweeney Todd'},{id:43,title:'Sweet November'},{id:44,title:'Sweeney Todd Returns'}]}));vi.stubGlobal('fetch',fetch);
+    const result=await new MovieService(repo,env).search('Sweeny Todd');
+    expect(result.local.map(movie=>movie.id)).toEqual([owner]);expect(result.external.map(movie=>movie.externalId)).toEqual(['44']);
+    expect(result.lookup).toMatchObject({available:true,message:expect.stringContaining('Showing similar titles')});expect(fetch).toHaveBeenCalledTimes(1);
   });
   it('extracts only directors and joins multiple distinct names naturally',() => {
     expect(directors([{job:'Director',name:'One'},{job:'Producer',name:'Other'},{job:'Director',name:'Two'},{job:'Director',name:'One'}])).toBe('One and Two');

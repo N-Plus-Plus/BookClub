@@ -78,13 +78,27 @@ export class ProductRepository {
   }
   async builders(owner: string): Promise<BuilderSet[]> {
     const results = await this.db.batch([
-      this.db.prepare('SELECT * FROM builder_sets WHERE owner_member_id=? ORDER BY created_at ASC,id').bind(owner),
+      this.db.prepare('SELECT b.* FROM builder_sets b LEFT JOIN builder_set_order o ON o.builder_id=b.id WHERE b.owner_member_id=? ORDER BY o.position IS NULL,o.position,b.created_at,b.id').bind(owner),
       this.db.prepare('SELECT bm.* FROM builder_movies bm JOIN builder_sets b ON b.id=bm.builder_id WHERE b.owner_member_id=? ORDER BY bm.position').bind(owner),
     ]);
     const films = results[1].results as {builder_id: string; movie_id: string}[];
     const byBuilder = new Map<string,string[]>();
     for (const film of films) { const group = byBuilder.get(film.builder_id) ?? []; group.push(film.movie_id); byBuilder.set(film.builder_id,group); }
     return (results[0].results as Omit<BuilderSet,'movie_ids'>[]).map(b => ({...b,movie_ids:byBuilder.get(b.id) ?? []}));
+  }
+  async moveBuilder(owner: string, id: string, direction: 'up' | 'down') {
+    await this.builder(owner,id);
+    // One statement ranks and swaps the current neighbours atomically, including concurrent moves.
+    await this.db.prepare(`WITH ranked AS MATERIALIZED (
+      SELECT b.id,ROW_NUMBER() OVER (ORDER BY o.position IS NULL,o.position,b.created_at,b.id) AS position
+      FROM builder_sets b LEFT JOIN builder_set_order o ON o.builder_id=b.id WHERE b.owner_member_id=?
+    ), moving AS (SELECT position AS source,position+? AS target FROM ranked WHERE id=?)
+    INSERT INTO builder_set_order(builder_id,position)
+    SELECT id,CASE WHEN EXISTS(SELECT 1 FROM ranked WHERE position=moving.target)
+      THEN CASE position WHEN moving.source THEN moving.target WHEN moving.target THEN moving.source ELSE position END
+      ELSE position END FROM ranked CROSS JOIN moving WHERE true
+    ON CONFLICT(builder_id) DO UPDATE SET position=excluded.position`).bind(owner,direction === 'up' ? -1 : 1,id).run();
+    return this.builders(owner);
   }
   async builder(owner: string, id: string) {
     const results = await this.db.batch([

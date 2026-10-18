@@ -99,6 +99,7 @@ export const api = {
   rotation: () => request<Rotation | null>('/rotation'),
   swapRotation: (input: RotationSwapInput) => request<Rotation>('/rotation/swap','POST',input),
   builders: () => request<BuilderSet[]>('/builders'),
+  moveBuilder: (id: string,direction: 'up' | 'down') => request<BuilderSet[]>(`/builders/${encodeURIComponent(id)}/move`,'POST',{direction}),
   saveBuilder: (input: BuilderInput,id?: string) => request<BuilderSet>(id ? `/builders/${encodeURIComponent(id)}` : '/builders',id ? 'PUT' : 'POST',input),
   deleteBuilder: (id: string,revision: number) => request(`/builders/${encodeURIComponent(id)}`,'DELETE',{revision}),
   publishBuilder: (id: string,input: BuilderPublishInput) => request<JournalMutationResult>(`/builders/${encodeURIComponent(id)}/publish`,'POST',input),

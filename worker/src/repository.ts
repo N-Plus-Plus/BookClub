@@ -26,7 +26,7 @@ export class Repository {
   async cacheCollection(id:string,evidence:CollectionEvidence | undefined) { return new ProviderEvidenceRepository(this.db).save(id,'collections',evidence); }
   async cacheAwards(id:string,evidence:AwardsEvidence | undefined) { return new ProviderEvidenceRepository(this.db).save(id,'awards',evidence); }
   enrichmentSupported() { return this.capabilities.enrichmentSupported(); }
-  async searchMovies(query: string, tmdbIds: string[] = []): Promise<SavedSearchResult[]> { return this.catalogRepository.searchMovies(query,tmdbIds); }
+  async searchMovies(query: string, tmdbIds: string[] = [], fuzzy = false): Promise<SavedSearchResult[]> { return this.catalogRepository.searchMovies(query,tmdbIds,fuzzy); }
   async planningMovies(ids:string[]) { return this.catalogRepository.planningMovies(ids); }
   async catalog(): Promise<Catalog> { return this.catalogRepository.catalog(); }
   async compactCatalog(): Promise<CompactCatalog> { return this.catalogRepository.compactCatalog(); }

@@ -3,7 +3,7 @@ import { Repository } from './repository';
 import { ApiError, type Env } from './http';
 import { TmdbProvider } from './providers/tmdb';
 import type { MovieDetail, SearchResponse, MetadataEnrichment, SelectedMetadataEnrichment, SearchResult, TmdbPreview } from '../../shared/types';
-import { matchTitles } from '../../shared/search';
+import { matchTitles, fuzzyTitles } from '../../shared/search';
 import { ProviderError } from './providers/http';
 
 import { METADATA_MAINTENANCE_BATCH_SIZE } from '../../shared/score-maintenance';
@@ -60,9 +60,18 @@ export class MovieService {
       try { external = await this.tmdb(() => new TmdbProvider(this.env.TMDB_READ_TOKEN!).search(query)); lookup = {available:true,message:null}; }
       catch (error) { if (!(error instanceof ApiError)) throw error; lookup = {available:false,message:error.message}; }
     }
-    const local = await this.repo.searchMovies(query,external.map(movie => movie.externalId));
+    let local = await this.repo.searchMovies(query,external.map(movie => movie.externalId));
     const pool = [...local.map(movie => ({title:movie.title,local:movie})),...external.map(movie => ({title:movie.title,external:movie}))];
-    const matched = matchTitles(pool,query);
+    let matched = matchTitles(pool,query);
+    if (!matched.length) {
+      local=await this.repo.searchMovies(query,external.map(movie=>movie.externalId),true);
+      const fallbackPool=[...local.map(movie=>({title:movie.title,local:movie})),...external.map(movie=>({title:movie.title,external:movie}))];
+      matched=matchTitles(fallbackPool,query);
+      if (!matched.length) {
+        matched=fuzzyTitles(fallbackPool,query);
+        if (matched.length) lookup={...lookup,message:['No exact title matches. Showing similar titles.',lookup.message].filter(Boolean).join(' ')};
+      }
+    }
     const saved = new Map(matched.flatMap(candidate => 'local' in candidate ? [[candidate.local.id,candidate.local] as const] : []));
     const remaining = matched.flatMap(candidate => {
       if (!('external' in candidate)) return [];

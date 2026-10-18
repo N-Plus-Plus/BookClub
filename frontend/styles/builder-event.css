@@ -56,3 +56,5 @@
 .classics-attestation .movie-copy > span { display: block; }
 
 .builder-lineup li:last-child { border-bottom: 0; }
+
+.builder-set-actions { flex-wrap: nowrap; gap: var(--space-8); }

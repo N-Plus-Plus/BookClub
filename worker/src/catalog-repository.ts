@@ -1,5 +1,5 @@
 import type { AuWatchOffer, Catalog, CompactCatalog, Cycle, Member, Movie, Session, SavedSearchResult } from '../../shared/types';
-import { normalizeTitle } from '../../shared/search';
+import { titleKey, fuzzyTitles } from '../../shared/search';
 import { australianClassification } from '../../shared/metrics-enrichment/classification';
 import { assembleMovies, groupMovies } from './catalog-assembly';
 import { effectiveScoreSql, scoreColumns, liveScoreSql, usableScoreSql } from './score-sql';
@@ -14,23 +14,22 @@ type WithMovie<T> = T & { movie_id: string };
 export class CatalogRepository {
   constructor(private db: D1Database, private capabilities = new SchemaCapabilities(db)) {}
 
-  async searchMovies(query: string, tmdbIds: string[] = []): Promise<SavedSearchResult[]> {
-    // Normalise whitespace in SQL before matching; return only identification fields.
-    const rows = (await this.db.prepare(`WITH RECURSIVE titles(id,title,year,normal) AS (
-      SELECT id,title,year,lower(trim(replace(replace(replace(title,char(9),' '),char(10),' '),char(13),' '))) FROM movies
-      UNION ALL SELECT id,title,year,replace(normal,'  ',' ') FROM titles WHERE instr(normal,'  ')>0
-    ) SELECT id,title,year,
-      (SELECT external_id FROM movie_external_ids WHERE movie_id=t.id AND provider='tmdb') AS tmdbId,
-      (SELECT reference FROM movie_assets WHERE movie_id=t.id AND asset_type='poster' ORDER BY preferred DESC,id LIMIT 1) AS poster
-    FROM titles t WHERE instr(normal,'  ')=0 AND (
-      instr(CASE WHEN normal LIKE 'the %' THEN substr(normal,5) WHEN normal LIKE 'a %' THEN substr(normal,3) ELSE normal END,?)>0
-      OR normal GLOB '*[^ -~]*'
-      ${tmdbIds.length ? `OR id IN (SELECT movie_id FROM movie_external_ids WHERE provider='tmdb' AND external_id IN (${tmdbIds.map(() => '?').join(',')}))` : ''}
-    ) ORDER BY title COLLATE NOCASE,id`).bind(normalizeTitle(query),...tmdbIds).all<SavedSearchResult>()).results;
-    // SQLite lower() is ASCII-only. Narrow non-ASCII candidates still use the
-    // shared Unicode case/whitespace rule before being returned to the service.
-    const identities = new Set(tmdbIds), term = normalizeTitle(query);
-    return rows.filter(movie => normalizeTitle(movie.title).includes(term) || (movie.tmdbId !== null && identities.has(movie.tmdbId)));
+  async searchMovies(query: string, tmdbIds: string[] = [], fuzzy = false): Promise<SavedSearchResult[]> {
+    const term=titleKey(query);
+    if (!term) return [];
+    // SQLite lower() cannot fold Unicode accents. Scan only title identities, never the catalogue graph.
+    const titles=(await this.db.prepare('SELECT id,title FROM movies ORDER BY title COLLATE NOCASE,id').all<{id:string;title:string}>()).results;
+    const matches=fuzzy ? fuzzyTitles(titles,query) : titles.filter(movie=>titleKey(movie.title).includes(term));
+    if (!matches.length && !tmdbIds.length) return [];
+    const rows=(await this.db.prepare(`SELECT m.id,m.title,m.year,
+      (SELECT external_id FROM movie_external_ids WHERE movie_id=m.id AND provider='tmdb') AS tmdbId,
+      (SELECT reference FROM movie_assets WHERE movie_id=m.id AND asset_type='poster' ORDER BY preferred DESC,id LIMIT 1) AS poster
+      FROM movies m WHERE m.id IN (SELECT value FROM json_each(?))
+      OR m.id IN (SELECT movie_id FROM movie_external_ids WHERE provider='tmdb' AND external_id IN (SELECT value FROM json_each(?)))
+      ORDER BY m.title COLLATE NOCASE,m.id`).bind(JSON.stringify(matches.map(movie=>movie.id)),JSON.stringify(tmdbIds)).all<SavedSearchResult>()).results;
+    if (!fuzzy) return rows;
+    const order=new Map(matches.map((movie,index)=>[movie.id,index]));
+    return rows.sort((a,b)=>(order.get(a.id) ?? matches.length)-(order.get(b.id) ?? matches.length));
   }
 
   private async catalogSnapshot(compact = false): Promise<Catalog> {

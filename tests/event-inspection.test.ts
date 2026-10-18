@@ -115,7 +115,7 @@ describe('preserved Event film inspection',() => {
   });
 });
 
-it('Event save reconciles the returned session without follow-up catalogue or rotation reads',async()=>{
+it.each(['close','navigate'])('Event save reconciles without follow-up reads and keeps confirmation until %s dismissal',async(dismissal)=>{
  await search();await click(harness.container.querySelector<HTMLAnchorElement>('.search-row a')!);await click(button('Yes, this one!'));
  await input(harness.container.querySelector<HTMLInputElement>('input[name="event_date"]')!,'2030-01-01');
  await click(harness.container.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
@@ -123,4 +123,23 @@ it('Event save reconciles the returned session without follow-up catalogue or ro
  await click(button('Save event'));await flush();
  expect(api.saveSession).toHaveBeenCalledOnce();expect(api.catalog).toHaveBeenCalledOnce();expect(api.rotation).toHaveBeenCalledOnce();expect(harness.container.textContent).toContain('Film 0');
  expect(api.health).toHaveBeenCalledOnce();expect(api.me).toHaveBeenCalledOnce();
+ const notice=()=>harness.container.querySelector('.notice[role="status"]');
+ expect(window.location.hash).toBe('#/history');
+ expect(notice()?.textContent).toContain('Event saved to the film journal.');
+ await navigate('history');expect(notice()).not.toBeNull();
+ if(dismissal === 'close') await click(harness.container.querySelector<HTMLButtonElement>('button[aria-label="Dismiss message"]')!);
+ else await navigate('home');
+ expect(notice()).toBeNull();
+ await navigate('history');expect(notice()).toBeNull();
+});
+
+
+it('identifies fuzzy suggestions in the search UI and retains normal pagination and inspection',async()=>{
+ vi.mocked(api.search).mockResolvedValue({local:movies.slice(0,7).map(movie=>({id:movie.id,title:movie.title,year:movie.year,tmdbId:null,poster:null})),external:[],lookup:{available:true,message:'No exact title matches. Showing similar titles.'}});
+ await search();
+ expect(harness.container.querySelector('.film-search-form')?.parentElement?.querySelector('[role="status"]')?.textContent).toContain('Showing similar titles');
+ expect(harness.container.querySelectorAll('.search-row')).toHaveLength(6);
+ await click(button('Next'));expect(harness.container.querySelectorAll('.search-row')).toHaveLength(1);
+ await click(harness.container.querySelector<HTMLAnchorElement>('.search-row a')!);
+ expect(api.detail).toHaveBeenCalledWith('saved-6');expect(button('Yes, this one!')).toBeTruthy();
 });
