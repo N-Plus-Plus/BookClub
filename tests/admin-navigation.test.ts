@@ -16,7 +16,7 @@ describe('Admin screen and Account navigation',() => {
   };
   it('uses ordinary not-found treatment for a member',async()=>{
     await click(harness.container.querySelector<HTMLButtonElement>('.account-menu-trigger')!);
-    expect(harness.container.querySelector('.account-menu-dropdown')?.textContent).toBe('Show AILogout');
+    expect(harness.container.querySelector('.account-menu-dropdown')?.textContent).toBe('Logout');
     expect(harness.container.querySelector('a[href="#/admin"]')).toBeNull();
     await navigate('admin');
     expect(harness.container.querySelector('h1')?.textContent).toBe('Page not found');
@@ -34,7 +34,7 @@ describe('Admin screen and Account navigation',() => {
     expect(harness.container.textContent).toContain('Refresh TMDB enrichment');
     expect(harness.container.textContent).toContain('Refresh MDBList enrichment');
     await click(harness.container.querySelector<HTMLButtonElement>('.account-menu-trigger')!);
-    expect(harness.container.querySelector('.account-menu-dropdown')?.textContent).toBe('AdminShow AILogout');
+    expect(harness.container.querySelector('.account-menu-dropdown')?.textContent).toBe('AdminLogout');
     expect(harness.container.querySelector('.account-menu-dropdown a[href="#/admin"]')).not.toBeNull();
     for(const nav of harness.container.querySelectorAll('nav')) expect(nav.textContent).not.toContain('Admin');
     await navigate('classics');
@@ -51,7 +51,7 @@ describe('Admin screen and Account navigation',() => {
   it('navigates from the admin Account link and closes the dropdown',async()=>{
     await asAdmin(); await navigate('home');
     await click(harness.container.querySelector<HTMLButtonElement>('.account-menu-trigger')!);
-    expect([...harness.container.querySelectorAll('.account-menu-dropdown .select__option')].map(item=>item.textContent)).toEqual(['Admin','Show AI','Logout']);
+    expect([...harness.container.querySelectorAll('.account-menu-dropdown .select__option')].map(item=>item.textContent)).toEqual(['Admin','Logout']);
     await click(harness.container.querySelector<HTMLAnchorElement>('.account-menu-dropdown a[href="#/admin"]')!);
     expect(window.location.hash).toBe('#/admin');
     await vi.waitFor(async()=>{await flush();expect(harness.container.querySelector('h1')?.textContent).toBe('Admin');});
