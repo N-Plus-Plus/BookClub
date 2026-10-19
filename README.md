@@ -5,7 +5,7 @@ A mobile-first private film journal for a four-person weekly club. Repository: [
 ## Current state
 
 - **Implemented in source:** the film journal and workflows described below, with independent local development.
-- **Last-confirmed live deployment:** 19 October 2026 (Australia/Sydney), application release `fbe1131`: https://bookclub.nissen.nexus, frontend version `f5ac3d4a-4188-4a63-9a45-73815727195e`, API version `c03f7838-4757-4487-af00-99811575d0be`, production migrations through 0027. Fresh export restored and checked offline before migration. API health/access/CORS and published shell/JS/CSS/font/avatar sample checks passed.
+- **Last-confirmed live deployment:** 19 October 2026 (Australia/Sydney), application release `ae4cc46`: https://bookclub.nissen.nexus, frontend version `6a3d4ae6-bc90-42b0-9d8c-0affc63ea06a`, API version `f90f8d76-be24-48b0-b438-69df6d772341`. Production ledger has no pending migrations (tracked through 0027); no database changes were required. API health/access/CORS and published shell/exact JS/CSS/font/all-avatar checks passed.
 - **Accepted by user:** established product decisions are preserved in the specialist authorities. No new journey/device acceptance was established in this pass.
 - **Not yet verified:** real Google sign-in, authenticated production workflows and owner-device acceptance for this release. Production smoke made no club-record mutations.
 
