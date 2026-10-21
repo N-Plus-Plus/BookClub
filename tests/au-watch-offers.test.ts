@@ -34,7 +34,7 @@ it('persistence filters non-AU, catalogue loads one set query for compact/full, 
  const state=local.sqlite.prepare('SELECT * FROM movie_provider_enrichment_state').all();
  expect(parseTmdbEnrichment({...fixture(),'watch/providers':{results:{AU:{buy:null}}}},at)).toBeUndefined();
  fetch.mockResolvedValueOnce(Response.json({...fixture(),'watch/providers':{results:{AU:{rent:null}}}}));
- const failed=await new EnrichmentService(new Repository(local.db),{DB:local.db,TMDB_READ_TOKEN:'synthetic',APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10080'}).maintain('tmdb',['film']);
+ const failed=await new EnrichmentService(new Repository(local.db),{DB:local.db,TMDB_READ_TOKEN:'synthetic',APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10260'}).maintain('tmdb',['film']);
  expect(failed.results[0].status).toBe('failed');
  expect(rows()).toEqual(before);expect(local.sqlite.prepare('SELECT * FROM movie_provider_enrichment_state').all()).toEqual(state);
  const prepare=local.db.prepare.bind(local.db),queries:string[]=[];vi.spyOn(local.db,'prepare').mockImplementation(sql=>{queries.push(sql);return prepare(sql);});

@@ -5,6 +5,7 @@ A mobile-first private film journal for a four-person weekly club. Repository: [
 ## Current state
 
 - **Implemented in source:** the film journal and workflows described below, with independent local development.
+- **Local port migration (22 October 2026, WRK):** UI 10260, Worker 10263, refresh 10264, inspector 10265 and preview 10269 replace the retired 10080–10089 block on all three devices. Lint/typecheck, 57 focused tests, static production checks and build passed. A real browser opened `http://127.0.0.1:10260`, rendered the local landing screen and reached the local API and refresh proxy with no console errors, using disposable data. Existing owner-member sign-in, provider/OAuth and old-origin browser-state acceptance remain separate. Production deployment/settings and existing local D1 stores were unchanged.
 - **Last-confirmed live deployment:** 19 October 2026 (Australia/Sydney), application release `ae4cc46`: https://bookclub.nissen.nexus, frontend version `6a3d4ae6-bc90-42b0-9d8c-0affc63ea06a`, API version `f90f8d76-be24-48b0-b438-69df6d772341`. Production ledger has no pending migrations (tracked through 0027); no database changes were required. API health/access/CORS and published shell/exact JS/CSS/font/all-avatar checks passed.
 - **Accepted by user:** established product decisions are preserved in the specialist authorities. No new journey/device acceptance was established in this pass.
 - **Not yet verified:** real Google sign-in, authenticated production workflows and owner-device acceptance for this release. Production smoke made no club-record mutations.
@@ -28,7 +29,7 @@ corepack pnpm install
 corepack pnpm dev
 ```
 
-Open **http://localhost:10080/#/home**. The API is **http://localhost:10083/api/v1**. Use localhost to match CORS. Startup applies local migrations, seeds once and starts both servers; it preserves saved work. The local landing screen offers **Log in as Troy**, using the existing second member record and its stored avatar/role. A missing avatar enters the normal avatar chooser; production retains Google sign-in. Ctrl+C stops them. Do not run competing API processes over the same local database.
+Open **http://localhost:10260/#/home**. The API is **http://localhost:10263/api/v1**. Both localhost and 127.0.0.1 are accepted local frontend origins. The same allocation applies on LPT, WRK and RIG: UI 10260, Worker/API 10263, refresh coordinator 10264, inspector 10265 and preview 10269. The former 10080–10089 block is retired because browsers block 10080. Startup applies local migrations, seeds once and starts both servers; it preserves saved work. The local landing screen offers **Log in as Troy**, using the existing second member record and its stored avatar/role. A missing avatar enters the normal avatar chooser; production retains Google sign-in. Ctrl+C stops them. Do not run competing API processes over the same local database.
 
 ## Common commands
 
@@ -37,7 +38,7 @@ Open **http://localhost:10080/#/home**. The API is **http://localhost:10083/api/
 | Development | `corepack pnpm dev` |
 | UI / API separately | `corepack pnpm dev:ui` / `corepack pnpm dev:api` (prepare with `db:setup` first) |
 | Build | `corepack pnpm build` |
-| Production build preview | `corepack pnpm preview` at localhost:10080/ (stop development first) |
+| Production build preview | `corepack pnpm preview` at 127.0.0.1:10269/ (stop development first) |
 | Targeted tests | `corepack pnpm exec vitest run tests/ranking.test.ts` |
 | Full tests / types | `corepack pnpm test` / `corepack pnpm typecheck` |
 | Correctness lint | `corepack pnpm lint` |
@@ -86,6 +87,6 @@ Keep this the fastest human-readable explanation of the current app and setup. C
 
 ## Local directory and listener contract
 
-Canonical checkout: `BookClub`. Primary local default: **10080**. Additional explicit modes/listeners: 10083 Worker; 10084 refresh; 10089 UI preview. Service ID `bookclub`, repository name, display name and external data locations remain unchanged. Port configuration does not migrate browser origin storage or external OAuth allowlists; those require individual acceptance. Never terminate an unidentified listener to free a port.
+Canonical checkout: `BookClub`. Primary local default: **10260**. Additional explicit modes/listeners: 10263 Worker; 10264 refresh; 10269 UI preview. Service ID `bookclub`, repository name, display name and external data locations remain unchanged. Port configuration does not migrate browser origin storage or external OAuth allowlists; those require individual acceptance. Never terminate an unidentified listener to free a port.
 
-Worker inspector is loopback 10085; it is internal and does not change public API identity.
+Worker inspector is loopback 10265; it is internal and does not change public API identity.

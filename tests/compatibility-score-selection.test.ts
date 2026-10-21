@@ -47,7 +47,7 @@ it('does not retry a successful compatibility collection because Builder Seen is
   const id=await film('builder',false);
   const fetch=vi.fn().mockResolvedValue(Response.json([{imdb_id:'tt1234567',ratings:[{source:'imdb',value:8},{source:'tomatoes',value:80},{source:'popcorn',value:80},{source:'letterboxd',value:8},{source:'metacritic',value:80},{source:'tmdb',value:80}]}]));
   vi.stubGlobal('fetch',fetch);
-  const service=new ScoreService(repo,{DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10080',MDBLIST_API_KEY:'fictional'});
+  const service=new ScoreService(repo,{DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10260',MDBLIST_API_KEY:'fictional'});
   expect((await service.enrich(10)).results.map(r=>r.movie.id)).toEqual([id]);
   expect((await service.enrich(10)).results).toEqual([]);expect(fetch).toHaveBeenCalledTimes(1);
 });

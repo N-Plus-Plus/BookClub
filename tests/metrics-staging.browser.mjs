@@ -11,7 +11,7 @@ await page.route('**/*',route=>{const url=new URL(route.request().url());return 
 await page.route('**/api/**',route=>{errors.push('Unmocked API request');return route.abort();});
 await page.route('**/__dev/**',route=>route.abort());
 await page.route(/\/frontend\/api\.ts(?:\?.*)?$/,route=>route.fulfill({contentType:'text/javascript',body:"export const api=globalThis.__auditApi ??= {};export class ApiClientError extends Error {}export const hasSession=()=>true;export const setUnauthorizedHandler=()=>{};export const setDevMember=()=>{};export const clearSession=()=>{};export const storeSession=()=>{};"}));
-const source=await(await fetch('http://localhost:10080/frontend/main.tsx')).text(),reactUrl=source.match(/from "([^"\n]+\/react\.js[^"\n]*)"/)[1],domUrl=source.match(/from "([^"\n]+\/react-dom_client\.js[^"\n]*)"/)[1];
+const source=await(await fetch('http://localhost:10260/frontend/main.tsx')).text(),reactUrl=source.match(/from "([^"\n]+\/react\.js[^"\n]*)"/)[1],domUrl=source.match(/from "([^"\n]+\/react-dom_client\.js[^"\n]*)"/)[1];
 await page.route(/\/frontend\/main\.tsx(?:\?.*)?$/,route=>route.fulfill({contentType:'text/javascript',body:`
 import React from '${reactUrl}';import ReactDOM from '${domUrl}';import '/style.css';import '/frontend/app.css';
 import '/node_modules/@fontsource/lexend-deca/400.css';import '/node_modules/@fontsource/lexend-deca/500.css';import '/node_modules/@fontsource/lexend-deca/600.css';import '/node_modules/@fontsource/lexend-deca/700.css';
@@ -27,7 +27,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(
 `}));
 try {
  for(const width of [320,390,720,951,1440]){
-  await page.setViewportSize({width,height:1000});await page.goto('http://localhost:10080/#/metrics');await page.getByRole('tab',{name:'Breakdowns',exact:true}).click();await page.locator('.staging-report').last().waitFor();await page.locator('.metrics-filters button').first().click();
+  await page.setViewportSize({width,height:1000});await page.goto('http://localhost:10260/#/metrics');await page.getByRole('tab',{name:'Breakdowns',exact:true}).click();await page.locator('.staging-report').last().waitFor();await page.locator('.metrics-filters button').first().click();
   assert.equal(await page.locator('.staging-report').count(),11);assert.equal(await page.locator('.staging-cycle').count(),8);assert.equal(await page.locator('.staging-matrix').count(),0);
 
   const cycle=await page.locator('.staging-cycles').evaluate(e=>({height:e.clientHeight,total:e.scrollHeight,firstFive:[...e.children].slice(0,5).reduce((n,c)=>n+c.getBoundingClientRect().height,0)}));assert(cycle.total>cycle.height);assert(Math.abs(cycle.height-cycle.firstFive)<2);

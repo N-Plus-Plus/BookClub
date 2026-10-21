@@ -45,7 +45,7 @@ const measure=async(selector,target)=>page.evaluate(({selector,target})=>new Pro
  });
 }),{selector,target});
 try{
- await page.goto(`${process.env.BOOKCLUB_METRICS_URL || 'http://localhost:10080'}/#/home`);await page.getByRole('heading',{name:'Quick facts',exact:true}).waitFor();
+ await page.goto(`${process.env.BOOKCLUB_METRICS_URL || 'http://localhost:10260'}/#/home`);await page.getByRole('heading',{name:'Quick facts',exact:true}).waitFor();
  const results=[];
  for(const width of [390,1440]){
   await page.setViewportSize({width,height:900});

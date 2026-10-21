@@ -1,7 +1,7 @@
 // Admin API only. No provider URLs or requests. Ctrl+C stops after the in-flight batch.
 const args=process.argv.slice(2);
 const option=name=>{const i=args.indexOf(name);return i<0?undefined:args[i+1];};
-const base=option('--api') || 'http://localhost:10083';
+const base=option('--api') || 'http://localhost:10263';
 const url=new URL(base);
 if (!['http:','https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('Use an API origin without credentials or query parameters.');
 const headers={'Content-Type':'application/json',...(process.env.BOOKCLUB_SESSION_TOKEN?{Authorization:`Bearer ${process.env.BOOKCLUB_SESSION_TOKEN}`}:{})};

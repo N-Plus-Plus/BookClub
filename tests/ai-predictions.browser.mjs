@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import { metricsFixture } from './metrics-fixture.ts';
 const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
 const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
-const uiBase=process.env.BOOKCLUB_UI_URL || 'http://localhost:10080';
+const uiBase=process.env.BOOKCLUB_UI_URL || 'http://localhost:10260';
 const out='.verification/ai-predictions';await fs.mkdir(out,{recursive:true});
 const catalog=metricsFixture();catalog.sessions=[];catalog.cycles=[];
 catalog.movies.forEach((m,i)=>{m.classic=false;m.assets=[{provider:'manual',asset_type:'poster',reference:`/prediction-${i}.svg`,width:100,height:150,preferred:1}];});

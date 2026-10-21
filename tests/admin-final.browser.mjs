@@ -11,7 +11,7 @@ page.on('pageerror',e=>errors.push(e.message));
 await page.route('**/*',r=>{const u=new URL(r.request().url());if(['localhost','127.0.0.1'].includes(u.hostname))return r.fallback();blocked.push(u.hostname);return r.abort();});
 await page.route('**/api/**',r=>{errors.push('Unmocked API request');return r.abort();});await page.route('**/__dev/**',r=>r.abort());
 await page.route(/\/frontend\/api\.ts(?:\?.*)?$/,r=>r.fulfill({contentType:'text/javascript',body:"export const api=globalThis.__auditApi ??= {};export class ApiClientError extends Error {}export const hasSession=()=>true;export const setUnauthorizedHandler=()=>{};export const setDevMember=()=>{};export const clearSession=()=>{};export const storeSession=()=>{};"}));
-const source=await(await fetch('http://localhost:10080/frontend/main.tsx')).text(),reactUrl=source.match(/from "([^"\n]+\/react\.js[^"\n]*)"/)[1],domUrl=source.match(/from "([^"\n]+\/react-dom_client\.js[^"\n]*)"/)[1];
+const source=await(await fetch('http://localhost:10260/frontend/main.tsx')).text(),reactUrl=source.match(/from "([^"\n]+\/react\.js[^"\n]*)"/)[1],domUrl=source.match(/from "([^"\n]+\/react-dom_client\.js[^"\n]*)"/)[1];
 await page.route(/\/frontend\/main\.tsx(?:\?.*)?$/,r=>r.fulfill({contentType:'text/javascript',body:`
 import React from '${reactUrl}';import ReactDOM from '${domUrl}';import '/style.css';import '/frontend/app.css';
 import '/node_modules/@fontsource/lexend-deca/300.css';import '/node_modules/@fontsource/lexend-deca/400.css';import '/node_modules/@fontsource/lexend-deca/500.css';import '/node_modules/@fontsource/lexend-deca/600.css';import '/node_modules/@fontsource/lexend-deca/700.css';import '/node_modules/@fontsource/lexend-deca/800.css';
@@ -37,16 +37,16 @@ const screenshot=async(name,width)=>{await page.evaluate(()=>document.fonts.read
 const cards=async name=>{const values=await page.locator('.card:visible').evaluateAll(es=>es.map(e=>{const c=getComputedStyle(e);return {classes:e.className,border:c.borderTopWidth,color:c.borderTopColor,stat:e.classList.contains('stat')};}));for(const v of values)if(!v.stat){assert.equal(v.border,'1px',name+': '+v.classes);assert.notEqual(v.color,'rgba(0, 0, 0, 0)');}return values;};
 try{
  if(!process.env.BOOKCLUB_ADMIN_AUTH_ONLY) for(const width of [320,390,720,951,1440]){
-  await page.setViewportSize({width,height:900});await page.goto('http://localhost:10080/#/admin');await page.reload();await page.getByRole('heading',{name:'Swap current turn',exact:true}).waitFor();
+  await page.setViewportSize({width,height:900});await page.goto('http://localhost:10260/#/admin');await page.reload();await page.getByRole('heading',{name:'Swap current turn',exact:true}).waitFor();
   const form=page.locator('.rotation-swap-form');await form.locator('select').selectOption('classics');
   const swap=await form.evaluate(e=>{const r=e.getBoundingClientRect(),b=e.querySelector('button').getBoundingClientRect(),s=getComputedStyle(e.querySelector('button'));return {form:r.toJSON(),button:b.toJSON(),padding:s.padding};});assert.equal(swap.button.left,swap.form.left);assert(swap.button.width<swap.form.width);assert.equal(swap.button.height,46);assert(await form.getByRole('button',{name:'Swap turns',exact:true}).isEnabled());
   samples.push({width,swap,cards:await cards('Admin')});await screenshot('admin',width);
   for(const state of ['normal','interrupted']){
-   await page.goto('http://localhost:10080/?audit=progress&state='+state);const progress=page.locator('progress');await progress.waitFor();const painted=await progressSample(progress);
+   await page.goto('http://localhost:10260/?audit=progress&state='+state);const progress=page.locator('progress');await progress.waitFor();const painted=await progressSample(progress);
    assert.equal(painted.value,4);assert.equal(painted.max,10);assert.equal(painted.state,state);assert.equal(painted.fill,state==='normal'?painted.pumpkin:painted.ruby);samples.push({width,state,painted});
   }
   for(const route of ['home','history','builder','seen','classics','event','movie/a','metrics']){
-   await page.goto('http://localhost:10080/#/'+route);await page.waitForTimeout(160);await page.locator('main .loading-placeholder:visible').waitFor({state:'hidden'});
+   await page.goto('http://localhost:10260/#/'+route);await page.waitForTimeout(160);await page.locator('main .loading-placeholder:visible').waitFor({state:'hidden'});
    const measured=await cards(route);samples.push({width,route,cards:measured});
    if(route==='home'){const stats=await page.locator('.stats-grid .stat').evaluateAll(es=>es.map(e=>({top:getComputedStyle(e).borderTopWidth,right:getComputedStyle(e).borderRightWidth,bottom:getComputedStyle(e).borderBottomWidth})));assert.equal(stats.length,9);for(const s of stats)assert.deepEqual(s,{top:'0px',right:'0px',bottom:'0px'});}
    if(route==='metrics'){const flat=await page.locator('.metrics-content section:not(.card)').evaluateAll(es=>es.map(e=>{const c=getComputedStyle(e);return {left:c.borderLeftWidth,right:c.borderRightWidth,bottom:c.borderBottomWidth,top:c.borderTopWidth};}));assert(flat.length>0);for(const b of flat){assert.equal(b.left,'0px');assert.equal(b.right,'0px');assert.equal(b.bottom,'0px');assert(['0px','1px'].includes(b.top));}samples.push({width,flatMetrics:flat});}
@@ -54,7 +54,7 @@ try{
   }
  }
  for(const width of [320,390,720,951,1440]) for(const gate of ['signin','avatar']){
-  await page.setViewportSize({width,height:900});await page.goto('http://localhost:10080/?audit='+gate);await page.reload();await page.locator('.card').first().waitFor();const measured=await cards(gate);assert(measured.length>0);samples.push({width,gate,cards:measured});await screenshot(gate,width);
+  await page.setViewportSize({width,height:900});await page.goto('http://localhost:10260/?audit='+gate);await page.reload();await page.locator('.card').first().waitFor();const measured=await cards(gate);assert(measured.length>0);samples.push({width,gate,cards:measured});await screenshot(gate,width);
  }
  assert.deepEqual(errors,[]);fs.writeFileSync(output+(process.env.BOOKCLUB_ADMIN_AUTH_ONLY?'/auth-measurements.json':'/measurements.json'),JSON.stringify({samples,errors,blocked},null,2));console.log('Admin jobs, swap geometry and card-border checks passed at all five widths.');
 }finally{await browser.close();}

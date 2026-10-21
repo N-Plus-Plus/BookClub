@@ -7,7 +7,7 @@ import { disposableD1 } from './d1';
 import type { Env } from '../worker/src/http';
 import type { MovieDetail } from '../shared/types';
 let local: ReturnType<typeof disposableD1>, env: Env;
-beforeEach(()=>{local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10080'};});
+beforeEach(()=>{local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10260'};});
 afterEach(()=>{vi.restoreAllMocks();local.sqlite.close();});
 const call=(path:string,seen?:boolean|null)=>worker.fetch(new Request(`http://api/api/v1${path}`,{method:seen===undefined?'GET':'PUT',headers:{'X-BookClub-Dev-Member':'member-1'},...(seen===undefined?{}:{body:JSON.stringify({seen})})}),env);
 it('loads only selected-film relationships for Seen PUT and ordinary detail, preserving the MovieDetail contract',async()=>{

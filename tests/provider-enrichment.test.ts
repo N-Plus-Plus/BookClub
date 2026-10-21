@@ -88,7 +88,7 @@ describe('provider cache API and durable current state',()=>{
   beforeEach(()=>{
     local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));
     local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-1';INSERT INTO movies(id,title,runtime) VALUES('film','Canonical title',111);INSERT INTO movie_external_ids VALUES('film','tmdb','42');INSERT INTO movie_external_ids VALUES('film','imdb','tt0000042')");
-    repo=new Repository(local.db);env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10080',TMDB_READ_TOKEN:'fictional',MDBLIST_API_KEY:'fictional'};
+    repo=new Repository(local.db);env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10260',TMDB_READ_TOKEN:'fictional',MDBLIST_API_KEY:'fictional'};
   });
   afterEach(()=>local.sqlite.close());
   it('rejects non-admin, oversized batches and unknown films before provider calls; reports missing identity',async()=>{

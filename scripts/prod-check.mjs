@@ -23,7 +23,7 @@ export function checkProduction(root = process.cwd(), publicEnv = process.env, f
   if (Object.keys(staticConfig).some(key=>!staticKeys.includes(key)) || Object.keys(staticConfig.assets).some(key=>!['directory','not_found_handling'].includes(key))) fail('Frontend must be assets-only without runtime or provider bindings.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(staticConfig.compatibility_date ?? '')) fail('Frontend compatibility_date is required.');
   if (!/^\s*base:\s*['"]\/['"]\s*,\s*$/m.test(readFileSync(resolve(root,'vite.config.ts'),'utf8'))) fail('Vite production and preview base must be / .');
-  if (config.env?.local?.vars?.ALLOWED_ORIGINS !== 'http://localhost:10080') fail('Local CORS must remain localhost only.');
+  if (config.env?.local?.vars?.ALLOWED_ORIGINS !== 'http://localhost:10260,http://127.0.0.1:10260') fail('Local CORS must contain exactly the two frontend loopback origins on 10260.');
   const migrations = readdirSync(resolve(root,'worker/migrations')).filter(n=>n.endsWith('.sql')).sort();
   if (migrations.length < 8 || migrations.some((name,i)=>!name.startsWith(`${String(i+1).padStart(4,'0')}_`))) fail('Migrations must be contiguous from 0001 through at least 0008.');
   const preview = JSON.parse(readFileSync(resolve(root,'worker/wrangler.import-preview.jsonc'),'utf8'));

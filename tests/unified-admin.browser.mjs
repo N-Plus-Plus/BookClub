@@ -1,7 +1,7 @@
 // Synthetic durable Admin workflow; every API/provider request is intercepted.
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-const uiBase=process.env.BOOKCLUB_UI_URL || 'http://localhost:10080';
+const uiBase=process.env.BOOKCLUB_UI_URL || 'http://localhost:10260';
 const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
 const output='.verification/unified-admin';fs.mkdirSync(output,{recursive:true});
 const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});

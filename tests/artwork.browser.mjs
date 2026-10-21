@@ -33,15 +33,15 @@ await context.route('**/*',async route=>{
   return route.continue();
 });
 try {
-  await page.goto('http://localhost:10080/#/history');await page.locator('.poster-empty').first().waitFor();assert.equal(calls,0);
-  await page.goto('http://localhost:10080/#/admin');
+  await page.goto('http://localhost:10260/#/history');await page.locator('.poster-empty').first().waitFor();assert.equal(calls,0);
+  await page.goto('http://localhost:10260/#/admin');
   await page.getByRole('button',{name:'Fill missing TMDB metadata',exact:true}).click();
   await page.getByText(/successfully updated/).waitFor();assert.equal(calls,1);
   await page.screenshot({path:'.verification/artwork-maintenance-progress.png',fullPage:true});
   for(const width of [390,900,1440]) {
     await page.setViewportSize({width,height:900});
     for(const screen of ['home','history','builder','classics','seen',`movie/${film.id}`,'metrics']) {
-      await page.goto(`http://localhost:10080/#/${screen}`);await page.locator('.data-sources').waitFor();
+      await page.goto(`http://localhost:10260/#/${screen}`);await page.locator('.data-sources').waitFor();
       if(screen==='builder') {
         await page.getByRole('button',{name:'New set',exact:true}).click();
         await page.getByLabel('Search films').fill('fixture');await page.getByRole('button',{name:'Search',exact:true}).click();
@@ -60,7 +60,7 @@ try {
     }
   }
   failImage=true;
-  await page.goto(`http://localhost:10080/#/movie/${film.id}`);
+  await page.goto(`http://localhost:10260/#/movie/${film.id}`);
   await page.getByRole('img',{name:`No poster available for ${film.title}`}).waitFor();
   assert.equal(calls,1);assert.deepEqual(errors,[]);
   console.log('Artwork browser checks passed: desktop/mobile, six poster contexts, maintenance, fallback, sizing and no page-load enrichment.');

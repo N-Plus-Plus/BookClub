@@ -97,8 +97,8 @@ it('additive populated migration preserves every prior table row and title, then
 });
 it('cached endpoints are admin-only, bounded and make zero fetch calls',async()=>{
   const local=setup();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-1'");
-  const env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10080'} as Env;vi.stubGlobal('fetch',vi.fn());
-  const call=(member:string,path:string,method='GET')=>worker.fetch(new Request('http://localhost/api/v1/movies/'+path,{method,headers:{Origin:'http://localhost:10080','X-BookClub-Dev-Member':member,'Content-Type':'application/json'},...(method==='POST'?{body:'{}'}:{})}),env);
+  const env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10260'} as Env;vi.stubGlobal('fetch',vi.fn());
+  const call=(member:string,path:string,method='GET')=>worker.fetch(new Request('http://localhost/api/v1/movies/'+path,{method,headers:{Origin:'http://localhost:10260','X-BookClub-Dev-Member':member,'Content-Type':'application/json'},...(method==='POST'?{body:'{}'}:{})}),env);
   expect((await call('member-2','title-authority')).status).toBe(403);expect((await call('member-2','reconcile-titles','POST')).status).toBe(403);
   expect((await call('member-1','title-authority')).status).toBe(200);expect((await call('member-1','reconcile-titles','POST')).status).toBe(200);expect(fetch).not.toHaveBeenCalled();
   for(let i=0;i<101;i++)await local.repo.manualMovie({title:'Manual '+i});

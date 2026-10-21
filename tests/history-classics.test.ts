@@ -7,7 +7,7 @@ import { disposableD1 } from './d1';
 import type { JournalMutationResult } from '../shared/types';
 import type { Env } from '../worker/src/http';
 let local: ReturnType<typeof disposableD1>, env: Env;
-beforeEach(()=>{local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-2'; INSERT INTO members(id,display_name,sort_order,active) VALUES('former','Former',6,0)");env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10080'};});
+beforeEach(()=>{local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-2'; INSERT INTO members(id,display_name,sort_order,active) VALUES('former','Former',6,0)");env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10260'};});
 afterEach(()=>local.sqlite.close());
 const call=(path:string,method:string,input?:unknown,member='member-2')=>worker.fetch(new Request(`http://api/api/v1${path}`,{method,headers:{'X-BookClub-Dev-Member':member},...(input===undefined?{}:{body:JSON.stringify(input)})}),env);
 const save={event_date:'2030-05-06',movie_ids:['moon','alien']};

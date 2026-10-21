@@ -14,7 +14,7 @@ it('local Vite always targets local API despite stale production variables',asyn
   vi.stubEnv('DEV',true); vi.stubEnv('VITE_API_BASE_URL','https://bookclub-api.troy-nissen.workers.dev');
   const fetch = vi.fn(async (_url: string) => Response.json({data:{}})); vi.stubGlobal('fetch',fetch);
   const {api} = await import('../frontend/api'); await api.health();
-  expect(fetch.mock.calls[0][0]).toBe('http://localhost:10083/api/v1/health');
+  expect(fetch.mock.calls[0][0]).toBe('http://localhost:10263/api/v1/health');
 });
 it('production requires a public API origin and uses it when configured',async () => {
   vi.stubEnv('DEV',false); vi.stubEnv('VITE_API_BASE_URL','');
@@ -117,5 +117,5 @@ it('journal API methods return authoritative effects directly and issue only the
   expect(await api.saveSession({event_date:'2030-01-01',movie_ids:['film']},'event')).toEqual(result);
   expect(await api.publishBuilder('builder',{revision:1,event_date:'2030-01-01',cycle_id:null,cycle_slot:1,complete_turn:true})).toEqual(result);
   expect(await api.deleteSession('event')).toEqual(result);expect(await api.restoreSession('event')).toEqual(result);
-  expect(fetch.mock.calls.map(([url])=>url)).toEqual(['/sessions','/sessions/event','/builders/builder/publish','/sessions/event','/sessions/event/restore'].map(path=>'http://localhost:10083/api/v1'+path));expect(fetch).toHaveBeenCalledTimes(5);
+  expect(fetch.mock.calls.map(([url])=>url)).toEqual(['/sessions','/sessions/event','/builders/builder/publish','/sessions/event','/sessions/event/restore'].map(path=>'http://localhost:10263/api/v1'+path));expect(fetch).toHaveBeenCalledTimes(5);
 });

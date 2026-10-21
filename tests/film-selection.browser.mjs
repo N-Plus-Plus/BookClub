@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 const {chromium} = await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
-const mainSource=await (await fetch('http://localhost:10080/frontend/main.tsx')).text();
+const mainSource=await (await fetch('http://localhost:10260/frontend/main.tsx')).text();
 const reactUrl=mainSource.match(/from "([^"]+\/react\.js[^"]*)"/)[1];
 const domUrl=mainSource.match(/from "([^"]+\/react-dom_client\.js[^"]*)"/)[1];
 const browser = await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
@@ -34,7 +34,7 @@ const root=ReactDOM.createRoot(document.getElementById('root'));
 window.renderSelection=screen=>root.render(React.createElement('main',{className:'bookclub-shell'},screen==='builder'?React.createElement(Builder,{key:screen}):React.createElement(Screen,{key:screen})));
 window.renderSelection('classics');
 `}));
-  await page.goto('http://localhost:10080/');
+  await page.goto('http://localhost:10260/');
   await page.waitForFunction(()=>Boolean(window.renderSelection));
   await fs.mkdir('.verification/film-selection',{recursive:true});
   for(const width of [320,390,720,1440]){

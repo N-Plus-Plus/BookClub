@@ -11,7 +11,7 @@ This authority owns verified topology and module boundaries. Read only affected 
 | Platform | Browser plus a Node development machine; no OS-specific app host or VPN requirement. Optional browser scripts need locally available Playwright and a compatible browser. |
 | Runtime | Manifest: Node >=22.12; Node 24 recommended, required by the snapshot-refresh guard. SQLite-backed tests use `node:sqlite` (available from Node 22.13 without the experimental flag); prefer Node 24 for the complete toolchain. |
 | Toolchain | Corepack, pnpm 10.32.1, Git for checkout; install from `pnpm-lock.yaml`. |
-| Local services | Vite 10080, Wrangler local Worker/D1 10083, Node supervisor 10084; started by `corepack pnpm dev`. |
+| Local services | Vite 10260, Wrangler local Worker/D1 10263, Node supervisor 10264; started by `corepack pnpm dev`. |
 | Cloud accounts | None for local demos. Hosted operation requires GitHub source access, Cloudflare Workers Static Assets/Workers/D1, and a Google Web Application client with privately allow-listed accounts. Operator refresh requires Cloudflare D1 read/export authentication. |
 | Configuration | Local bypass/configuration is tracked. Hosted builds require public `VITE_API_BASE_URL` and `VITE_GOOGLE_CLIENT_ID`; Worker requires `DB`, origin/env vars and matching `GOOGLE_CLIENT_ID`. Provider secrets are optional; see [INTEGRATIONS](INTEGRATIONS.md). |
 | Network | Dependency installation and hosted use need internet; no Tailscale, network share or self-hosted server is part of BookClub. Optional API lookups and artwork CDN need internet. |
@@ -27,9 +27,9 @@ This authority owns verified topology and module boundaries. Read only affected 
 
 | Environment | Platform / entry | Persistence | Access |
 | --- | --- | --- | --- |
-| Ordinary development | Vite http://localhost:10080/#/home; Worker http://localhost:10083/api/v1 | Local `bookclub-local`, under `worker/.wrangler/state/v3/d1` | Local double-flag bypass; optional local member selector |
+| Ordinary development | Vite http://localhost:10260/#/home; Worker http://localhost:10263/api/v1 | Local `bookclub-local`, under `worker/.wrangler/state/v3/d1` | Local double-flag bypass; optional local member selector |
 | Import preview | Same ports, separate `worker/wrangler.import-preview.jsonc` | `worker/.wrangler/import-preview`, dummy preview identity | Generic positional members; no normal refresh supervisor |
-| Static build preview | localhost:10080/ | Whatever API origin was configured at build | Real API auth applies; a configured production API is a live boundary |
+| Static build preview | localhost:10260/ | Whatever API origin was configured at build | Real API auth applies; a configured production API is a live boundary |
 | Production | https://bookclub.nissen.nexus (canonical after publication) plus https://bookclub-api.troy-nissen.workers.dev/api/v1 | Cloudflare D1 `bookclub-prod`, Worker binding `DB` | Privately provisioned Google identity followed by opaque bearer session |
 
 Vite binds IPv4 loopback with strict port 4173. Use the localhost origin for CORS; do not run development and static preview concurrently. DevDashboard invokes the same app-owned `corepack pnpm dev`; it adds no required runtime. The neighbouring ToDonut project's 5173 is not a BookClub service.

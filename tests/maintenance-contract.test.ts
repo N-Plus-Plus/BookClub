@@ -21,7 +21,7 @@ const locals:ReturnType<typeof disposableD1>[]=[];
 function fixture(last?:string){
  const local=disposableD1(last);locals.push(local);
  local.sqlite.exec("INSERT INTO movies(id,title) VALUES('film','Canonical title');INSERT INTO movie_external_ids VALUES('film','tmdb','42'),('film','imdb','tt0000042');INSERT INTO classics(movie_id,source) VALUES('film','member-added')");
- const repo=new Repository(local.db),env:Env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'false',ALLOWED_ORIGINS:'http://localhost:10080',TMDB_READ_TOKEN:'fictional',MDBLIST_API_KEY:'fictional',OMDB_API_KEY:'fictional'};
+ const repo=new Repository(local.db),env:Env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'false',ALLOWED_ORIGINS:'http://localhost:10260',TMDB_READ_TOKEN:'fictional',MDBLIST_API_KEY:'fictional',OMDB_API_KEY:'fictional'};
  return {...local,repo,service:new UnifiedMaintenanceService(repo,env)};
 }
 afterEach(()=>{locals.splice(0).forEach(l=>l.sqlite.close());vi.unstubAllGlobals();vi.restoreAllMocks();});

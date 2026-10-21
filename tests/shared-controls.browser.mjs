@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
-const source=await (await fetch('http://localhost:10080/frontend/main.tsx')).text();
+const source=await (await fetch('http://localhost:10260/frontend/main.tsx')).text();
 const reactUrl=source.match(/from "([^"\n]+\/react\.js[^"\n]*)"/)[1],domUrl=source.match(/from "([^"\n]+\/react-dom_client\.js[^"\n]*)"/)[1];
 const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
 try {
@@ -21,7 +21,7 @@ try {
  function Screen(){const [catalog,setCatalog]=React.useState({members:[member],movies:[movie],cycles,sessions});return React.createElement(HistoryScreen,{catalog,viewer:member,onChanged:result=>setCatalog(current=>({...current,sessions:current.sessions.filter(session=>session.id!==result.removedSessionId)}))});}
  const root=ReactDOM.createRoot(document.getElementById('root'));let visit=0;window.renderHistory=()=>root.render(React.createElement('main',{className:'bookclub-shell'},React.createElement(Screen,{key:++visit})));window.renderHistory();
  `}));
- await page.goto('http://localhost:10080/');await page.waitForFunction(()=>Boolean(window.renderHistory));await fs.mkdir('.verification/shared-controls',{recursive:true});
+ await page.goto('http://localhost:10260/');await page.waitForFunction(()=>Boolean(window.renderHistory));await fs.mkdir('.verification/shared-controls',{recursive:true});
  let expectedDeletes=0;
  for(const width of [320,390,720,1440]) {
   await page.setViewportSize({width,height:900});await page.evaluate(()=>window.renderHistory());await page.getByText('Page 1 of 2',{exact:true}).first().waitFor();

@@ -38,7 +38,7 @@ const content=screen==='home'?React.createElement('section',{className:'stack'},
 root.render(React.createElement('main',{className:'bookclub-shell'},content));
 };window.renderScores('home',5);
 `}));
- await page.goto('http://localhost:10080/');
+ await page.goto('http://localhost:10260/');
  await page.waitForFunction(()=>Boolean(window.renderScores));
  await fs.mkdir('.verification/compact-scores',{recursive:true});
  let checks=0;

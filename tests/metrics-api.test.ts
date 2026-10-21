@@ -44,7 +44,7 @@ describe('read-only lazy Metrics projection',() => {
     const local = disposableD1();
     try {
       local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));
-      const env:Env = {DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10080'};
+      const env:Env = {DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10260'};
       const response = await worker.fetch(new Request('http://api/api/v1/metrics/enrichment'),env);
       expect(response.status).toBe(200);expect(await response.json()).toEqual({data:{movies:{},collections:{}}});
       expect(response.headers.get('Cache-Control')).toBe('no-store');

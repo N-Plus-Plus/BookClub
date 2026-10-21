@@ -30,7 +30,7 @@ await page.route('**/api/v1/**',async r=>{
 await fs.mkdir('.verification/mobile-classics',{recursive:true});
 try {
  for(const width of [390,1440]){
-  await page.setViewportSize({width,height:900});await page.goto('http://localhost:10080/#/classics');
+  await page.setViewportSize({width,height:900});await page.goto('http://localhost:10260/#/classics');
   const add=page.locator('.page-heading-actions button');await add.waitFor();
   assert.equal(await page.getByRole('button',{name:'Add Classic',exact:true}).count(),1);
   const heading=await page.locator('.page-heading h1').boundingBox(),button=await add.boundingBox();assert(button.y<heading.y+heading.height&&heading.y<button.y+button.height);assert(button.width<180);
@@ -44,12 +44,12 @@ try {
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:`.verification/mobile-classics/classics-${width}.png`,fullPage:true});
  }
- await page.setViewportSize({width:390,height:900});await page.goto('http://localhost:10080/#/seen');
+ await page.setViewportSize({width:390,height:900});await page.goto('http://localhost:10260/#/seen');
  await page.getByRole('heading',{name:'The quick check'}).waitFor();assert(!(await page.locator('.answer-card').textContent()).includes('Candidate history'));
  const more=page.getByRole('button',{name:'More',exact:true});await more.focus();await page.keyboard.press('Enter');assert.equal(await page.getByRole('button',{name:'Less',exact:true}).getAttribute('aria-expanded'),'true');await page.keyboard.press('Enter');
  await page.screenshot({path:'.verification/mobile-classics/seen-390.png',fullPage:true});
  await page.setViewportSize({width:320,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
- await page.goto('http://localhost:10080/#/classics');await page.getByRole('button',{name:/^Unranked:/}).click();
+ await page.goto('http://localhost:10260/#/classics');await page.getByRole('button',{name:/^Unranked:/}).click();
  const count=await page.locator('.ranking-row').count();await page.locator('.classic-remove').first().click();await page.getByRole('dialog').getByRole('button',{name:'Remove from Classics',exact:true}).click();await page.waitForFunction(n=>document.querySelectorAll('.ranking-row').length===n,count-1);assert.equal(removed,1);
  admin=false;await page.reload();await page.getByRole('heading',{name:'Classics',exact:true}).waitFor();assert.equal(await page.locator('.classic-remove').count(),0);
  assert.deepEqual(errors,[]);console.log('Classics/Seen responsive and admin interaction checks passed');

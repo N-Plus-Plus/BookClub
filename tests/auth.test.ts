@@ -113,7 +113,7 @@ describe('BookClub authentication',() => {
   });
   it('permits Authorization preflight only for exact allowed origins',async () => {
     env.ALLOWED_ORIGINS = 'https://n-plus-plus.github.io,https://bookclub.nissen.nexus';
-    for (const origin of ['https://n-plus-plus.github.io','https://bookclub.nissen.nexus','https://untrusted.example','https://other.nissen.nexus','http://localhost:10080']) {
+    for (const origin of ['https://n-plus-plus.github.io','https://bookclub.nissen.nexus','https://untrusted.example','https://other.nissen.nexus','http://localhost:10260']) {
       const response = await worker.fetch(new Request('http://api/api/v1/catalog',{method: 'OPTIONS',headers: {Origin: origin,'Access-Control-Request-Headers': 'Authorization, Content-Type'}}),env);
       const permitted = env.ALLOWED_ORIGINS.split(',').includes(origin);
       expect(response.headers.get('Access-Control-Allow-Origin')).toBe(permitted ? origin : null);
@@ -127,6 +127,16 @@ describe('BookClub authentication',() => {
     env.GOOGLE_CLIENT_ID = 'test-client'; env.DB = {} as D1Database;
     const response = await call('/auth/google','POST',undefined,{credential: 'mock'}); expect(response.status).toBe(500);
     expect(await response.text()).not.toContain('TypeError');
+  });
+  it('allows only the configured new local loopback origins',async () => {
+    env.APP_ENV = 'local'; env.LOCAL_WRITE_BYPASS = 'true';
+    env.ALLOWED_ORIGINS = 'http://localhost:10260,http://127.0.0.1:10260';
+    for (const origin of ['http://localhost:10260','http://127.0.0.1:10260','http://localhost:10080','http://127.0.0.1:10080','http://evil.example:10260','http://127.0.0.1:10269']) {
+      const response = await worker.fetch(new Request('http://127.0.0.1:10263/api/v1/health',{method:'OPTIONS',headers:{Origin:origin}}),env);
+      const permitted = env.ALLOWED_ORIGINS.split(',').includes(origin);
+      expect(response.status).toBe(permitted ? 204 : 403);
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe(permitted ? origin : null);
+    }
   });
 });
 describe('cryptographic Google verification without network',() => {

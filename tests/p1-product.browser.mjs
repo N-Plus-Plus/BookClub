@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
-const source=await (await fetch('http://localhost:10080/frontend/main.tsx')).text();
+const source=await (await fetch('http://localhost:10260/frontend/main.tsx')).text();
 const reactUrl=source.match(/from "([^"\n]+\/react\.js[^"\n]*)"/)[1],domUrl=source.match(/from "([^"\n]+\/react-dom_client\.js[^"\n]*)"/)[1];
 const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
 await fs.mkdir('.verification/p1-product',{recursive:true});
@@ -21,13 +21,13 @@ try{
  ReactDOM.createRoot(document.getElementById('root')).render(React.createElement('main',{className:'stack'},location.search.includes('builder')?builder:event));
  `}));
  for(const width of [320,390,720,1440]){
-  await page.setViewportSize({width,height:900});await page.goto('http://localhost:10080/#/event');await page.locator('.classics-attestation').waitFor();
+  await page.setViewportSize({width,height:900});await page.goto('http://localhost:10260/#/event');await page.locator('.classics-attestation').waitFor();
   const choices=page.locator('.classics-attestation input');assert.equal(await choices.count(),3);
   for(let i=0;i<2;i++){assert(await choices.nth(i).isChecked());assert(await choices.nth(i).isDisabled());}
   assert(!await choices.nth(2).isChecked());await choices.nth(2).check();await page.getByRole('button',{name:'Save event',exact:true}).click();assert.deepEqual(await page.evaluate(()=>window.saved.movie_ids),['f1','f2','f3']);
   await choices.nth(2).uncheck();await page.getByRole('button',{name:'Save event',exact:true}).click();assert.deepEqual(await page.evaluate(()=>window.saved.movie_ids),['f1','f2']);
   assert(!await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1));await page.screenshot({path:`.verification/p1-product/classics-${width}.png`,fullPage:true});
-  await page.goto('http://localhost:10080/?builder#/builder');await page.locator('.au-availability').first().waitFor();
+  await page.goto('http://localhost:10260/?builder#/builder');await page.locator('.au-availability').first().waitFor();
   assert((await page.locator('.au-availability').first().innerText()).includes('Stream: Netflix'));assert((await page.locator('.au-availability').first().innerText()).includes('Rent: Apple'));
   assert(!await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1));await page.screenshot({path:`.verification/p1-product/builder-${width}.png`,fullPage:true});
  }

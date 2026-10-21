@@ -18,7 +18,7 @@ Do not duplicate architecture, integration, or data detail. Link to those docume
 
 | Environment | Entry / persistence |
 | --- | --- |
-| Local | http://localhost:10080/#/home; Worker localhost:10083/api/v1; independent local D1 |
+| Local | http://localhost:10260/#/home; Worker localhost:10263/api/v1; independent local D1 |
 | Import preview | Same ports; isolated preview config/state, never the production target |
 | Public | https://bookclub.nissen.nexus (canonical after publication); https://bookclub-api.troy-nissen.workers.dev/api/v1; production D1 `bookclub-prod` via `DB` |
 
@@ -34,7 +34,7 @@ then:
 
 Normal local startup applies local migrations/one-time seed and starts the frontend and local Worker. Ordinary local DB commands remain `--local --env local`; normal startup never reads or writes production.
 
-`corepack pnpm preview` uses isolated UI preview port 10089 and the root `/` base; local API mode remains a separate explicit choice.
+`corepack pnpm preview` uses isolated UI preview port 10269 and the root `/` base; local API mode remains a separate explicit choice. UI 10260, Worker 10263, refresh coordinator 10264 and inspector 10265 are identical on LPT, WRK and RIG. Both localhost and 127.0.0.1 frontend origins are allowed locally; refresh requests require a matching exact Host/Origin pair and explicit confirmation. The old 10080–10089 allocation is retired. This source-only port migration does not move local D1 data, change authentication or publish the existing production deployments. Browser storage remains at its original origin; reauthenticate or use supported export/import deliberately rather than copying tokens.
 
 ## Operator credentials
 

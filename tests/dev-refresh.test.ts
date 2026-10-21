@@ -3,7 +3,7 @@ import { describe,it,expect } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
 import { copySnapshot, maintenanceSchemas, restoreExport, safeSnapshotError, sanitise, sourceIdentity, validateConfig, validateIdentity, verifyForeignKeys } from '../scripts/dev/snapshot.ts';
-import { allowedRefreshRequest } from '../scripts/dev/request-policy.ts';
+import { allowedRefreshRequest, allowedRefreshStatus } from '../scripts/dev/request-policy.ts';
 import { authenticate } from '../worker/src/auth';
 import type { Env } from '../worker/src/http';
 
@@ -128,12 +128,21 @@ describe('production to local refresh safety',() => {
     } finally {db.close();}
   });
   it('refuses non-local frontend requests and requires deliberate confirmation',() => {
-    expect(allowedRefreshRequest('POST','localhost:10080','http://localhost:10080','replace-local-only')).toBe(true);
+    expect(allowedRefreshRequest('POST','localhost:10260','http://localhost:10260','replace-local-only')).toBe(true);
+    expect(allowedRefreshRequest('POST','127.0.0.1:10260','http://127.0.0.1:10260','replace-local-only')).toBe(true);
+    expect(allowedRefreshRequest('POST','127.0.0.1:10260','http://localhost:10260','replace-local-only')).toBe(false);
+    expect(allowedRefreshRequest('POST','localhost:10260','http://127.0.0.1:10260','replace-local-only')).toBe(false);
+    for (const host of ['localhost:10080','127.0.0.1:10080','localhost:10264','evil.example:10260',undefined]) {
+      expect(allowedRefreshStatus(host)).toBe(false);
+      expect(allowedRefreshRequest('POST',host,host && `http://${host}`,'replace-local-only')).toBe(false);
+    }
+    expect(allowedRefreshStatus('localhost:10260')).toBe(true);
+    expect(allowedRefreshStatus('127.0.0.1:10260')).toBe(true);
     expect(allowedRefreshRequest('POST','localhost:5173','http://localhost:5173','replace-local-only')).toBe(false);
-    expect(allowedRefreshRequest('POST','localhost:10080','https://n-plus-plus.github.io','replace-local-only')).toBe(false);
-    expect(allowedRefreshRequest('POST','evil.example','http://localhost:10080','replace-local-only')).toBe(false);
-    expect(allowedRefreshRequest('GET','localhost:10080','http://localhost:10080','replace-local-only')).toBe(false);
-    expect(allowedRefreshRequest('POST','localhost:10080','http://localhost:10080',undefined)).toBe(false);
+    expect(allowedRefreshRequest('POST','localhost:10260','https://n-plus-plus.github.io','replace-local-only')).toBe(false);
+    expect(allowedRefreshRequest('POST','evil.example','http://localhost:10260','replace-local-only')).toBe(false);
+    expect(allowedRefreshRequest('GET','localhost:10260','http://localhost:10260','replace-local-only')).toBe(false);
+    expect(allowedRefreshRequest('POST','localhost:10260','http://localhost:10260',undefined)).toBe(false);
     expect(sanitise('auth_sessions',{token_hash:'secret'})).toBeNull();
   });
   it('keeps the helper and operator tooling outside the Worker/frontend production boundary',() => {
@@ -156,7 +165,7 @@ describe('production to local refresh safety',() => {
     }
   });
   it('developer identity works only with both local gates',async () => {
-    const request = new Request('http://localhost:10083/api/v1/auth/me',{headers:{'X-BookClub-Dev-Member':'m'}});
+    const request = new Request('http://localhost:10263/api/v1/auth/me',{headers:{'X-BookClub-Dev-Member':'m'}});
     const env = {APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',DB:{prepare:() => ({bind:() => ({first:async () => ({id:'m',role:'admin'})})})}} as unknown as Env;
     expect((await authenticate(request,env)).viewer?.id).toBe('m');
     await expect(authenticate(request,{...env,APP_ENV:'production'})).rejects.toThrow(/Sign in/);

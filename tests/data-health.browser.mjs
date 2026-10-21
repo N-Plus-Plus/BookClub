@@ -25,7 +25,7 @@ await page.route('**/api/v1/**',async route=>{
 });
 try{
   for(const width of [320,390,720,1440]){
-    await page.setViewportSize({width,height:1000});await page.goto(`${process.env.BOOKCLUB_UI_URL||'http://localhost:10080'}/?width=${width}#/admin`);
+    await page.setViewportSize({width,height:1000});await page.goto(`${process.env.BOOKCLUB_UI_URL||'http://localhost:10260'}/?width=${width}#/admin`);
     await page.getByRole('heading',{name:'Data health and exceptions',exact:true}).waitFor();await page.locator('.health-film').waitFor();await page.evaluate(()=>document.fonts.ready);
     const diagnostic=page.locator('.data-health');await diagnostic.locator('summary').focus();await page.keyboard.press('Enter');
     assert.equal(await diagnostic.locator('.health-issues li').count(),2);assert.equal(await diagnostic.locator('a').getAttribute('href'),`#/movie/${film.id}`);
