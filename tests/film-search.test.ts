@@ -67,7 +67,7 @@ describe('search, preview and Event API',() => {
   async function sessionPayload(response:Response):Promise<Session> {return (await payload<import('../shared/types').JournalMutationResult>(response)).session!;}
   beforeEach(() => {
     local = disposableD1(); local.sqlite.exec(readFileSync('worker/seed.sql','utf8')); repo = new Repository(local.db);
-    env = {DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',TMDB_READ_TOKEN:'fictional',ALLOWED_ORIGINS:'http://localhost:4173'};
+    env = {DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',TMDB_READ_TOKEN:'fictional',ALLOWED_ORIGINS:'http://localhost:10080'};
   });
   afterEach(() => { local.sqlite.close(); vi.unstubAllGlobals(); });
   it('searches narrow title fields without catalogue reconstruction, year matching or SQL wildcards',async () => {

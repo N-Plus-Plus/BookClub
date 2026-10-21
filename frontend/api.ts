@@ -3,7 +3,7 @@ import { validationFieldLabel } from './presentation';
 import type { Catalog, CompactCatalog, ManualMovieInput, MovieDetail, SearchResponse, JournalMutationResult, SessionInput, AuthLogin, Viewer, RefreshResult, Rotation, BuilderSet, BuilderInput, BuilderPublishInput, HistoryAudit, RotationSwapInput, SelectedMetadataEnrichment, ScoreMaintenance, TmdbPreview } from '../shared/types';
 
 const configured = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/,'');
-const base = import.meta.env.DEV ? 'http://localhost:8787' : configured || '';
+const base = import.meta.env.DEV ? 'http://localhost:10083' : configured || '';
 export function setDevMember(id: string) { if (import.meta.env.DEV) localStorage.setItem('bookclub.dev-member',id); }
 export interface Health { status: string; environment: string; authenticationRequired: boolean; googleAuthConfigured: boolean; tmdbConfigured: boolean; mdblistConfigured: boolean; omdbConfigured: boolean; demo: boolean }
 const storageKey = 'bookclub.session';

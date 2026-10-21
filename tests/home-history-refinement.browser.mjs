@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-const uiBase=process.env.BOOKCLUB_UI_URL || 'http://localhost:4173';
+const uiBase=process.env.BOOKCLUB_UI_URL || 'http://localhost:10080';
 import fs from 'node:fs/promises';
 import { metricsFixture } from './metrics-fixture.ts';
 import { metricsEnrichmentFixture } from './metrics-enrichment-fixture.ts';

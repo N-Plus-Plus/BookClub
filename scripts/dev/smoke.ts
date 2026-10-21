@@ -3,7 +3,7 @@ import { calculateMetrics } from '../../shared/metrics.ts';
 import { sortClassics } from '../../shared/ranking.ts';
 import type { Catalog, MovieDetail, BuilderSet, Member } from '../../shared/types.ts';
 
-const origin = 'http://localhost:4173', base = 'http://localhost:8787/api/v1';
+const origin = 'http://localhost:10080', base = 'http://localhost:10083/api/v1';
 async function call<T>(path:string,method='GET',body?:unknown,member?:string): Promise<T> {
   const response = await fetch(base+path,{method,headers:{Origin:origin,...(member ? {'X-BookClub-Dev-Member':member}:{}),...(body ? {'Content-Type':'application/json'}:{})},...(body ? {body:JSON.stringify(body)}:{})});
   assert.equal(response.ok,true,`Local API ${method} ${path}: ${response.status}`);

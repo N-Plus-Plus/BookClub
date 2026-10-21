@@ -1,4 +1,5 @@
 {
+  "dev": { "ip": "127.0.0.1", "port": 10083, "inspector_port": 10085 },
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "bookclub-api",
   "main": "src/index.ts",
@@ -9,7 +10,7 @@
   "env": {
     "local": {
       "name": "bookclub-api-local",
-      "vars": { "APP_ENV": "local", "LOCAL_WRITE_BYPASS": "true", "ALLOWED_ORIGINS": "http://localhost:4173" },
+      "vars": { "APP_ENV": "local", "LOCAL_WRITE_BYPASS": "true", "ALLOWED_ORIGINS": "http://localhost:10080" },
       "d1_databases": [{ "binding": "DB", "database_name": "bookclub-local", "database_id": "00000000-0000-0000-0000-000000000001", "migrations_dir": "migrations" }]
     }
   }

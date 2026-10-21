@@ -17,7 +17,7 @@ const cooldowns = () => local.sqlite.prepare('SELECT provider FROM provider_cool
 const service = () => new ScoreService(repo,env);
 beforeEach(async()=>{
   local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));repo=new Repository(local.db);local.sqlite.exec("DELETE FROM classics;UPDATE sessions SET deleted_at='2026-01-01'");
-  env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:4173',OMDB_API_KEY:primary,OMDB_API_KEY_SECONDARY:secondary};
+  env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10080',OMDB_API_KEY:primary,OMDB_API_KEY_SECONDARY:secondary};
   ids=[];
   for (const imdb of ['tt0000101','tt0000102']) {
     const id=await repo.manualMovie({title:imdb});await repo.setClassic(id,true);

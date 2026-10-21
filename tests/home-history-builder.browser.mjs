@@ -1,6 +1,6 @@
 // Synthetic local App review: all APIs mocked, all external requests blocked.
 import assert from 'node:assert/strict';
-const uiBase=process.env.BOOKCLUB_UI_URL || 'http://localhost:4173';
+const uiBase=process.env.BOOKCLUB_UI_URL || 'http://localhost:10080';
 import fs from 'node:fs/promises';
 const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
 const source=await (await fetch(uiBase+'/frontend/main.tsx')).text();

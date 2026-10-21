@@ -38,7 +38,7 @@ Public routes are GET health, POST Google login and OPTIONS preflight. All other
 
 Status semantics: malformed JSON 400; missing/invalid/expired session or invalid Google credential 401; forbidden identity/origin/admin 403; missing record/guessed other-owner Builder 404; unsupported method 405; stale revision/version or occupied slot/identity conflict 409; oversized body 413; invalid fields/domain input 422; unavailable providers/auth configuration 503; unexpected errors safe 500. No stack trace, raw provider body or credential URL escapes.
 
-CORS reflects exact configured origins only, never `*`, with no cookie credentials. Production temporarily allows exactly `https://n-plus-plus.github.io` and `https://bookclub.nissen.nexus` (no paths) during cutover; local `http://localhost:4173`. Permit Content-Type/Authorization; dev identity header only under local bypass. Requests without Origin still require auth. OPTIONS returns 204 for allowed/no origin. Responses use no-store, nosniff and Vary: Origin.
+CORS reflects exact configured origins only, never `*`, with no cookie credentials. Production temporarily allows exactly `https://n-plus-plus.github.io` and `https://bookclub.nissen.nexus` (no paths) during cutover; local `http://localhost:10080`. Permit Content-Type/Authorization; dev identity header only under local bypass. Requests without Origin still require auth. OPTIONS returns 204 for allowed/no origin. Responses use no-store, nosniff and Vary: Origin.
 
 ## Australian watch availability projection
 

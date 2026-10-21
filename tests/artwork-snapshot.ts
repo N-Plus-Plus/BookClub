@@ -26,7 +26,7 @@ globalThis.fetch = async (input) => {
     overview:movie.overview,genres:movie.genres.map(name=>({name})),poster_path:'/fixture-poster.jpg',backdrop_path:'/fixture-backdrop.jpg',vote_average:0,vote_count:0,
     credits:{crew:[{job:'Director',name:'Fixture Director'}]},external_ids:{imdb_id:movie.external_ids.find(e=>e.provider==='imdb')?.external_id}});
 };
-const service = new MovieService(repo,{DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:4173',TMDB_READ_TOKEN:'mock-only'});
+const service = new MovieService(repo,{DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10080',TMDB_READ_TOKEN:'mock-only'});
 const result = await service.enrichMetadata(10), after = await repo.catalog();
 const resume = await service.enrichMetadata(10);
 if (result.results.length !== sample.length || result.results.some(r=>r.status!=='success') || resume.results.length) throw Error('Controlled sample failed.');

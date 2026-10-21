@@ -12,7 +12,7 @@ const currentCss=await applicationCss();
 const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
 const baselineIndex=process.argv.indexOf('--baseline');
 const baseline=baselineIndex<0?null:await fs.readFile(process.argv[baselineIndex+1],'utf8');
-const source=await (await fetch('http://localhost:4173/frontend/main.tsx')).text();
+const source=await (await fetch('http://localhost:10080/frontend/main.tsx')).text();
 const reactUrl=source.match(/from "([^"]+\/react\.js[^"]*)"/)[1];
 const domUrl=source.match(/from "([^"]+\/react-dom_client\.js[^"]*)"/)[1];
 const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
@@ -90,7 +90,7 @@ try {
  for(const width of [320,390,720,1440]){
   await page.setViewportSize({width,height:900});
   for(const route of ['home','history','builder','event','classics','seen','metrics','admin','movie/f0']){
-   await page.goto('http://localhost:4173/?css-review='+encodeURIComponent(width+'-'+route)+'#/'+route,{waitUntil:'domcontentloaded'});await page.locator('main .card, main .stack, main .metrics-content').first().waitFor();await page.locator('main .loading-placeholder').waitFor({state:'hidden'});
+   await page.goto('http://localhost:10080/?css-review='+encodeURIComponent(width+'-'+route)+'#/'+route,{waitUntil:'domcontentloaded'});await page.locator('main .card, main .stack, main .metrics-content').first().waitFor();await page.locator('main .loading-placeholder').waitFor({state:'hidden'});
    await check(width+' '+route);
    if(route==='home'&&width>=720){await page.getByRole('button',{name:'Collapse navigation'}).click();await check(width+' collapsed navigation');}
    if(route==='builder'){await page.getByRole('button',{name:'Open set',exact:true}).click();await check(width+' Builder editor');await page.getByRole('button',{name:'Use set',exact:true}).click();await page.getByRole('heading',{name:'Use Synthetic private set?'}).waitFor();await check(width+' Builder confirmation');}

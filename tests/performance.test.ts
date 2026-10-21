@@ -18,7 +18,7 @@ let local:ReturnType<typeof disposableD1>,repo:Repository,env:Env;
 beforeEach(() => {
   local=disposableD1(); local.sqlite.exec(readFileSync('worker/seed.sql','utf8')); repo=new Repository(local.db);
   local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-1'");
-  env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:4173'};
+  env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10080'};
 });
 afterEach(() => {local.sqlite.close();vi.restoreAllMocks();vi.unstubAllGlobals();});
 async function call<T>(path:string,method='GET',input?:unknown):Promise<T> {

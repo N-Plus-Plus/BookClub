@@ -33,7 +33,7 @@ async function apply(result:JournalMutationResult){await act(async()=>data.apply
 const counts=()=>{expect(api.catalog).toHaveBeenCalledOnce();expect(api.rotation).toHaveBeenCalledOnce();};
 beforeEach(async()=>{
   Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});vi.resetAllMocks();showMetrics=false;vi.mocked(api.metricsEnrichment).mockResolvedValue({movies:{}});local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));
-  local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-2';UPDATE sessions SET date_precision='exact' WHERE id='demo-2'");repo=new Repository(local.db);product=new ProductRepository(local.db);env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:4173'};
+  local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-2';UPDATE sessions SET date_precision='exact' WHERE id='demo-2'");repo=new Repository(local.db);product=new ProductRepository(local.db);env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10080'};
   vi.mocked(api.health).mockResolvedValue({status:'ok',environment:'local',authenticationRequired:false,googleAuthConfigured:false,tmdbConfigured:false,mdblistConfigured:false,omdbConfigured:false,demo:true});
   vi.mocked(api.me).mockResolvedValue({viewer:{id:'member-2',display_name:'Troy',sort_order:2,avatar:2,role:'admin'}});
   vi.mocked(api.catalog).mockImplementation(()=>repo.catalog());vi.mocked(api.rotation).mockImplementation(()=>product.rotation());

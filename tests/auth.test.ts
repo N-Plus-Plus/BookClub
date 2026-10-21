@@ -113,7 +113,7 @@ describe('BookClub authentication',() => {
   });
   it('permits Authorization preflight only for exact allowed origins',async () => {
     env.ALLOWED_ORIGINS = 'https://n-plus-plus.github.io,https://bookclub.nissen.nexus';
-    for (const origin of ['https://n-plus-plus.github.io','https://bookclub.nissen.nexus','https://untrusted.example','https://other.nissen.nexus','http://localhost:4173']) {
+    for (const origin of ['https://n-plus-plus.github.io','https://bookclub.nissen.nexus','https://untrusted.example','https://other.nissen.nexus','http://localhost:10080']) {
       const response = await worker.fetch(new Request('http://api/api/v1/catalog',{method: 'OPTIONS',headers: {Origin: origin,'Access-Control-Request-Headers': 'Authorization, Content-Type'}}),env);
       const permitted = env.ALLOWED_ORIGINS.split(',').includes(origin);
       expect(response.headers.get('Access-Control-Allow-Origin')).toBe(permitted ? origin : null);

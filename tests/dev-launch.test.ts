@@ -5,20 +5,20 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
 
 afterEach(() => vi.unstubAllEnvs());
-it('owns local development mode, root base and IPv4 port 4173 even under a production parent',() => {
+it('owns local development mode, root base and IPv4 port 10080 even under a production parent',() => {
   vi.stubEnv('NODE_ENV','production');
   const local = (config as UserConfigFnObject)({command:'serve',mode:'development',isPreview:false});
   expect(process.env.NODE_ENV).toBe('development');
-  expect(local.server).toMatchObject({host:'127.0.0.1',port:4173,strictPort:true});
+  expect(local.server).toMatchObject({host:'127.0.0.1',port:10080,strictPort:true});
   expect(local.base).toBe('/');
-  expect(local.define?.['import.meta.env.VITE_API_BASE_URL']).toBe('"http://localhost:8787"');
+  expect(local.define?.['import.meta.env.VITE_API_BASE_URL']).toBe('"http://localhost:10083"');
   const worker = JSON.parse(readFileSync('worker/wrangler.jsonc','utf8'));
-  expect(worker.env.local.vars).toMatchObject({APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:4173'});
+  expect(worker.env.local.vars).toMatchObject({APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10080'});
   const preview = (config as UserConfigFnObject)({command:'serve',mode:'import-preview',isPreview:false});
   expect(preview.base).toBe('/');
   expect(preview.server?.proxy).toBeUndefined();
   expect(preview.define).toEqual(local.define);
-  expect(JSON.parse(readFileSync('worker/wrangler.import-preview.jsonc','utf8')).env.import_preview.vars.ALLOWED_ORIGINS).toBe('http://localhost:4173');
+  expect(JSON.parse(readFileSync('worker/wrangler.import-preview.jsonc','utf8')).env.import_preview.vars.ALLOWED_ORIGINS).toBe('http://localhost:10080');
 });
 it('preserves the production root base and public build configuration',() => {
   vi.stubEnv('NODE_ENV','production');

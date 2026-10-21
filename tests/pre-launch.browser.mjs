@@ -31,7 +31,7 @@ const go=async path=>{await page.evaluate(p=>location.hash='/'+p,path);await pag
 const shot=async(name,width)=>{await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:`${out}/${name}-${width}.png`,fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name} ${width}: overflow`);};
 try{
  for(const width of [320,390,720,951,1440]){
-  await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/home');await page.getByRole('heading',{name:'Club timeline',exact:true}).waitFor();
+  await page.setViewportSize({width,height:900});await page.goto('http://localhost:10080/#/home');await page.getByRole('heading',{name:'Club timeline',exact:true}).waitFor();
   const strips=await page.locator('.home-dashboard .stats-grid').evaluateAll(es=>es.map(e=>({x:e.getBoundingClientRect().x,right:e.getBoundingClientRect().right,columns:getComputedStyle(e).gridTemplateColumns})));
   assert.deepEqual(strips[1],strips[2],'Timeline/Snapshot alignment');assert.deepEqual(strips[0],strips[1],'adjacent strip alignment');
   await shot('home',width);
@@ -44,7 +44,7 @@ try{
   await go('metrics');for(const name of ['Top 5','Tastes','Breakdowns','Records']){await page.getByRole('tab',{name,exact:true}).click();await shot('metrics-'+name.replaceAll(' / ','-'),width);}
   if(width>=720){await page.getByRole('button',{name:'Collapse navigation',exact:true}).click();await shot('collapsed-metrics',width);await page.getByRole('button',{name:'Expand navigation',exact:true}).click();}
   await go('movie/a');await page.reload();await page.getByRole('button',{name:'Back',exact:true}).click();await page.getByRole('heading',{name:'Home',exact:true}).waitFor();
-  await page.goto('http://localhost:4173/#/preview/tmdb/42');await page.getByRole('button',{name:'Back',exact:true}).waitFor();await shot('preview-direct',width);await page.getByRole('button',{name:'Back',exact:true}).click();await page.getByRole('heading',{name:'Home',exact:true}).waitFor();
+  await page.goto('http://localhost:10080/#/preview/tmdb/42');await page.getByRole('button',{name:'Back',exact:true}).waitFor();await shot('preview-direct',width);await page.getByRole('button',{name:'Back',exact:true}).click();await page.getByRole('heading',{name:'Home',exact:true}).waitFor();
  }
  assert.deepEqual(errors,[]);await fs.writeFile(`${out}/results.json`,JSON.stringify({widths:[320,390,720,951,1440],errors,measurements},null,2));console.log('Pre-launch rendered/navigation checks passed at five widths.');
 }finally{await browser.close();}

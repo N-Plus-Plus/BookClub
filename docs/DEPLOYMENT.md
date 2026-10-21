@@ -18,7 +18,7 @@ Do not duplicate architecture, integration, or data detail. Link to those docume
 
 | Environment | Entry / persistence |
 | --- | --- |
-| Local | http://localhost:4173/#/home; Worker localhost:8787/api/v1; independent local D1 |
+| Local | http://localhost:10080/#/home; Worker localhost:10083/api/v1; independent local D1 |
 | Import preview | Same ports; isolated preview config/state, never the production target |
 | Public | https://bookclub.nissen.nexus (canonical after publication); https://bookclub-api.troy-nissen.workers.dev/api/v1; production D1 `bookclub-prod` via `DB` |
 
@@ -34,7 +34,7 @@ then:
 
 Normal local startup applies local migrations/one-time seed and starts the frontend and local Worker. Ordinary local DB commands remain `--local --env local`; normal startup never reads or writes production.
 
-Stop development before `corepack pnpm preview` because preview uses the same frontend port and the root `/` base.
+`corepack pnpm preview` uses isolated UI preview port 10089 and the root `/` base; local API mode remains a separate explicit choice.
 
 ## Operator credentials
 

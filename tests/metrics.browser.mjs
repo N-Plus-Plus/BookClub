@@ -53,12 +53,12 @@ const check = async(width,label) => {
   for(const pair of await page.locator('.metrics-paired').all()) assert.equal(await columns(pair),available >= 720 ? 2 : 1);
 };
 try {
-  if(presentationOnly)await page.goto('http://localhost:4173/#/metrics');
+  if(presentationOnly)await page.goto('http://localhost:10080/#/metrics');
   for (const width of presentationOnly?[]:[320,390,720,951,1440]) {
     requests.length = 0;
     await page.setViewportSize({width,height:900});
     const enrichmentRead = page.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/metrics/enrichment'));
-    if (width === 320) await page.goto('http://localhost:4173/#/metrics');
+    if (width === 320) await page.goto('http://localhost:10080/#/metrics');
     else await page.reload();
     await page.getByRole('heading',{name:'Top 5 highest critic scores',exact:true}).waitFor();
     assert.equal(await active(),'Top 5');

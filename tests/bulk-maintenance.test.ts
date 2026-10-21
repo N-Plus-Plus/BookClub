@@ -14,7 +14,7 @@ const singleRatings = ratings.map(r=>r.source==='letterboxd'?{...r,value:4}:r);
 beforeEach(() => {
   local=disposableD1();local.sqlite.exec(readFileSync('worker/seed.sql','utf8'));
   local.sqlite.exec("UPDATE members SET role='admin' WHERE id='member-1'");
-  env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:4173',MDBLIST_API_KEY:'fictional',OMDB_API_KEY:'fictional'};
+  env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'true',ALLOWED_ORIGINS:'http://localhost:10080',MDBLIST_API_KEY:'fictional',OMDB_API_KEY:'fictional'};
 });
 afterEach(() => { local.sqlite.close(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); });
 const add = async (id: string, provider='imdb') => {

@@ -28,7 +28,7 @@ corepack pnpm install
 corepack pnpm dev
 ```
 
-Open **http://localhost:4173/#/home**. The API is **http://localhost:8787/api/v1**. Use localhost to match CORS. Startup applies local migrations, seeds once and starts both servers; it preserves saved work. The local landing screen offers **Log in as Troy**, using the existing second member record and its stored avatar/role. A missing avatar enters the normal avatar chooser; production retains Google sign-in. Ctrl+C stops them. Do not run competing API processes over the same local database.
+Open **http://localhost:10080/#/home**. The API is **http://localhost:10083/api/v1**. Use localhost to match CORS. Startup applies local migrations, seeds once and starts both servers; it preserves saved work. The local landing screen offers **Log in as Troy**, using the existing second member record and its stored avatar/role. A missing avatar enters the normal avatar chooser; production retains Google sign-in. Ctrl+C stops them. Do not run competing API processes over the same local database.
 
 ## Common commands
 
@@ -37,7 +37,7 @@ Open **http://localhost:4173/#/home**. The API is **http://localhost:8787/api/v1
 | Development | `corepack pnpm dev` |
 | UI / API separately | `corepack pnpm dev:ui` / `corepack pnpm dev:api` (prepare with `db:setup` first) |
 | Build | `corepack pnpm build` |
-| Production build preview | `corepack pnpm preview` at localhost:4173/ (stop development first) |
+| Production build preview | `corepack pnpm preview` at localhost:10080/ (stop development first) |
 | Targeted tests | `corepack pnpm exec vitest run tests/ranking.test.ts` |
 | Full tests / types | `corepack pnpm test` / `corepack pnpm typecheck` |
 | Correctness lint | `corepack pnpm lint` |
@@ -83,3 +83,9 @@ Metrics is all-time, without date-range filtering. History restore is an admin A
 ## Maintenance rule for agents
 
 Keep this the fastest human-readable explanation of the current app and setup. Correct enduring changed facts and verified drift in the owning authority; remove obsolete wording. Brevity and completeness are equally important. Link to specialised authorities instead of duplicating deep detail. Do not add implementation history, release diaries or speculative future work.
+
+## Local directory and listener contract
+
+Canonical checkout: `BookClub`. Primary local default: **10080**. Additional explicit modes/listeners: 10083 Worker; 10084 refresh; 10089 UI preview. Service ID `bookclub`, repository name, display name and external data locations remain unchanged. Port configuration does not migrate browser origin storage or external OAuth allowlists; those require individual acceptance. Never terminate an unidentified listener to free a port.
+
+Worker inspector is loopback 10085; it is internal and does not change public API identity.

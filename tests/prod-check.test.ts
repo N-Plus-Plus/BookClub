@@ -19,7 +19,7 @@ it('checks working-tree release safety and public variables without remote acces
   const publicEnv={VITE_API_BASE_URL:'https://fictional-worker.example.invalid',VITE_GOOGLE_CLIENT_ID:'fictional.apps.googleusercontent.com'};
   expect(checkProduction(undefined,publicEnv,true).frontend).toBe(true);
   expect(()=>checkProduction(undefined,{},true)).toThrow('VITE_API_BASE_URL');
-  expect(()=>checkProduction(undefined,{...publicEnv,VITE_API_BASE_URL:'http://localhost:8787'},true)).toThrow('HTTPS Worker');
+  expect(()=>checkProduction(undefined,{...publicEnv,VITE_API_BASE_URL:'http://localhost:10083'},true)).toThrow('HTTPS Worker');
   expect(()=>checkProduction(undefined,{...publicEnv,VITE_GOOGLE_CLIENT_ID:''},true)).toThrow('VITE_GOOGLE_CLIENT_ID');
   const root=mkdtempSync(join(tmpdir(),'bookclub-prod-check-'));
   try {
@@ -32,7 +32,7 @@ it('checks working-tree release safety and public variables without remote acces
     const check=(vars:Record<string,string>)=>{writeFileSync(join(root,'worker/wrangler.jsonc'),JSON.stringify({...original,vars:{...original.vars,...vars}}));return ()=>checkProduction(root);};
     expect(check({APP_ENV:'local'})).toThrow('APP_ENV');expect(check({LOCAL_WRITE_BYPASS:'true'})).toThrow('BYPASS');expect(check({ALLOWED_ORIGINS:'http://localhost:5173'})).toThrow('CORS');
     expect(check({})()).toMatchObject({migrationCount:migrations.length});
-    for (const origin of ['https://n-plus-plus.github.io','https://bookclub.nissen.nexus','*','https://*.nissen.nexus','http://bookclub.nissen.nexus','http://localhost:4173','https://n-plus-plus.github.io/BookClub/']) {
+    for (const origin of ['https://n-plus-plus.github.io','https://bookclub.nissen.nexus','*','https://*.nissen.nexus','http://bookclub.nissen.nexus','http://localhost:10080','https://n-plus-plus.github.io/BookClub/']) {
       expect(check({ALLOWED_ORIGINS:origin})).toThrow('CORS');
     }
     check({})();

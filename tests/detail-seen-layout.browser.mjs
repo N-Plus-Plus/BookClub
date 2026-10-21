@@ -35,7 +35,7 @@ try {
     };
     window.renderPopulation(0);
   ` }));
-  await page.goto('http://localhost:4173/');
+  await page.goto('http://localhost:10080/');
   await page.waitForFunction(() => Boolean(window.renderPopulation));
   await fs.mkdir('.verification/seen-layout',{recursive:true});
   const results = [];

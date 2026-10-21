@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
-const source=await (await fetch('http://localhost:4173/frontend/main.tsx')).text();
+const source=await (await fetch('http://localhost:10080/frontend/main.tsx')).text();
 const reactUrl=source.match(/from "([^"]+\/react\.js[^"]*)"/)[1];
 const domUrl=source.match(/from "([^"]+\/react-dom_client\.js[^"]*)"/)[1];
 const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
@@ -27,7 +27,7 @@ try {
  const overflow=()=>page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
  const search=async()=>{await page.getByRole('textbox',{name:'Search films'}).fill('film');await page.getByRole('button',{name:'Search',exact:true}).click();await page.locator('.search-row').first().waitFor();};
  for(const width of [320,390,720,951,1440]) {
-  await page.setViewportSize({width,height:900});await page.goto('http://localhost:4173/#/builder');await page.reload();await page.getByRole('button',{name:'New set'}).click();
+  await page.setViewportSize({width,height:900});await page.goto('http://localhost:10080/#/builder');await page.reload();await page.getByRole('button',{name:'New set'}).click();
   await page.getByRole('textbox',{name:'Private title (optional)'}).fill('A saved set with a longer title');assert.equal(await page.getByRole('textbox',{name:'Private note (optional)'}).count(),0);
   assert.deepEqual(await page.locator('.builder-editor-actions button').allTextContents(),['All sets','Use set','Save set']);
   const dock=await page.locator('.builder-editor-actions').evaluate(e=>{const row=e.getBoundingClientRect(),buttons=[...e.querySelectorAll('button')].map(b=>b.getBoundingClientRect());return buttons[0].left>=row.left && Math.abs(buttons[2].right-row.right)<1 && buttons.every(b=>Math.abs(b.top-buttons[0].top)<1) && buttons[0].right<=buttons[1].left && buttons[1].right<=buttons[2].left;});assert(dock);
@@ -50,11 +50,11 @@ try {
   assert.equal(await page.locator('.builder-turn-warning').count(),0);assert.equal(await page.getByRole('button',{name:'Use set',exact:true}).isDisabled(),false);
   await page.screenshot({path:'.verification/builder-search/'+width+'-use-set.png',fullPage:true});
   await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));assert.equal(await overflow(),false);
-  await page.goto('http://localhost:4173/#/event');await search();assert.equal(await page.locator('.search-row .meta').first().textContent(),'1999 · 110 min');assert.equal(await overflow(),false);
+  await page.goto('http://localhost:10080/#/event');await search();assert.equal(await page.locator('.search-row .meta').first().textContent(),'1999 · 110 min');assert.equal(await overflow(),false);
   await page.locator('.search-row a').first().click();await page.getByRole('button',{name:'Yes, this one!',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Add to set',exact:true}).count(),0);await page.getByRole('button',{name:'Yes, this one!',exact:true}).click();await page.getByRole('button',{name:'Save event',exact:true}).waitFor();assert.equal(await page.getByRole('textbox',{name:'Search films'}).evaluate(e=>e===document.activeElement),true);
-  await page.goto('http://localhost:4173/#/classics');await page.getByRole('button',{name:'Add Classic',exact:true}).click();await search();assert.equal(await page.locator('.search-row .meta').first().textContent(),'1999 · 110 min');assert.equal(await page.locator('.search-row .film-director').first().textContent(),'Jane Smith');assert.equal(await overflow(),false);
+  await page.goto('http://localhost:10080/#/classics');await page.getByRole('button',{name:'Add Classic',exact:true}).click();await search();assert.equal(await page.locator('.search-row .meta').first().textContent(),'1999 · 110 min');assert.equal(await page.locator('.search-row .film-director').first().textContent(),'Jane Smith');assert.equal(await overflow(),false);
   await page.screenshot({path:'.verification/builder-search/'+width+'-classic-search.png',fullPage:true});
-  await page.goto('http://localhost:4173/?other-turn=1#/builder');await page.getByRole('button',{name:'New set'}).click();await search();await page.locator('.builder-result-add').first().click();assert.equal(await page.getByRole('button',{name:'Use set',exact:true}).isDisabled(),true);await page.screenshot({path:'.verification/builder-search/'+width+'-other-turn.png',fullPage:true});
+  await page.goto('http://localhost:10080/?other-turn=1#/builder');await page.getByRole('button',{name:'New set'}).click();await search();await page.locator('.builder-result-add').first().click();assert.equal(await page.getByRole('button',{name:'Use set',exact:true}).isDisabled(),true);await page.screenshot({path:'.verification/builder-search/'+width+'-other-turn.png',fullPage:true});
   console.log(width+'px Builder/detail/Use set/Event/Add Classic passed');
  }
  assert.deepEqual(errors,[]);

@@ -20,6 +20,6 @@ export async function configuration() {
   return config;
 }
 export const portOpen = () => new Promise<boolean>(done => {
-  const socket = createConnection({host:'127.0.0.1',port:8787});
+  const socket = createConnection({host:'127.0.0.1',port:10083});
   socket.once('connect',() => {socket.destroy(); done(true);}); socket.once('error',() => done(false));
 });

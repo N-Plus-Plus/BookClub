@@ -6,7 +6,7 @@ import viteConfig from '../vite.config';
 describe('safe importer operation errors and output boundaries',()=>{
  it('pins preview UI requests to localhost independently of production env configuration',async()=>{
   const preview=await viteConfig({command:'serve',mode:'import-preview',isPreview:false});
-  expect(preview.define?.['import.meta.env.VITE_API_BASE_URL']).toBe(JSON.stringify('http://localhost:8787'));
+  expect(preview.define?.['import.meta.env.VITE_API_BASE_URL']).toBe(JSON.stringify('http://localhost:10083'));
   const build=await viteConfig({command:'build',mode:'production',isPreview:false});expect(build.define).toBeUndefined();
  });
  it('distinguishes missing workbook/config and invalid JSON/config without echoing contents',async()=>{

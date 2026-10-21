@@ -16,7 +16,7 @@ function fixture(count=1) {
     local.sqlite.prepare("INSERT INTO movie_external_ids VALUES(?,'imdb',?)").run(id,`tt${String(i).padStart(7,'0')}`);
     local.sqlite.prepare("INSERT INTO classics(movie_id,source) VALUES(?,'member-added')").run(id);
   }
-  const env:Env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'false',ALLOWED_ORIGINS:'http://localhost:4173',TMDB_READ_TOKEN:'fictional',MDBLIST_API_KEY:'fictional',OMDB_API_KEY:'fictional'};
+  const env:Env={DB:local.db,APP_ENV:'local',LOCAL_WRITE_BYPASS:'false',ALLOWED_ORIGINS:'http://localhost:10080',TMDB_READ_TOKEN:'fictional',MDBLIST_API_KEY:'fictional',OMDB_API_KEY:'fictional'};
   const repo=new Repository(local.db),service=new UnifiedMaintenanceService(repo,env);
   return {local,env,repo,service};
 }
