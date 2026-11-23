@@ -1,101 +1,66 @@
-# ROADMAP.md
+<!-- Document ceiling: 90 lines; 5,800 characters including metadata. On overflow, apply AGENTS.md decision rule. -->
+# Approved future outcomes
 
-This file holds owner-approved future outcomes and standing blockers, not implementation history, transient errors or an agent-created backlog.
+> **Repository instruction precedence:** [AGENTS.md](AGENTS.md) governs agent operating rules, owner-authorised requirements changes and unresolved conflicts.
 
-## Rules
+This file is the repository's **future-only owner decision register**. It contains only owner-approved unfinished outcomes. It is not an implementation diary, completed-work history, speculative wishlist, test backlog, or permission for Codex to begin work. A task prompt still identifies what may be implemented now.
 
-- Add, reprioritise or remove ordinary work only at the owner’s request or approval. Ask when sequencing is ambiguous; do not renumber existing work to make room.
-- Preserve existing approved priorities. Lower numbers are more urgent; equal priorities retain stable order. Show the first five active entries on recall unless asked for more.
-- Report genuine current-task blockers immediately in the task response. Record standing blockers only with owner approval.
-- Priority 0 remains available for owner-assigned urgent work. Priority 0.5 remains reserved for owner-approved stale-test maintenance; observed failures and diagnosis belong in the task response until recording is approved.
-- Describe desired outcomes and necessary dependencies. Do not automatically add speculative ideas, failing-test backlogs or activity reports.
-- Remove completed work. Durable facts belong in the owning specialist authority; confirmed state belongs in [README](README.md#current-state).
+## Roadmap entry convention
 
-## Current roadmap
+Every approved unfinished outcome uses one unique level-three heading:
 
-### Priority 1 - Data Health and Exceptions
-Status: Completion/acceptance not confirmed. Source already includes frontend/DataHealth.tsx and the read-only /api/v1/admin/data-health endpoint; retain this approved outcome until remaining scope and owner acceptance are established.
+`### P<number> - Short title`
 
-Add an Admin-facing diagnostic view that makes film records requiring human attention easy to identify, inspect and resolve without ad hoc database queries.
+`P<number>` is the repository-local roadmap identifier and a loose priority/order signal. Lower numbers normally indicate earlier or more important work. Prefer gaps when assigning new IDs, commonly P10, P20, P30, so later items can be inserted without broad renumbering. Keep an existing ID stable unless the owner explicitly reprioritises that outcome. Gaps are valid and should not be tidied for appearance.
 
-Surface actionable exceptions including missing IMDb or TMDB identities, identity conflicts, unresolved metadata, missing artwork, stale or incomplete enrichment, failed or inconclusive provider checks, and outstanding collection-roster evidence. Include films introduced through AI Predictions and other catalogue entry points where relevant.
+Each P heading represents exactly one outcome. Do not use one P heading as a priority bucket containing several independent features.
 
-Present useful context such as affected film, provider, exception type, severity, last checked date and appropriate next action, with navigation to the affected record.
+The body beneath the heading, up to the next `### P<number> - ...` heading, is the outcome description. It may be one sentence or several paragraphs/bullets. Describe the desired result and material boundaries, not an internal implementation plan.
 
-Reuse existing authoritative maintenance status, coverage and cache evidence rather than redefining provider health. This is a diagnostic worklist, not another bulk-maintenance engine.
+Dependencies are optional. When useful, end the entry with:
 
-Depends on: None
+`Depends on: P10, P20`
 
-### Priority 3 - Non-movie screen works
-Status: Incomplete
+Omit the line when there is no meaningful dependency. Do not add mandatory Status, Owner, Complexity, dates, estimates or other project-management fields. Presence in this file already means **approved and unfinished**.
 
-Support non-movie screen works such as television series, miniseries and anthology episodes.
+Example:
 
-Establish an appropriate content model and identity granularity before implementation, addressing provider identity, canonical records, runtime/year/title presentation, search/import behaviour and suitable UI treatment rather than simply allowing television records into the existing movie model.
+```markdown
+### P10 - Short outcome title
 
-Preserve existing movie behaviour and historical records.
+Concise description of the intended result. Add detail only where it preserves an important product boundary or decision.
 
-Depends on: None
+Depends on: P5
+```
 
-### Priority 3 - Personal member retrospective
-Status: Incomplete
+## Approved unfinished work
 
-Provide a curated personal retrospective for an individual BookClub member, distinct from the existing participant-filtered Metrics reports.
+### P30 - Non-movie screen works
 
-Present an approachable account of their club history through measures such as turns hosted, films brought, accumulated runtime, characteristic genres, directors and recurring themes. Emphasise interesting personal patterns and historical milestones rather than competition or comparative scoring.
+Support television series, miniseries, anthology episodes and other non-movie screen works. Establish content and provider identity granularity, canonical records, runtime/year/title presentation, search/import and appropriate UI treatment. Preserve movie behaviour and historical records.
 
-Derive information from existing History and Metrics data without introducing unnecessary persisted aggregates or duplicating existing analytical reports.
+### P31 - Personal member retrospective
 
-Depends on: None
+Provide a curated retrospective for an individual member, distinct from participant-filtered Metrics. Use existing History and Metrics to show hosting, films brought, runtime, characteristic genres, directors, themes and milestones. Emphasise personal patterns over comparisons, without unnecessary persisted aggregates or duplicate reports.
 
-### Priority 3 - History search
-Status: Incomplete
+### P32 - History search
 
-Add a lightweight way to search BookClub History by film title so a user can quickly establish whether, when and by whom a film was previously brought.
+Search History by film title to find whether, when and by whom a film was brought. Preserve repeated appearances, ordering, filtering and pagination. Show year and event context and link to the relevant historical record.
 
-Use existing canonical History records, preserving repeated appearances, current ordering, filtering and pagination behaviour. Show sufficient identifying context, such as year and event, to distinguish matching films and navigate directly to the relevant historical record.
+### P33 - Metrics title uniformity
 
-Keep this focused on historical appearances rather than expanding it into a general catalogue search.
+Revisit Metrics typography using the [display-case audit](docs/audits/METRICS_TYPOGRAPHY_AUDIT.md). Assess titles, labels, legends and other cases separately to identify which differences should be unified and which have a deliberate semantic or responsive purpose.
 
-Depends on: None
+### P50 - Cross-device freshness
 
-### Priority 3 - Metrics title uniformity
-Status: Incomplete
+Help open sessions detect changes from another device or browser. Prefer focus or age-based revalidation before continuous polling, reusing refresh and reconciliation mechanisms while protecting unsaved work, pending Seen answers and ongoing interactions.
 
-Revisit Metrics title uniformity and related typography using the [Metrics typography audit by display case](docs/audits/METRICS_TYPOGRAPHY_AUDIT.md). Assess titles, labels, legends and other display cases separately, identifying which differences should be unified and which serve a deliberate semantic or responsive purpose.
+## Maintenance
 
-Depends on: None
+When the owner approves a new future outcome, add one P entry under **Approved unfinished work** using the convention above. Do not add speculative improvements discovered during unrelated tasks without owner approval.
 
-### Priority 5 - Cross-device freshness
-Status: Incomplete
+When an outcome is substantively complete, remove its P entry. Preserve enduring requirements or implementation facts in the relevant specialist authority instead. Do not retain completed implementation as roadmap history merely because routine verification, documentation, deployment or owner acceptance has not yet been recorded, unless that remaining work is itself a meaningful owner-approved future outcome.
 
-Improve how an already-open BookClub session notices legitimate changes made from another device or browser.
+Keep only genuinely unfinished scope. Split combined legacy entries into separate P entries when they describe independently deliverable outcomes. Consolidate substantively duplicate entries rather than carrying parallel descriptions of the same future work.
 
-Prefer lightweight refresh-on-focus or age-based revalidation before considering continuous polling. Reuse existing catalogue refresh and mutation reconciliation mechanisms while protecting unsaved work, pending Seen answers and in-progress interactions.
-
-The goal is to reduce surprising stale screens without unnecessary background traffic or synchronisation complexity.
-
-Depends on: None
-
-<!--
-Ordinary item format:
-
-### Priority 1 - Short title
-Status: Incomplete
-
-Concise intended outcome.
-
-Depends on: None
-
-
-Stale test format:
-
-### Priority 0.5 - test name or short diagnosis
-Status: Incomplete
-
-Test: path/to/test :: case name
-Failure: ...
-Why likely stale: ...
-Likely correction: ...
-Uncertainty: ...
--->
+If no approved unfinished outcomes remain, keep this file and the conventions above, with `None.` under **Approved unfinished work**.
