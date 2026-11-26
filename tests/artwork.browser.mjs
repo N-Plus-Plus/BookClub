@@ -1,9 +1,9 @@
 // Run against local Vite. All application API calls and image bytes are intercepted.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
+import { chromium } from './global-playwright.cjs';
 const fixture=JSON.parse(await fs.readFile('.verification/artwork-snapshot.json','utf8'));
-const browser=await chromium.launch({headless:true,executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
+const browser=await chromium.launch({headless:true,});
 const context=await browser.newContext(),page=await context.newPage();
 const member=fixture.before.members[0],film=fixture.after.movies.find(m=>m.id===fixture.sample[0]);
 let enriched=false,calls=0,failImage=false;

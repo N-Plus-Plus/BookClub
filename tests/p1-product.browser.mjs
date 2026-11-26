@@ -1,10 +1,10 @@
 // Synthetic responsive AU availability/Classics attestation; all provider/API requests blocked.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
+import { chromium } from './global-playwright.cjs';
 const source=await (await fetch('http://localhost:10260/frontend/main.tsx')).text();
 const reactUrl=source.match(/from "([^"\n]+\/react\.js[^"\n]*)"/)[1],domUrl=source.match(/from "([^"\n]+\/react-dom_client\.js[^"\n]*)"/)[1];
-const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
+const browser=await chromium.launch({headless:true});
 await fs.mkdir('.verification/p1-product',{recursive:true});
 try{
  const page=await browser.newPage(),errors=[];page.on('pageerror',error=>{errors.push(error.message);console.error(error.message);});

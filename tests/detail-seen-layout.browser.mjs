@@ -1,8 +1,8 @@
 // Focused, synthetic Film Detail render; requires local Vite and optional Playwright.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-const { chromium } = await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
-const browser = await chromium.launch({ executablePath: process.env.BOOKCLUB_BROWSER_PATH || (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : undefined), headless: true });
+import { chromium } from './global-playwright.cjs';
+const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage();
   page.setDefaultTimeout(15000);

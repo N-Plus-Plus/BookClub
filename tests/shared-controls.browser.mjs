@@ -1,10 +1,10 @@
 // Synthetic History pagination/confirmation review; local Vite and optional Playwright only.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
+import { chromium } from './global-playwright.cjs';
 const source=await (await fetch('http://localhost:10260/frontend/main.tsx')).text();
 const reactUrl=source.match(/from "([^"\n]+\/react\.js[^"\n]*)"/)[1],domUrl=source.match(/from "([^"\n]+\/react-dom_client\.js[^"\n]*)"/)[1];
-const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
+const browser=await chromium.launch({headless:true});
 try {
  const page=await browser.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));page.on('dialog',()=>{throw new Error('Unexpected browser-native dialog');});
  await page.route('**/*',route=>['localhost','127.0.0.1'].includes(new URL(route.request().url()).hostname)?route.fallback():route.abort());

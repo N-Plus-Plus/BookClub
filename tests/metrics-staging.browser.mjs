@@ -2,9 +2,9 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const inventory=JSON.parse(fs.readFileSync('tests/helpers/metrics-inventory.ts','utf8').split('export const metricsInventory = ')[1].split(' as const;')[0]);
-const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
+import { chromium } from './global-playwright.cjs';
 const output='.verification/metrics-staging';fs.mkdirSync(output,{recursive:true});
-const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
+const browser=await chromium.launch({headless:true});
 const page=await browser.newPage(),errors=[],samples=[];
 page.on('pageerror',error=>errors.push(error.message));
 await page.route('**/*',route=>{const url=new URL(route.request().url());return ['localhost','127.0.0.1'].includes(url.hostname)?route.fallback():route.abort();});

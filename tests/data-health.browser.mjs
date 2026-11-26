@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { metricsFixture } from './metrics-fixture.ts';
-const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
-const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
+import { chromium } from './global-playwright.cjs';
+const browser=await chromium.launch({headless:true});
 const out='.verification/data-health';await fs.mkdir(out,{recursive:true});
 const catalog=metricsFixture(),requests=[],errors=[],checks=[];
 const film={id:catalog.movies[0].id,title:'A long film title for inspecting multiple overlapping locations and individual exceptions',year:2000,external_ids:[{provider:'imdb',external_id:'tt1234567'},{provider:'tmdb',external_id:'123'}],locations:[{kind:'history',label:'Active History · Hosted · A participant with a long name · 3 appearances'},{kind:'dq',label:'Disqualified Classic'},{kind:'builder',label:'Private saved Builder membership · 2 sets'}],issues:[{code:'director',category:'metadata',priority:'actionable',label:'Missing director',explanation:'omdb: unchecked; tmdb: inconclusive · attempted 2026-10-01T00:00:00.000Z'},{code:'identity',category:'identity',priority:'actionable',label:'Conflicting IMDb identity',explanation:'MDBList claims tt9999999; canonical identity is tt1234567.',provider:'mdblist',identity:'tt9999999',checkedAt:'2026-10-01T00:00:00.000Z'},{code:'poster',category:'artwork',priority:'confirmed',label:'Missing poster artwork',explanation:'Provider confirmed absence.'}]};

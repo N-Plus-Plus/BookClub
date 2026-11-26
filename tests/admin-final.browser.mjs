@@ -1,11 +1,11 @@
 // Local rendered style contract. All API functions are synthetic and every external request is blocked.
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
+import { chromium } from './global-playwright.cjs';
 const phase=process.env.BOOKCLUB_STYLE_PHASE || 'after';
 const output='.verification/admin-final/rendered/'+phase;
 fs.mkdirSync(output,{recursive:true});
-const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
+const browser=await chromium.launch({headless:true});
 const page=await browser.newPage(),errors=[],blocked=[],samples=[];
 page.on('pageerror',e=>errors.push(e.message));
 await page.route('**/*',r=>{const u=new URL(r.request().url());if(['localhost','127.0.0.1'].includes(u.hostname))return r.fallback();blocked.push(u.hostname);return r.abort();});

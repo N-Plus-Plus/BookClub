@@ -9,13 +9,13 @@ async function applicationCss(path='frontend/app.css') {
  return imports.reduce((css,match,i)=>css.replace(match[0],contents[i]),source);
 }
 const currentCss=await applicationCss();
-const {chromium}=await import(process.env.BOOKCLUB_PLAYWRIGHT_MODULE || '../.verification/node_modules/playwright/index.mjs');
+import { chromium } from './global-playwright.cjs';
 const baselineIndex=process.argv.indexOf('--baseline');
 const baseline=baselineIndex<0?null:await fs.readFile(process.argv[baselineIndex+1],'utf8');
 const source=await (await fetch('http://localhost:10260/frontend/main.tsx')).text();
 const reactUrl=source.match(/from "([^"]+\/react\.js[^"]*)"/)[1];
 const domUrl=source.match(/from "([^"]+\/react-dom_client\.js[^"]*)"/)[1];
-const browser=await chromium.launch({executablePath:process.env.BOOKCLUB_BROWSER_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
+const browser=await chromium.launch({headless:true});
 const evidence=[];
 try {
  const page=await browser.newPage(),errors=[];page.setDefaultTimeout(30000);page.on('pageerror',e=>errors.push(e.message));
